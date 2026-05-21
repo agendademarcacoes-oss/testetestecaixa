@@ -6053,157 +6053,147 @@
         }
 
         function filterStoreProducts() {
-            const searchTerm = document.getElementById('storeSearch').value.toLowerCase().trim();
-            const activeFilter = document.querySelector('.filter-button.active')?.getAttribute('data-filter') || 'all';
-            const productCards = document.querySelectorAll('#storeProductList .col-md-4');
-            let visibleCount = 0;
-            
-            console.log('Filtro ativo:', activeFilter); // Para debug
-            console.log('Termo de busca:', searchTerm);
-            
-            productCards.forEach(card => {
-                const productCard = card.querySelector('.product-card');
-                const name = (productCard.getAttribute('data-product-name') || '').toLowerCase();
-                const description = (productCard.getAttribute('data-product-description') || '').toLowerCase();
-                const category = (productCard.getAttribute('data-product-category') || '').toLowerCase();
-                
-                console.log('Produto:', name, 'Categoria:', category); // Para debug
-                
-                // Aplicar filtro de busca
-                let matchesSearch = true;
-                if (searchTerm) {
-                    matchesSearch = name.includes(searchTerm) || 
-                                   description.includes(searchTerm) || 
-                                   category.includes(searchTerm);
-                }
-                
-                // Aplicar filtro de categoria
-                let matchesFilter = true;
-                if (activeFilter !== 'all') {
-                    // Verificar se o filtro atual corresponde à categoria do produto
-                    matchesFilter = category.includes(activeFilter);
-                    
-                    // Também verificar no nome e descrição como fallback
-                    if (!matchesFilter) {
-                        matchesFilter = name.includes(activeFilter) || description.includes(activeFilter);
-                    }
-                }
-                
-                if (matchesSearch && matchesFilter) {
-                    card.style.display = '';
-                    visibleCount++;
-                } else {
-                    card.style.display = 'none';
-                }
-            });
-            
-            document.getElementById('productsCount').textContent = `${visibleCount} produto(s) encontrado(s)`;
+    const searchTerm = document.getElementById('storeSearch').value.toLowerCase().trim();
+    const activeFilter = document.querySelector('.filter-button.active')?.getAttribute('data-filter') || 'all';
+    const productItems = document.querySelectorAll('#storeProductList .product-item');
+    let visibleCount = 0;
+    
+    productItems.forEach(item => {
+        const name = item.getAttribute('data-product-name') || '';
+        const description = item.getAttribute('data-product-description') || '';
+        const category = item.getAttribute('data-product-category') || '';
+        
+        // Aplicar filtro de busca
+        let matchesSearch = true;
+        if (searchTerm) {
+            matchesSearch = name.includes(searchTerm) || 
+                           description.includes(searchTerm) || 
+                           category.includes(searchTerm);
         }
+        
+        // Aplicar filtro de categoria
+        let matchesFilter = true;
+        if (activeFilter !== 'all') {
+            matchesFilter = category.includes(activeFilter) ||
+                           name.includes(activeFilter) || 
+                           description.includes(activeFilter);
+        }
+        
+        if (matchesSearch && matchesFilter) {
+            item.style.display = '';
+            visibleCount++;
+        } else {
+            item.style.display = 'none';
+        }
+    });
+    
+    document.getElementById('productsCount').textContent = `${visibleCount} produto(s) encontrado(s)`;
+}
         function sortStoreProducts() {
-            const sortBy = document.getElementById('sortProducts').value;
-            const container = document.getElementById('storeProductList');
-            const cards = Array.from(container.querySelectorAll('.col-md-4'));
-            
-            cards.sort((a, b) => {
-                const productA = a.querySelector('.product-card');
-                const productB = b.querySelector('.product-card');
-                
-                const nameA = productA.getAttribute('data-product-name');
-                const nameB = productB.getAttribute('data-product-name');
-                const priceA = parseFloat(productA.getAttribute('data-product-price'));
-                const priceB = parseFloat(productB.getAttribute('data-product-price'));
-                
-                switch(sortBy) {
-                    case 'price-asc':
-                        return priceA - priceB;
-                    case 'price-desc':
-                        return priceB - priceA;
-                    case 'name-asc':
-                        return nameA.localeCompare(nameB);
-                    case 'name-desc':
-                        return nameB.localeCompare(nameA);
-                    default:
-                        return 0;
-                }
-            });
-            
-            // Reordenar os cards
-            cards.forEach(card => container.appendChild(card));
+    const sortBy = document.getElementById('sortProducts').value;
+    const container = document.getElementById('storeProductList');
+    const items = Array.from(container.querySelectorAll('.product-item'));
+    
+    items.sort((a, b) => {
+        const nameA = a.getAttribute('data-product-name') || '';
+        const nameB = b.getAttribute('data-product-name') || '';
+        const priceA = parseFloat(a.getAttribute('data-product-price')) || 0;
+        const priceB = parseFloat(b.getAttribute('data-product-price')) || 0;
+        
+        switch(sortBy) {
+            case 'price-asc':
+                return priceA - priceB;
+            case 'price-desc':
+                return priceB - priceA;
+            case 'name-asc':
+                return nameA.localeCompare(nameB);
+            case 'name-desc':
+                return nameB.localeCompare(nameA);
+            default:
+                return 0;
         }
+    });
+    
+    // Reordenar os cards
+    items.forEach(item => container.appendChild(item));
+}
+
+
+
+
+
+function escapeHtml(text) {
+    if (!text) return '';
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+
 
         // NOVA FUNÇÃO: Renderizar a Loja (APENAS PRODUTOS ATIVOS)
         function renderStore() {
-            const container = document.getElementById('storeProductList');
-            if (!container) return;
-            
-            // Filtrar apenas produtos ativos (active === true ou não definido para compatibilidade)
-            const activeProducts = products.filter(product => product.active !== false);
-            
-            if (activeProducts.length === 0) {
-                container.innerHTML = '<div class="col-12"><div class="alert alert-info text-center">Nenhum produto ativo disponível na loja no momento.</div></div>';
-                document.getElementById('productsCount').textContent = '0 produto(s) encontrado(s)';
-                return;
-            }
-            
-            let html = '';
-            activeProducts.forEach(product => {
-                // Verificar se o produto tem imagem, senão usar placeholder
-                const imageUrl = product.imageUrl || '';
-                const isLowStock = product.quantity <= product.minQuantity;
-                
-                // Usar classes do Bootstrap para grid responsivo
-                html += `
-                    <div class="col-md-4 col-lg-3 col-6 mb-4">
-                        <div class="product-card" data-product-id="${product.id}" data-product-name="${product.name}" data-product-price="${product.salePrice}" data-product-description="${product.description || ''}" data-product-stock="${product.quantity}" data-product-category="${product.category || ''}">
-                            <div class="product-image-container" onclick="showProductPopup('${product.id}')">
-                                ${imageUrl ? 
-                                    `<img src="${imageUrl}" class="product-image" alt="${product.name}" onerror="this.onerror=null; this.style.display='none'; this.parentElement.innerHTML='<div class=\\'product-image-placeholder\\'><i class=\\'fas fa-box\\'></i></div>';">` : 
-                                    `<div class="product-image-placeholder"><i class="fas fa-box"></i></div>`
-                                }
-                            </div>
-                            <div class="product-details">
-                                <h5 class="product-name">${product.name}</h5>
-                                <p class="product-description">${product.description ? product.description.substring(0, 50) + (product.description.length > 50 ? '...' : '') : 'Sem descrição'}</p>
-                                <p class="product-price">${formatCurrency(product.salePrice)}</p>
-                                <div class="product-stock-badge ${isLowStock ? 'bg-warning' : 'bg-success'} text-white">
-                                    ${isLowStock ? 'Últimas unidades!' : `${product.quantity} em estoque`}
-                                </div>
-                            </div>
-                            <div class="product-actions">
-                                <button class="btn btn-success" onclick="buyProduct('${product.id}', '${product.name}', ${product.salePrice})">
-                                    <i class="fab fa-whatsapp me-2"></i>Comprar
-                                </button>
-                            </div>
+    const container = document.getElementById('storeProductList');
+    if (!container) return;
+    
+    // Filtrar apenas produtos ativos (active === true ou não definido para compatibilidade)
+    const activeProducts = products.filter(product => product.active !== false);
+    
+    if (activeProducts.length === 0) {
+        container.innerHTML = '<div class="col-12"><div class="alert alert-info text-center">Nenhum produto ativo disponível na loja no momento.</div></div>';
+        document.getElementById('productsCount').textContent = '0 produto(s) encontrado(s)';
+        return;
+    }
+    
+    let html = '';
+    activeProducts.forEach(product => {
+        const imageUrl = product.imageUrl || '';
+        const isLowStock = product.quantity <= product.minQuantity;
+        
+        html += `
+            <div class="col-md-4 col-lg-3 col-6 mb-4 product-item" data-product-name="${escapeHtml(product.name).toLowerCase()}" data-product-price="${product.salePrice}" data-product-description="${escapeHtml(product.description || '').toLowerCase()}" data-product-category="${(product.category || '').toLowerCase()}">
+                <div class="product-card" data-product-id="${product.id}">
+                    <div class="product-image-container" onclick="showProductPopup('${product.id}')">
+                        ${imageUrl ? 
+                            `<img src="${imageUrl}" class="product-image" alt="${escapeHtml(product.name)}" onerror="this.onerror=null; this.style.display='none'; this.parentElement.innerHTML='<div class=\\'product-image-placeholder\\'><i class=\\'fas fa-box\\'></i></div>';">` : 
+                            `<div class="product-image-placeholder"><i class="fas fa-box"></i></div>`
+                        }
+                    </div>
+                    <div class="product-details">
+                        <h5 class="product-name">${escapeHtml(product.name)}</h5>
+                        <p class="product-description">${product.description ? escapeHtml(product.description.substring(0, 50)) + (product.description.length > 50 ? '...' : '') : 'Sem descrição'}</p>
+                        <p class="product-price">${formatCurrency(product.salePrice)}</p>
+                        <div class="product-stock-badge ${isLowStock ? 'bg-warning' : 'bg-success'} text-white">
+                            ${isLowStock ? 'Últimas unidades!' : `${product.quantity} em estoque`}
                         </div>
                     </div>
-                `;
+                    <div class="product-actions">
+                        <button class="btn btn-success" onclick="buyProduct('${product.id}', '${escapeHtml(product.name)}', ${product.salePrice})">
+                            <i class="fab fa-whatsapp me-2"></i>Comprar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+    document.getElementById('productsCount').textContent = `${activeProducts.length} produto(s) encontrado(s)`;
+    
+    // Adicionar evento de clique nos cards para mobile
+    if (window.innerWidth <= 768) {
+        document.querySelectorAll('.product-card').forEach(card => {
+            card.addEventListener('click', function(e) {
+                if (e.target.closest('.btn-success')) return;
+                const productId = this.getAttribute('data-product-id');
+                if (productId) showProductPopup(productId);
             });
-            
-            container.innerHTML = html;
-            document.getElementById('productsCount').textContent = `${activeProducts.length} produto(s) encontrado(s)`;
-            
-            // Reaplicar filtros após renderizar
-            filterStoreProducts();
-
-            // No final da função renderStore(), adicione:
-            console.log('Loja renderizada com', activeProducts.length, 'produtos ativos');
-            debugProductCategories(); // Para ver as categorias no console
-            
-            // Adicionar evento de clique nos cards para mobile
-            if (window.innerWidth <= 768) {
-                document.querySelectorAll('.product-card').forEach(card => {
-                    card.addEventListener('click', function(e) {
-                        // Não abrir popup se clicou no botão de comprar
-                        if (e.target.closest('.btn-success')) return;
-                        
-                        const productId = this.getAttribute('data-product-id');
-                        if (productId) {
-                            showProductPopup(productId);
-                        }
-                    });
-                });
-            }
-        }
+        });
+    }
+}
 
         function debugProductCategories() {
             console.log('=== DEBUG CATEGORIAS DE PRODUTOS ===');
