@@ -6126,17 +6126,20 @@
 
         // NOVA FUNÇÃO: Renderizar a Loja com imagens carregadas
         function renderStore() {
-            const container = document.getElementById('storeProductList');
-            if (!container) return;
-            
-            if (products.length === 0) {
-                container.innerHTML = '<div class="col-12"><div class="alert alert-info text-center">Nenhum produto disponível na loja no momento.</div></div>';
-                document.getElementById('productsCount').textContent = '0 produto(s) encontrado(s)';
-                return;
-            }
-            
-            let html = '';
-            products.forEach(product => {
+    const container = document.getElementById('storeProductList');
+    if (!container) return;
+    
+    // FILTRO: Mostrar apenas produtos ATIVOS
+    const activeProducts = products.filter(product => product.active !== false);
+    
+    if (activeProducts.length === 0) {
+        container.innerHTML = '<div class="col-12"><div class="alert alert-info text-center">Nenhum produto disponível na loja no momento.</div></div>';
+        document.getElementById('productsCount').textContent = '0 produto(s) encontrado(s)';
+        return;
+    }
+    
+    let html = '';
+    activeProducts.forEach(product => {
                 // Verificar se o produto tem imagem, senão usar placeholder
                 const imageUrl = product.imageUrl || '';
                 const isLowStock = product.quantity <= product.minQuantity;
@@ -7474,6 +7477,7 @@
         function updateInventoryUI() {
             const tbody = document.getElementById('inventoryTable');
             
+            
             if (products.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Nenhum produto cadastrado.</td></tr>';
                 updateInventorySummary();
@@ -7502,33 +7506,62 @@
                     '<i class="fas fa-box fa-2x text-muted"></i>';
                 
                 html += `
-                    <tr class="${isLowStock ? 'low-stock' : ''}">
-                        <td>${product.name}</td>
-                        <td>${imageHtml}</td>
-                        <td>${product.quantity}</td>
-                        <td>${product.minQuantity}</td>
-                        <td>${formatCurrency(product.purchasePrice)}</td>
-                        <td>${formatCurrency(product.salePrice)}</td>
-                        <td>
-                            <span class="badge ${isLowStock ? 'bg-danger' : 'bg-success'}">
-                                ${isLowStock ? 'Estoque Baixo' : 'Normal'}
-                            </span>
-                        </td>
-                        <td>
-                            <button class="btn btn-sm btn-primary me-1" onclick="editProduct('${product.id}')">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="btn btn-sm btn-danger" onclick="deleteProduct('${product.id}')">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </td>
-                    </tr>
-                `;
-            });
+    <tr class="${isLowStock ? 'low-stock' : ''}">
+        <td>${product.name}</td>
+        <td>${imageHtml}</td>
+        <td>${product.quantity}</td>
+        <td>${product.minQuantity}</td>
+        <td>${formatCurrency(product.purchasePrice)}</td>
+        <td>${formatCurrency(product.salePrice)}</td>
+        <td>
+            <span class="badge ${isLowStock ? 'bg-danger' : 'bg-success'}">
+                ${isLowStock ? 'Estoque Baixo' : 'Normal'}
+            </span>
+        </td>
+        <td>
+            <!-- NOVO CHECKBOX ATIVO/INATIVO -->
+            <div class="form-check form-switch d-inline-block me-2" style="min-width: 60px;">
+                <input class="form-check-input product-active-toggle" 
+                       type="checkbox" 
+                       id="activeToggle-${product.id}" 
+                       data-product-id="${product.id}"
+                       ${product.active !== false ? 'checked' : ''}
+                       style="transform: scale(1.2); cursor: pointer;">
+                <label class="form-check-label small ${product.active !== false ? 'text-success' : 'text-danger'}" 
+                       for="activeToggle-${product.id}"
+                       id="label-${product.id}">
+                    ${product.active !== false ? 'Ativo' : 'Inativo'}
+                </label>
+            </div>
+            
+            <button class="btn btn-sm btn-primary me-1" onclick="editProduct('${product.id}')">
+                <i class="fas fa-edit"></i>
+            </button>
+            <button class="btn btn-sm btn-danger" onclick="deleteProduct('${product.id}')">
+                <i class="fas fa-trash"></i>
+            </button>
+         </td>
+     </tr>
+`;
             
             tbody.innerHTML = html;
             updateInventorySummary(totalProducts = products.length, lowStockCount, totalValue, totalInvestment);
         }
+
+                             // Adicionar eventos aos checkboxes de ativo/inativo
+document.querySelectorAll('.product-active-toggle').forEach(toggle => {
+    // Remover evento antigo para evitar duplicação
+    toggle.removeEventListener('change', window._toggleHandler);
+    
+    const handler = function(e) {
+        e.stopPropagation();
+        const productId = this.getAttribute('data-product-id');
+        toggleProductActiveStatus(productId, this);
+    };
+    
+    toggle.addEventListener('change', handler);
+    toggle._toggleHandler = handler; // Guardar referência
+});
 
         function updateInventorySummary(totalProducts, lowStockCount, totalValue, totalInvestment) {
             document.getElementById('totalProducts').textContent = totalProducts;
@@ -8990,6 +9023,7 @@
                     description: description,
                     category: category,
                     imageUrl: imageUrl || null,
+                    active: true,  // <--- NOVO: produto ativo por padrão
                     userId: currentUser.uid,
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 };
@@ -11252,29 +11286,43 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                     '<i class="fas fa-box fa-2x text-muted"></i>';
                 
                 html += `
-                    <tr class="${isLowStock ? 'low-stock' : ''}">
-                        <td>${product.name}</td>
-                        <td>${imageHtml}</td>
-                        <td>${product.quantity}</td>
-                        <td>${product.minQuantity}</td>
-                        <td>${formatCurrency(product.purchasePrice)}</td>
-                        <td>${formatCurrency(product.salePrice)}</td>
-                        <td>
-                            <span class="badge ${isLowStock ? 'bg-danger' : 'bg-success'}">
-                                ${isLowStock ? 'Estoque Baixo' : 'Normal'}
-                            </span>
-                        </td>
-                        <td>
-                            <button class="btn btn-sm btn-primary me-1" onclick="editProduct('${product.id}')">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="btn btn-sm btn-danger" onclick="deleteProduct('${product.id}')">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </td>
-                    </tr>
-                `;
-            });
+    <tr class="${isLowStock ? 'low-stock' : ''}">
+        <td>${product.name}</td>
+        <td>${imageHtml}</td>
+        <td>${product.quantity}</td>
+        <td>${product.minQuantity}</td>
+        <td>${formatCurrency(product.purchasePrice)}</td>
+        <td>${formatCurrency(product.salePrice)}</td>
+        <td>
+            <span class="badge ${isLowStock ? 'bg-danger' : 'bg-success'}">
+                ${isLowStock ? 'Estoque Baixo' : 'Normal'}
+            </span>
+        </td>
+        <td>
+            <!-- NOVO CHECKBOX ATIVO/INATIVO -->
+            <div class="form-check form-switch d-inline-block me-2" style="min-width: 60px;">
+                <input class="form-check-input product-active-toggle" 
+                       type="checkbox" 
+                       id="activeToggle-${product.id}" 
+                       data-product-id="${product.id}"
+                       ${product.active !== false ? 'checked' : ''}
+                       style="transform: scale(1.2); cursor: pointer;">
+                <label class="form-check-label small ${product.active !== false ? 'text-success' : 'text-danger'}" 
+                       for="activeToggle-${product.id}"
+                       id="label-${product.id}">
+                    ${product.active !== false ? 'Ativo' : 'Inativo'}
+                </label>
+            </div>
+            
+            <button class="btn btn-sm btn-primary me-1" onclick="editProduct('${product.id}')">
+                <i class="fas fa-edit"></i>
+            </button>
+            <button class="btn btn-sm btn-danger" onclick="deleteProduct('${product.id}')">
+                <i class="fas fa-trash"></i>
+            </button>
+         </td>
+     </tr>
+`;
             
             tbody.innerHTML = html;
             
@@ -13782,7 +13830,46 @@ function sendWhatsAppToInactive(clientId, phone) {
 
 
 
-
+// Função para alternar o status ativo/inativo do produto
+async function toggleProductActiveStatus(productId, checkboxElement) {
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+    
+    const newStatus = checkboxElement.checked;
+    const label = document.getElementById(`label-${productId}`);
+    
+    // Atualizar visual imediatamente
+    if (label) {
+        label.textContent = newStatus ? 'Ativo' : 'Inativo';
+        label.className = `form-check-label small ${newStatus ? 'text-success' : 'text-danger'}`;
+    }
+    
+    // Atualizar no banco de dados
+    try {
+        await db.collection('products').doc(productId).update({
+            active: newStatus,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        
+        // Atualizar o array local de produtos
+        product.active = newStatus;
+        
+        // Re-renderizar a loja (para esconder/mostrar o produto)
+        renderStore();
+        
+        showSuccess(`Produto ${newStatus ? 'ativado' : 'desativado'} com sucesso!`);
+        
+    } catch (error) {
+        console.error('Erro ao alterar status do produto:', error);
+        // Reverter o checkbox em caso de erro
+        checkboxElement.checked = !newStatus;
+        if (label) {
+            label.textContent = !newStatus ? 'Ativo' : 'Inativo';
+            label.className = `form-check-label small ${!newStatus ? 'text-success' : 'text-danger'}`;
+        }
+        showError('Erro ao alterar status: ' + error.message);
+    }
+}
 
 
 
