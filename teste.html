@@ -4890,7 +4890,7 @@
         </div>
     </div>
 
-    <!-- Modal para Adicionar/Editar Produto - MODIFICADO: ADICIONADO CAMPO "Ativo" -->
+    <!-- Modal para Adicionar/Editar Produto -->
     <div class="modal fade" id="productModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -4942,13 +4942,6 @@
                                         <option value="acessorios">Acessórios</option>
                                         <option value="outros">Outros</option>
                                     </select>
-                                </div>
-                                <!-- NOVO CHECKBOX: Ativo -->
-                                <div class="mb-3 form-check">
-                                    <input type="checkbox" class="form-check-input" id="productActive" checked>
-                                    <label class="form-check-label" for="productActive">
-                                        <i class="fas fa-check-circle text-success me-1"></i> Produto Ativo (aparece na loja)
-                                    </label>
                                 </div>
                             </div>
                             <div class="col-md-6">
@@ -5357,17 +5350,20 @@
                     // ADICIONAR LISTENER EM TEMPO REAL PARA A LOGO
                     listenToBusinessSettingsChanges();
                     
-                    // Dentro do setTimeout que já existe, adicione:
-setTimeout(() => {
-    checkMobileDevice();
-    if (typeof initAgenda === 'function') initAgenda();
-    renderStore();
-    setupStoreFilters();
-    loadInactiveClients();
-    updateDashboard();
-    updateFinancialSummary();
-}, 1000);
-                    else {
+                    setTimeout(() => {
+                        checkMobileDevice();
+                        if (typeof initAgenda === 'function') {
+                            initAgenda();
+                        }
+                        renderStore(); // Renderizar a loja após carregar dados
+                        setupStoreFilters(); // Configurar filtros da loja
+                        loadInactiveClients(); // Carregar clientes inativos
+                        
+                        // FORÇAR ATUALIZAÇÃO DO DASHBOARD E FINANCEIRO
+                        updateDashboard();
+                        updateFinancialSummary();
+                    }, 1000);
+                } else {
                     currentUser = null;
                     showLoginScreen();
                     
@@ -6030,202 +6026,174 @@ setTimeout(() => {
 
         // FUNÇÕES DA LOJA COM FILTROS E ORDENAÇÃO
         function setupStoreFilters() {
-    var filterButtons = document.querySelectorAll('.filter-button');
-    for (var i = 0; i < filterButtons.length; i++) {
-        var btn = filterButtons[i];
-        var newBtn = btn.cloneNode(true);
-        btn.parentNode.replaceChild(newBtn, btn);
-        
-        newBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            var allBtns = document.querySelectorAll('.filter-button');
-            for (var j = 0; j < allBtns.length; j++) {
-                allBtns[j].classList.remove('active');
-            }
-            this.classList.add('active');
-            filterStoreProducts();
-        });
-    }
-    
-    var searchInput = document.getElementById('storeSearch');
-    if (searchInput) {
-        var newSearch = searchInput.cloneNode(true);
-        searchInput.parentNode.replaceChild(newSearch, searchInput);
-        newSearch.addEventListener('input', function() {
-            filterStoreProducts();
-        });
-    }
-    
-    var sortSelect = document.getElementById('sortProducts');
-    if (sortSelect) {
-        var newSort = sortSelect.cloneNode(true);
-        sortSelect.parentNode.replaceChild(newSort, sortSelect);
-        newSort.addEventListener('change', function() {
-            sortStoreProducts();
-        });
-    }
-}
-       function filterStoreProducts() {
-    var searchTerm = document.getElementById('storeSearch').value.toLowerCase().trim();
-    var activeFilterBtn = document.querySelector('.filter-button.active');
-    var activeFilter = activeFilterBtn ? activeFilterBtn.getAttribute('data-filter') : 'all';
-    var productItems = document.querySelectorAll('#storeProductList .store-product-item');
-    var visibleCount = 0;
-    
-    for (var i = 0; i < productItems.length; i++) {
-        var item = productItems[i];
-        var name = item.getAttribute('data-product-name') || '';
-        var description = item.getAttribute('data-product-description') || '';
-        var category = item.getAttribute('data-product-category') || '';
-        
-        var matchesSearch = true;
-        if (searchTerm !== '') {
-            matchesSearch = name.indexOf(searchTerm) !== -1 || 
-                           description.indexOf(searchTerm) !== -1 || 
-                           category.indexOf(searchTerm) !== -1;
+            // Adicionar eventos aos botões de filtro
+            document.querySelectorAll('.filter-button').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('.filter-button').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // Forçar a atualização dos produtos
+                    filterStoreProducts();
+                    
+                    // Se estiver na aba "store", garantir que a lista seja atualizada
+                    if (document.getElementById('store').classList.contains('active')) {
+                        console.log('Filtro aplicado:', this.getAttribute('data-filter'));
+                    }
+                });
+            });
+            
+            console.log('Filtros da loja configurados');
         }
-        
-        var matchesFilter = true;
-        if (activeFilter !== 'all') {
-            matchesFilter = category === activeFilter;
-            if (!matchesFilter) {
-                matchesFilter = name.indexOf(activeFilter) !== -1 || description.indexOf(activeFilter) !== -1;
-            }
+
+        function filterStoreProducts() {
+            const searchTerm = document.getElementById('storeSearch').value.toLowerCase().trim();
+            const activeFilter = document.querySelector('.filter-button.active')?.getAttribute('data-filter') || 'all';
+            const productCards = document.querySelectorAll('#storeProductList .col-md-4');
+            let visibleCount = 0;
+            
+            console.log('Filtro ativo:', activeFilter); // Para debug
+            console.log('Termo de busca:', searchTerm);
+            
+            productCards.forEach(card => {
+                const productCard = card.querySelector('.product-card');
+                const name = (productCard.getAttribute('data-product-name') || '').toLowerCase();
+                const description = (productCard.getAttribute('data-product-description') || '').toLowerCase();
+                const category = (productCard.getAttribute('data-product-category') || '').toLowerCase();
+                
+                console.log('Produto:', name, 'Categoria:', category); // Para debug
+                
+                // Aplicar filtro de busca
+                let matchesSearch = true;
+                if (searchTerm) {
+                    matchesSearch = name.includes(searchTerm) || 
+                                   description.includes(searchTerm) || 
+                                   category.includes(searchTerm);
+                }
+                
+                // Aplicar filtro de categoria
+                let matchesFilter = true;
+                if (activeFilter !== 'all') {
+                    // Verificar se o filtro atual corresponde à categoria do produto
+                    matchesFilter = category.includes(activeFilter);
+                    
+                    // Também verificar no nome e descrição como fallback
+                    if (!matchesFilter) {
+                        matchesFilter = name.includes(activeFilter) || description.includes(activeFilter);
+                    }
+                }
+                
+                if (matchesSearch && matchesFilter) {
+                    card.style.display = '';
+                    visibleCount++;
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+            
+            document.getElementById('productsCount').textContent = `${visibleCount} produto(s) encontrado(s)`;
         }
-        
-        if (matchesSearch && matchesFilter) {
-            item.style.display = '';
-            visibleCount++;
-        } else {
-            item.style.display = 'none';
-        }
-    }
-    
-    document.getElementById('productsCount').textContent = visibleCount + ' produto(s) encontrado(s)';
-    sortStoreProducts();
-}
         function sortStoreProducts() {
-    var sortBy = document.getElementById('sortProducts').value;
-    var container = document.getElementById('storeProductList');
-    var items = [];
-    var allItems = container.querySelectorAll('.store-product-item');
-    
-    for (var i = 0; i < allItems.length; i++) {
-        items.push(allItems[i]);
-    }
-    
-    var visibleItems = [];
-    var hiddenItems = [];
-    
-    for (var i = 0; i < items.length; i++) {
-        if (items[i].style.display !== 'none') {
-            visibleItems.push(items[i]);
-        } else {
-            hiddenItems.push(items[i]);
+            const sortBy = document.getElementById('sortProducts').value;
+            const container = document.getElementById('storeProductList');
+            const cards = Array.from(container.querySelectorAll('.col-md-4'));
+            
+            cards.sort((a, b) => {
+                const productA = a.querySelector('.product-card');
+                const productB = b.querySelector('.product-card');
+                
+                const nameA = productA.getAttribute('data-product-name');
+                const nameB = productB.getAttribute('data-product-name');
+                const priceA = parseFloat(productA.getAttribute('data-product-price'));
+                const priceB = parseFloat(productB.getAttribute('data-product-price'));
+                
+                switch(sortBy) {
+                    case 'price-asc':
+                        return priceA - priceB;
+                    case 'price-desc':
+                        return priceB - priceA;
+                    case 'name-asc':
+                        return nameA.localeCompare(nameB);
+                    case 'name-desc':
+                        return nameB.localeCompare(nameA);
+                    default:
+                        return 0;
+                }
+            });
+            
+            // Reordenar os cards
+            cards.forEach(card => container.appendChild(card));
         }
-    }
-    
-    visibleItems.sort(function(a, b) {
-        var nameA = a.getAttribute('data-product-name') || '';
-        var nameB = b.getAttribute('data-product-name') || '';
-        var priceA = parseFloat(a.getAttribute('data-product-price')) || 0;
-        var priceB = parseFloat(b.getAttribute('data-product-price')) || 0;
-        
-        if (sortBy === 'price-asc') {
-            return priceA - priceB;
-        } else if (sortBy === 'price-desc') {
-            return priceB - priceA;
-        } else if (sortBy === 'name-asc') {
-            if (nameA < nameB) return -1;
-            if (nameA > nameB) return 1;
-            return 0;
-        } else if (sortBy === 'name-desc') {
-            if (nameA > nameB) return -1;
-            if (nameA < nameB) return 1;
-            return 0;
-        }
-        return 0;
-    });
-    
-    container.innerHTML = '';
-    for (var i = 0; i < visibleItems.length; i++) {
-        container.appendChild(visibleItems[i]);
-    }
-    for (var i = 0; i < hiddenItems.length; i++) {
-        container.appendChild(hiddenItems[i]);
-    }
-}
 
-
-
-function escapeHtml(text) {
-    if (!text) return '';
-    return text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
-
-
-
-        // NOVA FUNÇÃO: Renderizar a Loja (APENAS PRODUTOS ATIVOS)
+        // NOVA FUNÇÃO: Renderizar a Loja com imagens carregadas
         function renderStore() {
-    const container = document.getElementById('storeProductList');
-    if (!container) return;
-    
-    const activeProducts = products.filter(product => product.active !== false);
-    
-    if (activeProducts.length === 0) {
-        container.innerHTML = '<div class="col-12"><div class="alert alert-info text-center">Nenhum produto ativo disponível na loja no momento.</div></div>';
-        document.getElementById('productsCount').textContent = '0 produto(s) encontrado(s)';
-        return;
-    }
-    
-    let html = '';
-    for (let i = 0; i < activeProducts.length; i++) {
-        const product = activeProducts[i];
-        const imageUrl = product.imageUrl || '';
-        const isLowStock = product.quantity <= product.minQuantity;
-        const categoryValue = (product.category || 'outros').toLowerCase();
-        const safeName = product.name.replace(/</g, '&lt;').replace(/'/g, '&#39;');
-        
-        html += '<div class="col-md-4 col-lg-3 col-6 mb-4 store-product-item" ';
-        html += 'data-product-name="' + product.name.toLowerCase() + '" ';
-        html += 'data-product-price="' + product.salePrice + '" ';
-        html += 'data-product-description="' + (product.description || '').toLowerCase() + '" ';
-        html += 'data-product-category="' + categoryValue + '">';
-        html += '<div class="product-card" data-product-id="' + product.id + '">';
-        html += '<div class="product-image-container" onclick="showProductPopup(\'' + product.id + '\')">';
-        
-        if (imageUrl) {
-            html += '<img src="' + imageUrl + '" class="product-image" alt="' + safeName + '" onerror="this.onerror=null; this.style.display=\'none\'; this.parentElement.innerHTML=\'<div class=\\\'product-image-placeholder\\\'><i class=\\\'fas fa-box\\\'></i></div>\';">';
-        } else {
-            html += '<div class="product-image-placeholder"><i class="fas fa-box"></i></div>';
+            const container = document.getElementById('storeProductList');
+            if (!container) return;
+            
+            if (products.length === 0) {
+                container.innerHTML = '<div class="col-12"><div class="alert alert-info text-center">Nenhum produto disponível na loja no momento.</div></div>';
+                document.getElementById('productsCount').textContent = '0 produto(s) encontrado(s)';
+                return;
+            }
+            
+            let html = '';
+            products.forEach(product => {
+                // Verificar se o produto tem imagem, senão usar placeholder
+                const imageUrl = product.imageUrl || '';
+                const isLowStock = product.quantity <= product.minQuantity;
+                
+                // Usar classes do Bootstrap para grid responsivo
+                html += `
+                    <div class="col-md-4 col-lg-3 col-6 mb-4">
+                        <div class="product-card" data-product-id="${product.id}" data-product-name="${product.name}" data-product-price="${product.salePrice}" data-product-description="${product.description || ''}" data-product-stock="${product.quantity}" data-product-category="${product.category || ''}">
+                            <div class="product-image-container" onclick="showProductPopup('${product.id}')">
+                                ${imageUrl ? 
+                                    `<img src="${imageUrl}" class="product-image" alt="${product.name}" onerror="this.onerror=null; this.style.display='none'; this.parentElement.innerHTML='<div class=\\'product-image-placeholder\\'><i class=\\'fas fa-box\\'></i></div>';">` : 
+                                    `<div class="product-image-placeholder"><i class="fas fa-box"></i></div>`
+                                }
+                            </div>
+                            <div class="product-details">
+                                <h5 class="product-name">${product.name}</h5>
+                                <p class="product-description">${product.description ? product.description.substring(0, 50) + (product.description.length > 50 ? '...' : '') : 'Sem descrição'}</p>
+                                <p class="product-price">${formatCurrency(product.salePrice)}</p>
+                                <div class="product-stock-badge ${isLowStock ? 'bg-warning' : 'bg-success'} text-white">
+                                    ${isLowStock ? 'Últimas unidades!' : `${product.quantity} em estoque`}
+                                </div>
+                            </div>
+                            <div class="product-actions">
+                                <button class="btn btn-success" onclick="buyProduct('${product.id}', '${product.name}', ${product.salePrice})">
+                                    <i class="fab fa-whatsapp me-2"></i>Comprar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+            document.getElementById('productsCount').textContent = `${products.length} produto(s) encontrado(s)`;
+            
+            // Reaplicar filtros após renderizar
+            filterStoreProducts();
+
+            // No final da função renderStore(), adicione:
+            console.log('Loja renderizada com', products.length, 'produtos');
+            debugProductCategories(); // Para ver as categorias no console
+            
+            // Adicionar evento de clique nos cards para mobile
+            if (window.innerWidth <= 768) {
+                document.querySelectorAll('.product-card').forEach(card => {
+                    card.addEventListener('click', function(e) {
+                        // Não abrir popup se clicou no botão de comprar
+                        if (e.target.closest('.btn-success')) return;
+                        
+                        const productId = this.getAttribute('data-product-id');
+                        if (productId) {
+                            showProductPopup(productId);
+                        }
+                    });
+                });
+            }
         }
-        
-        html += '</div>';
-        html += '<div class="product-details">';
-        html += '<h5 class="product-name">' + safeName + '</h5>';
-        html += '<p class="product-description">' + (product.description ? product.description.substring(0, 50) + (product.description.length > 50 ? '...' : '') : 'Sem descrição') + '</p>';
-        html += '<p class="product-price">' + formatCurrency(product.salePrice) + '</p>';
-        html += '<div class="product-stock-badge ' + (isLowStock ? 'bg-warning' : 'bg-success') + ' text-white">';
-        html += isLowStock ? 'Últimas unidades!' : product.quantity + ' em estoque';
-        html += '</div></div>';
-        html += '<div class="product-actions">';
-        html += '<button class="btn btn-success" onclick="buyProduct(\'' + product.id + '\', \'' + safeName + '\', ' + product.salePrice + ')">';
-        html += '<i class="fab fa-whatsapp me-2"></i>Comprar';
-        html += '</button></div></div></div>';
-    }
-    
-    container.innerHTML = html;
-    document.getElementById('productsCount').textContent = activeProducts.length + ' produto(s) encontrado(s)';
-    
-    setTimeout(function() {
-        filterStoreProducts();
-    }, 50);
-}
 
         function debugProductCategories() {
             console.log('=== DEBUG CATEGORIAS DE PRODUTOS ===');
@@ -7533,11 +7501,6 @@ function escapeHtml(text) {
                     `<img src="${product.imageUrl}" width="50" height="50" style="object-fit: cover; border-radius: 4px;" onerror="this.onerror=null; this.src=''; this.innerHTML='<i class=\\'fas fa-box fa-2x text-muted\\'></i>';">` : 
                     '<i class="fas fa-box fa-2x text-muted"></i>';
                 
-                // Exibir status "Ativo/Inativo"
-                const statusBadge = product.active !== false ? 
-                    '<span class="badge bg-success">Ativo</span>' : 
-                    '<span class="badge bg-secondary">Inativo</span>';
-                
                 html += `
                     <tr class="${isLowStock ? 'low-stock' : ''}">
                         <td>${product.name}</td>
@@ -7547,8 +7510,7 @@ function escapeHtml(text) {
                         <td>${formatCurrency(product.purchasePrice)}</td>
                         <td>${formatCurrency(product.salePrice)}</td>
                         <td>
-                            ${statusBadge}<br>
-                            <span class="badge ${isLowStock ? 'bg-danger' : 'bg-info'} mt-1">
+                            <span class="badge ${isLowStock ? 'bg-danger' : 'bg-success'}">
                                 ${isLowStock ? 'Estoque Baixo' : 'Normal'}
                             </span>
                         </td>
@@ -7565,7 +7527,7 @@ function escapeHtml(text) {
             });
             
             tbody.innerHTML = html;
-            updateInventorySummary(products.length, lowStockCount, totalValue, totalInvestment);
+            updateInventorySummary(totalProducts = products.length, lowStockCount, totalValue, totalInvestment);
         }
 
         function updateInventorySummary(totalProducts, lowStockCount, totalValue, totalInvestment) {
@@ -8100,21 +8062,21 @@ function escapeHtml(text) {
             
             const monthServicesRevenue = allServices
                 .filter(service => {
-                    const serviceDate = service.timestamp && service.timestamp.toDate ? service.timestamp.toDate() : new Date(service.timestamp || service.date || 0);
+                    const serviceDate = service.timestamp && service.timestamp.toDate ? service.timestamp.toDate() : new Date(service.timestamp || 0);
                     return serviceDate.getMonth() === currentMonth && serviceDate.getFullYear() === currentYear;
                 })
                 .reduce((sum, service) => sum + parseFloat(service.value || 0), 0);
             
             const monthProductsRevenue = allProductSales
                 .filter(sale => {
-                    const saleDate = sale.timestamp && sale.timestamp.toDate ? sale.timestamp.toDate() : new Date(sale.timestamp || sale.date || 0);
+                    const saleDate = sale.timestamp && sale.timestamp.toDate ? sale.timestamp.toDate() : new Date(sale.timestamp || 0);
                     return saleDate.getMonth() === currentMonth && saleDate.getFullYear() === currentYear;
                 })
                 .reduce((sum, sale) => sum + parseFloat(sale.totalValue || 0), 0);
             
             const monthProductsCost = allProductSales
                 .filter(sale => {
-                    const saleDate = sale.timestamp && sale.timestamp.toDate ? sale.timestamp.toDate() : new Date(sale.timestamp || sale.date || 0);
+                    const saleDate = sale.timestamp && sale.timestamp.toDate ? sale.timestamp.toDate() : new Date(sale.timestamp || 0);
                     return saleDate.getMonth() === currentMonth && saleDate.getFullYear() === currentYear;
                 })
                 .reduce((sum, sale) => {
@@ -8929,8 +8891,6 @@ function escapeHtml(text) {
             document.getElementById('productImageUrl').value = '';
             document.getElementById('productImagePreview').style.display = 'none';
             document.getElementById('productImagePlaceholder').style.display = 'flex';
-            // Garantir que o checkbox "Ativo" fique marcado por padrão
-            document.getElementById('productActive').checked = true;
             
             const modal = new bootstrap.Modal(document.getElementById('productModal'));
             modal.show();
@@ -8950,8 +8910,6 @@ function escapeHtml(text) {
             document.getElementById('productDescription').value = product.description || '';
             document.getElementById('productCategory').value = product.category || 'outros';
             document.getElementById('productImageUrl').value = product.imageUrl || '';
-            // Carregar status ativo (padrão true se não existir)
-            document.getElementById('productActive').checked = product.active !== false;
             
             if (product.imageUrl) {
                 document.getElementById('productImagePreview').src = product.imageUrl;
@@ -9018,9 +8976,8 @@ function escapeHtml(text) {
             const description = document.getElementById('productDescription').value;
             const category = document.getElementById('productCategory').value;
             const existingImageUrl = document.getElementById('productImageUrl').value;
-            // NOVO: Capturar status ativo
-            const active = document.getElementById('productActive').checked;
             
+            // Verificar se há uma nova imagem para upload
             const imageFile = document.getElementById('productImageUpload').files[0];
             
             const saveProductData = (imageUrl) => {
@@ -9033,7 +8990,6 @@ function escapeHtml(text) {
                     description: description,
                     category: category,
                     imageUrl: imageUrl || null,
-                    active: active, // SALVAR CAMPO ATIVO
                     userId: currentUser.uid,
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 };
@@ -9063,6 +9019,7 @@ function escapeHtml(text) {
             };
             
             if (imageFile) {
+                // Fazer upload para o Cloudinary
                 showLoading('Fazendo upload da imagem...');
                 uploadImageToCloudinary(imageFile)
                     .then(imageUrl => {
@@ -9146,15 +9103,19 @@ function escapeHtml(text) {
                 
                 if (section === 'store') {
                     renderStore();
+                    // Limpar busca
                     document.getElementById('storeSearch').value = '';
                 }
 
                 if (section === 'cashier') {
+                    // Atualizar botões de serviços rápidos
                     updateQuickServicesInCashier();
                 }
                 
+                // Fechar popup se estiver aberto
                 closeProductPopup();
                 
+                // Carregar clientes inativos quando a seção for aberta
                 if (section === 'inactive-clients') {
                     loadInactiveClients();
                 }
@@ -9181,6 +9142,7 @@ function escapeHtml(text) {
                 document.getElementById('mobileHomeButton').style.display = 'none';
             }
             
+            // Fechar popup se estiver aberto
             closeProductPopup();
         }
 
@@ -9217,6 +9179,7 @@ function escapeHtml(text) {
                     })
                     .slice(0, 3);
                 
+                // Foto do cliente com container de clique
                 const photoHtml = client.photoUrl ? 
                     `<div class="client-avatar-container" onclick="showClientRecord('${client.id}')"><img src="${client.photoUrl}" class="client-avatar-img" ondblclick="zoomPhoto('${client.photoUrl}', '${client.name}')" onlongpress="zoomPhoto('${client.photoUrl}', '${client.name}')"></div>` : 
                     `<div class="client-avatar-container" onclick="showClientRecord('${client.id}')"><div class="client-avatar-initial">${client.name.charAt(0).toUpperCase()}</div></div>`;
@@ -9243,6 +9206,7 @@ function escapeHtml(text) {
             
             container.innerHTML = html;
             
+            // Adicionar evento de toque longo para fotos
             setupLongPressForPhotos();
         }
 
@@ -9290,12 +9254,14 @@ function escapeHtml(text) {
         }
 
         function loadBusinessSettings() {
+            // Primeiro tenta carregar do localStorage (mais rápido)
             const savedSettings = localStorage.getItem('businessSettings');
             if (savedSettings) {
                 businessSettings = JSON.parse(savedSettings);
                 updateAllLogoInstances();
             }
             
+            // Depois tenta carregar do Firebase (para ter a versão mais atualizada)
             if (currentUser) {
                 db.collection('businessSettings').doc(currentUser.uid).get()
                     .then((doc) => {
@@ -9303,6 +9269,7 @@ function escapeHtml(text) {
                             const firebaseSettings = doc.data();
                             businessSettings = { ...businessSettings, ...firebaseSettings };
                             
+                            // Atualiza o localStorage com os dados do Firebase
                             localStorage.setItem('businessSettings', JSON.stringify(businessSettings));
                             
                             updateAllLogoInstances();
@@ -9311,8 +9278,10 @@ function escapeHtml(text) {
                     })
                     .catch((error) => {
                         console.error('Erro ao carregar do Firebase:', error);
+                        // Continua usando o que já tinha do localStorage
                     });
             } else {
+                // Se não tiver usuário, só atualiza a tela de login
                 updateLoginLogo();
             }
         }
@@ -9322,10 +9291,12 @@ function escapeHtml(text) {
             const businessNameSpan = document.getElementById('businessName');
             const logoContainer = document.getElementById('businessLogo');
             
+            // Remover imagem existente (se houver)
             const existingImg = document.getElementById('businessLogoImg');
             if (existingImg) existingImg.remove();
             
             if (businessSettings.customLogo) {
+                // Esconder ícone e mostrar imagem
                 logoIcon.style.display = 'none';
                 
                 const img = document.createElement('img');
@@ -9336,14 +9307,17 @@ function escapeHtml(text) {
                 img.style.objectFit = 'contain';
                 img.alt = businessSettings.name || 'Logo';
                 
+                // Inserir antes do ícone
                 logoContainer.insertBefore(img, logoIcon);
                 
+                // Cache da imagem para evitar flickering
                 if (img.complete) {
                     img.style.display = 'inline-block';
                 } else {
                     img.onload = () => img.style.display = 'inline-block';
                 }
             } else {
+                // Mostrar ícone
                 logoIcon.style.display = 'inline-block';
                 
                 const icons = {
@@ -9356,7 +9330,10 @@ function escapeHtml(text) {
                 logoIcon.className = `fas ${icons[businessSettings.logoType] || 'fa-scissors'} me-2`;
             }
             
+            // Atualizar nome
             businessNameSpan.textContent = businessSettings.name || 'Studio DeVitto';
+            
+            // Atualizar também o título da página
             document.title = businessSettings.name || 'Studio DeVitto - Sistema de Gestão';
         }
 
@@ -9405,6 +9382,7 @@ function escapeHtml(text) {
             reader.readAsDataURL(file);
         }
 
+        // FUNÇÃO CORRIGIDA PARA SALVAR AS INFORMAÇÕES DA EMPRESA NO BANCO DE DADOS
         function saveBusinessSettings() {
             const name = document.getElementById('businessNameInput').value;
             const logoType = document.getElementById('businessLogoType').value;
@@ -9413,6 +9391,7 @@ function escapeHtml(text) {
             businessSettings.name = name;
             businessSettings.logoType = logoType;
             
+            // Função para salvar no Firebase - AGORA OBRIGATÓRIA E FUNCIONAL
             const saveToFirebase = (imageUrl) => {
                 if (imageUrl) {
                     businessSettings.customLogo = imageUrl;
@@ -9420,23 +9399,35 @@ function escapeHtml(text) {
                     businessSettings.customLogo = null;
                 }
                 
+                // Verificar se usuário está logado
                 if (!currentUser) {
                     showError('Você precisa estar logado para salvar as configurações.');
                     return;
                 }
                 
+                // MOSTRAR LOADING
                 showLoading('Salvando configurações no banco de dados...');
                 
+                // SALVAR NO BANCO DE DADOS (Firestore)
                 db.collection('businessSettings').doc(currentUser.uid).set(businessSettings, { merge: true })
                     .then(() => {
                         console.log('✅ Configurações salvas no Firestore com sucesso!');
+                        
+                        // Também salvar no localStorage como backup
                         localStorage.setItem('businessSettings', JSON.stringify(businessSettings));
+                        
+                        // Atualizar todas as logos
                         updateAllLogoInstances();
+                        
+                        // Fechar modal
                         const modal = bootstrap.Modal.getInstance(document.getElementById('businessSettingsModal'));
                         if (modal) modal.hide();
+                        
+                        // Mostrar sucesso
                         Swal.close();
                         showSuccess('Configurações salvas no banco de dados com sucesso!');
                         
+                        // Notificar outras abas
                         if (window.BroadcastChannel) {
                             try {
                                 const channel = new BroadcastChannel('logo-updates');
@@ -9452,14 +9443,20 @@ function escapeHtml(text) {
                     .catch((error) => {
                         console.error('❌ Erro ao salvar no Firestore:', error);
                         Swal.close();
+                        
+                        // Se falhar, pelo menos salva localmente
                         localStorage.setItem('businessSettings', JSON.stringify(businessSettings));
                         updateAllLogoInstances();
+                        
+                        // Fechar modal
                         const modal = bootstrap.Modal.getInstance(document.getElementById('businessSettingsModal'));
                         if (modal) modal.hide();
+                        
                         showError('Erro ao salvar no servidor, mas salvo localmente: ' + error.message);
                     });
             };
             
+            // Se tem arquivo de logo, upload para Cloudinary primeiro
             if (logoFile) {
                 showLoading('Fazendo upload da logo...');
                 uploadImageToCloudinary(logoFile)
@@ -9496,8 +9493,11 @@ function escapeHtml(text) {
 
         function saveBusinessProfile(e) {
             e.preventDefault();
+            
+            // Mostrar loading
             showLoading('Salvando informações da empresa...');
             
+            // Coletar dados do formulário
             const newProfile = {
                 name: document.getElementById('businessName').value,
                 email: document.getElementById('businessEmail').value,
@@ -9507,15 +9507,21 @@ function escapeHtml(text) {
                 description: document.getElementById('businessDescription').value
             };
             
+            // Atualizar a variável global
             businessProfile = newProfile;
+            
+            // Salvar no localStorage (backup)
             localStorage.setItem('businessProfile', JSON.stringify(businessProfile));
             
+            // Se usuário estiver logado, salvar no Firebase
             if (currentUser) {
                 db.collection('businessProfile').doc(currentUser.uid).set(businessProfile, { merge: true })
                     .then(() => {
                         console.log('✅ Perfil salvo no Firebase com sucesso!');
                         Swal.close();
                         showSuccess('Informações da empresa salvas com sucesso!');
+                        
+                        // IMPORTANTE: Atualizar o número do WhatsApp usado na loja
                         updateBusinessWhatsApp();
                     })
                     .catch(error => {
@@ -9529,10 +9535,11 @@ function escapeHtml(text) {
             }
         }
 
+        // Função auxiliar para atualizar o WhatsApp em outras partes do sistema
         function updateBusinessWhatsApp() {
+            // Se precisar atualizar algum elemento na interface com o novo número
             console.log('WhatsApp atualizado para:', businessProfile.whatsApp);
         }
-        
         function updateBusinessHoursUI() {
             document.getElementById('mondayOpen').value = businessHours.monday.open;
             document.getElementById('mondayClose').value = businessHours.monday.close;
@@ -9689,6 +9696,7 @@ function escapeHtml(text) {
                 
                 const age = currentYear - birthdate.getFullYear();
                 
+                // Foto do cliente
                 const photoHtml = client.photoUrl ? 
                     `<img src="${client.photoUrl}" class="birthday-avatar-img" style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover; cursor: pointer;" onclick="showClientRecord('${client.id}')" ondblclick="zoomPhoto('${client.photoUrl}', '${client.name}')" onlongpress="zoomPhoto('${client.photoUrl}', '${client.name}')">` : 
                     `<div class="avatar-inner" style="cursor: pointer;" onclick="showClientRecord('${client.id}')">${client.name.charAt(0).toUpperCase()}</div>`;
@@ -9772,6 +9780,7 @@ function escapeHtml(text) {
                 `;
             }
             
+            // Adicionar evento de toque longo para fotos
             setupLongPressForPhotos();
         }
 
@@ -9924,13 +9933,16 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             
             container.innerHTML = html;
             
+            // Adicionar evento de toque longo para fotos
             setupLongPressForPhotos();
         }
 
+        // NOVA FUNÇÃO CORRIGIDA: Mostrar ficha do cliente com foto e procedimentos de pacote
         function showClientRecord(clientId) {
             const client = clients.find(c => c.id === clientId);
             if (!client) return;
             
+            // Filtrar serviços normais do cliente
             const clientServices = allServices.filter(service => service.clientId === client.id)
                 .sort((a, b) => {
                     const dateA = a.timestamp && a.timestamp.toDate ? a.timestamp.toDate() : new Date(a.timestamp || a.date || a.procedureDate || 0);
@@ -9938,16 +9950,19 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                     return dateB - dateA;
                 });
             
+            // Calcular total gasto (considerando apenas serviços com valor)
             const totalSpent = clientServices
                 .filter(service => service.type !== 'package_procedure' || service.value > 0)
                 .reduce((sum, service) => sum + parseFloat(service.value || 0), 0);
             
             const clientNote = clientNotes[client.id] || { notes: '' };
             
+            // Foto do cliente na ficha
             const photoHtml = client.photoUrl ? 
                 `<img src="${client.photoUrl}" class="client-avatar-img" style="width: 80px; height: 80px; margin-bottom: 10px;" ondblclick="zoomPhoto('${client.photoUrl}', '${client.name}')" onlongpress="zoomPhoto('${client.photoUrl}', '${client.name}')">` : 
                 `<div class="client-avatar" style="width: 80px; height: 80px; font-size: 32px;">${client.name.charAt(0).toUpperCase()}</div>`;
             
+            // Gerar HTML para serviços (incluindo procedimentos de pacote)
             let servicesHtml = '';
             if (clientServices.length > 0) {
                 servicesHtml = `
@@ -9963,17 +9978,22 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                             </thead>
                             <tbody>
                                 ${clientServices.map(service => {
+                                    // Determinar o nome do serviço
                                     let serviceName = service.description || '';
                                     let collaboratorName = 'Não informado';
                                     
+                                    // Se for procedimento de pacote, usar packageDescription
                                     if (service.type === 'package_procedure') {
                                         serviceName = service.packageDescription || 'Procedimento de Pacote';
+                                        // Para pacotes, não temos colaborador
                                         collaboratorName = 'Pacote';
                                     } else {
+                                        // Serviço normal - buscar colaborador
                                         const collaborator = collaborators.find(c => c.id === service.collaboratorId);
                                         collaboratorName = collaborator ? collaborator.name : 'Não informado';
                                     }
                                     
+                                    // Determinar a data do serviço
                                     let serviceDate;
                                     if (service.timestamp && service.timestamp.toDate) {
                                         serviceDate = service.timestamp.toDate();
@@ -9985,6 +10005,7 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                                         serviceDate = new Date();
                                     }
                                     
+                                    // Formatar valor
                                     const serviceValue = service.value || 0;
                                     
                                     return `
@@ -10604,12 +10625,14 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             const pkg = packages.find(p => p.id === packageId);
             if (!pkg) return;
 
+            // Buscar cliente do pacote
             const client = clients.find(c => c.id === pkg.clientId);
             if (!client) {
                 showError('Cliente não encontrado para este pacote.');
                 return;
             }
 
+            // Filtrar apenas procedimentos não concluídos
             const pendingProcedures = pkg.procedureDates ? pkg.procedureDates.filter(d => !d.completed) : [];
 
             if (pendingProcedures.length === 0) {
@@ -10617,6 +10640,7 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                 return;
             }
 
+            // Criar opções para o select
             const procedureOptions = pendingProcedures.map((proc, index) => {
                 const procIndex = pkg.procedureDates.findIndex(d => d.date === proc.date && !d.completed);
                 return `<option value="${procIndex}">${formatDate(proc.date)}</option>`;
@@ -10642,47 +10666,56 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                 if (result.isConfirmed) {
                     const procedureIndex = result.value;
                     
+                    // Verificar se o índice é válido
                     if (procedureIndex === undefined || procedureIndex === null || !pkg.procedureDates[procedureIndex]) {
                         showError('Procedimento inválido.');
                         return;
                     }
 
+                    // Marcar como concluído
                     pkg.procedureDates[procedureIndex].completed = true;
 
+                    // Calcular progresso atualizado
                     const completedProcedures = pkg.procedureDates.filter(d => d.completed).length;
                     const totalProcedures = pkg.totalProcedures || pkg.procedureDates.length;
 
+                    // Atualizar no Firestore
                     db.collection('packages').doc(packageId).update({
                         procedureDates: pkg.procedureDates,
                         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                     })
                     .then(() => {
+                        // Recarregar pacotes para garantir interface atualizada
                         loadPackages();
 
+                        // Registrar no histórico de serviços do cliente para aparecer na ficha
                         const serviceData = {
                             clientId: client.id,
                             clientName: client.name,
                             packageId: packageId,
                             packageDescription: pkg.description || 'Procedimento de Pacote',
                             procedureDate: pkg.procedureDates[procedureIndex].date,
-                            date: pkg.procedureDates[procedureIndex].date,
+                            date: pkg.procedureDates[procedureIndex].date, // Adicionar date para compatibilidade
                             completedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                            timestamp: firebase.firestore.FieldValue.serverTimestamp(), // Adicionar timestamp
                             type: 'package_procedure',
-                            description: pkg.description || 'Procedimento de Pacote',
+                            description: pkg.description || 'Procedimento de Pacote', // Adicionar description para compatibilidade
                             value: 0,
                             userId: currentUser.uid
                         };
 
+                        // Adicionar à coleção de serviços como um registro
                         db.collection('services').add(serviceData)
                             .then(() => {
                                 console.log('✅ Procedimento registrado no histórico do cliente');
+                                // Recarregar serviços para atualizar a ficha do cliente
                                 loadAllServices();
                             })
                             .catch(error => {
                                 console.error('Erro ao registrar no histórico:', error);
                             });
 
+                        // Verificar se todos os procedimentos foram concluídos
                         if (completedProcedures + 1 >= totalProcedures) {
                             db.collection('packages').doc(packageId).update({
                                 status: 'completed'
@@ -10752,6 +10785,7 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             });
         }
 
+        // NOVA FUNÇÃO: Mostrar modal de adicionar cliente com foto
         function showAddClientModal() {
             document.getElementById('clientModalTitle').textContent = 'Adicionar Cliente';
             document.getElementById('clientForm').reset();
@@ -10764,6 +10798,7 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             new bootstrap.Modal(document.getElementById('clientModal')).show();
         }
 
+        // NOVA FUNÇÃO: Editar cliente pela tabela de clientes
         function editClientFromTable(clientId) {
             const client = clients.find(c => c.id === clientId);
             if (!client) return;
@@ -10789,14 +10824,17 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             new bootstrap.Modal(document.getElementById('editClientModal')).show();
         }
 
+        // NOVA FUNÇÃO: Editar cliente pelos registros
         function editClientFromRecords(clientId) {
             editClientFromTable(clientId);
         }
 
+        // NOVA FUNÇÃO: Editar cliente pelos aniversários
         function editClientFromBirthdays(clientId) {
             editClientFromTable(clientId);
         }
 
+        // NOVA FUNÇÃO: Upload de foto do cliente (novo cliente)
         function handleClientPhotoUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -10816,6 +10854,7 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             reader.readAsDataURL(file);
         }
 
+        // NOVA FUNÇÃO: Upload de foto do cliente (edição)
         function handleEditClientPhotoUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -10835,6 +10874,7 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             reader.readAsDataURL(file);
         }
 
+        // NOVA FUNÇÃO: Remover foto do cliente (novo cliente)
         function removeClientPhoto() {
             document.getElementById('clientPhotoPreview').src = '';
             document.getElementById('clientPhotoPreview').style.display = 'none';
@@ -10844,6 +10884,7 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             document.getElementById('clientPhotoUrl').value = '';
         }
 
+        // NOVA FUNÇÃO: Remover foto do cliente (edição)
         function removeEditClientPhoto() {
             document.getElementById('editClientPhotoPreview').src = '';
             document.getElementById('editClientPhotoPreview').style.display = 'none';
@@ -10853,6 +10894,7 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             document.getElementById('editClientPhotoUrl').value = '';
         }
 
+        // NOVA FUNÇÃO: Salvar cliente (novo)
         function saveClient() {
             const clientId = document.getElementById('clientId').value;
             const name = document.getElementById('clientName').value;
@@ -10912,6 +10954,7 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             }
         }
 
+        // NOVA FUNÇÃO: Salvar edição de cliente
         function saveEditClient() {
             const clientId = document.getElementById('editClientId').value;
             const name = document.getElementById('editClientName').value;
@@ -10962,6 +11005,7 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             }
         }
 
+        // NOVA FUNÇÃO: Buscar clientes na tabela (adaptada para mostrar fotos)
         function searchClients() {
             const searchTerm = document.getElementById('clientSearch').value.toLowerCase();
             const tbody = document.getElementById('clientsTable');
@@ -10976,7 +11020,7 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             }
             
             if (filteredClients.length === 0) {
-                                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Nenhum cliente encontrado.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Nenhum cliente encontrado.</td></tr>';
                 return;
             }
             
@@ -11196,7 +11240,7 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             }
             
             if (filteredProducts.length === 0) {
-                                tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Nenhum produto encontrado.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Nenhum produto encontrado.</td></tr>';
                 return;
             }
             
@@ -11207,11 +11251,6 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                     `<img src="${product.imageUrl}" width="50" height="50" style="object-fit: cover; border-radius: 4px;" ondblclick="zoomPhoto('${product.imageUrl}', '${product.name}')" onlongpress="zoomPhoto('${product.imageUrl}', '${product.name}')" onerror="this.onerror=null; this.src=''; this.innerHTML='<i class=\\'fas fa-box fa-2x text-muted\\'></i>';">` : 
                     '<i class="fas fa-box fa-2x text-muted"></i>';
                 
-                // Exibir status "Ativo/Inativo"
-                const statusBadge = product.active !== false ? 
-                    '<span class="badge bg-success">Ativo</span>' : 
-                    '<span class="badge bg-secondary">Inativo</span>';
-                
                 html += `
                     <tr class="${isLowStock ? 'low-stock' : ''}">
                         <td>${product.name}</td>
@@ -11221,8 +11260,7 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                         <td>${formatCurrency(product.purchasePrice)}</td>
                         <td>${formatCurrency(product.salePrice)}</td>
                         <td>
-                            ${statusBadge}<br>
-                            <span class="badge ${isLowStock ? 'bg-danger' : 'bg-info'} mt-1">
+                            <span class="badge ${isLowStock ? 'bg-danger' : 'bg-success'}">
                                 ${isLowStock ? 'Estoque Baixo' : 'Normal'}
                             </span>
                         </td>
@@ -11382,11 +11420,10 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             updateSummaryUI(totalServicesValue, totalProductsValue, totalForCollaborators, collaboratorBreakdown);
         }
 
-        // ============================================
         // FUNÇÕES DA NOVA AGENDA
-        // ============================================
 
         function initAgenda() {
+            // Verificar se elementos da agenda existem antes de inicializar
             if (!document.getElementById('agendaDateDisplay')) {
                 console.log('Elementos da agenda não encontrados, pulando inicialização');
                 return;
@@ -11396,6 +11433,7 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
         }
         
         function renderAgenda() {
+            // Função de compatibilidade - chama renderAgendaGrid
             if (typeof renderAgendaGrid === 'function') {
                 renderAgendaGrid();
             }
@@ -11442,12 +11480,14 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             
             const activeCollaborators = collaborators.filter(c => c.active);
             
+            // Se não há colaboradores, mostrar placeholder
             if (activeCollaborators.length === 0) {
                 container.innerHTML = '<div class="text-muted text-center p-3" style="width: 100%;">Nenhum colaborador ativo</div>';
                 container.classList.remove('scrollable', 'centered');
                 return;
             }
             
+            // Configurar layout baseado no número de colaboradores
             container.classList.remove('scrollable', 'centered');
             if (activeCollaborators.length <= 3) {
                 container.classList.add('centered');
@@ -11461,6 +11501,7 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                 div.className = 'agenda-professional';
                 div.setAttribute('data-collaborator-id', collaborator.id);
                 
+                // Marcar primeiro como selecionado por padrão
                 if (index === 0 && !selectedCollaboratorId) {
                     selectedCollaboratorId = collaborator.id;
                     div.classList.add('selected');
@@ -11468,6 +11509,7 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                     div.classList.add('selected');
                 }
                 
+                // Criar foto ou placeholder
                 const photoUrl = collaborator.photoUrl || '';
                 const initials = collaborator.name.charAt(0).toUpperCase();
                 
@@ -11495,16 +11537,19 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                     <div class="agenda-professional-name">${collaborator.name}</div>
                 `;
                 
+                // Evento de clique no card do profissional para selecionar
                 div.addEventListener('click', function() {
                     document.querySelectorAll('.agenda-professional').forEach(p => p.classList.remove('selected'));
                     this.classList.add('selected');
                     selectedCollaboratorId = collaborator.id;
+                    // Atualizar grid para mostrar agendamentos deste colaborador
                     renderAgendaGrid();
                 });
                 
                 container.appendChild(div);
             });
             
+            // Duplo clique nas fotos para ver perfil
             container.querySelectorAll('.agenda-professional-photo, .agenda-professional-placeholder').forEach(photo => {
                 photo.addEventListener('dblclick', function(e) {
                     e.stopPropagation();
@@ -11515,6 +11560,7 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                 });
             });
             
+            // Adicionar evento de toque longo para fotos
             setupLongPressForPhotos();
         }
 
@@ -11528,24 +11574,32 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             const currentMinute = now.getMinutes();
             const currentTimeStr = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`;
             
+            // CORREÇÃO: Criar slots de hora com altura correta (60px = 1 hora)
             for (let hour = 0; hour < 24; hour++) {
                 const slot = document.createElement('div');
                 slot.className = 'agenda-time-slot';
                 slot.setAttribute('data-hour', hour);
+                
+                // Mostrar horário no canto superior direito
                 slot.innerHTML = `<span>${hour.toString().padStart(2, '0')}:00</span>`;
+                
                 container.appendChild(slot);
             }
             
+            // Remover linha global antiga se existir
             const existingLine = document.querySelector('.current-time-line-global');
             if (existingLine) existingLine.remove();
             
             const existingIndicator = document.querySelector('.current-time-indicator');
             if (existingIndicator) existingIndicator.remove();
             
+            // Adicionar linha vermelha do horário atual que atravessa toda a tela
             const agendaContent = document.querySelector('.agenda-content');
             if (agendaContent) {
+                // Calcular posição: cada hora = 60px, cada minuto = 1px
                 const topPosition = (currentHour * 60) + currentMinute;
                 
+                // Linha vermelha global
                 const globalLine = document.createElement('div');
                 globalLine.className = 'current-time-line-global';
                 globalLine.style.cssText = `
@@ -11559,6 +11613,7 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                     pointer-events: none;
                 `;
                 
+                // Indicador de hora atual na coluna de tempo
                 const timeIndicator = document.createElement('div');
                 timeIndicator.className = 'current-time-indicator';
                 timeIndicator.style.cssText = `
@@ -11577,6 +11632,7 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                 `;
                 timeIndicator.textContent = currentTimeStr;
                 
+                // Bolinha vermelha no início da linha
                 globalLine.insertAdjacentHTML('afterbegin', `
                     <div style="
                         position: absolute;
@@ -11591,10 +11647,12 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                 
                 agendaContent.style.position = 'relative';
                 agendaContent.appendChild(globalLine);
+                
                 container.style.position = 'relative';
                 container.appendChild(timeIndicator);
             }
             
+            // Atualizar linha do horário atual a cada minuto
             if (!window.currentTimeInterval) {
                 window.currentTimeInterval = setInterval(() => {
                     renderTimeColumn();
@@ -11609,9 +11667,11 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             
             const activeCollaborators = collaborators.filter(c => c.active);
             
+            // Configurar classes baseadas no número de colaboradores
             container.classList.remove('scrollable', 'single-column', 'two-columns', 'three-columns');
             
             if (activeCollaborators.length === 0) {
+                // Sem colaboradores, criar uma coluna genérica
                 container.classList.add('single-column');
                 const dayColumn = createDayColumn(new Date());
                 container.appendChild(dayColumn);
@@ -11632,6 +11692,7 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                     container.appendChild(column);
                 });
             } else {
+                // 4+ colaboradores = scroll horizontal
                 container.classList.add('scrollable');
                 activeCollaborators.forEach(collab => {
                     const column = createCollaboratorColumn(collab);
@@ -11639,21 +11700,28 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                 });
             }
             
+            // Renderizar agendamentos existentes
             renderAppointments();
+            
+            // Adicionar overlay de seleção
             addSelectionOverlay();
         }
         
+        // Criar coluna para um colaborador específico
         function createCollaboratorColumn(collaborator) {
             const dayColumn = document.createElement('div');
             dayColumn.className = 'agenda-day-column';
             dayColumn.setAttribute('data-date', currentAgendaDate.toISOString().split('T')[0]);
             dayColumn.setAttribute('data-collaborator-id', collaborator.id);
             
+            // CORREÇÃO: Slots de 15 minutos com posicionamento EXATO
+            // Cada hora = 60px, cada 15 minutos = 15px
             for (let hour = 0; hour < 24; hour++) {
                 for (let quarter = 0; quarter < 4; quarter++) {
                     const slot = document.createElement('div');
                     slot.className = 'agenda-slot-quarter';
                     
+                    // Adicionar classes visuais para melhor orientação
                     if (quarter === 0) {
                         slot.classList.add('hour-start');
                     }
@@ -11661,7 +11729,8 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                         slot.classList.add('half-hour');
                     }
                     
-                    const minutes = quarter * 15;
+                    // CORREÇÃO: Calcular minutos exatos
+                    const minutes = quarter * 15; // 0, 15, 30, 45
                     
                     slot.setAttribute('data-hour', hour);
                     slot.setAttribute('data-quarter', quarter);
@@ -11669,8 +11738,10 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                     slot.setAttribute('data-date', currentAgendaDate.toISOString().split('T')[0]);
                     slot.setAttribute('data-collaborator-id', collaborator.id);
                     
+                    // Tooltip com horário exato
                     slot.title = `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
                     
+                    // Eventos de seleção
                     slot.addEventListener('mousedown', startTimeSelection);
                     slot.addEventListener('touchstart', startTimeSelection, { passive: false });
                     slot.addEventListener('mouseenter', updateTimeSelection);
@@ -11685,6 +11756,7 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             return dayColumn;
         }
         
+        // Criar coluna genérica (quando não há colaboradores)
         function createDayColumn(date) {
             const dayColumn = document.createElement('div');
             dayColumn.className = 'agenda-day-column';
@@ -11719,24 +11791,74 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             return dayColumn;
         }
 
+        function getDaysForView() {
+            const days = [];
+            const startDate = new Date(currentAgendaDate);
+            
+            switch(currentAgendaView) {
+                case 'day':
+                    days.push(startDate);
+                    break;
+                case '3days':
+                    for (let i = 0; i < 3; i++) {
+                        const date = new Date(startDate);
+                        date.setDate(startDate.getDate() + i);
+                        days.push(date);
+                    }
+                    break;
+                case 'week':
+                    // Ajustar para começar na segunda-feira
+                    const dayOfWeek = startDate.getDay();
+                    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+                    startDate.setDate(startDate.getDate() + diffToMonday);
+                    
+                    for (let i = 0; i < 7; i++) {
+                        const date = new Date(startDate);
+                        date.setDate(startDate.getDate() + i);
+                        days.push(date);
+                    }
+                    break;
+                case 'month':
+                    // Mostrar primeiros 30 dias do mês
+                    startDate.setDate(1);
+                    for (let i = 0; i < 30; i++) {
+                        const date = new Date(startDate);
+                        date.setDate(startDate.getDate() + i);
+                        days.push(date);
+                    }
+                    break;
+            }
+            
+            return days;
+        }
+
         function renderAppointments() {
+            // Limpar agendamentos existentes
             document.querySelectorAll('.agenda-appointment').forEach(el => el.remove());
             
             const currentDateStr = currentAgendaDate.toISOString().split('T')[0];
             
             appointments.forEach(appointment => {
-                if (appointment.date !== currentDateStr) return;
+                // Verificar se o agendamento é da data atual
+                if (appointment.date !== currentDateStr) {
+                    return;
+                }
                 
+                // Encontrar a coluna correta pelo colaborador do agendamento
                 let dayColumn = document.querySelector(`.agenda-day-column[data-collaborator-id="${appointment.collaboratorId}"]`);
+                
+                // Se não encontrou por colaborador, tentar pela data (coluna genérica)
                 if (!dayColumn) {
                     dayColumn = document.querySelector(`.agenda-day-column[data-date="${appointment.date}"]`);
                 }
+                
                 if (!dayColumn) return;
                 
                 const startHour = parseInt(appointment.startTime.split(':')[0]);
                 const startMinute = parseInt(appointment.startTime.split(':')[1]);
                 const duration = appointment.duration || 60;
                 
+                // Posição exata: 1 minuto = 1px (60px por hora)
                 const totalMinutes = startHour * 60 + startMinute;
                 const topPosition = totalMinutes;
                 const height = duration;
@@ -11764,12 +11886,15 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             });
         }
         
+        // Função auxiliar para ajustar cor (mais clara ou mais escura)
         function adjustColor(color, percent) {
             if (!color || color.charAt(0) !== '#') return color;
+            
             const num = parseInt(color.slice(1), 16);
             const r = Math.min(255, Math.floor((num >> 16) * (100 + percent) / 100));
             const g = Math.min(255, Math.floor(((num >> 8) & 0x00FF) * (100 + percent) / 100));
             const b = Math.min(255, Math.floor((num & 0x0000FF) * (100 + percent) / 100));
+            
             return '#' + (0x1000000 + r * 0x10000 + g * 0x100 + b).toString(16).slice(1);
         }
 
@@ -11785,9 +11910,11 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             return overlay;
         }
 
+        // Variáveis para controle de toque longo
         let longPressTimer = null;
         let isLongPress = false;
         let touchStartY = 0;
+        let lastTouchY = 0;
         
         function startTimeSelection(e) {
             const slot = e.target.closest('.agenda-slot-quarter');
@@ -11797,11 +11924,15 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             const hour = parseInt(slot.getAttribute('data-hour'));
             const quarter = parseInt(slot.getAttribute('data-quarter'));
             
+            // CORREÇÃO: Capturar o colaborador da coluna clicada
             const dayColumn = slot.closest('.agenda-day-column');
             const clickedCollaboratorId = dayColumn ? dayColumn.getAttribute('data-collaborator-id') : null;
             
+            // Se clicou em uma coluna de colaborador específico, selecionar esse colaborador
             if (clickedCollaboratorId) {
                 selectedCollaboratorId = clickedCollaboratorId;
+                
+                // Atualizar seleção visual nos cards de colaboradores
                 document.querySelectorAll('.agenda-professional').forEach(p => {
                     p.classList.remove('selected');
                     if (p.getAttribute('data-collaborator-id') === clickedCollaboratorId) {
@@ -11810,6 +11941,7 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                 });
             }
             
+            // Para eventos de mouse, iniciar seleção diretamente
             if (e.type === 'mousedown') {
                 e.preventDefault();
                 isSelectingTime = true;
@@ -11820,37 +11952,58 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                 return;
             }
             
+            // Para eventos de toque, verificar toque longo
             if (e.type === 'touchstart') {
                 touchStartY = e.touches[0].clientY;
+                lastTouchY = touchStartY;
                 isLongPress = false;
+                
+                // Iniciar timer para toque longo (500ms)
                 longPressTimer = setTimeout(() => {
                     isLongPress = true;
                     isSelectingTime = true;
                     selectionStartTime = { date, hour, quarter, collaboratorId: clickedCollaboratorId };
                     selectionEndTime = { date, hour, quarter, collaboratorId: clickedCollaboratorId };
                     updateSelectionOverlay();
-                    if (navigator.vibrate) navigator.vibrate(50);
+                    
+                    // Feedback visual/háptico
+                    if (navigator.vibrate) {
+                        navigator.vibrate(50);
+                    }
                 }, 500);
             }
         }
 
         function updateTimeSelection(e) {
+            // Para scroll normal no touch, não fazer nada
             if (e.type === 'touchmove') {
                 const currentY = e.touches[0].clientY;
                 const deltaY = Math.abs(currentY - touchStartY);
+                
+                // Se moveu muito sem toque longo, cancelar timer e permitir scroll
                 if (!isLongPress && deltaY > 10) {
-                    if (longPressTimer) clearTimeout(longPressTimer);
+                    if (longPressTimer) {
+                        clearTimeout(longPressTimer);
+                        longPressTimer = null;
+                    }
                     return;
                 }
+                
+                // Se é toque longo, prevenir scroll e atualizar seleção
                 if (isLongPress && isSelectingTime) {
                     e.preventDefault();
+                    lastTouchY = currentY;
+                    
+                    // Encontrar o slot sob o dedo
                     const touch = e.touches[0];
                     const element = document.elementFromPoint(touch.clientX, touch.clientY);
                     const slot = element ? element.closest('.agenda-slot-quarter') : null;
+                    
                     if (slot) {
                         const hour = parseInt(slot.getAttribute('data-hour'));
                         const quarter = parseInt(slot.getAttribute('data-quarter'));
                         const date = slot.getAttribute('data-date');
+                        
                         if (date === selectionStartTime.date) {
                             selectionEndTime = { date, hour, quarter };
                             updateSelectionOverlay();
@@ -11860,12 +12013,16 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                 return;
             }
             
+            // Para mouse, atualizar normalmente
             if (!isSelectingTime || e.type !== 'mouseenter') return;
+            
             const slot = e.target.closest('.agenda-slot-quarter');
             if (!slot) return;
+            
             const date = slot.getAttribute('data-date');
             const hour = parseInt(slot.getAttribute('data-hour'));
             const quarter = parseInt(slot.getAttribute('data-quarter'));
+            
             if (date === selectionStartTime.date) {
                 selectionEndTime = { date, hour, quarter };
                 updateSelectionOverlay();
@@ -11873,29 +12030,45 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
         }
         
         function endTimeSelection(e) {
-            if (longPressTimer) clearTimeout(longPressTimer);
+            // Limpar timer de toque longo
+            if (longPressTimer) {
+                clearTimeout(longPressTimer);
+                longPressTimer = null;
+            }
+            
             if (!isSelectingTime) {
                 isLongPress = false;
                 return;
             }
+            
             if (e.type === 'touchend' && isLongPress && selectionStartTime && selectionEndTime) {
                 e.preventDefault();
             }
+            
             isSelectingTime = false;
             
             if (selectionStartTime && selectionEndTime) {
+                // Calcular hora selecionada
                 const startTotal = selectionStartTime.hour * 60 + selectionStartTime.quarter * 15;
                 const endTotal = selectionEndTime.hour * 60 + selectionEndTime.quarter * 15;
+                
                 const minTotal = Math.min(startTotal, endTotal);
                 const hour = Math.floor(minTotal / 60);
                 const minute = minTotal % 60;
+                
                 selectedDate = selectionStartTime.date;
                 selectedTime = { hour, minute };
+                
+                // Mostrar seleção de cliente
                 showClientSelection();
             }
             
+            // Limpar overlay
             const overlay = document.getElementById('agendaSelectionOverlay');
-            if (overlay) overlay.style.display = 'none';
+            if (overlay) {
+                overlay.style.display = 'none';
+            }
+            
             selectionStartTime = null;
             selectionEndTime = null;
             isLongPress = false;
@@ -11903,11 +12076,13 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
 
         function updateSelectionOverlay() {
             if (!selectionStartTime || !selectionEndTime) return;
+            
             const overlay = document.getElementById('agendaSelectionOverlay');
             if (!overlay) return;
             
             const startTotal = selectionStartTime.hour * 4 + selectionStartTime.quarter;
             const endTotal = selectionEndTime.hour * 4 + selectionEndTime.quarter;
+            
             const minPos = Math.min(startTotal, endTotal);
             const maxPos = Math.max(startTotal, endTotal);
             
@@ -11917,6 +12092,7 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             overlay.style.left = '0';
             overlay.style.right = '0';
             
+            // Mostrar hora selecionada
             const startHour = Math.floor(minPos / 4);
             const startMin = (minPos % 4) * 15;
             const endHour = Math.floor((maxPos + 1) / 4);
@@ -11939,18 +12115,25 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
         function showDatePicker() {
             const modal = document.getElementById('datePickerModal');
             const body = document.getElementById('datePickerBody');
+            
             body.innerHTML = '';
+            
+            // Gerar calendário para 12 meses
             const today = new Date();
             for (let m = 0; m < 12; m++) {
                 const monthDate = new Date(today.getFullYear(), today.getMonth() + m, 1);
                 const monthDiv = document.createElement('div');
                 monthDiv.className = 'date-picker-month';
+                
                 const title = document.createElement('div');
                 title.className = 'date-picker-month-title';
                 title.textContent = monthDate.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
                 monthDiv.appendChild(title);
+                
                 const daysGrid = document.createElement('div');
                 daysGrid.className = 'date-picker-days';
+                
+                // Dias da semana
                 const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
                 weekdays.forEach(day => {
                     const dayEl = document.createElement('div');
@@ -11959,29 +12142,45 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                     dayEl.textContent = day;
                     daysGrid.appendChild(dayEl);
                 });
+                
+                // Dias vazios no início
                 const firstDay = monthDate.getDay();
                 for (let i = 0; i < firstDay; i++) {
                     const emptyDay = document.createElement('div');
                     daysGrid.appendChild(emptyDay);
                 }
+                
+                // Dias do mês
                 const daysInMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate();
                 for (let d = 1; d <= daysInMonth; d++) {
                     const dayDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), d);
                     const dayEl = document.createElement('div');
                     dayEl.className = 'date-picker-day';
                     dayEl.textContent = d;
-                    if (dayDate.toDateString() === new Date().toDateString()) dayEl.classList.add('today');
-                    if (dayDate.toDateString() === currentAgendaDate.toDateString()) dayEl.classList.add('selected');
+                    
+                    // Marcar hoje
+                    if (dayDate.toDateString() === new Date().toDateString()) {
+                        dayEl.classList.add('today');
+                    }
+                    
+                    // Marcar selecionado
+                    if (dayDate.toDateString() === currentAgendaDate.toDateString()) {
+                        dayEl.classList.add('selected');
+                    }
+                    
                     dayEl.addEventListener('click', () => {
                         currentAgendaDate = dayDate;
                         updateAgendaDisplay();
                         modal.classList.remove('active');
                     });
+                    
                     daysGrid.appendChild(dayEl);
                 }
+                
                 monthDiv.appendChild(daysGrid);
                 body.appendChild(monthDiv);
             }
+            
             modal.classList.add('active');
         }
 
@@ -11991,16 +12190,22 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
 
         function changeAgendaView(view) {
             currentAgendaView = view;
+            
+            // Atualizar botões ativos
             document.querySelectorAll('.agenda-view-btn').forEach(btn => {
                 btn.classList.remove('active');
-                if (btn.getAttribute('data-view') === view) btn.classList.add('active');
+                if (btn.getAttribute('data-view') === view) {
+                    btn.classList.add('active');
+                }
             });
+            
             updateAgendaDisplay();
         }
 
         function showClientSelection() {
             const modal = document.getElementById('clientSelectionModal');
             modal.classList.add('active');
+            
             loadClientsForSelection();
         }
 
@@ -12012,10 +12217,13 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
         function loadClientsForSelection() {
             const container = document.getElementById('clientSelectionBody');
             container.innerHTML = '';
+            
             clients.forEach(client => {
+                // Criar avatar com foto se disponível
                 const avatarHtml = client.photoUrl ? 
                     `<img src="${client.photoUrl}" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover; margin-right: 15px; cursor: pointer;" onclick="showClientRecord('${client.id}')" ondblclick="zoomPhoto('${client.photoUrl}', '${client.name}')" onlongpress="zoomPhoto('${client.photoUrl}', '${client.name}')">` : 
                     `<div class="client-option-avatar" style="cursor: pointer;" onclick="showClientRecord('${client.id}')">${client.name.charAt(0).toUpperCase()}</div>`;
+                
                 const option = document.createElement('div');
                 option.className = 'client-option';
                 option.innerHTML = `
@@ -12025,12 +12233,16 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                         <div class="client-option-phone">${client.phone || 'Sem telefone'}</div>
                     </div>
                 `;
+                
                 option.addEventListener('click', () => {
                     selectedClient = client;
                     showServiceSelection();
                 });
+                
                 container.appendChild(option);
             });
+            
+            // Adicionar evento de toque longo para fotos
             setupLongPressForPhotos();
         }
 
@@ -12038,9 +12250,11 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             const searchTerm = document.getElementById('clientSearchInput').value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
             const container = document.getElementById('clientSelectionBody');
             const options = container.querySelectorAll('.client-option');
+            
             options.forEach(option => {
                 const name = option.querySelector('.client-option-name').textContent.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
                 const phone = option.querySelector('.client-option-phone').textContent.toLowerCase();
+                
                 if (name.includes(searchTerm) || phone.includes(searchTerm)) {
                     option.style.display = 'flex';
                 } else {
@@ -12055,13 +12269,20 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
         }
 
         function selectNoReservation() {
-            selectedClient = { id: null, name: 'Cliente sem reserva', phone: '' };
+            selectedClient = {
+                id: null,
+                name: 'Cliente sem reserva',
+                phone: ''
+            };
             showServiceSelection();
         }
 
         function showServiceSelection() {
             closeClientSelection();
-            document.getElementById('serviceSelectionModal').classList.add('active');
+            
+            const modal = document.getElementById('serviceSelectionModal');
+            modal.classList.add('active');
+            
             loadRecentServices();
             loadAllServicesForSelection();
         }
@@ -12073,18 +12294,27 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
         function loadRecentServices() {
             const container = document.getElementById('recentServicesScroll');
             container.innerHTML = '';
+            
             if (!selectedClient || !selectedClient.id) return;
-            const clientServices = allServices.filter(service => service.clientId === selectedClient.id).slice(0, 5);
+            
+            // Filtrar serviços recentes do cliente
+            const clientServices = allServices
+                .filter(service => service.clientId === selectedClient.id)
+                .slice(0, 5);
+            
             clientServices.forEach(service => {
                 const card = document.createElement('div');
                 card.className = 'recent-service-card';
+                
                 const serviceDate = service.timestamp && service.timestamp.toDate ? service.timestamp.toDate() : new Date(service.timestamp || service.date);
                 const collaborator = collaborators.find(c => c.id === service.collaboratorId);
+                
                 card.innerHTML = `
                     <div class="service-name">${service.description || 'Serviço'}</div>
                     <div class="service-date">${formatDate(serviceDate)} - ${collaborator?.name || 'Colaborador'}</div>
                     <div class="service-price">${formatCurrency(service.value)}</div>
                 `;
+                
                 card.addEventListener('click', () => {
                     selectService({
                         id: service.id,
@@ -12093,6 +12323,7 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                         duration: 60
                     });
                 });
+                
                 container.appendChild(card);
             });
         }
@@ -12100,6 +12331,7 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
         function loadAllServicesForSelection() {
             const container = document.getElementById('allServicesList');
             container.innerHTML = '';
+            
             availableServices.forEach(service => {
                 const item = document.createElement('div');
                 item.className = 'service-item-card';
@@ -12110,7 +12342,11 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                     </div>
                     <div class="service-item-price">${formatCurrency(service.price)}</div>
                 `;
-                item.addEventListener('click', () => selectService(service));
+                
+                item.addEventListener('click', () => {
+                    selectService(service);
+                });
+                
                 container.appendChild(item);
             });
         }
@@ -12119,9 +12355,14 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             const searchTerm = document.getElementById('serviceSearchInput').value.toLowerCase();
             const container = document.getElementById('allServicesList');
             const items = container.querySelectorAll('.service-item-card');
+            
             items.forEach(item => {
                 const name = item.querySelector('.service-item-name').textContent.toLowerCase();
-                item.style.display = name.includes(searchTerm) ? 'flex' : 'none';
+                if (name.includes(searchTerm)) {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
             });
         }
 
@@ -12132,7 +12373,10 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
 
         function showAppointmentSave() {
             closeServiceSelection();
-            document.getElementById('appointmentSaveModal').classList.add('active');
+            
+            const modal = document.getElementById('appointmentSaveModal');
+            modal.classList.add('active');
+            
             updateAppointmentPreview();
             updateClientCard();
             updateAppointmentDateTime();
@@ -12148,9 +12392,11 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
         function updateAppointmentPreview() {
             const container = document.getElementById('calendarPreview');
             if (!selectedDate) return;
+            
             const date = new Date(selectedDate);
             const options = { weekday: 'long', day: 'numeric', month: 'long' };
             const dateString = date.toLocaleDateString('pt-PT', options);
+            
             container.innerHTML = `
                 <div class="selected-date-display">${dateString} <i class="fas fa-chevron-down"></i></div>
                 <div class="selected-time-display">${selectedTime.hour.toString().padStart(2, '0')}:${selectedTime.minute.toString().padStart(2, '0')}</div>
@@ -12160,9 +12406,12 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
         function updateClientCard() {
             const container = document.getElementById('clientCardAppointment');
             if (!selectedClient) return;
+            
+            // Foto do cliente
             const photoHtml = selectedClient.photoUrl ? 
                 `<img src="${selectedClient.photoUrl}" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover; margin-right: 15px; cursor: pointer;" onclick="showClientRecord('${selectedClient.id}')" ondblclick="zoomPhoto('${selectedClient.photoUrl}', '${selectedClient.name}')" onlongpress="zoomPhoto('${selectedClient.photoUrl}', '${selectedClient.name}')">` : 
                 `<div class="client-avatar-appointment" style="cursor: pointer;" onclick="showClientRecord('${selectedClient.id}')">${selectedClient.name.charAt(0).toUpperCase()}</div>`;
+            
             container.innerHTML = `
                 <div class="client-card-header">
                     ${photoHtml}
@@ -12172,10 +12421,16 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                     </div>
                     <div class="client-actions">
                         ${selectedClient.phone ? `
-                            <button class="client-action-btn" onclick="callClient('${selectedClient.phone}')"><i class="fas fa-phone"></i></button>
-                            <button class="client-action-btn" onclick="whatsappClient('${selectedClient.phone}')"><i class="fab fa-whatsapp"></i></button>
+                            <button class="client-action-btn" onclick="callClient('${selectedClient.phone}')">
+                                <i class="fas fa-phone"></i>
+                            </button>
+                            <button class="client-action-btn" onclick="whatsappClient('${selectedClient.phone}')">
+                                <i class="fab fa-whatsapp"></i>
+                            </button>
                         ` : ''}
-                        <button class="client-action-btn" onclick="requestGoogleReview()"><i class="fab fa-google"></i></button>
+                        <button class="client-action-btn" onclick="requestGoogleReview()">
+                            <i class="fab fa-google"></i>
+                        </button>
                     </div>
                 </div>
             `;
@@ -12184,23 +12439,34 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
         function updateAppointmentDateTime() {
             const container = document.getElementById('appointmentDateTimeDisplay');
             if (!selectedDate || !selectedTime) return;
+            
             const date = new Date(selectedDate);
             const dateString = date.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
             const timeString = `${selectedTime.hour.toString().padStart(2, '0')}:${selectedTime.minute.toString().padStart(2, '0')}`;
-            container.innerHTML = `<div style="font-weight: 600;">${dateString}</div><div style="color: #6c757d;">${timeString}</div>`;
+            
+            container.innerHTML = `
+                <div style="font-weight: 600;">${dateString}</div>
+                <div style="color: #6c757d;">${timeString}</div>
+            `;
         }
 
         function updateSelectedServicesList() {
             const container = document.getElementById('selectedServicesList');
             container.innerHTML = '';
+            
             selectedServices.forEach((service, index) => {
                 const item = document.createElement('div');
                 item.className = 'selected-service-item';
                 item.innerHTML = `
-                    <div><div style="font-weight: 600;">${service.name}</div><div style="font-size: 14px; color: #6c757d;">${service.duration} minutos</div></div>
+                    <div>
+                        <div style="font-weight: 600;">${service.name}</div>
+                        <div style="font-size: 14px; color: #6c757d;">${service.duration} minutos</div>
+                    </div>
                     <div style="font-weight: 600; color: var(--primary-color);">
                         ${formatCurrency(service.price)}
-                        <button class="btn btn-sm btn-danger ms-2" onclick="removeService(${index})"><i class="fas fa-times"></i></button>
+                        <button class="btn btn-sm btn-danger ms-2" onclick="removeService(${index})">
+                            <i class="fas fa-times"></i>
+                        </button>
                     </div>
                 `;
                 container.appendChild(item);
@@ -12227,8 +12493,12 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             Swal.fire({
                 title: 'Ações Rápidas',
                 html: `
-                    <button class="btn btn-outline-primary w-100 mb-2" onclick="addNoteToAppointment()"><i class="fas fa-sticky-note me-2"></i> Adicionar nota</button>
-                    <button class="btn btn-outline-primary w-100" onclick="addPaymentPolicy()"><i class="fas fa-money-bill-wave me-2"></i> Adicionar política de pagamento</button>
+                    <button class="btn btn-outline-primary w-100 mb-2" onclick="addNoteToAppointment()">
+                        <i class="fas fa-sticky-note me-2"></i> Adicionar nota
+                    </button>
+                    <button class="btn btn-outline-primary w-100" onclick="addPaymentPolicy()">
+                        <i class="fas fa-money-bill-wave me-2"></i> Adicionar política de pagamento
+                    </button>
                 `,
                 showConfirmButton: false,
                 showCloseButton: true
@@ -12244,7 +12514,9 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                 confirmButtonText: 'Salvar',
                 cancelButtonText: 'Cancelar'
             }).then((result) => {
-                if (result.isConfirmed && result.value) showSuccess('Nota adicionada com sucesso!');
+                if (result.isConfirmed && result.value) {
+                    showSuccess('Nota adicionada com sucesso!');
+                }
             });
         }
 
@@ -12252,8 +12524,18 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             Swal.fire({
                 title: 'Política de Pagamento',
                 html: `
-                    <div class="mb-3"><label class="form-label">Tipo de Pagamento</label><select class="form-select" id="paymentType"><option value="deposit">Depósito</option><option value="full">Pagamento Total</option><option value="installments">Parcelado</option></select></div>
-                    <div class="mb-3"><label class="form-label">Valor</label><input type="number" class="form-control" id="paymentValue" step="0.01" min="0"></div>
+                    <div class="mb-3">
+                        <label class="form-label">Tipo de Pagamento</label>
+                        <select class="form-select" id="paymentType">
+                            <option value="deposit">Depósito</option>
+                            <option value="full">Pagamento Total</option>
+                            <option value="installments">Parcelado</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Valor</label>
+                        <input type="number" class="form-control" id="paymentValue" step="0.01" min="0">
+                    </div>
                 `,
                 showCancelButton: true,
                 confirmButtonText: 'Salvar',
@@ -12264,7 +12546,9 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                     return { type, value };
                 }
             }).then((result) => {
-                if (result.isConfirmed) showSuccess('Política de pagamento adicionada!');
+                if (result.isConfirmed) {
+                    showSuccess('Política de pagamento adicionada!');
+                }
             });
         }
 
@@ -12277,10 +12561,16 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                 showError('Por favor, selecione um cliente, serviço, data e horário.');
                 return;
             }
+            
+            // Verificar se há colaborador selecionado
             if (!selectedCollaboratorId && collaborators.filter(c => c.active).length > 0) {
                 selectedCollaboratorId = collaborators.filter(c => c.active)[0].id;
             }
+            
+            // Calcular duração total dos serviços
             const totalDuration = selectedServices.reduce((sum, s) => sum + (s.duration || 30), 0);
+            
+            // Calcular hora de término
             const startMinutes = selectedTime.hour * 60 + selectedTime.minute;
             const endMinutes = startMinutes + totalDuration;
             const endHour = Math.floor(endMinutes / 60) % 24;
@@ -12294,7 +12584,12 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                 startTime: `${selectedTime.hour.toString().padStart(2, '0')}:${selectedTime.minute.toString().padStart(2, '0')}`,
                 endTime: `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`,
                 duration: totalDuration,
-                services: selectedServices.map(s => ({ id: s.id || null, name: s.name, price: s.price, duration: s.duration || 30 })),
+                services: selectedServices.map(s => ({
+                    id: s.id || null,
+                    name: s.name,
+                    price: s.price,
+                    duration: s.duration || 30
+                })),
                 serviceName: selectedServices.map(s => s.name).join(', '),
                 total: selectedServices.reduce((sum, s) => sum + (parseFloat(s.price) || 0), 0),
                 userId: currentUser.uid,
@@ -12306,18 +12601,36 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             };
             
             showLoading('Salvando agendamento...');
+            
             db.collection('appointments').add(appointmentData)
                 .then((docRef) => {
                     Swal.close();
-                    appointments.push({ id: docRef.id, ...appointmentData, createdAt: new Date() });
+                    
+                    // Adicionar ao array local para exibição imediata
+                    const newAppointment = {
+                        id: docRef.id,
+                        ...appointmentData,
+                        createdAt: new Date()
+                    };
+                    appointments.push(newAppointment);
+                    
+                    // Fechar modal de salvamento
                     closeAppointmentSave();
+                    
+                    // Renderizar agendamentos atualizados
                     renderAppointments();
+                    
+                    // Guardar dados para o popup
                     const savedClient = { ...selectedClient };
                     const savedData = { ...appointmentData, id: docRef.id };
+                    
+                    // Limpar seleção
                     selectedClient = null;
                     selectedServices = [];
                     selectedDate = null;
                     selectedTime = null;
+                    
+                    // Mostrar popup de confirmação com opção WhatsApp
                     showReminderPopup(savedClient, savedData);
                 })
                 .catch((error) => {
@@ -12326,6 +12639,7 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                 });
         }
         
+        // POPUP OBRIGATÓRIO - Notificação 24h antes
         function showReminderPopup(client, appointmentData) {
             const date = new Date(appointmentData.date);
             const dateString = date.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -12347,23 +12661,39 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                 allowOutsideClick: false,
                 allowEscapeKey: false
             }).then((result) => {
-                if (result.isConfirmed) showSuccess('Notificação programada para 24 horas antes!');
-                if (client.phone) openWhatsAppConfirmation(client, appointmentData);
-                else showSuccess('Agendamento salvo com sucesso!');
+                if (result.isConfirmed) {
+                    showSuccess('Notificação programada para 24 horas antes!');
+                }
+                
+                // Abrir WhatsApp com mensagem de confirmação
+                if (client.phone) {
+                    openWhatsAppConfirmation(client, appointmentData);
+                } else {
+                    showSuccess('Agendamento salvo com sucesso!');
+                }
             });
         }
         
+        // Abrir WhatsApp com mensagem de confirmação - COM LOCALIZAÇÃO
         function openWhatsAppConfirmation(client, appointmentData) {
             const date = new Date(appointmentData.date);
             const dateString = date.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
             const servicesText = appointmentData.serviceName || 'Serviço';
             const totalValue = formatCurrency(appointmentData.total);
+            
+            // Obter nome do colaborador
             const collaborator = collaborators.find(c => c.id === appointmentData.collaboratorId);
             const collaboratorName = collaborator ? collaborator.name : 'Profissional';
+            
+            // Links de localização (substitua pelas coordenadas reais do salão)
             const businessName = businessSettings.name || 'Studio DeVitto';
             const businessAddress = businessProfile.address || '';
-            const googleMapsLink = businessAddress ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(businessAddress)}` : 'https://maps.google.com';
-            const wazeLink = businessAddress ? `https://www.waze.com/ul?q=${encodeURIComponent(businessAddress)}` : 'https://www.waze.com';
+            const googleMapsLink = businessAddress ? 
+                `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(businessAddress)}` :
+                'https://maps.google.com';
+            const wazeLink = businessAddress ? 
+                `https://www.waze.com/ul?q=${encodeURIComponent(businessAddress)}` :
+                'https://www.waze.com';
             
             const message = `Olá ${client.name}! ✂️🎉\n\n` +
                 `Seu agendamento no *${businessName}* foi confirmado!\n\n` +
@@ -12383,13 +12713,28 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             
             Swal.fire({
                 title: '✅ Agendamento Confirmado!',
-                html: `<div class="text-start"><p class="mb-3"><strong>Detalhes do agendamento:</strong></p><p><i class="fas fa-user me-2 text-primary"></i><strong>Cliente:</strong> ${client.name}</p><p><i class="fas fa-calendar me-2 text-primary"></i><strong>Data:</strong> ${dateString}</p><p><i class="fas fa-clock me-2 text-primary"></i><strong>Horário:</strong> ${appointmentData.startTime}</p><p><i class="fas fa-user-tie me-2 text-primary"></i><strong>Profissional:</strong> ${collaboratorName}</p><p><i class="fas fa-cut me-2 text-primary"></i><strong>Serviço:</strong> ${servicesText}</p><p><i class="fas fa-euro-sign me-2 text-primary"></i><strong>Valor:</strong> ${totalValue}</p><hr><p class="text-center mt-3">Deseja enviar a confirmação por WhatsApp?</p></div>`,
+                html: `
+                    <div class="text-start">
+                        <p class="mb-3"><strong>Detalhes do agendamento:</strong></p>
+                        <p><i class="fas fa-user me-2 text-primary"></i><strong>Cliente:</strong> ${client.name}</p>
+                        <p><i class="fas fa-calendar me-2 text-primary"></i><strong>Data:</strong> ${dateString}</p>
+                        <p><i class="fas fa-clock me-2 text-primary"></i><strong>Horário:</strong> ${appointmentData.startTime}</p>
+                        <p><i class="fas fa-user-tie me-2 text-primary"></i><strong>Profissional:</strong> ${collaboratorName}</p>
+                        <p><i class="fas fa-cut me-2 text-primary"></i><strong>Serviço:</strong> ${servicesText}</p>
+                        <p><i class="fas fa-euro-sign me-2 text-primary"></i><strong>Valor:</strong> ${totalValue}</p>
+                        <hr>
+                        <p class="text-center mt-3">Deseja enviar a confirmação por WhatsApp?</p>
+                    </div>
+                `,
                 icon: 'success',
                 showCancelButton: true,
                 confirmButtonColor: '#25d366',
                 cancelButtonColor: '#6c757d',
                 confirmButtonText: '<i class="fab fa-whatsapp me-2"></i>Enviar por WhatsApp',
-                cancelButtonText: 'Fechar'
+                cancelButtonText: 'Fechar',
+                customClass: {
+                    popup: 'swal-wide'
+                }
             }).then((result) => {
                 if (result.isConfirmed) {
                     window.open(whatsappUrl, '_blank');
@@ -12398,90 +12743,217 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             });
         }
 
-        function callClient(phone) { window.open(`tel:${phone}`, '_blank'); }
-        function whatsappClient(phone) { window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent('Olá! Aqui é do Studio DeVitto. Como podemos ajudá-lo hoje?')}`, '_blank'); }
-        function requestGoogleReview() { window.open('https://search.google.com/local/writereview?placeid=', '_blank'); }
+        function sendAppointmentConfirmation(appointmentData) {
+            // Função mantida para compatibilidade
+            console.log('Agendamento salvo:', appointmentData);
+        }
+
+        function showConfirmationPopup() {
+            // Função substituída por showReminderPopup
+        }
+
+        function cancelConfirmation() {
+            document.getElementById('confirmationPopup').classList.remove('active');
+        }
+
+        function confirmConfirmation() {
+            document.getElementById('confirmationPopup').classList.remove('active');
+            showSuccess('Notificação programada para 24 horas antes do horário marcado!');
+        }
+
+        function callClient(phone) {
+            window.open(`tel:${phone}`, '_blank');
+        }
+
+        function whatsappClient(phone) {
+            const message = `Olá! Aqui é do Studio DeVitto. Como podemos ajudá-lo hoje?`;
+            window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`, '_blank');
+        }
+
+        function requestGoogleReview() {
+            const reviewUrl = 'https://search.google.com/local/writereview?placeid=';
+            window.open(reviewUrl, '_blank');
+        }
+
         function showAppointmentDetails(appointmentId) {
             const appointment = appointments.find(a => a.id === appointmentId);
             if (!appointment) return;
+            
             Swal.fire({
                 title: 'Detalhes do Agendamento',
-                html: `<div class="text-start"><p><strong>Cliente:</strong> ${appointment.clientName}</p><p><strong>Data:</strong> ${formatDate(appointment.date)}</p><p><strong>Hora:</strong> ${appointment.startTime}</p><p><strong>Serviços:</strong> ${appointment.services?.map(s => s.name).join(', ') || 'Nenhum'}</p><p><strong>Total:</strong> ${formatCurrency(appointment.total)}</p><p><strong>Status:</strong> <span class="badge bg-success">${appointment.status}</span></p></div>`,
+                html: `
+                    <div class="text-start">
+                        <p><strong>Cliente:</strong> ${appointment.clientName}</p>
+                        <p><strong>Data:</strong> ${formatDate(appointment.date)}</p>
+                        <p><strong>Hora:</strong> ${appointment.startTime}</p>
+                        <p><strong>Serviços:</strong> ${appointment.services?.map(s => s.name).join(', ') || 'Nenhum'}</p>
+                        <p><strong>Total:</strong> ${formatCurrency(appointment.total)}</p>
+                        <p><strong>Status:</strong> <span class="badge bg-success">${appointment.status}</span></p>
+                    </div>
+                `,
                 showCancelButton: true,
                 confirmButtonText: 'Editar',
                 cancelButtonText: 'Fechar'
-            }).then((result) => { if (result.isConfirmed) showError('Edição de agendamento em desenvolvimento'); });
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    showError('Edição de agendamento em desenvolvimento');
+                }
+            });
         }
 
         // ============================================
-        // FUNÇÕES CLIENTES INATIVOS
+        // NOVAS FUNÇÕES: CLIENTES INATIVOS E WHATSAPP (COM FOTOS)
         // ============================================
 
+        // Função para carregar clientes inativos (não visitam há 2 meses ou mais)
         function loadInactiveClients() {
             const container = document.getElementById('inactiveClientsList');
+            
             if (!container) return;
-            if (!currentUser) { container.innerHTML = '<p class="text-center text-muted">Faça login para ver clientes inativos.</p>'; return; }
-            if (clients.length === 0) { container.innerHTML = '<p class="text-center text-muted">Nenhum cliente cadastrado.</p>'; return; }
+            
+            if (!currentUser) {
+                container.innerHTML = '<p class="text-center text-muted">Faça login para ver clientes inativos.</p>';
+                return;
+            }
+            
+            if (clients.length === 0) {
+                container.innerHTML = '<p class="text-center text-muted">Nenhum cliente cadastrado.</p>';
+                return;
+            }
             
             showLoading('Buscando clientes inativos...');
+            
+            // Data atual
             const today = new Date();
-            const twoMonthsAgo = new Date(); twoMonthsAgo.setMonth(today.getMonth() - 2);
+            
+            // Calcular data limite (2 meses atrás)
+            const twoMonthsAgo = new Date();
+            twoMonthsAgo.setMonth(today.getMonth() - 2);
+            
+            // Array para armazenar clientes inativos com detalhes
             let inactiveClients = [];
+            
+            // Para cada cliente, verificar a última data de serviço
             clients.forEach(client => {
+                // Filtrar serviços do cliente
                 const clientServices = allServices.filter(service => service.clientId === client.id);
+                
                 if (clientServices.length === 0) {
-                    inactiveClients.push({ client: client, lastVisit: null, daysAway: null });
+                    // Cliente nunca fez serviço - considerar inativo
+                    inactiveClients.push({
+                        client: client,
+                        lastVisit: null,
+                        daysAway: null
+                    });
                 } else {
+                    // Ordenar serviços por data (mais recente primeiro)
                     const sortedServices = clientServices.sort((a, b) => {
                         const dateA = a.timestamp && a.timestamp.toDate ? a.timestamp.toDate() : new Date(a.timestamp || a.date || 0);
                         const dateB = b.timestamp && b.timestamp.toDate ? b.timestamp.toDate() : new Date(b.timestamp || b.date || 0);
                         return dateB - dateA;
                     });
+                    
                     const lastService = sortedServices[0];
-                    const lastServiceDate = lastService.timestamp && lastService.timestamp.toDate ? lastService.timestamp.toDate() : new Date(lastService.timestamp || lastService.date);
+                    const lastServiceDate = lastService.timestamp && lastService.timestamp.toDate ? 
+                        lastService.timestamp.toDate() : new Date(lastService.timestamp || lastService.date);
+                    
+                    // Verificar se a última visita foi há mais de 2 meses
                     if (lastServiceDate < twoMonthsAgo) {
-                        const diffDays = Math.ceil((today - lastServiceDate) / (1000 * 60 * 60 * 24));
-                        inactiveClients.push({ client: client, lastVisit: lastServiceDate, daysAway: diffDays });
+                        const diffTime = today - lastServiceDate;
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                        
+                        inactiveClients.push({
+                            client: client,
+                            lastVisit: lastServiceDate,
+                            daysAway: diffDays
+                        });
                     }
                 }
             });
+            
+            // Ordenar por dias ausentes (mais tempo sem vir primeiro)
             inactiveClients.sort((a, b) => {
                 if (a.daysAway === null && b.daysAway === null) return 0;
                 if (a.daysAway === null) return -1;
                 if (b.daysAway === null) return 1;
                 return b.daysAway - a.daysAway;
             });
+            
             Swal.close();
+            
             if (inactiveClients.length === 0) {
-                container.innerHTML = `<div class="alert alert-success text-center"><i class="fas fa-check-circle fa-2x mb-3"></i><h5>Parabéns!</h5><p>Todos os seus clientes visitaram nos últimos 2 meses.</p></div>`;
+                container.innerHTML = `
+                    <div class="alert alert-success text-center">
+                        <i class="fas fa-check-circle fa-2x mb-3"></i>
+                        <h5>Parabéns!</h5>
+                        <p>Todos os seus clientes visitaram nos últimos 2 meses.</p>
+                    </div>
+                `;
                 return;
             }
-            let html = `<div class="alert alert-info mb-4"><i class="fas fa-info-circle me-2"></i>Encontramos <strong>${inactiveClients.length}</strong> cliente(s) que não visitam há 2 meses ou mais.</div>`;
+            
+            // Gerar HTML para cada cliente inativo (com foto e canetinha)
+            let html = `
+                <div class="alert alert-info mb-4">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Encontramos <strong>${inactiveClients.length}</strong> cliente(s) que não visitam há 2 meses ou mais.
+                </div>
+            `;
+            
             inactiveClients.forEach(item => {
                 const client = item.client;
                 const daysAway = item.daysAway;
                 const lastVisitDate = item.lastVisit ? formatDate(item.lastVisit) : 'Nunca visitou';
                 const daysAwayText = daysAway ? `há ${daysAway} dias` : 'nunca visitou';
+                
+                // Foto do cliente - AGORA ABRE A FICHA DIRETO NA TELA DE INATIVOS
                 const photoHtml = client.photoUrl ? 
                     `<div class="inactive-client-avatar-img-container" onclick="showClientRecordInPlace('${client.id}')" style="cursor: pointer;"><img src="${client.photoUrl}" class="inactive-client-avatar-img" ondblclick="zoomPhoto('${client.photoUrl}', '${client.name}')" onlongpress="zoomPhoto('${client.photoUrl}', '${client.name}')"></div>` : 
                     `<div class="inactive-client-avatar" onclick="showClientRecordInPlace('${client.id}')" style="cursor: pointer;">${client.name.charAt(0).toUpperCase()}</div>`;
-                const defaultMessage = `Olá ${client.name}! 🥰\n\nSentimos muito a sua falta no Studio DeVitto! ✂️💇\n\nQue tal vir cuidar dos cabelos e aproveitar um desconto especial?\n\n🎁 *10% DE DESCONTO* em qualquer serviço!\n\nEstamos te esperando com muito carinho! 💕\n\nAgende já o seu horário! ✨\n\n${businessSettings.name || 'Studio DeVitto'}`;
+                
+                // Mensagem padrão (editável)
+                const defaultMessage = `Olá ${client.name}! 🥰\n\n` +
+                    `Sentimos muito a sua falta no Studio DeVitto! ✂️💇\n\n` +
+                    `Que tal vir cuidar dos cabelos e aproveitar um desconto especial?\n\n` +
+                    `🎁 *10% DE DESCONTO* em qualquer serviço!\n\n` +
+                    `Estamos te esperando com muito carinho! 💕\n\n` +
+                    `Agende já o seu horário! ✨\n\n` +
+                    `${businessSettings.name || 'Studio DeVitto'}`;
+                
                 html += `
                     <div class="inactive-client-card mb-3" id="client-${client.id}">
-                        <button class="edit-client-btn" onclick="editClientFromRecords('${client.id}')" title="Editar cliente"><i class="fas fa-pen"></i></button>
+                        <button class="edit-client-btn" onclick="editClientFromRecords('${client.id}')" title="Editar cliente">
+                            <i class="fas fa-pen"></i>
+                        </button>
                         <div class="d-flex flex-wrap align-items-start">
-                            <div class="me-3">${photoHtml}</div>
+                            <div class="me-3">
+                                ${photoHtml}
+                            </div>
                             <div class="flex-grow-1">
                                 <div class="d-flex justify-content-between align-items-start flex-wrap">
-                                    <div><h5 class="mb-1">${client.name}</h5><p class="text-muted small mb-2"><i class="fas fa-phone-alt me-1"></i> ${client.phone || 'Sem telefone'} | <i class="fas fa-calendar-alt me-1"></i> Última visita: ${lastVisitDate} (${daysAwayText})</p></div>
-                                    <span class="days-away-badge">${daysAway ? `${daysAway} dias ausente` : 'Nunca visitou'}</span>
+                                    <div>
+                                        <h5 class="mb-1">${client.name}</h5>
+                                        <p class="text-muted small mb-2">
+                                            <i class="fas fa-phone-alt me-1"></i> ${client.phone || 'Sem telefone'} | 
+                                            <i class="fas fa-calendar-alt me-1"></i> Última visita: ${lastVisitDate} (${daysAwayText})
+                                        </p>
+                                    </div>
+                                    <span class="days-away-badge">
+                                        ${daysAway ? `${daysAway} dias ausente` : 'Nunca visitou'}
+                                    </span>
                                 </div>
+                                
                                 <div class="mt-3">
                                     <label class="form-label fw-bold">Mensagem para WhatsApp (editável):</label>
                                     <textarea class="form-control mb-2" id="message-${client.id}" rows="3">${defaultMessage}</textarea>
+                                    
                                     <div class="d-flex justify-content-end gap-2 mt-2">
-                                        <button class="btn btn-outline-secondary btn-sm" onclick="resetMessage('${client.id}')"><i class="fas fa-undo me-1"></i> Restaurar</button>
-                                        <button class="btn btn-success btn-sm" onclick="sendWhatsAppToInactive('${client.id}', '${client.phone}')"><i class="fab fa-whatsapp me-1"></i> Enviar WhatsApp</button>
+                                        <button class="btn btn-outline-secondary btn-sm" onclick="resetMessage('${client.id}')">
+                                            <i class="fas fa-undo me-1"></i> Restaurar
+                                        </button>
+                                        <button class="btn btn-success btn-sm" onclick="sendWhatsAppToInactive('${client.id}', '${client.phone}')">
+                                            <i class="fab fa-whatsapp me-1"></i> Enviar WhatsApp
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -12489,116 +12961,306 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                     </div>
                 `;
             });
+            
             container.innerHTML = html;
+            
+            // Adicionar evento de toque longo para fotos
             setupLongPressForPhotos();
         }
         
+        // Função para restaurar mensagem padrão
         function resetMessage(clientId) {
             const client = clients.find(c => c.id === clientId);
             if (!client) return;
-            const defaultMessage = `Olá ${client.name}! 🥰\n\nSentimos muito a sua falta no Studio DeVitto! ✂️💇\n\nQue tal vir cuidar dos cabelos e aproveitar um desconto especial?\n\n🎁 *10% DE DESCONTO* em qualquer serviço!\n\nEstamos te esperando com muito carinho! 💕\n\nAgende já o seu horário! ✨\n\n${businessSettings.name || 'Studio DeVitto'}`;
+            
+            const defaultMessage = `Olá ${client.name}! 🥰\n\n` +
+                `Sentimos muito a sua falta no Studio DeVitto! ✂️💇\n\n` +
+                `Que tal vir cuidar dos cabelos e aproveitar um desconto especial?\n\n` +
+                `🎁 *10% DE DESCONTO* em qualquer serviço!\n\n` +
+                `Estamos te esperando com muito carinho! 💕\n\n` +
+                `Agende já o seu horário! ✨\n\n` +
+                `${businessSettings.name || 'Studio DeVitto'}`;
+            
             const textarea = document.getElementById(`message-${clientId}`);
-            if (textarea) textarea.value = defaultMessage;
+            if (textarea) {
+                textarea.value = defaultMessage;
+            }
         }
         
-        function sendWhatsAppToInactive(clientId, phone) {
-            if (!phone) { alert('Cliente não possui telefone cadastrado.'); return; }
-            const client = clients.find(c => c.id === clientId);
-            if (!client) { alert('Cliente não encontrado.'); return; }
-            const messageTextarea = document.getElementById(`message-${clientId}`);
-            let message = messageTextarea ? messageTextarea.value : '';
-            if (!message) message = `Olá ${client.name}! Tudo bem? Sentimos sua falta no salão! Gostaria de agendar um horário?`;
-            const cleanPhone = phone.replace(/\D/g, '');
-            const whatsappLink = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
-            window.open(whatsappLink, '_blank');
-            alert('WhatsApp aberto! Agora é só enviar a mensagem.');
-        }
+        // ============================================
+// FUNÇÃO MAIS SIMPLES - WhatsApp na ficha do cliente inativo
+// ============================================
+function sendWhatsAppToInactive(clientId, phone) {
+    // Verifica se o cliente tem telefone
+    if (!phone) {
+        alert('Cliente não possui telefone cadastrado.');
+        return;
+    }
+    
+    // Busca o cliente
+    const client = clients.find(c => c.id === clientId);
+    if (!client) {
+        alert('Cliente não encontrado.');
+        return;
+    }
+    
+    // Busca a mensagem do textarea
+    const messageTextarea = document.getElementById(`message-${clientId}`);
+    let message = messageTextarea ? messageTextarea.value : '';
+    
+    // Se não tiver mensagem, usa uma padrão
+    if (!message) {
+        message = `Olá ${client.name}! Tudo bem? Sentimos sua falta no salão! Gostaria de agendar um horário?`;
+    }
+    
+    // LIMPA O NÚMERO (só números)
+    const cleanPhone = phone.replace(/\D/g, '');
+    
+    // CRIA O LINK DO WHATSAPP (jeito mais simples)
+    const whatsappLink = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+    
+    // ABRE O LINK
+    window.open(whatsappLink, '_blank');
+    
+    // Aviso simples
+    alert('WhatsApp aberto! Agora é só enviar a mensagem.');
+}
+
+        // ============================================
+        // SOLUÇÃO DEFINITIVA - CORREÇÃO DO MENU
+        // ============================================
 
         function fixMenuNavigation() {
             console.log("Corrigindo navegação do menu...");
+            
             const allSections = document.querySelectorAll('.section');
             console.log(`📁 Total de telas encontradas: ${allSections.length}`);
+            
+            allSections.forEach(section => {
+                console.log(`- ${section.id}: ${section.innerHTML.length > 100 ? 'COM conteúdo' : 'SEM conteúdo'}`);
+            });
+            
             const desktopMenuLinks = document.querySelectorAll('.sidebar .nav-link');
+            
             desktopMenuLinks.forEach(link => {
                 const newLink = link.cloneNode(true);
                 link.parentNode.replaceChild(newLink, link);
+                
                 newLink.addEventListener('click', function(e) {
                     e.preventDefault();
+                    
                     const sectionId = this.getAttribute('data-section');
                     console.log(`🎯 Clicou em: ${sectionId}`);
+                    
                     desktopMenuLinks.forEach(item => item.classList.remove('active'));
+                    
                     this.classList.add('active');
+                    
                     document.querySelectorAll('.section').forEach(section => {
                         section.classList.remove('active');
                         section.style.display = 'none';
                     });
+                    
                     document.getElementById('mobileCards').style.display = 'none';
                     document.getElementById('mobileCards').classList.remove('active');
+                    
                     const targetSection = document.getElementById(sectionId);
                     if (targetSection) {
                         targetSection.classList.add('active');
                         targetSection.style.display = 'block';
                         console.log(`✅ Mostrando tela: ${sectionId}`);
-                        if (window.innerWidth <= 768) document.getElementById('mobileHomeButton').style.display = 'flex';
-                        if (sectionId === 'store') renderStore();
-                        if (sectionId === 'cashier') updateQuickServicesInCashier();
-                        if (sectionId === 'inactive-clients') loadInactiveClients();
-                    } else { console.log(`❌ Seção ${sectionId} não encontrada!`); }
+                        
+                        if (window.innerWidth <= 768) {
+                            document.getElementById('mobileHomeButton').style.display = 'flex';
+                        }
+                        
+                        if (sectionId === 'store') {
+                            renderStore();
+                        }
+                        
+                        if (sectionId === 'cashier') {
+                            updateQuickServicesInCashier();
+                        }
+                        
+                        // Carregar clientes inativos se a seção for aberta
+                        if (sectionId === 'inactive-clients') {
+                            loadInactiveClients();
+                        }
+                    } else {
+                        console.log(`❌ Seção ${sectionId} não encontrada!`);
+                    }
                 });
             });
+            
             if (window.innerWidth > 768) {
                 setTimeout(() => {
                     document.querySelectorAll('.section').forEach(section => {
                         section.classList.remove('active');
                         section.style.display = 'none';
                     });
+                    
                     document.getElementById('mobileCards').style.display = 'none';
                     document.getElementById('mobileCards').classList.remove('active');
+                    
                     const dashboard = document.getElementById('dashboard');
                     if (dashboard) {
                         dashboard.classList.add('active');
                         dashboard.style.display = 'block';
                     }
+                    
                     desktopMenuLinks.forEach(link => {
                         link.classList.remove('active');
-                        if (link.getAttribute('data-section') === 'dashboard') link.classList.add('active');
+                        if (link.getAttribute('data-section') === 'dashboard') {
+                            link.classList.add('active');
+                        }
                     });
+                    
                     console.log("✅ Menu desktop corrigido com sucesso!");
                 }, 500);
             }
         }
 
-        window.addEventListener('load', function() { setTimeout(fixMenuNavigation, 1500); });
+        window.addEventListener('load', function() {
+            setTimeout(fixMenuNavigation, 1500);
+        });
         
+        // NOVA FUNÇÃO: Abre a ficha do cliente diretamente na tela de inativos
         function showClientRecordInPlace(clientId) {
             const client = clients.find(c => c.id === clientId);
             if (!client) return;
-            const clientServices = allServices.filter(service => service.clientId === client.id).sort((a, b) => {
-                const dateA = a.timestamp && a.timestamp.toDate ? a.timestamp.toDate() : new Date(a.timestamp || 0);
-                const dateB = b.timestamp && b.timestamp.toDate ? b.timestamp.toDate() : new Date(b.timestamp || 0);
-                return dateB - dateA;
-            });
+            
+            const clientServices = allServices.filter(service => service.clientId === client.id)
+                .sort((a, b) => {
+                    const dateA = a.timestamp && a.timestamp.toDate ? a.timestamp.toDate() : new Date(a.timestamp || 0);
+                    const dateB = b.timestamp && b.timestamp.toDate ? b.timestamp.toDate() : new Date(b.timestamp || 0);
+                    return dateB - dateA;
+                });
+            
             const totalSpent = clientServices.reduce((sum, service) => sum + parseFloat(service.value || 0), 0);
             const clientNote = clientNotes[client.id] || { notes: '' };
+            
+            // Foto do cliente na ficha
             const photoHtml = client.photoUrl ? 
                 `<img src="${client.photoUrl}" class="client-avatar-img" style="width: 80px; height: 80px; margin-bottom: 10px;" ondblclick="zoomPhoto('${client.photoUrl}', '${client.name}')" onlongpress="zoomPhoto('${client.photoUrl}', '${client.name}')">` : 
                 `<div class="client-avatar" style="width: 80px; height: 80px; font-size: 32px;">${client.name.charAt(0).toUpperCase()}</div>`;
             
+            // Criar um modal popup diretamente na tela de inativos
             Swal.fire({
                 title: client.name,
-                html: `<div class="text-start"><div class="text-center mb-4"><div class="position-relative d-inline-block">${photoHtml}</div><h4>${client.name}</h4><p class="text-muted">${client.phone || 'Sem telefone'}</p><p class="text-muted">${client.email || 'Sem e-mail'}</p><p class="text-muted">${client.birthdate ? `Nascimento: ${formatDate(client.birthdate)}` : ''}</p></div><div class="row mb-4"><div class="col-md-6"><div class="card"><div class="card-header"><h6 class="mb-0">Resumo</h6></div><div class="card-body"><p><strong>Total de Serviços:</strong> ${clientServices.length}</p><p><strong>Valor Total Gasto:</strong> ${formatCurrency(totalSpent)}</p><p><strong>Última Visita:</strong> ${clientServices.length > 0 ? formatDate(clientServices[0].timestamp && clientServices[0].timestamp.toDate ? clientServices[0].timestamp.toDate() : new Date(clientServices[0].timestamp || clientServices[0].date)) : 'Nunca'}</p></div></div></div><div class="col-md-6"><div class="card"><div class="card-header d-flex justify-content-between align-items-center"><h6 class="mb-0">Notas</h6><button class="btn btn-sm btn-primary" onclick="editClientNotes('${client.id}'); Swal.close();"><i class="fas fa-edit"></i></button></div><div class="card-body">${clientNote.notes ? `<div style="white-space: pre-wrap;">${clientNote.notes}</div>` : '<p class="text-muted">Nenhuma nota cadastrada.</p>'}</div></div></div></div><div class="card"><div class="card-header d-flex justify-content-between align-items-center"><h6 class="mb-0">Histórico de Serviços</h6><button class="btn btn-sm btn-warning" onclick="editClientFromRecords('${client.id}'); Swal.close();"><i class="fas fa-pen me-1"></i> Editar Cliente</button></div><div class="card-body">${clientServices.length > 0 ? `<div class="table-responsive" style="max-height: 300px; overflow-y: auto;"><table class="table table-hover table-sm"><thead><tr><th>Data</th><th>Serviço</th><th>Colaborador</th><th>Valor</th></tr></thead><tbody>${clientServices.slice(0,10).map(service => { const collaborator = collaborators.find(c => c.id === service.collaboratorId) || { name: 'Não informado' }; const serviceDate = service.timestamp && service.timestamp.toDate ? service.timestamp.toDate() : new Date(service.timestamp || service.date); return `<tr><td>${formatDate(serviceDate)}</td><td>${service.description || 'Serviço'}</td><td>${collaborator.name}</td><td>${formatCurrency(service.value)}</td></tr>`; }).join('')}${clientServices.length > 10 ? `<tr><td colspan="4" class="text-center text-muted">... e mais ${clientServices.length - 10} serviços</td></tr>` : ''}</tbody></table></div>` : '<p class="text-muted">Nenhum serviço registrado.</p>'}</div></div><div class="mt-3 text-center"><button class="btn btn-success" onclick="sendWhatsAppToInactive('${client.id}', '${client.phone}'); Swal.close();" ${!client.phone ? 'disabled' : ''}><i class="fab fa-whatsapp me-2"></i>Enviar WhatsApp</button></div></div>`,
+                html: `
+                    <div class="text-start">
+                        <div class="text-center mb-4">
+                            <div class="position-relative d-inline-block">
+                                ${photoHtml}
+                            </div>
+                            <h4>${client.name}</h4>
+                            <p class="text-muted">${client.phone || 'Sem telefone'}</p>
+                            <p class="text-muted">${client.email || 'Sem e-mail'}</p>
+                            <p class="text-muted">${client.birthdate ? `Nascimento: ${formatDate(client.birthdate)}` : ''}</p>
+                        </div>
+                        
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0">Resumo</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <p><strong>Total de Serviços:</strong> ${clientServices.length}</p>
+                                        <p><strong>Valor Total Gasto:</strong> ${formatCurrency(totalSpent)}</p>
+                                        <p><strong>Última Visita:</strong> ${clientServices.length > 0 ? 
+                                            formatDate(clientServices[0].timestamp && clientServices[0].timestamp.toDate ? 
+                                                clientServices[0].timestamp.toDate() : 
+                                                new Date(clientServices[0].timestamp || clientServices[0].date)) : 
+                                            'Nunca'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header d-flex justify-content-between align-items-center">
+                                        <h6 class="mb-0">Notas</h6>
+                                        <button class="btn btn-sm btn-primary" onclick="editClientNotes('${client.id}'); Swal.close();">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                    </div>
+                                    <div class="card-body">
+                                        ${clientNote.notes ? `
+                                            <div style="white-space: pre-wrap;">${clientNote.notes}</div>
+                                        ` : `
+                                            <p class="text-muted">Nenhuma nota cadastrada.</p>
+                                        `}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h6 class="mb-0">Histórico de Serviços</h6>
+                                <button class="btn btn-sm btn-warning" onclick="editClientFromRecords('${client.id}'); Swal.close();">
+                                    <i class="fas fa-pen me-1"></i> Editar Cliente
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                ${clientServices.length > 0 ? `
+                                    <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                                        <table class="table table-hover table-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th>Data</th>
+                                                    <th>Serviço</th>
+                                                    <th>Colaborador</th>
+                                                    <th>Valor</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                ${clientServices.slice(0, 10).map(service => {
+                                                    const collaborator = collaborators.find(c => c.id === service.collaboratorId) || { name: 'Não informado' };
+                                                    const serviceDate = service.timestamp && service.timestamp.toDate ? service.timestamp.toDate() : new Date(service.timestamp || service.date);
+                                                    return `
+                                                        <tr>
+                                                            <td>${formatDate(serviceDate)}</td>
+                                                            <td>${service.description || 'Serviço'}</td>
+                                                            <td>${collaborator.name}</td>
+                                                            <td>${formatCurrency(service.value)}</td>
+                                                        </tr>
+                                                    `;
+                                                }).join('')}
+                                                ${clientServices.length > 10 ? `<tr><td colspan="4" class="text-center text-muted">... e mais ${clientServices.length - 10} serviços</td></tr>` : ''}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                ` : `
+                                    <p class="text-muted">Nenhum serviço registrado.</p>
+                                `}
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3 text-center">
+                            <button class="btn btn-success" onclick="sendWhatsAppToInactive('${client.id}', '${client.phone}'); Swal.close();" ${!client.phone ? 'disabled' : ''}>
+                                <i class="fab fa-whatsapp me-2"></i>Enviar WhatsApp
+                            </button>
+                        </div>
+                    </div>
+                `,
                 width: '800px',
                 showConfirmButton: false,
                 showCloseButton: true,
-                customClass: { container: 'client-record-popup' }
+                customClass: {
+                    container: 'client-record-popup'
+                }
             });
         }
 
+        // NOVA FUNÇÃO: Ampliar foto (toque longo / duplo clique)
         function zoomPhoto(photoUrl, name) {
             const modal = document.getElementById('photoModal');
             const img = document.getElementById('photoModalImg');
+            
             img.src = photoUrl;
             img.alt = name || 'Foto';
+            
             modal.classList.add('active');
         }
 
@@ -12620,271 +13282,512 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                 const swUrl = URL.createObjectURL(swBlob);
                 navigator.serviceWorker.register(swUrl);
             });
-        }
-    </script>
+        } 
 
-    <!-- SISTEMA OFFLINE COMPLETO -->
-    <script>
-        (function() {
-            console.log('🟢 Sistema offline iniciando...');
+
+
+
+
+
+
+
+
+<!-- SISTEMA OFFLINE COMPLETO - Copiar e colar antes do </body> -->
+
+(function() {
+    console.log('🟢 Sistema offline iniciando...');
+    
+    // ============================================
+    // 1. FUNÇÃO PARA SALVAR CÓPIA DE TUDO
+    // ============================================
+    
+    function salvarCopiaTodosDados() {
+        console.log('💾 Salvando cópia de todos os dados...');
+        
+        const dadosParaSalvar = {
+            ultimaAtualizacao: new Date().toISOString(),
+            clientes: window.clients || [],
+            produtos: window.products || [],
+            colaboradores: window.collaborators || [],
+            servicos: window.allServices || [],
+            vendasProdutos: window.allProductSales || [],
+            pacotes: window.packages || [],
+            agendamentos: window.appointments || []
+        };
+        
+        // Salvar no localStorage
+        localStorage.setItem('copia_completa_sistema', JSON.stringify(dadosParaSalvar));
+        
+        // Tentar salvar também como arquivo (se o navegador permitir)
+        try {
+            const blob = new Blob([JSON.stringify(dadosParaSalvar, null, 2)], {type: 'application/json'});
+            // Salvar no cache do navegador
+            if (window.caches) {
+                const response = new Response(blob);
+                caches.open('backup-sistema').then(cache => {
+                    cache.put('/backup-completo.json', response);
+                });
+            }
+        } catch(e) { console.log('Erro ao salvar arquivo:', e); }
+        
+        console.log('✅ Cópia salva com sucesso!', dadosParaSalvar.clientes.length, 'clientes');
+        return true;
+    }
+    
+    // ============================================
+    // 2. FUNÇÃO PARA CARREGAR A ÚLTIMA CÓPIA
+    // ============================================
+    
+    function carregarUltimaCopia() {
+        console.log('📦 Tentando carregar última cópia salva...');
+        
+        // Tentar carregar do localStorage
+        const copiaSalva = localStorage.getItem('copia_completa_sistema');
+        
+        if (!copiaSalva) {
+            console.log('⚠️ Nenhuma cópia encontrada');
+            return false;
+        }
+        
+        try {
+            const dados = JSON.parse(copiaSalva);
+            console.log('📅 Cópia de:', dados.ultimaAtualizacao);
             
-            function salvarCopiaTodosDados() {
-                console.log('💾 Salvando cópia de todos os dados...');
-                const dadosParaSalvar = {
-                    ultimaAtualizacao: new Date().toISOString(),
-                    clientes: window.clients || [],
-                    produtos: window.products || [],
-                    colaboradores: window.collaborators || [],
-                    servicos: window.allServices || [],
-                    vendasProdutos: window.allProductSales || [],
-                    pacotes: window.packages || [],
-                    agendamentos: window.appointments || []
-                };
-                localStorage.setItem('copia_completa_sistema', JSON.stringify(dadosParaSalvar));
-                try {
-                    const blob = new Blob([JSON.stringify(dadosParaSalvar, null, 2)], {type: 'application/json'});
-                    if (window.caches) {
-                        const response = new Response(blob);
-                        caches.open('backup-sistema').then(cache => { cache.put('/backup-completo.json', response); });
-                    }
-                } catch(e) { console.log('Erro ao salvar arquivo:', e); }
-                console.log('✅ Cópia salva com sucesso!', dadosParaSalvar.clientes.length, 'clientes');
-                return true;
+            // Carregar clientes
+            if (dados.clientes && dados.clientes.length > 0) {
+                window.clients = dados.clientes;
+                console.log('✅ Clientes carregados:', window.clients.length);
+                if (typeof updateClientsUI === 'function') updateClientsUI();
+                if (typeof updateClientRecordsList === 'function') updateClientRecordsList();
+                if (typeof updatePackageClientSelect === 'function') updatePackageClientSelect();
+                const totalClients = document.getElementById('totalClients');
+                if (totalClients) totalClients.textContent = window.clients.length;
+                if (typeof loadUpcomingBirthdays === 'function') loadUpcomingBirthdays();
             }
             
-            function carregarUltimaCopia() {
-                console.log('📦 Tentando carregar última cópia salva...');
-                const copiaSalva = localStorage.getItem('copia_completa_sistema');
-                if (!copiaSalva) { console.log('⚠️ Nenhuma cópia encontrada'); return false; }
-                try {
-                    const dados = JSON.parse(copiaSalva);
-                    console.log('📅 Cópia de:', dados.ultimaAtualizacao);
-                    if (dados.clientes && dados.clientes.length > 0) {
-                        window.clients = dados.clientes;
-                        console.log('✅ Clientes carregados:', window.clients.length);
-                        if (typeof updateClientsUI === 'function') updateClientsUI();
-                        if (typeof updateClientRecordsList === 'function') updateClientRecordsList();
-                        if (typeof updatePackageClientSelect === 'function') updatePackageClientSelect();
-                        const totalClients = document.getElementById('totalClients');
-                        if (totalClients) totalClients.textContent = window.clients.length;
-                        if (typeof loadUpcomingBirthdays === 'function') loadUpcomingBirthdays();
-                    }
-                    if (dados.produtos && dados.produtos.length > 0) {
-                        window.products = dados.produtos;
-                        console.log('✅ Produtos carregados:', window.products.length);
-                        if (typeof updateInventoryUI === 'function') updateInventoryUI();
-                        if (typeof renderStore === 'function') renderStore();
-                        if (typeof checkLowStock === 'function') checkLowStock();
-                    }
-                    if (dados.colaboradores && dados.colaboradores.length > 0) {
-                        window.collaborators = dados.colaboradores;
-                        console.log('✅ Colaboradores carregados:', window.collaborators.length);
-                        if (typeof updateCollaboratorsUI === 'function') updateCollaboratorsUI();
-                        if (typeof updateCollaboratorSelect === 'function') updateCollaboratorSelect();
-                        if (typeof updateReportCollaboratorSelect === 'function') updateReportCollaboratorSelect();
-                        if (typeof updateSalaryCollaboratorSelect === 'function') updateSalaryCollaboratorSelect();
-                        const totalCollab = document.getElementById('totalCollaborators');
-                        if (totalCollab) totalCollab.textContent = window.collaborators.filter(c => c.active).length;
-                    }
-                    if (dados.servicos && dados.servicos.length > 0) {
-                        window.allServices = dados.servicos;
-                        const hoje = new Date().toISOString().split('T')[0];
-                        window.todayServices = window.allServices.filter(s => s.date === hoje);
-                        console.log('✅ Serviços carregados:', window.allServices.length);
-                        if (typeof updateTodaySalesUI === 'function') updateTodaySalesUI();
-                        if (typeof updateDashboard === 'function') updateDashboard();
-                        if (typeof calculatePeriodSales === 'function') calculatePeriodSales();
-                    }
-                    if (dados.vendasProdutos && dados.vendasProdutos.length > 0) {
-                        window.allProductSales = dados.vendasProdutos;
-                        const hoje = new Date().toISOString().split('T')[0];
-                        window.todayProductSales = window.allProductSales.filter(s => s.date === hoje);
-                        console.log('✅ Vendas carregadas:', window.allProductSales.length);
-                        if (typeof updateTodaySalesUI === 'function') updateTodaySalesUI();
-                        if (typeof updateDashboard === 'function') updateDashboard();
-                        if (typeof updateProductsSoldStats === 'function') updateProductsSoldStats();
-                    }
-                    if (dados.pacotes && dados.pacotes.length > 0) {
-                        window.packages = dados.pacotes;
-                        console.log('✅ Pacotes carregados:', window.packages.length);
-                        if (typeof updatePackagesUI === 'function') updatePackagesUI();
-                    }
-                    if (dados.agendamentos && dados.agendamentos.length > 0) {
-                        window.appointments = dados.agendamentos;
-                        console.log('✅ Agendamentos carregados:', window.appointments.length);
-                        if (typeof renderAgenda === 'function') renderAgenda();
-                    }
-                    return true;
-                } catch(e) { console.error('Erro ao carregar cópia:', e); return false; }
+            // Carregar produtos
+            if (dados.produtos && dados.produtos.length > 0) {
+                window.products = dados.produtos;
+                console.log('✅ Produtos carregados:', window.products.length);
+                if (typeof updateInventoryUI === 'function') updateInventoryUI();
+                if (typeof renderStore === 'function') renderStore();
+                if (typeof checkLowStock === 'function') checkLowStock();
             }
             
-            let filaPendentes = [];
-            const filaSalva = localStorage.getItem('fila_sincronizacao');
-            if (filaSalva) { try { filaPendentes = JSON.parse(filaSalva); console.log('📋 Dados pendentes para sincronizar:', filaPendentes.length); } catch(e) {} }
-            
-            function salvarNaFila(tipo, dados) {
-                filaPendentes.push({ tipo: tipo, dados: dados, data: new Date().toISOString() });
-                localStorage.setItem('fila_sincronizacao', JSON.stringify(filaPendentes));
-                console.log(`📝 ${tipo} adicionado à fila. Total: ${filaPendentes.length}`);
-                if (tipo === 'cliente' && window.clients) { window.clients.push({...dados, id: 'temp_' + Date.now(), pendente: true}); if (typeof updateClientsUI === 'function') updateClientsUI(); }
-                if (tipo === 'produto' && window.products) { window.products.push({...dados, id: 'temp_' + Date.now(), pendente: true}); if (typeof updateInventoryUI === 'function') updateInventoryUI(); if (typeof renderStore === 'function') renderStore(); }
-                if (tipo === 'servico' && window.allServices) { window.allServices.push({...dados, id: 'temp_' + Date.now(), pendente: true}); if (typeof updateTodaySalesUI === 'function') updateTodaySalesUI(); }
-                salvarCopiaTodosDados();
-                atualizarBadgePendentes();
+            // Carregar colaboradores
+            if (dados.colaboradores && dados.colaboradores.length > 0) {
+                window.collaborators = dados.colaboradores;
+                console.log('✅ Colaboradores carregados:', window.collaborators.length);
+                if (typeof updateCollaboratorsUI === 'function') updateCollaboratorsUI();
+                if (typeof updateCollaboratorSelect === 'function') updateCollaboratorSelect();
+                if (typeof updateReportCollaboratorSelect === 'function') updateReportCollaboratorSelect();
+                if (typeof updateSalaryCollaboratorSelect === 'function') updateSalaryCollaboratorSelect();
+                const totalCollab = document.getElementById('totalCollaborators');
+                if (totalCollab) totalCollab.textContent = window.collaborators.filter(c => c.active).length;
             }
             
-            function atualizarBadgePendentes() {
-                let badge = document.getElementById('badgePendentes');
-                if (filaPendentes.length > 0) {
-                    if (!badge) {
-                        badge = document.createElement('div');
-                        badge.id = 'badgePendentes';
-                        badge.style.cssText = 'position:fixed;bottom:80px;right:20px;background:#ff9800;color:#000;width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:bold;z-index:9999;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,0.2);font-size:14px';
-                        badge.onclick = () => sincronizarAgora();
-                        badge.title = 'Clique para sincronizar dados pendentes';
-                        document.body.appendChild(badge);
-                    }
-                    badge.textContent = filaPendentes.length;
-                    badge.style.display = 'flex';
-                } else if (badge) { badge.style.display = 'none'; }
+            // Carregar serviços
+            if (dados.servicos && dados.servicos.length > 0) {
+                window.allServices = dados.servicos;
+                const hoje = new Date().toISOString().split('T')[0];
+                window.todayServices = window.allServices.filter(s => s.date === hoje);
+                console.log('✅ Serviços carregados:', window.allServices.length);
+                if (typeof updateTodaySalesUI === 'function') updateTodaySalesUI();
+                if (typeof updateDashboard === 'function') updateDashboard();
+                if (typeof calculatePeriodSales === 'function') calculatePeriodSales();
             }
             
-            async function sincronizarAgora() {
-                if (!navigator.onLine) { alert('Sem internet! Os dados serão sincronizados quando a conexão voltar.'); return; }
-                if (filaPendentes.length === 0) { console.log('Nada para sincronizar'); return; }
-                console.log('🔄 Iniciando sincronização de', filaPendentes.length, 'itens...');
-                mostrarNotificacao(`Sincronizando ${filaPendentes.length} itens...`, '#17a2b8');
-                for (let i = 0; i < filaPendentes.length; i++) {
-                    const item = filaPendentes[i];
-                    try {
-                        const db = firebase.firestore();
-                        if (item.tipo === 'cliente') await db.collection('clients').add(item.dados);
-                        else if (item.tipo === 'produto') await db.collection('products').add(item.dados);
-                        else if (item.tipo === 'servico') await db.collection('services').add(item.dados);
-                        else if (item.tipo === 'agendamento') await db.collection('appointments').add(item.dados);
-                        filaPendentes.splice(i, 1);
-                        i--;
-                    } catch(e) { console.log('Erro ao sincronizar:', e); }
+            // Carregar vendas de produtos
+            if (dados.vendasProdutos && dados.vendasProdutos.length > 0) {
+                window.allProductSales = dados.vendasProdutos;
+                const hoje = new Date().toISOString().split('T')[0];
+                window.todayProductSales = window.allProductSales.filter(s => s.date === hoje);
+                console.log('✅ Vendas carregadas:', window.allProductSales.length);
+                if (typeof updateTodaySalesUI === 'function') updateTodaySalesUI();
+                if (typeof updateDashboard === 'function') updateDashboard();
+                if (typeof updateProductsSoldStats === 'function') updateProductsSoldStats();
+            }
+            
+            // Carregar pacotes
+            if (dados.pacotes && dados.pacotes.length > 0) {
+                window.packages = dados.pacotes;
+                console.log('✅ Pacotes carregados:', window.packages.length);
+                if (typeof updatePackagesUI === 'function') updatePackagesUI();
+            }
+            
+            // Carregar agendamentos
+            if (dados.agendamentos && dados.agendamentos.length > 0) {
+                window.appointments = dados.agendamentos;
+                console.log('✅ Agendamentos carregados:', window.appointments.length);
+                if (typeof renderAgenda === 'function') renderAgenda();
+            }
+            
+            return true;
+            
+        } catch(e) {
+            console.error('Erro ao carregar cópia:', e);
+            return false;
+        }
+    }
+    
+    // ============================================
+    // 3. FILA PARA NOVOS DADOS QUANDO OFFLINE
+    // ============================================
+    
+    let filaPendentes = [];
+    
+    // Carregar fila pendente salva
+    const filaSalva = localStorage.getItem('fila_sincronizacao');
+    if (filaSalva) {
+        try {
+            filaPendentes = JSON.parse(filaSalva);
+            console.log('📋 Dados pendentes para sincronizar:', filaPendentes.length);
+        } catch(e) {}
+    }
+    
+    function salvarNaFila(tipo, dados) {
+        filaPendentes.push({
+            tipo: tipo,
+            dados: dados,
+            data: new Date().toISOString()
+        });
+        localStorage.setItem('fila_sincronizacao', JSON.stringify(filaPendentes));
+        console.log(`📝 ${tipo} adicionado à fila. Total: ${filaPendentes.length}`);
+        
+        // Também adicionar à cópia local imediatamente
+        if (tipo === 'cliente' && window.clients) {
+            window.clients.push({...dados, id: 'temp_' + Date.now(), pendente: true});
+            if (typeof updateClientsUI === 'function') updateClientsUI();
+        }
+        if (tipo === 'produto' && window.products) {
+            window.products.push({...dados, id: 'temp_' + Date.now(), pendente: true});
+            if (typeof updateInventoryUI === 'function') updateInventoryUI();
+            if (typeof renderStore === 'function') renderStore();
+        }
+        if (tipo === 'servico' && window.allServices) {
+            window.allServices.push({...dados, id: 'temp_' + Date.now(), pendente: true});
+            if (typeof updateTodaySalesUI === 'function') updateTodaySalesUI();
+        }
+        
+        // Salvar cópia atualizada
+        salvarCopiaTodosDados();
+        
+        // Mostrar badge com quantidade
+        atualizarBadgePendentes();
+    }
+    
+    function atualizarBadgePendentes() {
+        let badge = document.getElementById('badgePendentes');
+        if (filaPendentes.length > 0) {
+            if (!badge) {
+                badge = document.createElement('div');
+                badge.id = 'badgePendentes';
+                badge.style.cssText = 'position:fixed;bottom:80px;right:20px;background:#ff9800;color:#000;width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:bold;z-index:9999;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,0.2);font-size:14px';
+                badge.onclick = () => sincronizarAgora();
+                badge.title = 'Clique para sincronizar dados pendentes';
+                document.body.appendChild(badge);
+            }
+            badge.textContent = filaPendentes.length;
+            badge.style.display = 'flex';
+        } else if (badge) {
+            badge.style.display = 'none';
+        }
+    }
+    
+    // ============================================
+    // 4. FUNÇÃO PARA SINCRONIZAR COM O BANCO
+    // ============================================
+    
+    async function sincronizarAgora() {
+        if (!navigator.onLine) {
+            alert('Sem internet! Os dados serão sincronizados quando a conexão voltar.');
+            return;
+        }
+        
+        if (filaPendentes.length === 0) {
+            console.log('Nada para sincronizar');
+            return;
+        }
+        
+        console.log('🔄 Iniciando sincronização de', filaPendentes.length, 'itens...');
+        mostrarNotificacao(`Sincronizando ${filaPendentes.length} itens...`, '#17a2b8');
+        
+        for (let i = 0; i < filaPendentes.length; i++) {
+            const item = filaPendentes[i];
+            try {
+                const db = firebase.firestore();
+                
+                if (item.tipo === 'cliente') {
+                    await db.collection('clients').add(item.dados);
+                    console.log('✅ Cliente sincronizado');
+                } else if (item.tipo === 'produto') {
+                    await db.collection('products').add(item.dados);
+                    console.log('✅ Produto sincronizado');
+                } else if (item.tipo === 'servico') {
+                    await db.collection('services').add(item.dados);
+                    console.log('✅ Serviço sincronizado');
+                } else if (item.tipo === 'agendamento') {
+                    await db.collection('appointments').add(item.dados);
+                    console.log('✅ Agendamento sincronizado');
                 }
-                localStorage.setItem('fila_sincronizacao', JSON.stringify(filaPendentes));
-                atualizarBadgePendentes();
-                await carregarDadosServidor();
-                salvarCopiaTodosDados();
-                mostrarNotificacao('✅ Sincronização concluída!', '#28a745');
-                console.log('✅ Sincronização finalizada');
+                
+                filaPendentes.splice(i, 1);
+                i--;
+                
+            } catch(e) {
+                console.log('Erro ao sincronizar:', e);
             }
+        }
+        
+        // Salvar fila atualizada
+        localStorage.setItem('fila_sincronizacao', JSON.stringify(filaPendentes));
+        
+        // Atualizar badge
+        atualizarBadgePendentes();
+        
+        // Recarregar dados do servidor
+        await carregarDadosServidor();
+        
+        // Salvar nova cópia
+        salvarCopiaTodosDados();
+        
+        mostrarNotificacao('✅ Sincronização concluída!', '#28a745');
+        console.log('✅ Sincronização finalizada');
+    }
+    
+    async function carregarDadosServidor() {
+        if (!navigator.onLine || !window.currentUser) return;
+        
+        console.log('🔄 Carregando dados do servidor...');
+        
+        try {
+            const db = firebase.firestore();
             
-            async function carregarDadosServidor() {
-                if (!navigator.onLine || !window.currentUser) return;
-                console.log('🔄 Carregando dados do servidor...');
-                try {
-                    const db = firebase.firestore();
-                    const clientesSnap = await db.collection('clients').where('userId', '==', window.currentUser.uid).get();
-                    const clientes = []; clientesSnap.forEach(doc => clientes.push({id: doc.id, ...doc.data()}));
-                    if (clientes.length > 0) window.clients = clientes;
-                    const produtosSnap = await db.collection('products').where('userId', '==', window.currentUser.uid).get();
-                    const produtos = []; produtosSnap.forEach(doc => produtos.push({id: doc.id, ...doc.data()}));
-                    if (produtos.length > 0) window.products = produtos;
-                    const collabSnap = await db.collection('collaborators').where('userId', '==', window.currentUser.uid).get();
-                    const colaboradores = []; collabSnap.forEach(doc => colaboradores.push({id: doc.id, ...doc.data()}));
-                    if (colaboradores.length > 0) window.collaborators = colaboradores;
-                } catch(e) { console.log('Erro ao carregar do servidor:', e); }
-            }
+            const clientesSnap = await db.collection('clients').where('userId', '==', window.currentUser.uid).get();
+            const clientes = [];
+            clientesSnap.forEach(doc => clientes.push({id: doc.id, ...doc.data()}));
+            if (clientes.length > 0) window.clients = clientes;
             
-            const saveClientOriginal = window.saveClient;
-            if (saveClientOriginal) {
-                window.saveClient = function() {
-                    if (navigator.onLine) return saveClientOriginal.apply(this, arguments);
-                    else {
-                        const nome = document.getElementById('clientName')?.value;
-                        const telefone = document.getElementById('clientPhone')?.value;
-                        const email = document.getElementById('clientEmail')?.value;
-                        const nascimento = document.getElementById('clientBirthdate')?.value;
-                        if (!nome) { alert('Nome do cliente é obrigatório'); return; }
-                        const dadosCliente = { name: nome, phone: telefone, email: email, birthdate: nascimento, userId: window.currentUser?.uid, createdAt: new Date().toISOString() };
-                        salvarNaFila('cliente', dadosCliente);
-                        alert('✅ Cliente salvo localmente! Será sincronizado quando a internet voltar.');
-                        const modal = bootstrap.Modal.getInstance(document.getElementById('clientModal'));
-                        if (modal) modal.hide();
-                        document.getElementById('clientForm')?.reset();
-                    }
-                };
-            }
+            const produtosSnap = await db.collection('products').where('userId', '==', window.currentUser.uid).get();
+            const produtos = [];
+            produtosSnap.forEach(doc => produtos.push({id: doc.id, ...doc.data()}));
+            if (produtos.length > 0) window.products = produtos;
             
-            const saveProductOriginal = window.saveProduct;
-            if (saveProductOriginal) {
-                window.saveProduct = function() {
-                    if (navigator.onLine) return saveProductOriginal.apply(this, arguments);
-                    else {
-                        const nome = document.getElementById('productName')?.value;
-                        const quantidade = parseInt(document.getElementById('productQuantity')?.value || 0);
-                        const precoVenda = parseFloat(document.getElementById('productSalePrice')?.value || 0);
-                        if (!nome) { alert('Nome do produto é obrigatório'); return; }
-                        const dadosProduto = { name: nome, quantity: quantidade, salePrice: precoVenda, userId: window.currentUser?.uid, createdAt: new Date().toISOString() };
-                        salvarNaFila('produto', dadosProduto);
-                        alert('✅ Produto salvo localmente! Será sincronizado quando a internet voltar.');
-                        const modal = bootstrap.Modal.getInstance(document.getElementById('productModal'));
-                        if (modal) modal.hide();
-                        document.getElementById('productForm')?.reset();
-                    }
-                };
-            }
+            const collabSnap = await db.collection('collaborators').where('userId', '==', window.currentUser.uid).get();
+            const colaboradores = [];
+            collabSnap.forEach(doc => colaboradores.push({id: doc.id, ...doc.data()}));
+            if (colaboradores.length > 0) window.collaborators = colaboradores;
             
-            const addServiceOriginal = window.addService;
-            if (addServiceOriginal) {
-                window.addService = function(e) {
-                    if (e) e.preventDefault();
-                    if (navigator.onLine) return addServiceOriginal.apply(this, arguments);
-                    else {
-                        const clienteId = document.getElementById('selectedClientId')?.value;
-                        const colaboradorId = document.getElementById('collaboratorSelect')?.value;
-                        const valor = parseFloat(document.getElementById('serviceValue')?.value || 0);
-                        const descricao = document.getElementById('serviceDescription')?.value;
-                        if (!clienteId || !colaboradorId) { alert('Preencha todos os campos obrigatórios'); return; }
-                        const dadosServico = { clientId: clienteId, collaboratorId: colaboradorId, value: valor, description: descricao, date: new Date().toISOString().split('T')[0], userId: window.currentUser?.uid, createdAt: new Date().toISOString() };
-                        salvarNaFila('servico', dadosServico);
-                        alert('✅ Serviço salvo localmente! Será sincronizado quando a internet voltar.');
-                        document.getElementById('serviceForm')?.reset();
-                        document.getElementById('selectedClientId').value = '';
-                    }
-                };
-            }
-            
-            function mostrarNotificacao(mensagem, cor) {
-                let notif = document.getElementById('notificacaoOffline');
-                if (!notif) {
-                    notif = document.createElement('div');
-                    notif.id = 'notificacaoOffline';
-                    notif.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#28a745;color:white;padding:10px 20px;border-radius:25px;font-size:14px;z-index:10000;font-family:sans-serif;box-shadow:0 2px 10px rgba(0,0,0,0.2);transition:0.3s';
-                    document.body.appendChild(notif);
+        } catch(e) {
+            console.log('Erro ao carregar do servidor:', e);
+        }
+    }
+    
+    // ============================================
+    // 5. MODIFICAR FUNÇÕES DE SALVAMENTO
+    // ============================================
+    
+    // Modificar saveClient para funcionar offline
+    const saveClientOriginal = window.saveClient;
+    if (saveClientOriginal) {
+        window.saveClient = function() {
+            if (navigator.onLine) {
+                return saveClientOriginal.apply(this, arguments);
+            } else {
+                // Offline: salvar na fila
+                const nome = document.getElementById('clientName')?.value;
+                const telefone = document.getElementById('clientPhone')?.value;
+                const email = document.getElementById('clientEmail')?.value;
+                const nascimento = document.getElementById('clientBirthdate')?.value;
+                
+                if (!nome) {
+                    alert('Nome do cliente é obrigatório');
+                    return;
                 }
-                notif.style.background = cor || '#28a745';
-                notif.textContent = mensagem;
-                notif.style.display = 'block';
-                setTimeout(() => { notif.style.display = 'none'; }, 4000);
+                
+                const dadosCliente = {
+                    name: nome,
+                    phone: telefone,
+                    email: email,
+                    birthdate: nascimento,
+                    userId: window.currentUser?.uid,
+                    createdAt: new Date().toISOString()
+                };
+                
+                salvarNaFila('cliente', dadosCliente);
+                alert('✅ Cliente salvo localmente! Será sincronizado quando a internet voltar.');
+                
+                const modal = bootstrap.Modal.getInstance(document.getElementById('clientModal'));
+                if (modal) modal.hide();
+                document.getElementById('clientForm')?.reset();
             }
+        };
+    }
+    
+    // Modificar saveProduct
+    const saveProductOriginal = window.saveProduct;
+    if (saveProductOriginal) {
+        window.saveProduct = function() {
+            if (navigator.onLine) {
+                return saveProductOriginal.apply(this, arguments);
+            } else {
+                const nome = document.getElementById('productName')?.value;
+                const quantidade = parseInt(document.getElementById('productQuantity')?.value || 0);
+                const precoVenda = parseFloat(document.getElementById('productSalePrice')?.value || 0);
+                
+                if (!nome) {
+                    alert('Nome do produto é obrigatório');
+                    return;
+                }
+                
+                const dadosProduto = {
+                    name: nome,
+                    quantity: quantidade,
+                    salePrice: precoVenda,
+                    userId: window.currentUser?.uid,
+                    createdAt: new Date().toISOString()
+                };
+                
+                salvarNaFila('produto', dadosProduto);
+                alert('✅ Produto salvo localmente! Será sincronizado quando a internet voltar.');
+                
+                const modal = bootstrap.Modal.getInstance(document.getElementById('productModal'));
+                if (modal) modal.hide();
+                document.getElementById('productForm')?.reset();
+            }
+        };
+    }
+    
+    // Modificar addService
+    const addServiceOriginal = window.addService;
+    if (addServiceOriginal) {
+        window.addService = function(e) {
+            if (e) e.preventDefault();
             
-            window.addEventListener('offline', () => {
-                console.log('⚠️ Modo OFFLINE ativado');
-                mostrarNotificacao('⚠️ Sem internet - Usando dados salvos', '#dc3545');
-                carregarUltimaCopia();
-            });
-            window.addEventListener('online', () => {
-                console.log('✅ Modo ONLINE ativado');
-                mostrarNotificacao('✅ Internet恢复 - Sincronizando dados...', '#28a745');
-                setTimeout(async () => {
-                    await carregarDadosServidor();
-                    await sincronizarAgora();
-                    salvarCopiaTodosDados();
-                    mostrarNotificacao('✅ Dados sincronizados com sucesso!', '#28a745');
-                }, 1000);
-            });
-            
-            setTimeout(() => { carregarUltimaCopia(); atualizarBadgePendentes(); }, 500);
-            setInterval(() => { if (navigator.onLine && window.clients && window.clients.length > 0) salvarCopiaTodosDados(); }, 30000);
-            const observarAuth = setInterval(() => { if (window.currentUser && window.clients && window.clients.length > 0) { salvarCopiaTodosDados(); clearInterval(observarAuth); } }, 1000);
-            console.log('✅ Sistema offline completo inicializado!');
-        })();
+            if (navigator.onLine) {
+                return addServiceOriginal.apply(this, arguments);
+            } else {
+                const clienteId = document.getElementById('selectedClientId')?.value;
+                const colaboradorId = document.getElementById('collaboratorSelect')?.value;
+                const valor = parseFloat(document.getElementById('serviceValue')?.value || 0);
+                const descricao = document.getElementById('serviceDescription')?.value;
+                
+                if (!clienteId || !colaboradorId) {
+                    alert('Preencha todos os campos obrigatórios');
+                    return;
+                }
+                
+                const dadosServico = {
+                    clientId: clienteId,
+                    collaboratorId: colaboradorId,
+                    value: valor,
+                    description: descricao,
+                    date: new Date().toISOString().split('T')[0],
+                    userId: window.currentUser?.uid,
+                    createdAt: new Date().toISOString()
+                };
+                
+                salvarNaFila('servico', dadosServico);
+                alert('✅ Serviço salvo localmente! Será sincronizado quando a internet voltar.');
+                document.getElementById('serviceForm')?.reset();
+                document.getElementById('selectedClientId').value = '';
+            }
+        };
+    }
+    
+    // ============================================
+    // 6. NOTIFICAÇÕES E EVENTOS
+    // ============================================
+    
+    function mostrarNotificacao(mensagem, cor) {
+        let notif = document.getElementById('notificacaoOffline');
+        if (!notif) {
+            notif = document.createElement('div');
+            notif.id = 'notificacaoOffline';
+            notif.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#28a745;color:white;padding:10px 20px;border-radius:25px;font-size:14px;z-index:10000;font-family:sans-serif;box-shadow:0 2px 10px rgba(0,0,0,0.2);transition:0.3s';
+            document.body.appendChild(notif);
+        }
+        notif.style.background = cor || '#28a745';
+        notif.textContent = mensagem;
+        notif.style.display = 'block';
+        setTimeout(() => {
+            notif.style.display = 'none';
+        }, 4000);
+    }
+    
+    // Evento quando fica offline
+    window.addEventListener('offline', () => {
+        console.log('⚠️ Modo OFFLINE ativado');
+        mostrarNotificacao('⚠️ Sem internet - Usando dados salvos', '#dc3545');
+        carregarUltimaCopia();
+    });
+    
+    // Evento quando volta online
+    window.addEventListener('online', () => {
+        console.log('✅ Modo ONLINE ativado');
+        mostrarNotificacao('✅ Internet恢复 - Sincronizando dados...', '#28a745');
+        setTimeout(async () => {
+            await carregarDadosServidor();
+            await sincronizarAgora();
+            salvarCopiaTodosDados();
+            mostrarNotificacao('✅ Dados sincronizados com sucesso!', '#28a745');
+        }, 1000);
+    });
+    
+    // ============================================
+    // 7. INICIALIZAÇÃO
+    // ============================================
+    
+    // Tentar carregar cópia salva ao iniciar
+    setTimeout(() => {
+        carregarUltimaCopia();
+        atualizarBadgePendentes();
+    }, 500);
+    
+    // Salvar cópia automaticamente a cada 30 segundos quando online
+    setInterval(() => {
+        if (navigator.onLine && window.clients && window.clients.length > 0) {
+            salvarCopiaTodosDados();
+            console.log('🔄 Backup automático realizado');
+        }
+    }, 30000);
+    
+    // Salvar cópia quando o usuário fizer login
+    const observarAuth = setInterval(() => {
+        if (window.currentUser && window.clients && window.clients.length > 0) {
+            salvarCopiaTodosDados();
+            clearInterval(observarAuth);
+        }
+    }, 1000);
+    
+    console.log('✅ Sistema offline completo inicializado!');
+    console.log('📌 Dicas:');
+    console.log('   - Quando ONLINE: faz backup automático a cada 30 segundos');
+    console.log('   - Quando OFFLINE: usa a última cópia salva');
+    console.log('   - Novos dados: ficam na fila até a internet voltar');
+    
+})();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
     </script>
 
 </body>
