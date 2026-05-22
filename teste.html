@@ -141,6 +141,28 @@
             border-color: var(--primary-color);
             color: white;
         }
+
+.product-status-checkbox {
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+    margin: 0;
+    transition: all 0.2s ease;
+}
+.product-status-checkbox:checked {
+    accent-color: #28a745;
+    transform: scale(1.1);
+}
+.product-status-checkbox:not(:checked) {
+    accent-color: #dc3545;
+}
+.status-label {
+    font-size: 0.85rem;
+    margin-left: 5px;
+    font-weight: 500;
+}
+.status-active { color: #28a745; }
+.status-inactive { color: #dc3545; }
         
         .table th {
             background-color: var(--primary-color);
@@ -6126,14 +6148,17 @@
 
         // NOVA FUNÇÃO: Renderizar a Loja com imagens carregadas
         function renderStore() {
-            const container = document.getElementById('storeProductList');
-            if (!container) return;
-            
-            if (products.length === 0) {
-                container.innerHTML = '<div class="col-12"><div class="alert alert-info text-center">Nenhum produto disponível na loja no momento.</div></div>';
-                document.getElementById('productsCount').textContent = '0 produto(s) encontrado(s)';
-                return;
-            }
+    const container = document.getElementById('storeProductList');
+    if (!container) return;
+    
+    // FILTRO: Mostrar apenas produtos ATIVOS na loja
+    const activeProducts = products.filter(product => product.active !== false);
+    
+    if (activeProducts.length === 0) {
+        container.innerHTML = '<div class="col-12"><div class="alert alert-info text-center">Nenhum produto disponível na loja no momento.</div></div>';
+        document.getElementById('productsCount').textContent = '0 produto(s) encontrado(s)';
+        return;
+    }
             
             let html = '';
             products.forEach(product => {
@@ -7472,64 +7497,100 @@
         }
 
         function updateInventoryUI() {
-            const tbody = document.getElementById('inventoryTable');
-            
-            if (products.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Nenhum produto cadastrado.</td></tr>';
-                updateInventorySummary();
-                return;
-            }
-            
-            let html = '';
-            let totalValue = 0;
-            let totalInvestment = 0;
-            let lowStockCount = 0;
-            
-            products.forEach(product => {
-                const isLowStock = product.quantity <= product.minQuantity;
-                const stockValue = product.quantity * parseFloat(product.salePrice || 0);
-                const investmentValue = product.quantity * parseFloat(product.purchasePrice || 0);
-                
-                totalValue += stockValue;
-                totalInvestment += investmentValue;
-                
-                if (isLowStock) {
-                    lowStockCount++;
-                }
-                
-                const imageHtml = product.imageUrl ? 
-                    `<img src="${product.imageUrl}" width="50" height="50" style="object-fit: cover; border-radius: 4px;" onerror="this.onerror=null; this.src=''; this.innerHTML='<i class=\\'fas fa-box fa-2x text-muted\\'></i>';">` : 
-                    '<i class="fas fa-box fa-2x text-muted"></i>';
-                
-                html += `
-                    <tr class="${isLowStock ? 'low-stock' : ''}">
-                        <td>${product.name}</td>
-                        <td>${imageHtml}</td>
-                        <td>${product.quantity}</td>
-                        <td>${product.minQuantity}</td>
-                        <td>${formatCurrency(product.purchasePrice)}</td>
-                        <td>${formatCurrency(product.salePrice)}</td>
-                        <td>
-                            <span class="badge ${isLowStock ? 'bg-danger' : 'bg-success'}">
-                                ${isLowStock ? 'Estoque Baixo' : 'Normal'}
-                            </span>
-                        </td>
-                        <td>
-                            <button class="btn btn-sm btn-primary me-1" onclick="editProduct('${product.id}')">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="btn btn-sm btn-danger" onclick="deleteProduct('${product.id}')">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </td>
-                    </tr>
-                `;
-            });
-            
-            tbody.innerHTML = html;
-            updateInventorySummary(totalProducts = products.length, lowStockCount, totalValue, totalInvestment);
+    const tbody = document.getElementById('inventoryTable');
+    
+    if (products.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Nenhum produto cadastrado.</td></tr>';
+        updateInventorySummary(0, 0, 0, 0);
+        return;
+    }
+    
+    let html = '';
+    let totalValue = 0;
+    let totalInvestment = 0;
+    let lowStockCount = 0;
+    
+    products.forEach(product => {
+        const isLowStock = product.quantity <= product.minQuantity;
+        const stockValue = product.quantity * parseFloat(product.salePrice || 0);
+        const investmentValue = product.quantity * parseFloat(product.purchasePrice || 0);
+        
+        totalValue += stockValue;
+        totalInvestment += investmentValue;
+        
+        if (isLowStock) lowStockCount++;
+        
+        const imageHtml = product.imageUrl ? 
+            `<img src="${product.imageUrl}" width="50" height="50" style="object-fit: cover; border-radius: 4px;" onerror="this.onerror=null; this.src='';">` : 
+            '<i class="fas fa-box fa-2x text-muted"></i>';
+        
+        // NOVO: Checkbox de status ativo/inativo
+        const isActive = product.active !== false;
+        const checkboxId = `activeCheck_${product.id}`;
+        
+        html += `
+            <tr class="${isLowStock ? 'low-stock' : ''}">
+                <td>${escapeHtml(product.name)}</td>
+                <td>${imageHtml}</td>
+                <td>${product.quantity}</td>
+                <td>${product.minQuantity}</td>
+                <td>${formatCurrency(product.purchasePrice)}</td>
+                <td>${formatCurrency(product.salePrice)}</td>
+                <td>
+                    <div style="display: flex; align-items: center; gap: 5px;">
+                        <input type="checkbox" id="${checkboxId}" class="product-status-checkbox" ${isActive ? 'checked' : ''} onchange="toggleProductStatus('${product.id}', this.checked)">
+                        <span class="status-label ${isActive ? 'status-active' : 'status-inactive'}">${isActive ? 'Ativo' : 'Inativo'}</span>
+                   window.toggleProductStatus = function(productId, isActive) {
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+    
+    const newStatus = isActive;
+    const oldStatus = product.active !== false;
+    
+    if (oldStatus === newStatus) return;
+    
+    showLoading('Atualizando status...');
+    
+    db.collection('products').doc(productId).update({
+        active: newStatus,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(() => {
+        product.active = newStatus;
+        
+        if (currentSection === 'store') {
+            renderStore();
         }
-
+        
+        updateInventoryUI();
+        Swal.close();
+        showSuccess(`Produto ${newStatus ? 'ativado' : 'desativado'} com sucesso!`);
+    }).catch(error => {
+        console.error('Erro:', error);
+        Swal.close();
+        showError('Erro ao alterar status: ' + error.message);
+        
+        const checkbox = document.getElementById(`activeCheck_${productId}`);
+        if (checkbox) checkbox.checked = !newStatus;
+    });
+};
+                    
+                    </div>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-primary me-1" onclick="editProduct('${product.id}')">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteProduct('${product.id}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+    
+    tbody.innerHTML = html;
+    updateInventorySummary(products.length, lowStockCount, totalValue, totalInvestment);
+}
         function updateInventorySummary(totalProducts, lowStockCount, totalValue, totalInvestment) {
             document.getElementById('totalProducts').textContent = totalProducts;
             document.getElementById('lowStockProducts').textContent = lowStockCount;
