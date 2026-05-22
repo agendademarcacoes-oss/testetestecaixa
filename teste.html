@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="pt-BR">
 <head>
@@ -141,28 +142,6 @@
             border-color: var(--primary-color);
             color: white;
         }
-
-.product-status-checkbox {
-    width: 24px;
-    height: 24px;
-    cursor: pointer;
-    margin: 0;
-    transition: all 0.2s ease;
-}
-.product-status-checkbox:checked {
-    accent-color: #28a745;
-    transform: scale(1.1);
-}
-.product-status-checkbox:not(:checked) {
-    accent-color: #dc3545;
-}
-.status-label {
-    font-size: 0.85rem;
-    margin-left: 5px;
-    font-weight: 500;
-}
-.status-active { color: #28a745; }
-.status-inactive { color: #dc3545; }
         
         .table th {
             background-color: var(--primary-color);
@@ -2416,6 +2395,25 @@
             background: linear-gradient(135deg, #26196b 0%, #4a3a9c 100%);
             box-shadow: 0 4px 15px rgba(38, 25, 107, 0.3);
         }
+
+        /* check box dos produtos ativos ou inativos */
+        .product-status-checkbox {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+}
+.product-status-checkbox:checked {
+    accent-color: #28a745;
+}
+.product-status-checkbox:not(:checked) {
+    accent-color: #dc3545;
+}
+.status-label {
+    font-size: 0.8rem;
+    margin-left: 5px;
+}
+.status-active { color: #28a745; }
+.status-inactive { color: #dc3545; }
         
         /* Badges modernos */
         .badge {
@@ -6159,67 +6157,43 @@
         document.getElementById('productsCount').textContent = '0 produto(s) encontrado(s)';
         return;
     }
-            
-            let html = '';
-            products.forEach(product => {
-                // Verificar se o produto tem imagem, senão usar placeholder
-                const imageUrl = product.imageUrl || '';
-                const isLowStock = product.quantity <= product.minQuantity;
-                
-                // Usar classes do Bootstrap para grid responsivo
-                html += `
-                    <div class="col-md-4 col-lg-3 col-6 mb-4">
-                        <div class="product-card" data-product-id="${product.id}" data-product-name="${product.name}" data-product-price="${product.salePrice}" data-product-description="${product.description || ''}" data-product-stock="${product.quantity}" data-product-category="${product.category || ''}">
-                            <div class="product-image-container" onclick="showProductPopup('${product.id}')">
-                                ${imageUrl ? 
-                                    `<img src="${imageUrl}" class="product-image" alt="${product.name}" onerror="this.onerror=null; this.style.display='none'; this.parentElement.innerHTML='<div class=\\'product-image-placeholder\\'><i class=\\'fas fa-box\\'></i></div>';">` : 
-                                    `<div class="product-image-placeholder"><i class="fas fa-box"></i></div>`
-                                }
-                            </div>
-                            <div class="product-details">
-                                <h5 class="product-name">${product.name}</h5>
-                                <p class="product-description">${product.description ? product.description.substring(0, 50) + (product.description.length > 50 ? '...' : '') : 'Sem descrição'}</p>
-                                <p class="product-price">${formatCurrency(product.salePrice)}</p>
-                                <div class="product-stock-badge ${isLowStock ? 'bg-warning' : 'bg-success'} text-white">
-                                    ${isLowStock ? 'Últimas unidades!' : `${product.quantity} em estoque`}
-                                </div>
-                            </div>
-                            <div class="product-actions">
-                                <button class="btn btn-success" onclick="buyProduct('${product.id}', '${product.name}', ${product.salePrice})">
-                                    <i class="fab fa-whatsapp me-2"></i>Comprar
-                                </button>
-                            </div>
+    
+    let html = '';
+    activeProducts.forEach(product => {
+        const imageUrl = product.imageUrl || '';
+        const isLowStock = product.quantity <= product.minQuantity;
+        
+        html += `
+            <div class="col-md-4 col-lg-3 col-6 mb-4">
+                <div class="product-card" data-product-id="${product.id}" data-product-name="${product.name}" data-product-price="${product.salePrice}" data-product-description="${product.description || ''}" data-product-stock="${product.quantity}" data-product-category="${product.category || ''}">
+                    <div class="product-image-container" onclick="showProductPopup('${product.id}')">
+                        ${imageUrl ? 
+                            `<img src="${imageUrl}" class="product-image" alt="${product.name}" onerror="this.onerror=null; this.style.display='none'; this.parentElement.innerHTML='<div class=\\'product-image-placeholder\\'><i class=\\'fas fa-box\\'></i></div>';">` : 
+                            `<div class="product-image-placeholder"><i class="fas fa-box"></i></div>`
+                        }
+                    </div>
+                    <div class="product-details">
+                        <h5 class="product-name">${product.name}</h5>
+                        <p class="product-description">${product.description ? product.description.substring(0, 50) + (product.description.length > 50 ? '...' : '') : 'Sem descrição'}</p>
+                        <p class="product-price">${formatCurrency(product.salePrice)}</p>
+                        <div class="product-stock-badge ${isLowStock ? 'bg-warning' : 'bg-success'} text-white">
+                            ${isLowStock ? 'Últimas unidades!' : `${product.quantity} em estoque`}
                         </div>
                     </div>
-                `;
-            });
-            
-            container.innerHTML = html;
-            document.getElementById('productsCount').textContent = `${products.length} produto(s) encontrado(s)`;
-            
-            // Reaplicar filtros após renderizar
-            filterStoreProducts();
-
-            // No final da função renderStore(), adicione:
-            console.log('Loja renderizada com', products.length, 'produtos');
-            debugProductCategories(); // Para ver as categorias no console
-            
-            // Adicionar evento de clique nos cards para mobile
-            if (window.innerWidth <= 768) {
-                document.querySelectorAll('.product-card').forEach(card => {
-                    card.addEventListener('click', function(e) {
-                        // Não abrir popup se clicou no botão de comprar
-                        if (e.target.closest('.btn-success')) return;
-                        
-                        const productId = this.getAttribute('data-product-id');
-                        if (productId) {
-                            showProductPopup(productId);
-                        }
-                    });
-                });
-            }
-        }
-
+                    <div class="product-actions">
+                        <button class="btn btn-success" onclick="buyProduct('${product.id}', '${product.name}', ${product.salePrice})">
+                            <i class="fab fa-whatsapp me-2"></i>Comprar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+    document.getElementById('productsCount').textContent = `${activeProducts.length} produto(s) encontrado(s)`;
+    filterStoreProducts();
+}
         function debugProductCategories() {
             console.log('=== DEBUG CATEGORIAS DE PRODUTOS ===');
             products.forEach(product => {
@@ -7500,7 +7474,7 @@
     const tbody = document.getElementById('inventoryTable');
     
     if (products.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Nenhum produto cadastrado.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Nenhum produto cadastrado.您</tr>';
         updateInventorySummary(0, 0, 0, 0);
         return;
     }
@@ -7524,13 +7498,11 @@
             `<img src="${product.imageUrl}" width="50" height="50" style="object-fit: cover; border-radius: 4px;" onerror="this.onerror=null; this.src='';">` : 
             '<i class="fas fa-box fa-2x text-muted"></i>';
         
-        // NOVO: Checkbox de status ativo/inativo
         const isActive = product.active !== false;
-        const checkboxId = `activeCheck_${product.id}`;
         
         html += `
             <tr class="${isLowStock ? 'low-stock' : ''}">
-                <td>${escapeHtml(product.name)}</td>
+                <td>${product.name}</td>
                 <td>${imageHtml}</td>
                 <td>${product.quantity}</td>
                 <td>${product.minQuantity}</td>
@@ -7538,42 +7510,8 @@
                 <td>${formatCurrency(product.salePrice)}</td>
                 <td>
                     <div style="display: flex; align-items: center; gap: 5px;">
-                        <input type="checkbox" id="${checkboxId}" class="product-status-checkbox" ${isActive ? 'checked' : ''} onchange="toggleProductStatus('${product.id}', this.checked)">
+                        <input type="checkbox" class="product-status-checkbox" ${isActive ? 'checked' : ''} onchange="toggleProductStatus('${product.id}', this.checked)">
                         <span class="status-label ${isActive ? 'status-active' : 'status-inactive'}">${isActive ? 'Ativo' : 'Inativo'}</span>
-                   window.toggleProductStatus = function(productId, isActive) {
-    const product = products.find(p => p.id === productId);
-    if (!product) return;
-    
-    const newStatus = isActive;
-    const oldStatus = product.active !== false;
-    
-    if (oldStatus === newStatus) return;
-    
-    showLoading('Atualizando status...');
-    
-    db.collection('products').doc(productId).update({
-        active: newStatus,
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    }).then(() => {
-        product.active = newStatus;
-        
-        if (currentSection === 'store') {
-            renderStore();
-        }
-        
-        updateInventoryUI();
-        Swal.close();
-        showSuccess(`Produto ${newStatus ? 'ativado' : 'desativado'} com sucesso!`);
-    }).catch(error => {
-        console.error('Erro:', error);
-        Swal.close();
-        showError('Erro ao alterar status: ' + error.message);
-        
-        const checkbox = document.getElementById(`activeCheck_${productId}`);
-        if (checkbox) checkbox.checked = !newStatus;
-    });
-};
-                    
                     </div>
                 </td>
                 <td>
@@ -13843,7 +13781,25 @@ function sendWhatsAppToInactive(clientId, phone) {
 
 
 
-
+window.toggleProductStatus = function(productId, isActive) {
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+    
+    db.collection('products').doc(productId).update({
+        active: isActive,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(() => {
+        product.active = isActive;
+        if (document.getElementById('store').classList.contains('active')) {
+            renderStore();
+        }
+        updateInventoryUI();
+        showSuccess(`Produto ${isActive ? 'ativado' : 'desativado'}!`);
+    }).catch(error => {
+        showError('Erro: ' + error.message);
+        updateInventoryUI();
+    });
+};
 
 
 
