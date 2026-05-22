@@ -5357,20 +5357,17 @@
                     // ADICIONAR LISTENER EM TEMPO REAL PARA A LOGO
                     listenToBusinessSettingsChanges();
                     
-                    setTimeout(() => {
-                        checkMobileDevice();
-                        if (typeof initAgenda === 'function') {
-                            initAgenda();
-                        }
-                        renderStore(); // Renderizar a loja após carregar dados
-                        setupStoreFilters(); // Configurar filtros da loja
-                        loadInactiveClients(); // Carregar clientes inativos
-                        
-                        // FORÇAR ATUALIZAÇÃO DO DASHBOARD E FINANCEIRO
-                        updateDashboard();
-                        updateFinancialSummary();
-                    }, 1000);
-                } else {
+                    // Dentro do setTimeout que já existe, adicione:
+setTimeout(() => {
+    checkMobileDevice();
+    if (typeof initAgenda === 'function') initAgenda();
+    renderStore();
+    setupStoreFilters();  // <-- GARANTA QUE ESTA LINHA EXISTE
+    loadInactiveClients();
+    updateDashboard();
+    updateFinancialSummary();
+}, 1000);
+                    else {
                     currentUser = null;
                     showLoginScreen();
                     
@@ -6033,68 +6030,126 @@
 
         // FUNÇÕES DA LOJA COM FILTROS E ORDENAÇÃO
         function setupStoreFilters() {
-            // Adicionar eventos aos botões de filtro
-            document.querySelectorAll('.filter-button').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    document.querySelectorAll('.filter-button').forEach(b => b.classList.remove('active'));
-                    this.classList.add('active');
-                    
-                    // Forçar a atualização dos produtos
-                    filterStoreProducts();
-                    
-                    // Se estiver na aba "store", garantir que a lista seja atualizada
-                    if (document.getElementById('store').classList.contains('active')) {
-                        console.log('Filtro aplicado:', this.getAttribute('data-filter'));
-                    }
-                });
-            });
+    console.log('🎯 Configurando filtros da loja...');
+    
+    // Adicionar eventos aos botões de filtro
+    const filterButtons = document.querySelectorAll('.filter-button');
+    filterButtons.forEach(btn => {
+        // Remover eventos antigos clonando
+        const newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+        
+        newBtn.addEventListener('click', function(e) {
+            e.preventDefault();
             
-            console.log('Filtros da loja configurados');
-        }
+            // Remover classe ativa de todos
+            document.querySelectorAll('.filter-button').forEach(b => b.classList.remove('active'));
+            
+            // Adicionar classe ativa ao clicado
+            this.classList.add('active');
+            
+            const filterValue = this.getAttribute('data-filter');
+            console.log('🏷️ Filtro clicado:', filterValue);
+            
+            // Aplicar filtro
+            filterStoreProducts();
+        });
+    });
+    
+    // Evento de busca
+    const searchInput = document.getElementById('storeSearch');
+    if (searchInput) {
+        // Remover evento antigo
+        const newSearch = searchInput.cloneNode(true);
+        searchInput.parentNode.replaceChild(newSearch, searchInput);
+        
+        newSearch.addEventListener('input', function() {
+            console.log('🔎 Buscando por:', this.value);
+            filterStoreProducts();
+        });
+    }
+    
+    // Evento de ordenação
+    const sortSelect = document.getElementById('sortProducts');
+    if (sortSelect) {
+        const newSort = sortSelect.cloneNode(true);
+        sortSelect.parentNode.replaceChild(newSort, sortSelect);
+        
+        newSort.addEventListener('change', function() {
+            console.log('📊 Ordenar por:', this.value);
+            sortStoreProducts();
+        });
+    }
+    
+    console.log('✅ Filtros configurados com sucesso!');
+}
 
-        function filterStoreProducts() {
+       function filterStoreProducts() {
+    console.log('🔍 Aplicando filtro...');
+    
     const searchTerm = document.getElementById('storeSearch').value.toLowerCase().trim();
-    const activeFilter = document.querySelector('.filter-button.active')?.getAttribute('data-filter') || 'all';
-    const productCols = document.querySelectorAll('#storeProductList > .col-md-4');
+    const activeFilterBtn = document.querySelector('.filter-button.active');
+    const activeFilter = activeFilterBtn ? activeFilterBtn.getAttribute('data-filter') : 'all';
+    
+    console.log('Filtro ativo:', activeFilter);
+    console.log('Termo de busca:', searchTerm);
+    
+    const productItems = document.querySelectorAll('#storeProductList .store-product-item');
     let visibleCount = 0;
     
-    productCols.forEach(col => {
-        const name = col.getAttribute('data-product-name') || '';
-        const description = col.getAttribute('data-product-description') || '';
-        const category = col.getAttribute('data-product-category') || '';
+    productItems.forEach(item => {
+        const name = item.getAttribute('data-product-name') || '';
+        const description = item.getAttribute('data-product-description') || '';
+        const category = item.getAttribute('data-product-category') || '';
         
+        // Verificar busca
         let matchesSearch = true;
-        if (searchTerm) {
-            matchesSearch = name.includes(searchTerm) || description.includes(searchTerm) || category.includes(searchTerm);
+        if (searchTerm !== '') {
+            matchesSearch = name.includes(searchTerm) || 
+                           description.includes(searchTerm) || 
+                           category.includes(searchTerm);
         }
         
+        // Verificar filtro de categoria
         let matchesFilter = true;
         if (activeFilter !== 'all') {
-            matchesFilter = category === activeFilter || name.includes(activeFilter) || description.includes(activeFilter);
+            // O filtro ativo é ex: "shampoo", "mascara", "cabelo", "pele", "tintas", "maquiagem"
+            matchesFilter = category === activeFilter;
+            
+            // Também verificar se o nome ou descrição contém o filtro (para casos de categoria não preenchida)
+            if (!matchesFilter) {
+                matchesFilter = name.includes(activeFilter) || description.includes(activeFilter);
+            }
         }
         
         if (matchesSearch && matchesFilter) {
-            col.style.display = '';
+            item.style.display = '';
             visibleCount++;
+            console.log('✓ Produto VISÍVEL:', name, '| Categoria:', category);
         } else {
-            col.style.display = 'none';
+            item.style.display = 'none';
+            console.log('✗ Produto OCULTO:', name, '| Categoria:', category, '| Motivo:', !matchesSearch ? 'busca' : 'filtro');
         }
     });
     
     document.getElementById('productsCount').textContent = `${visibleCount} produto(s) encontrado(s)`;
+    console.log('📊 Total visível:', visibleCount);
     
-    // Após filtrar, reordenar para manter a ordem correta entre os visíveis
+    // Reaplicar ordenação após filtrar
     sortStoreProducts();
 }
         function sortStoreProducts() {
     const sortBy = document.getElementById('sortProducts').value;
     const container = document.getElementById('storeProductList');
-    const items = Array.from(container.querySelectorAll('.col-md-4'));
+    const items = Array.from(container.querySelectorAll('.store-product-item'));
     
-    // Filtrar apenas os itens visíveis (para não bagunçar os ocultos)
+    console.log('🔄 Ordenando por:', sortBy);
+    
+    // Separar visíveis e ocultos
     const visibleItems = items.filter(item => item.style.display !== 'none');
     const hiddenItems = items.filter(item => item.style.display === 'none');
     
+    // Ordenar apenas os visíveis
     visibleItems.sort((a, b) => {
         const nameA = a.getAttribute('data-product-name') || '';
         const nameB = b.getAttribute('data-product-name') || '';
@@ -6115,12 +6170,11 @@
         }
     });
     
-    // Remover todos e adicionar na ordem: primeiro os visíveis ordenados, depois os ocultos
+    // Remover tudo e recolocar na ordem: visíveis ordenados + ocultos no final
     container.innerHTML = '';
     visibleItems.forEach(item => container.appendChild(item));
     hiddenItems.forEach(item => container.appendChild(item));
 }
-
 
 
 
@@ -6155,10 +6209,14 @@ function escapeHtml(text) {
     activeProducts.forEach(product => {
         const imageUrl = product.imageUrl || '';
         const isLowStock = product.quantity <= product.minQuantity;
-        const category = (product.category || 'outros').toLowerCase();
+        const categoryValue = (product.category || 'outros').toLowerCase();
         
         html += `
-            <div class="col-md-4 col-lg-3 col-6 mb-4" data-product-name="${product.name.toLowerCase()}" data-product-price="${product.salePrice}" data-product-description="${(product.description || '').toLowerCase()}" data-product-category="${category}">
+            <div class="col-md-4 col-lg-3 col-6 mb-4 store-product-item" 
+                 data-product-name="${product.name.toLowerCase()}" 
+                 data-product-price="${product.salePrice}" 
+                 data-product-description="${(product.description || '').toLowerCase()}" 
+                 data-product-category="${categoryValue}">
                 <div class="product-card" data-product-id="${product.id}">
                     <div class="product-image-container" onclick="showProductPopup('${product.id}')">
                         ${imageUrl ? 
@@ -6186,9 +6244,13 @@ function escapeHtml(text) {
     
     container.innerHTML = html;
     
-    // Aplicar filtros e ordenação atuais após renderizar
-    filterStoreProducts();
-    sortStoreProducts();
+    // Mostrar total de produtos
+    document.getElementById('productsCount').textContent = `${activeProducts.length} produto(s) encontrado(s)`;
+    
+    // Aplicar filtro atual (se houver)
+    setTimeout(() => {
+        filterStoreProducts();
+    }, 50);
 }
 
         function debugProductCategories() {
