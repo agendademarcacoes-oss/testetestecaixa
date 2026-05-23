@@ -3425,6 +3425,25 @@
                                     </div>
                                 </div>
                             </div>
+
+
+<!-- CARD DE FUNCIONÁRIOS - VENDAS DIÁRIAS, SEMANAIS E MENSAIS -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-user-friends me-2"></i>Desempenho dos Funcionários</h5>
+            </div>
+            <div class="card-body">
+                <div id="collaboratorSalesCards">
+                    <p class="text-muted text-center">Carregando dados dos funcionários...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+                            
                             
                             <!-- NOVO: Seção de Produtos Vendidos -->
                             <div class="row">
@@ -6711,6 +6730,7 @@
                     updateFinancialSummary();
                     updateMonthlySalesChart();
                     updateProductsSoldStats();
+                    updateCollaboratorSalesCards();
                 }).catch(error => {
                     console.error('Erro ao carregar dados:', error);
                 });
@@ -7437,44 +7457,135 @@
         }
 
         function updateDashboard() {
-            const todayServicesValue = todayServices.reduce((total, service) => total + parseFloat(service.value || 0), 0);
-            const todayProductsValue = todayProductSales.reduce((total, sale) => total + parseFloat(sale.totalValue || 0), 0);
+    const todayServicesValue = todayServices.reduce((total, service) => total + parseFloat(service.value || 0), 0);
+    const todayProductsValue = todayProductSales.reduce((total, sale) => total + parseFloat(sale.totalValue || 0), 0);
+    
+    // CALCULAR VALOR LÍQUIDO DO SALÃO (SOMENTE A PARTE QUE FICA PARA O SALÃO)
+    let totalLiquidValue = 0;
+    todayServices.forEach(service => {
+        const collaborator = collaborators.find(c => c.id === service.collaboratorId);
+        if (collaborator) {
+            let collaboratorPercent = 0;
+            if (service.type === 'manual') {
+                collaboratorPercent = parseFloat(collaborator.manualPercent || 0);
+            } else if (service.type === 'product') {
+                collaboratorPercent = parseFloat(collaborator.productPercent || 0);
+            }
+            const collaboratorValue = parseFloat(service.value || 0) * (collaboratorPercent / 100);
+            const salonValue = parseFloat(service.value || 0) - collaboratorValue;
+            totalLiquidValue += salonValue;
+        } else {
+            totalLiquidValue += parseFloat(service.value || 0);
+        }
+    });
+    // Adicionar produtos (100% para o salão)
+    totalLiquidValue += todayProductsValue;
+    
+    document.getElementById('totalCollaborators').textContent = collaborators.filter(c => c.active).length;
+    document.getElementById('totalClients').textContent = clients.length;
+    
+    // ATUALIZAR O CARD "VENDAS HOJE" COM VALOR LÍQUIDO
+    document.getElementById('todaySales').textContent = formatCurrency(totalLiquidValue);
+    document.getElementById('todayServices').textContent = `${todayServices.length} serviços`;
+    document.getElementById('todayProducts').textContent = formatCurrency(todayProductsValue);
+    document.getElementById('todayProductsCount').textContent = `${todayProductSales.length} produtos`;
+    
+    const recentContainer = document.getElementById('recentServicesList');
+    if (todayServices.length === 0) {
+        recentContainer.innerHTML = '<p class="text-muted">Nenhum serviço hoje.</p>';
+    } else {
+        let html = '';
+        const recentServices = todayServices.slice(0, 5);
+        recentServices.forEach(service => {
+            const client = clients.find(c => c.id === service.clientId) || { name: 'Cliente não encontrado' };
+            const collaborator = collaborators.find(c => c.id === service.collaboratorId) || { name: 'Colaborador não encontrado' };
             
-            document.getElementById('totalCollaborators').textContent = collaborators.filter(c => c.active).length;
-            document.getElementById('totalClients').textContent = clients.length;
-            
-            const recentContainer = document.getElementById('recentServicesList');
-            if (todayServices.length === 0) {
-                recentContainer.innerHTML = '<p class="text-muted">Nenhum serviço hoje.</p>';
-            } else {
-                let html = '';
-                const recentServices = todayServices.slice(0, 5);
-                recentServices.forEach(service => {
-                    const client = clients.find(c => c.id === service.clientId) || { name: 'Cliente não encontrado' };
-                    const collaborator = collaborators.find(c => c.id === service.collaboratorId) || { name: 'Colaborador não encontrado' };
-                    
-                    let warningHtml = '';
-                    if (!service.clientId || !service.collaboratorId || !service.value) {
-                        warningHtml = `<div class="alert alert-warning p-1 mt-1"><small><i class="fas fa-exclamation-triangle me-1"></i>Faltam dados: cliente/colaborador/valor</small></div>`;
-                    }
-                    
-                    html += `
-                        <div class="service-item mb-2">
-                            <div class="d-flex justify-content-between">
-                                <span>${client.name}</span>
-                                <span class="text-success">${formatCurrency(service.value)}</span>
-                            </div>
-                            <small class="text-muted">${service.description} - ${collaborator.name}</small>
-                            ${warningHtml}
-                        </div>
-                    `;
-                });
-                recentContainer.innerHTML = html;
+            let salonValue = parseFloat(service.value || 0);
+            if (collaborator.id) {
+                let collaboratorPercent = 0;
+                if (service.type === 'manual') {
+                    collaboratorPercent = parseFloat(collaborator.manualPercent || 0);
+                } else if (service.type === 'product') {
+                    collaboratorPercent = parseFloat(collaborator.productPercent || 0);
+                }
+                const collaboratorValue = salonValue * (collaboratorPercent / 100);
+                salonValue = salonValue - collaboratorValue;
             }
             
-            loadUpcomingBirthdays();
-        }
+            let warningHtml = '';
+            if (!service.clientId || !service.collaboratorId || !service.value) {
+                warningHtml = `<div class="alert alert-warning p-1 mt-1"><small><i class="fas fa-exclamation-triangle me-1"></i>Faltam dados: cliente/colaborador/valor</small></div>`;
+            }
+            
+            html += `
+                <div class="service-item mb-2">
+                    <div class="d-flex justify-content-between">
+                        <span>${client.name}</span>
+                        <span class="text-success">${formatCurrency(salonValue)} (salão)</span>
+                    </div>
+                    <small class="text-muted">${service.description} - ${collaborator.name}</small>
+                    ${warningHtml}
+                </div>
+            `;
+        });
+        recentContainer.innerHTML = html;
+    }
+    
+    loadUpcomingBirthdays();
+    
+    // ATUALIZAR O CARD DE FUNCIONÁRIOS
+    updateCollaboratorSalesCards();
+}
 
+function calculatePeriodSales() {
+    const today = new Date();
+    const startOfWeek = new Date(today);
+    const dayOfWeek = today.getDay();
+    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    startOfWeek.setDate(today.getDate() + diffToMonday);
+    startOfWeek.setHours(0, 0, 0, 0);
+    
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    
+    let weekSales = 0;
+    let weekServiceCount = 0;
+    let monthSales = 0;
+    let monthServiceCount = 0;
+    
+    allServices.forEach(service => {
+        const serviceDate = service.timestamp && service.timestamp.toDate ? service.timestamp.toDate() : new Date(service.timestamp || 0);
+        const serviceValue = parseFloat(service.value || 0);
+        
+        // Calcular valor líquido para o salão
+        const collaborator = collaborators.find(c => c.id === service.collaboratorId);
+        let salonValue = serviceValue;
+        if (collaborator) {
+            let collaboratorPercent = 0;
+            if (service.type === 'manual') {
+                collaboratorPercent = parseFloat(collaborator.manualPercent || 0);
+            } else if (service.type === 'product') {
+                collaboratorPercent = parseFloat(collaborator.productPercent || 0);
+            }
+            const collaboratorValue = serviceValue * (collaboratorPercent / 100);
+            salonValue = serviceValue - collaboratorValue;
+        }
+        
+        if (serviceDate >= startOfWeek) {
+            weekSales += salonValue;
+            weekServiceCount++;
+        }
+        
+        if (serviceDate >= startOfMonth) {
+            monthSales += salonValue;
+            monthServiceCount++;
+        }
+    });
+    
+    document.getElementById('weekSales').textContent = formatCurrency(weekSales);
+    document.getElementById('weekServices').textContent = `${weekServiceCount} serviços`;
+    document.getElementById('monthSales').textContent = formatCurrency(monthSales);
+    document.getElementById('monthServices').textContent = `${monthServiceCount} serviços`;
+}
         function updateInventoryUI() {
             const tbody = document.getElementById('inventoryTable');
             
@@ -9161,6 +9272,133 @@
                 document.getElementById('mobileHomeButton').style.display = 'none';
             }
         }
+
+
+// FUNÇÃO PARA MOSTRAR VENDAS POR FUNCIONÁRIO (DIÁRIO, SEMANAL, MENSAL)
+function updateCollaboratorSalesCards() {
+    const container = document.getElementById('collaboratorSalesCards');
+    if (!container) return;
+    
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    
+    // Data de início da semana
+    const startOfWeek = new Date(today);
+    const dayOfWeek = today.getDay();
+    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    startOfWeek.setDate(today.getDate() + diffToMonday);
+    startOfWeek.setHours(0, 0, 0, 0);
+    const weekStartStr = startOfWeek.toISOString().split('T')[0];
+    
+    // Data de início do mês
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const monthStartStr = startOfMonth.toISOString().split('T')[0];
+    
+    let html = '<div class="row">';
+    
+    collaborators.filter(c => c.active).forEach(collaborator => {
+        // Valores DIÁRIOS
+        let dailyTotal = 0;
+        let dailyServices = 0;
+        
+        // Valores SEMANAIS
+        let weeklyTotal = 0;
+        let weeklyServices = 0;
+        
+        // Valores MENSAIS
+        let monthlyTotal = 0;
+        let monthlyServices = 0;
+        
+        allServices.forEach(service => {
+            if (service.collaboratorId === collaborator.id) {
+                const serviceDate = service.timestamp && service.timestamp.toDate ? service.timestamp.toDate() : new Date(service.timestamp || service.date);
+                const serviceDateStr = serviceDate.toISOString().split('T')[0];
+                const serviceValue = parseFloat(service.value || 0);
+                
+                // Calcular valor que o funcionário RECEBE
+                let collaboratorPercent = 0;
+                if (service.type === 'manual') {
+                    collaboratorPercent = parseFloat(collaborator.manualPercent || 0);
+                } else if (service.type === 'product') {
+                    collaboratorPercent = parseFloat(collaborator.productPercent || 0);
+                }
+                const collaboratorValue = serviceValue * (collaboratorPercent / 100);
+                
+                // DIÁRIO
+                if (serviceDateStr === todayStr) {
+                    dailyTotal += collaboratorValue;
+                    dailyServices++;
+                }
+                
+                // SEMANAL
+                if (serviceDate >= startOfWeek) {
+                    weeklyTotal += collaboratorValue;
+                    weeklyServices++;
+                }
+                
+                // MENSAL
+                if (serviceDate >= startOfMonth) {
+                    monthlyTotal += collaboratorValue;
+                    monthlyServices++;
+                }
+            }
+        });
+        
+        // Só mostrar se tiver valores
+        if (dailyTotal > 0 || weeklyTotal > 0 || monthlyTotal > 0) {
+            const photoHtml = collaborator.photoUrl ? 
+                `<img src="${collaborator.photoUrl}" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;" onerror="this.src='';">` : 
+                `<div style="width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, #26196b, #4a3a9c); color: white; display: flex; align-items: center; justify-content: center; font-size: 20px;">${collaborator.name.charAt(0).toUpperCase()}</div>`;
+            
+            html += `
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="me-3">
+                                    ${photoHtml}
+                                </div>
+                                <div>
+                                    <h5 class="mb-0">${collaborator.name}</h5>
+                                    <small class="text-muted">${collaborator.specialty || 'Profissional'}</small>
+                                </div>
+                            </div>
+                            <div class="row text-center">
+                                <div class="col-4">
+                                    <div class="border-end">
+                                        <h6 class="text-primary mb-1">${formatCurrency(dailyTotal)}</h6>
+                                        <small class="text-muted">Hoje (${dailyServices})</small>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="border-end">
+                                        <h6 class="text-success mb-1">${formatCurrency(weeklyTotal)}</h6>
+                                        <small class="text-muted">Semana (${weeklyServices})</small>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <h6 class="text-warning mb-1">${formatCurrency(monthlyTotal)}</h6>
+                                    <small class="text-muted">Mês (${monthlyServices})</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    });
+    
+    html += '</div>';
+    
+    if (collaborators.filter(c => c.active).length === 0) {
+        container.innerHTML = '<div class="alert alert-info">Nenhum colaborador ativo cadastrado.</div>';
+    } else if (html === '<div class="row"></div>') {
+        container.innerHTML = '<div class="alert alert-info">Nenhum serviço registrado para os colaboradores ainda.</div>';
+    } else {
+        container.innerHTML = html;
+    }
+}
+        
         
         // NOVA FUNÇÃO: Atualizar lista de clientes nos registros com fotos e canetinha
         function updateClientRecordsList() {
