@@ -14186,6 +14186,331 @@ window.toggleProductStatus = function(productId, isActive) {
 
 
 
+
+
+
+
+// =================================================================
+// SCRIPT PARA EDITAR VENDAS PASSADAS DOS COLABORADORES
+// Adicione este script antes do </body>
+// =================================================================
+
+(function() {
+    console.log("✅ Script de edição de vendas de colaboradores carregado!");
+
+    // Aguarda o DOM e o Firebase estarem prontos
+    const esperarFirebase = setInterval(() => {
+        if (typeof firebase !== 'undefined' && firebase.firestore && typeof window.showCollaboratorProfile === 'function') {
+            clearInterval(esperarFirebase);
+            console.log("✅ Firebase pronto. Substituindo função de perfil...");
+            
+            // Salvar a função original para não perder
+            const funcaoOriginal = window.showCollaboratorProfile;
+            
+            // Criar a nova função que adiciona a aba de vendas
+            window.showCollaboratorProfile = function(collaboratorId) {
+                // Chamar a função original primeiro
+                if (funcaoOriginal) funcaoOriginal(collaboratorId);
+                
+                // Adicionar a aba de vendas após 300ms (tempo do modal abrir)
+                setTimeout(() => {
+                    adicionarAbaVendasColaborador(collaboratorId);
+                }, 300);
+            };
+        }
+    }, 500);
+
+    // Função principal que adiciona a aba de vendas
+    function adicionarAbaVendasColaborador(collaboratorId) {
+        // Procurar o modal do perfil
+        const modal = document.getElementById('collaboratorProfileModal');
+        if (!modal) return;
+        
+        // Verificar se a aba já existe para não duplicar
+        if (document.getElementById('vendasColaboradorTab')) return;
+        
+        // Procurar o corpo do modal
+        const modalBody = modal.querySelector('.modal-body');
+        if (!modalBody) return;
+        
+        // Criar as abas (adicionar ao que já existe)
+        const abasContainer = document.createElement('ul');
+        abasContainer.className = 'nav nav-tabs mt-3';
+        abasContainer.style.borderBottom = '1px solid #dee2e6';
+        abasContainer.innerHTML = `
+            <li class="nav-item">
+                <button class="nav-link active" id="perfil-tab" data-bs-toggle="tab" data-bs-target="#perfil-colab" type="button" role="tab">
+                    <i class="fas fa-user"></i> Perfil
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" id="vendas-tab" data-bs-toggle="tab" data-bs-target="#vendas-colab" type="button" role="tab">
+                    <i class="fas fa-shopping-cart"></i> Vendas Realizadas
+                </button>
+            </li>
+        `;
+        
+        // Criar o conteúdo das abas
+        const tabContent = document.createElement('div');
+        tabContent.className = 'tab-content mt-3';
+        tabContent.innerHTML = `
+            <div class="tab-pane fade show active" id="perfil-colab" role="tabpanel">
+                <!-- Conteúdo original vai ficar aqui -->
+                <div id="conteudoOriginalPerfil"></div>
+            </div>
+            <div class="tab-pane fade" id="vendas-colab" role="tabpanel">
+                <div id="listaVendasColaborador" style="max-height: 400px; overflow-y: auto;">
+                    <div class="text-center text-muted p-4">
+                        <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
+                        <p>Carregando vendas...</p>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Mover o conteúdo original para dentro da nova estrutura
+        const conteudoOriginal = modalBody.querySelector('.collaborator-profile');
+        if (conteudoOriginal) {
+            const destinoOriginal = document.getElementById('conteudoOriginalPerfil');
+            if (destinoOriginal) {
+                destinoOriginal.appendChild(conteudoOriginal.cloneNode(true));
+                conteudoOriginal.remove();
+            }
+        }
+        
+        // Remover o footer antigo se existir e recriar
+        const oldFooter = modal.querySelector('.modal-footer');
+        if (oldFooter) oldFooter.remove();
+        
+        const newFooter = document.createElement('div');
+        newFooter.className = 'modal-footer';
+        newFooter.innerHTML = '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>';
+        
+        // Limpar e adicionar a nova estrutura
+        modalBody.innerHTML = '';
+        modalBody.appendChild(abasContainer);
+        modalBody.appendChild(tabContent);
+        modal.appendChild(newFooter);
+        
+        // Carregar as vendas do colaborador
+        carregarVendasDoColaborador(collaboratorId);
+    }
+    
+    // Função para carregar as vendas do colaborador
+    async function carregarVendasDoColaborador(collaboratorId) {
+        const container = document.getElementById('listaVendasColaborador');
+        if (!container) return;
+        
+        try {
+            // Buscar todos os serviços deste colaborador
+            const snapshot = await firebase.firestore()
+                .collection('services')
+                .where('collaboratorId', '==', collaboratorId)
+                .where('userId', '==', firebase.auth().currentUser.uid)
+                .orderBy('date', 'desc')
+                .get();
+            
+            const vendas = [];
+            snapshot.forEach(doc => {
+                vendas.push({
+                    id: doc.id,
+                    ...doc.data()
+                });
+            });
+            
+            if (vendas.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-muted p-5">
+                        <i class="fas fa-box-open fa-3x mb-3"></i>
+                        <p>Este colaborador ainda não realizou vendas.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Buscar clientes para mostrar nomes
+            const clientesSnapshot = await firebase.firestore()
+                .collection('clients')
+                .where('userId', '==', firebase.auth().currentUser.uid)
+                .get();
+            
+            const clientes = {};
+            clientesSnapshot.forEach(doc => {
+                clientes[doc.id] = doc.data().name;
+            });
+            
+            // Montar a lista de vendas editável
+            let html = `
+                <div class="alert alert-info small mb-3">
+                    <i class="fas fa-info-circle me-1"></i> 
+                    Edite os campos abaixo e clique em 💾 para salvar as alterações.
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Cliente</th>
+                                <th>Data</th>
+                                <th>Serviço</th>
+                                <th>Valor (€)</th>
+                                <th style="width: 80px">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            
+            for (const venda of vendas) {
+                const nomeCliente = clientes[venda.clientId] || 'Cliente não encontrado';
+                const dataFormatada = venda.date || (venda.timestamp?.toDate ? venda.timestamp.toDate().toISOString().split('T')[0] : '');
+                
+                html += `
+                    <tr data-venda-id="${venda.id}">
+                        <td><small>${nomeCliente}</small></td>
+                        <td>
+                            <input type="date" class="form-control form-control-sm venda-data" value="${dataFormatada}" style="width: 130px;">
+                        </td>
+                        <td>
+                            <input type="text" class="form-control form-control-sm venda-descricao" value="${escapeHtml(venda.description || '')}" style="min-width: 150px;">
+                        </td>
+                        <td>
+                            <input type="number" step="0.01" class="form-control form-control-sm venda-valor" value="${venda.value || 0}" style="width: 100px;">
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-success me-1 salvar-venda" title="Salvar alterações">
+                                <i class="fas fa-save"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger excluir-venda" title="Excluir venda">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }
+            
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            
+            container.innerHTML = html;
+            
+            // Adicionar eventos aos botões
+            document.querySelectorAll('.salvar-venda').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const row = btn.closest('tr');
+                    const vendaId = row.getAttribute('data-venda-id');
+                    const novaData = row.querySelector('.venda-data').value;
+                    const novaDescricao = row.querySelector('.venda-descricao').value;
+                    const novoValor = parseFloat(row.querySelector('.venda-valor').value);
+                    
+                    if (isNaN(novoValor)) {
+                        Swal.fire('Erro', 'Valor inválido', 'error');
+                        return;
+                    }
+                    
+                    // Mostrar loading
+                    Swal.fire({
+                        title: 'Salvando...',
+                        text: 'Atualizando a venda',
+                        allowOutsideClick: false,
+                        didOpen: () => Swal.showLoading()
+                    });
+                    
+                    try {
+                        // Atualizar no Firestore
+                        await firebase.firestore().collection('services').doc(vendaId).update({
+                            date: novaData,
+                            description: novaDescricao,
+                            value: novoValor,
+                            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                        });
+                        
+                        Swal.fire('Sucesso!', 'Venda atualizada com sucesso!', 'success');
+                        
+                        // Recarregar a lista para mostrar dados atualizados
+                        carregarVendasDoColaborador(collaboratorId);
+                        
+                        // Atualizar o dashboard e outras telas
+                        if (typeof window.loadAllServices === 'function') {
+                            window.loadAllServices();
+                        }
+                        if (typeof window.updateDashboard === 'function') {
+                            setTimeout(() => window.updateDashboard(), 500);
+                        }
+                        
+                    } catch (error) {
+                        console.error('Erro ao salvar:', error);
+                        Swal.fire('Erro', 'Não foi possível salvar: ' + error.message, 'error');
+                    }
+                });
+            });
+            
+            document.querySelectorAll('.excluir-venda').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const row = btn.closest('tr');
+                    const vendaId = row.getAttribute('data-venda-id');
+                    
+                    const result = await Swal.fire({
+                        title: 'Tem certeza?',
+                        text: 'Esta ação não pode ser desfeita!',
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonColor: '#d33',
+                        confirmButtonText: 'Sim, excluir!',
+                        cancelButtonText: 'Cancelar'
+                    });
+                    
+                    if (result.isConfirmed) {
+                        Swal.fire({
+                            title: 'Excluindo...',
+                            allowOutsideClick: false,
+                            didOpen: () => Swal.showLoading()
+                        });
+                        
+                        try {
+                            await firebase.firestore().collection('services').doc(vendaId).delete();
+                            Swal.fire('Excluído!', 'Venda removida com sucesso.', 'success');
+                            carregarVendasDoColaborador(collaboratorId);
+                            
+                            if (typeof window.loadAllServices === 'function') {
+                                window.loadAllServices();
+                            }
+                            if (typeof window.updateDashboard === 'function') {
+                                setTimeout(() => window.updateDashboard(), 500);
+                            }
+                            
+                        } catch (error) {
+                            Swal.fire('Erro', 'Não foi possível excluir: ' + error.message, 'error');
+                        }
+                    }
+                });
+            });
+            
+        } catch (error) {
+            console.error('Erro ao carregar vendas:', error);
+            container.innerHTML = `
+                <div class="alert alert-danger text-center">
+                    <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                    <p>Erro ao carregar vendas: ${error.message}</p>
+                </div>
+            `;
+        }
+    }
+    
+    // Função auxiliar para escapar HTML
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+})();
+
+
+        
+
         
     </script>
 
