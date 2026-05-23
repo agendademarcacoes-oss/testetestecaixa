@@ -14192,12 +14192,13 @@ window.toggleProductStatus = function(productId, isActive) {
 
 
         
+
 // =================================================================
-// SCRIPT COMPLETO - COM BOTÃO SALVAR TUDO E POPUP MAIOR
+// SCRIPT COMPLETO CORRIGIDO - VALORES UNIFICADOS
 // =================================================================
 
 (function() {
-    console.log("✅ Script de edição de vendas carregado (versão completa)");
+    console.log("✅ Script de edição de vendas carregado (versão unificada)");
 
     // Aguarda o Firebase estar pronto
     const esperarFirebase = setInterval(() => {
@@ -14226,8 +14227,8 @@ window.toggleProductStatus = function(productId, isActive) {
         const modalDialog = modal.querySelector('.modal-dialog');
         if (modalDialog) {
             modalDialog.classList.add('modal-lg', 'modal-dialog-scrollable');
-            modalDialog.style.maxWidth = '90%';
-            modalDialog.style.width = '90%';
+            modalDialog.style.maxWidth = '95%';
+            modalDialog.style.width = '95%';
         }
         
         const modalBody = modal.querySelector('.modal-body');
@@ -14474,7 +14475,7 @@ window.toggleProductStatus = function(productId, isActive) {
                         
                         if (typeof window.loadAllServices === 'function') window.loadAllServices();
                         if (typeof window.updateDashboard === 'function') setTimeout(() => window.updateDashboard(), 500);
-                        if (typeof window.updateMonthlySalesChart === 'function') setTimeout(() => window.updateMonthlySalesChart(), 500);
+                        if (typeof window.atualizarTodosOsValores === 'function') setTimeout(() => window.atualizarTodosOsValores(), 500);
                     }
                 });
             });
@@ -14512,7 +14513,7 @@ window.toggleProductStatus = function(productId, isActive) {
                         
                         if (typeof window.loadAllServices === 'function') window.loadAllServices();
                         if (typeof window.updateDashboard === 'function') setTimeout(() => window.updateDashboard(), 500);
-                        if (typeof window.updateMonthlySalesChart === 'function') setTimeout(() => window.updateMonthlySalesChart(), 500);
+                        if (typeof window.atualizarTodosOsValores === 'function') setTimeout(() => window.atualizarTodosOsValores(), 500);
                         
                     } catch (error) {
                         Swal.fire('Erro', error.message, 'error');
@@ -14546,7 +14547,7 @@ window.toggleProductStatus = function(productId, isActive) {
                             
                             if (typeof window.loadAllServices === 'function') window.loadAllServices();
                             if (typeof window.updateDashboard === 'function') setTimeout(() => window.updateDashboard(), 500);
-                            if (typeof window.updateMonthlySalesChart === 'function') setTimeout(() => window.updateMonthlySalesChart(), 500);
+                            if (typeof window.atualizarTodosOsValores === 'function') setTimeout(() => window.atualizarTodosOsValores(), 500);
                             
                         } catch (error) {
                             Swal.fire('Erro', error.message, 'error');
@@ -14579,13 +14580,96 @@ window.toggleProductStatus = function(productId, isActive) {
 })();
 
 // ============================================================
-// CORREÇÃO DO GRÁFICO - Para mostrar os valores CORRETOS
+// FUNÇÃO UNIFICADA - Atualiza TODOS os valores do dashboard
 // ============================================================
 
-// Guardar a função original
+window.atualizarTodosOsValores = function() {
+    if (!window.allServices) return;
+    
+    console.log("🔄 Atualizando todos os valores do dashboard...");
+    
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    
+    const inicioSemana = new Date(hoje);
+    const diaSemana = hoje.getDay();
+    const diffParaSegunda = diaSemana === 0 ? -6 : 1 - diaSemana;
+    inicioSemana.setDate(hoje.getDate() + diffParaSegunda);
+    inicioSemana.setHours(0, 0, 0, 0);
+    
+    const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+    inicioMes.setHours(0, 0, 0, 0);
+    
+    // Função para calcular valor líquido do salão
+    function calcularValorLiquidoSalao(servico) {
+        const colaborador = window.collaborators?.find(c => c.id === servico.collaboratorId);
+        if (!colaborador) return parseFloat(servico.value || 0);
+        
+        let percentualFuncionario = 0;
+        if (servico.type === 'manual') {
+            percentualFuncionario = parseFloat(colaborador.manualPercent) || 0;
+        } else if (servico.type === 'product') {
+            percentualFuncionario = parseFloat(colaborador.productPercent) || 0;
+        }
+        
+        const percentualSalao = 100 - percentualFuncionario;
+        const valorServico = parseFloat(servico.value || 0);
+        return valorServico * (percentualSalao / 100);
+    }
+    
+    // Calcular valores
+    let totalHoje = 0;
+    let totalSemana = 0;
+    let totalMes = 0;
+    let qtdHoje = 0;
+    let qtdSemana = 0;
+    let qtdMes = 0;
+    
+    window.allServices.forEach(servico => {
+        const dataServico = servico.timestamp?.toDate ? servico.timestamp.toDate() : new Date(servico.timestamp || servico.date);
+        dataServico.setHours(0, 0, 0, 0);
+        const valorLiquido = calcularValorLiquidoSalao(servico);
+        
+        if (dataServico.getTime() === hoje.getTime()) {
+            totalHoje += valorLiquido;
+            qtdHoje++;
+        }
+        
+        if (dataServico >= inicioSemana) {
+            totalSemana += valorLiquido;
+            qtdSemana++;
+        }
+        
+        if (dataServico >= inicioMes) {
+            totalMes += valorLiquido;
+            qtdMes++;
+        }
+    });
+    
+    // Atualizar cards do dashboard
+    const todaySalesElement = document.getElementById('todaySales');
+    const weekSalesElement = document.getElementById('weekSales');
+    const monthSalesElement = document.getElementById('monthSales');
+    const todayServicesElement = document.getElementById('todayServices');
+    const weekServicesElement = document.getElementById('weekServices');
+    const monthServicesElement = document.getElementById('monthServices');
+    
+    if (todaySalesElement) todaySalesElement.textContent = formatCurrency(totalHoje);
+    if (weekSalesElement) weekSalesElement.textContent = formatCurrency(totalSemana);
+    if (monthSalesElement) monthSalesElement.textContent = formatCurrency(totalMes);
+    if (todayServicesElement) todayServicesElement.textContent = `${qtdHoje} serviços`;
+    if (weekServicesElement) weekServicesElement.textContent = `${qtdSemana} serviços`;
+    if (monthServicesElement) monthServicesElement.textContent = `${qtdMes} serviços`;
+    
+    console.log(`✅ Valores atualizados: Hoje=${formatCurrency(totalHoje)}, Semana=${formatCurrency(totalSemana)}, Mês=${formatCurrency(totalMes)}`);
+};
+
+// ============================================================
+// CORREÇÃO DO GRÁFICO - Usando a mesma função de cálculo
+// ============================================================
+
 const updateMonthlySalesChartOriginal = window.updateMonthlySalesChart;
 
-// Substituir pela versão corrigida (mostrando valores LÍQUIDOS do salão)
 window.updateMonthlySalesChart = function() {
     if (!window.allServices || !window.allProductSales) {
         if (updateMonthlySalesChartOriginal) updateMonthlySalesChartOriginal();
@@ -14599,7 +14683,7 @@ window.updateMonthlySalesChart = function() {
     const servicesData = [];
     const productsData = [];
     
-    // Função para calcular valor líquido do salão para um serviço
+    // Função para calcular valor líquido do salão (MESMA função usada no dashboard)
     function calcularValorLiquidoSalao(servico) {
         const colaborador = window.collaborators?.find(c => c.id === servico.collaboratorId);
         if (!colaborador) return parseFloat(servico.value || 0);
@@ -14623,7 +14707,7 @@ window.updateMonthlySalesChart = function() {
         
         // Serviços do mês (VALOR LÍQUIDO para o salão)
         const monthServices = window.allServices.filter(service => {
-            const serviceDate = service.timestamp?.toDate ? service.timestamp.toDate() : new Date(service.timestamp || 0);
+            const serviceDate = service.timestamp?.toDate ? service.timestamp.toDate() : new Date(service.timestamp || service.date || 0);
             return serviceDate.getMonth() === monthDate.getMonth() && 
                    serviceDate.getFullYear() === monthDate.getFullYear();
         });
@@ -14633,7 +14717,7 @@ window.updateMonthlySalesChart = function() {
         
         // Produtos do mês (100% para o salão)
         const monthProducts = window.allProductSales.filter(sale => {
-            const saleDate = sale.timestamp?.toDate ? sale.timestamp.toDate() : new Date(sale.timestamp || 0);
+            const saleDate = sale.timestamp?.toDate ? sale.timestamp.toDate() : new Date(sale.timestamp || sale.date || 0);
             return saleDate.getMonth() === monthDate.getMonth() && 
                    saleDate.getFullYear() === monthDate.getFullYear();
         });
@@ -14654,14 +14738,14 @@ window.updateMonthlySalesChart = function() {
             labels: months,
             datasets: [
                 {
-                    label: 'Serviços (Líquido para o Salão)',
+                    label: '📊 Serviços (Líquido para o Salão)',
                     data: servicesData,
                     backgroundColor: '#26196b',
                     borderColor: '#26196b',
                     borderWidth: 1
                 },
                 {
-                    label: 'Produtos (Total)',
+                    label: '🛍️ Produtos (Total)',
                     data: productsData,
                     backgroundColor: '#17a2b8',
                     borderColor: '#17a2b8',
@@ -14689,18 +14773,41 @@ window.updateMonthlySalesChart = function() {
                     beginAtZero: true,
                     ticks: {
                         callback: function(value) {
-                            return '€' + value;
+                            return '€' + value.toFixed(2).replace('.', ',');
                         }
                     }
                 }
             }
         }
     });
+    
+    console.log("📊 Gráfico atualizado com valores líquidos!");
 };
 
-console.log("✅ Gráfico corrigido - agora mostra valores LÍQUIDOS do salão!");
-console.log("✅ Botão 'Salvar Tudo' adicionado!");
+// ============================================================
+// SOBRESCREVER O updateDashboard para usar a função unificada
+// ============================================================
+
+const updateDashboardOriginal = window.updateDashboard;
+
+window.updateDashboard = function() {
+    if (updateDashboardOriginal) updateDashboardOriginal();
+    setTimeout(() => window.atualizarTodosOsValores(), 100);
+};
+
+// Forçar atualização quando a página carregar
+setTimeout(() => {
+    if (window.allServices && window.allServices.length > 0) {
+        window.atualizarTodosOsValores();
+        window.updateMonthlySalesChart();
+    }
+}, 2000);
+
+console.log("✅ SISTEMA CORRIGIDO!");
+console.log("✅ Card 'Vendas Mês' e Gráfico agora MOSTRAM O MESMO VALOR!");
+console.log("✅ Botão 'Salvar Tudo' funcionando!");
 console.log("✅ Popup de edição com largura maior!");
+
 
 
 
