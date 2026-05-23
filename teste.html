@@ -14190,29 +14190,25 @@ window.toggleProductStatus = function(productId, isActive) {
 
 
 
+
 // =================================================================
-// SCRIPT PARA EDITAR VENDAS PASSADAS DOS COLABORADORES
-// Adicione este script antes do </body>
+// SCRIPT PARA EDITAR VENDAS PASSADAS - VERSÃO SIMPLIFICADA (SEM ÍNDICE)
 // =================================================================
 
 (function() {
-    console.log("✅ Script de edição de vendas de colaboradores carregado!");
+    console.log("✅ Script de edição de vendas carregado (versão simplificada)");
 
-    // Aguarda o DOM e o Firebase estarem prontos
+    // Aguarda o Firebase estar pronto
     const esperarFirebase = setInterval(() => {
         if (typeof firebase !== 'undefined' && firebase.firestore && typeof window.showCollaboratorProfile === 'function') {
             clearInterval(esperarFirebase);
-            console.log("✅ Firebase pronto. Substituindo função de perfil...");
+            console.log("✅ Firebase pronto. Adicionando funcionalidade...");
             
-            // Salvar a função original para não perder
             const funcaoOriginal = window.showCollaboratorProfile;
             
-            // Criar a nova função que adiciona a aba de vendas
             window.showCollaboratorProfile = function(collaboratorId) {
-                // Chamar a função original primeiro
                 if (funcaoOriginal) funcaoOriginal(collaboratorId);
                 
-                // Adicionar a aba de vendas após 300ms (tempo do modal abrir)
                 setTimeout(() => {
                     adicionarAbaVendasColaborador(collaboratorId);
                 }, 300);
@@ -14220,20 +14216,15 @@ window.toggleProductStatus = function(productId, isActive) {
         }
     }, 500);
 
-    // Função principal que adiciona a aba de vendas
-    function adicionarAbaVendasColaborador(collaboratorId) {
-        // Procurar o modal do perfil
+    async function adicionarAbaVendasColaborador(collaboratorId) {
         const modal = document.getElementById('collaboratorProfileModal');
         if (!modal) return;
-        
-        // Verificar se a aba já existe para não duplicar
         if (document.getElementById('vendasColaboradorTab')) return;
         
-        // Procurar o corpo do modal
         const modalBody = modal.querySelector('.modal-body');
         if (!modalBody) return;
         
-        // Criar as abas (adicionar ao que já existe)
+        // Criar abas
         const abasContainer = document.createElement('ul');
         abasContainer.className = 'nav nav-tabs mt-3';
         abasContainer.style.borderBottom = '1px solid #dee2e6';
@@ -14250,12 +14241,10 @@ window.toggleProductStatus = function(productId, isActive) {
             </li>
         `;
         
-        // Criar o conteúdo das abas
         const tabContent = document.createElement('div');
         tabContent.className = 'tab-content mt-3';
         tabContent.innerHTML = `
             <div class="tab-pane fade show active" id="perfil-colab" role="tabpanel">
-                <!-- Conteúdo original vai ficar aqui -->
                 <div id="conteudoOriginalPerfil"></div>
             </div>
             <div class="tab-pane fade" id="vendas-colab" role="tabpanel">
@@ -14268,7 +14257,7 @@ window.toggleProductStatus = function(productId, isActive) {
             </div>
         `;
         
-        // Mover o conteúdo original para dentro da nova estrutura
+        // Mover conteúdo original
         const conteudoOriginal = modalBody.querySelector('.collaborator-profile');
         if (conteudoOriginal) {
             const destinoOriginal = document.getElementById('conteudoOriginalPerfil');
@@ -14278,7 +14267,7 @@ window.toggleProductStatus = function(productId, isActive) {
             }
         }
         
-        // Remover o footer antigo se existir e recriar
+        // Recriar footer
         const oldFooter = modal.querySelector('.modal-footer');
         if (oldFooter) oldFooter.remove();
         
@@ -14286,36 +14275,44 @@ window.toggleProductStatus = function(productId, isActive) {
         newFooter.className = 'modal-footer';
         newFooter.innerHTML = '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>';
         
-        // Limpar e adicionar a nova estrutura
         modalBody.innerHTML = '';
         modalBody.appendChild(abasContainer);
         modalBody.appendChild(tabContent);
         modal.appendChild(newFooter);
         
-        // Carregar as vendas do colaborador
-        carregarVendasDoColaborador(collaboratorId);
+        // Carregar vendas
+        await carregarVendasDoColaborador(collaboratorId);
     }
     
-    // Função para carregar as vendas do colaborador
     async function carregarVendasDoColaborador(collaboratorId) {
         const container = document.getElementById('listaVendasColaborador');
         if (!container) return;
         
         try {
-            // Buscar todos os serviços deste colaborador
+            // MUDANÇA IMPORTANTE: Buscar TODOS os serviços do usuário e filtrar no JavaScript
+            // Isso evita precisar de índice composto no Firebase
             const snapshot = await firebase.firestore()
                 .collection('services')
-                .where('collaboratorId', '==', collaboratorId)
                 .where('userId', '==', firebase.auth().currentUser.uid)
-                .orderBy('date', 'desc')
                 .get();
             
+            // Filtrar pelo colaborador no JavaScript (mais simples, sem índice)
             const vendas = [];
             snapshot.forEach(doc => {
-                vendas.push({
-                    id: doc.id,
-                    ...doc.data()
-                });
+                const dados = doc.data();
+                if (dados.collaboratorId === collaboratorId) {
+                    vendas.push({
+                        id: doc.id,
+                        ...dados
+                    });
+                }
+            });
+            
+            // Ordenar por data (mais recente primeiro)
+            vendas.sort((a, b) => {
+                const dataA = a.date || '';
+                const dataB = b.date || '';
+                return dataB.localeCompare(dataA);
             });
             
             if (vendas.length === 0) {
@@ -14328,7 +14325,7 @@ window.toggleProductStatus = function(productId, isActive) {
                 return;
             }
             
-            // Buscar clientes para mostrar nomes
+            // Buscar clientes
             const clientesSnapshot = await firebase.firestore()
                 .collection('clients')
                 .where('userId', '==', firebase.auth().currentUser.uid)
@@ -14339,21 +14336,21 @@ window.toggleProductStatus = function(productId, isActive) {
                 clientes[doc.id] = doc.data().name;
             });
             
-            // Montar a lista de vendas editável
+            // Montar tabela
             let html = `
                 <div class="alert alert-info small mb-3">
                     <i class="fas fa-info-circle me-1"></i> 
-                    Edite os campos abaixo e clique em 💾 para salvar as alterações.
+                    Edite os campos abaixo e clique em 💾 para salvar.
                 </div>
-                <div class="table-responsive">
+                <div style="max-height: 500px; overflow-y: auto;">
                     <table class="table table-sm table-hover">
-                        <thead class="table-light">
+                        <thead class="table-light position-sticky top-0">
                             <tr>
-                                <th>Cliente</th>
-                                <th>Data</th>
-                                <th>Serviço</th>
-                                <th>Valor (€)</th>
-                                <th style="width: 80px">Ações</th>
+                                <th style="min-width: 100px">Cliente</th>
+                                <th style="min-width: 110px">Data</th>
+                                <th style="min-width: 150px">Serviço</th>
+                                <th style="min-width: 90px">Valor (€)</th>
+                                <th style="min-width: 80px">Ações</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -14361,25 +14358,25 @@ window.toggleProductStatus = function(productId, isActive) {
             
             for (const venda of vendas) {
                 const nomeCliente = clientes[venda.clientId] || 'Cliente não encontrado';
-                const dataFormatada = venda.date || (venda.timestamp?.toDate ? venda.timestamp.toDate().toISOString().split('T')[0] : '');
+                const dataAtual = venda.date || '';
                 
                 html += `
                     <tr data-venda-id="${venda.id}">
-                        <td><small>${nomeCliente}</small></td>
+                        <td><small>${escapeHtml(nomeCliente)}</small></td>
                         <td>
-                            <input type="date" class="form-control form-control-sm venda-data" value="${dataFormatada}" style="width: 130px;">
+                            <input type="date" class="form-control form-control-sm venda-data" value="${dataAtual}" style="width: 120px;">
                         </td>
                         <td>
-                            <input type="text" class="form-control form-control-sm venda-descricao" value="${escapeHtml(venda.description || '')}" style="min-width: 150px;">
+                            <input type="text" class="form-control form-control-sm venda-descricao" value="${escapeHtml(venda.description || '')}" style="min-width: 140px;">
                         </td>
                         <td>
                             <input type="number" step="0.01" class="form-control form-control-sm venda-valor" value="${venda.value || 0}" style="width: 100px;">
                         </td>
                         <td>
-                            <button class="btn btn-sm btn-success me-1 salvar-venda" title="Salvar alterações">
+                            <button class="btn btn-sm btn-success me-1 salvar-venda" title="Salvar">
                                 <i class="fas fa-save"></i>
                             </button>
-                            <button class="btn btn-sm btn-danger excluir-venda" title="Excluir venda">
+                            <button class="btn btn-sm btn-danger excluir-venda" title="Excluir">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </td>
@@ -14395,7 +14392,7 @@ window.toggleProductStatus = function(productId, isActive) {
             
             container.innerHTML = html;
             
-            // Adicionar eventos aos botões
+            // Eventos dos botões
             document.querySelectorAll('.salvar-venda').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
                     const row = btn.closest('tr');
@@ -14409,16 +14406,9 @@ window.toggleProductStatus = function(productId, isActive) {
                         return;
                     }
                     
-                    // Mostrar loading
-                    Swal.fire({
-                        title: 'Salvando...',
-                        text: 'Atualizando a venda',
-                        allowOutsideClick: false,
-                        didOpen: () => Swal.showLoading()
-                    });
+                    Swal.fire({ title: 'Salvando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
                     
                     try {
-                        // Atualizar no Firestore
                         await firebase.firestore().collection('services').doc(vendaId).update({
                             date: novaData,
                             description: novaDescricao,
@@ -14426,22 +14416,14 @@ window.toggleProductStatus = function(productId, isActive) {
                             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                         });
                         
-                        Swal.fire('Sucesso!', 'Venda atualizada com sucesso!', 'success');
-                        
-                        // Recarregar a lista para mostrar dados atualizados
+                        Swal.fire('Sucesso!', 'Venda atualizada!', 'success');
                         carregarVendasDoColaborador(collaboratorId);
                         
-                        // Atualizar o dashboard e outras telas
-                        if (typeof window.loadAllServices === 'function') {
-                            window.loadAllServices();
-                        }
-                        if (typeof window.updateDashboard === 'function') {
-                            setTimeout(() => window.updateDashboard(), 500);
-                        }
+                        if (typeof window.loadAllServices === 'function') window.loadAllServices();
+                        if (typeof window.updateDashboard === 'function') setTimeout(() => window.updateDashboard(), 500);
                         
                     } catch (error) {
-                        console.error('Erro ao salvar:', error);
-                        Swal.fire('Erro', 'Não foi possível salvar: ' + error.message, 'error');
+                        Swal.fire('Erro', error.message, 'error');
                     }
                 });
             });
@@ -14452,53 +14434,47 @@ window.toggleProductStatus = function(productId, isActive) {
                     const vendaId = row.getAttribute('data-venda-id');
                     
                     const result = await Swal.fire({
-                        title: 'Tem certeza?',
+                        title: 'Excluir venda?',
                         text: 'Esta ação não pode ser desfeita!',
                         icon: 'warning',
                         showCancelButton: true,
                         confirmButtonColor: '#d33',
-                        confirmButtonText: 'Sim, excluir!',
+                        confirmButtonText: 'Sim, excluir',
                         cancelButtonText: 'Cancelar'
                     });
                     
                     if (result.isConfirmed) {
-                        Swal.fire({
-                            title: 'Excluindo...',
-                            allowOutsideClick: false,
-                            didOpen: () => Swal.showLoading()
-                        });
+                        Swal.fire({ title: 'Excluindo...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
                         
                         try {
                             await firebase.firestore().collection('services').doc(vendaId).delete();
-                            Swal.fire('Excluído!', 'Venda removida com sucesso.', 'success');
+                            Swal.fire('Excluído!', 'Venda removida.', 'success');
                             carregarVendasDoColaborador(collaboratorId);
                             
-                            if (typeof window.loadAllServices === 'function') {
-                                window.loadAllServices();
-                            }
-                            if (typeof window.updateDashboard === 'function') {
-                                setTimeout(() => window.updateDashboard(), 500);
-                            }
+                            if (typeof window.loadAllServices === 'function') window.loadAllServices();
+                            if (typeof window.updateDashboard === 'function') setTimeout(() => window.updateDashboard(), 500);
                             
                         } catch (error) {
-                            Swal.fire('Erro', 'Não foi possível excluir: ' + error.message, 'error');
+                            Swal.fire('Erro', error.message, 'error');
                         }
                     }
                 });
             });
             
         } catch (error) {
-            console.error('Erro ao carregar vendas:', error);
+            console.error('Erro:', error);
             container.innerHTML = `
-                <div class="alert alert-danger text-center">
+                <div class="alert alert-danger text-center m-3">
                     <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
                     <p>Erro ao carregar vendas: ${error.message}</p>
+                    <button class="btn btn-sm btn-primary mt-2" onclick="location.reload()">
+                        <i class="fas fa-sync-alt me-1"></i> Recarregar
+                    </button>
                 </div>
             `;
         }
     }
     
-    // Função auxiliar para escapar HTML
     function escapeHtml(text) {
         if (!text) return '';
         const div = document.createElement('div');
@@ -14507,6 +14483,7 @@ window.toggleProductStatus = function(productId, isActive) {
     }
     
 })();
+
 
 
         
