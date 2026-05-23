@@ -3444,25 +3444,6 @@
                                     </div>
                                 </div>
                             </div>
-
-
-<!-- CARD DE FUNCIONÁRIOS - VENDAS DIÁRIAS, SEMANAIS E MENSAIS -->
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-user-friends me-2"></i>Desempenho dos Funcionários</h5>
-            </div>
-            <div class="card-body">
-                <div id="collaboratorSalesCards">
-                    <p class="text-muted text-center">Carregando dados dos funcionários...</p>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-                            
                             
                             <!-- NOVO: Seção de Produtos Vendidos -->
                             <div class="row">
@@ -6714,7 +6695,6 @@
                     updateFinancialSummary();
                     updateMonthlySalesChart();
                     updateProductsSoldStats();
-                    mostrarFuncionarios();
                 }).catch(error => {
                     console.error('Erro ao carregar dados:', error);
                 });
@@ -7440,40 +7420,352 @@
             }
         }
 
-        function updateDashboard() {
-    const todayServicesValue = todayServices.reduce((total, service) => total + parseFloat(service.value || 0), 0);
-    const todayProductsValue = todayProductSales.reduce((total, sale) => total + parseFloat(sale.totalValue || 0), 0);
+        // ============================================
+// FUNÇÃO CORRIGIDA: Calcular valor líquido do salão
+// ============================================
+function calcularValorLiquidoSalao(servico) {
+    // Buscar colaborador
+    const colaborador = collaborators.find(c => c.id === servico.collaboratorId);
+    if (!colaborador) return parseFloat(servico.value || 0);
     
-    // CALCULAR VALOR LÍQUIDO DO SALÃO (SOMENTE A PARTE QUE FICA PARA O SALÃO)
-    let totalLiquidValue = 0;
-    todayServices.forEach(service => {
-        const collaborator = collaborators.find(c => c.id === service.collaboratorId);
-        if (collaborator) {
-            let collaboratorPercent = 0;
-            if (service.type === 'manual') {
-                collaboratorPercent = parseFloat(collaborator.manualPercent || 0);
-            } else if (service.type === 'product') {
-                collaboratorPercent = parseFloat(collaborator.productPercent || 0);
-            }
-            const collaboratorValue = parseFloat(service.value || 0) * (collaboratorPercent / 100);
-            const salonValue = parseFloat(service.value || 0) - collaboratorValue;
-            totalLiquidValue += salonValue;
-        } else {
-            totalLiquidValue += parseFloat(service.value || 0);
+    // Percentual do FUNCIONÁRIO (ex: 70%)
+    let percentualFuncionario = 0;
+    if (servico.type === 'manual') {
+        percentualFuncionario = parseFloat(colaborador.manualPercent) || 0;
+    } else if (servico.type === 'product') {
+        percentualFuncionario = parseFloat(colaborador.productPercent) || 0;
+    } else {
+        percentualFuncionario = 0;
+    }
+    
+    // Percentual do SALÃO = 100% - percentual do funcionário
+    const percentualSalao = 100 - percentualFuncionario;
+    const valorServico = parseFloat(servico.value || 0);
+    const valorLiquido = valorServico * (percentualSalao / 100);
+    
+    return valorLiquido;
+}
+
+// ============================================
+// FUNÇÃO: Calcular estatísticas por período para um funcionário
+// ============================================
+function calcularEstatisticasFuncionario(colaboradorId, services) {
+    const servicosDoFuncionario = services.filter(s => s.collaboratorId === colaboradorId);
+    
+    let valorBrutoTotal = 0;
+    let valorComissaoTotal = 0;
+    let valorSalaoTotal = 0;
+    
+    servicosDoFuncionario.forEach(servico => {
+        const colaborador = collaborators.find(c => c.id === servico.collaboratorId);
+        let percentualFuncionario = 0;
+        
+        if (servico.type === 'manual') {
+            percentualFuncionario = parseFloat(colaborador?.manualPercent) || 0;
+        } else if (servico.type === 'product') {
+            percentualFuncionario = parseFloat(colaborador?.productPercent) || 0;
         }
+        
+        const valorServico = parseFloat(servico.value || 0);
+        valorBrutoTotal += valorServico;
+        valorComissaoTotal += valorServico * (percentualFuncionario / 100);
+        valorSalaoTotal += valorServico * ((100 - percentualFuncionario) / 100);
     });
-    // Adicionar produtos (100% para o salão)
-    totalLiquidValue += todayProductsValue;
     
-    document.getElementById('totalCollaborators').textContent = collaborators.filter(c => c.active).length;
-    document.getElementById('totalClients').textContent = clients.length;
+    return {
+        valorBruto: valorBrutoTotal,
+        valorComissao: valorComissaoTotal,
+        valorSalao: valorSalaoTotal,
+        quantidade: servicosDoFuncionario.length
+    };
+}
+
+// ============================================
+// FUNÇÃO: Renderizar card de desempenho dos funcionários
+// ============================================
+function renderizarDesempenhoFuncionarios() {
+    // Verificar se o container existe, se não, criar
+    let container = document.getElementById('funcionariosPerformanceContainer');
+    const dashboard = document.getElementById('dashboard');
     
-    // ATUALIZAR O CARD "VENDAS HOJE" COM VALOR LÍQUIDO
-    document.getElementById('todaySales').textContent = formatCurrency(totalLiquidValue);
-    document.getElementById('todayServices').textContent = `${todayServices.length} serviços`;
+    if (!dashboard) return;
+    
+    // Verificar se já existe o card de funcionários
+    let existingCard = document.querySelector('#funcionariosPerformanceContainer');
+    if (existingCard) {
+        existingCard.remove();
+    }
+    
+    // Criar container do card
+    container = document.createElement('div');
+    container.id = 'funcionariosPerformanceContainer';
+    container.className = 'row mt-4';
+    
+    // Filtrar apenas colaboradores ativos
+    const funcionariosAtivos = collaborators.filter(c => c.active);
+    
+    if (funcionariosAtivos.length === 0) {
+        container.innerHTML = `
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Desempenho dos Funcionários</h5>
+                    </div>
+                    <div class="card-body text-center text-muted">
+                        <i class="fas fa-users fa-3x mb-3"></i>
+                        <p>Nenhum funcionário ativo cadastrado.</p>
+                        <small>Vá em "Colaboradores" para adicionar.</small>
+                    </div>
+                </div>
+            </div>
+        `;
+        dashboard.appendChild(container);
+        return;
+    }
+    
+    // Datas para filtros
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const hojeStr = hoje.toISOString().split('T')[0];
+    
+    const inicioSemana = new Date(hoje);
+    const diaSemana = hoje.getDay();
+    const diffParaSegunda = diaSemana === 0 ? -6 : 1 - diaSemana;
+    inicioSemana.setDate(hoje.getDate() + diffParaSegunda);
+    inicioSemana.setHours(0, 0, 0, 0);
+    
+    const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+    inicioMes.setHours(0, 0, 0, 0);
+    
+    // Filtrar serviços por período
+    const servicosHoje = allServices.filter(s => {
+        const dataServico = s.timestamp?.toDate ? s.timestamp.toDate() : new Date(s.timestamp || s.date);
+        dataServico.setHours(0, 0, 0, 0);
+        return dataServico.getTime() === hoje.getTime();
+    });
+    
+    const servicosSemana = allServices.filter(s => {
+        const dataServico = s.timestamp?.toDate ? s.timestamp.toDate() : new Date(s.timestamp || s.date);
+        return dataServico >= inicioSemana;
+    });
+    
+    const servicosMes = allServices.filter(s => {
+        const dataServico = s.timestamp?.toDate ? s.timestamp.toDate() : new Date(s.timestamp || s.date);
+        return dataServico >= inicioMes;
+    });
+    
+    // Calcular total do salão por período (LÍQUIDO)
+    let totalSalaoHoje = 0;
+    let totalSalaoSemana = 0;
+    let totalSalaoMes = 0;
+    
+    servicosHoje.forEach(s => { totalSalaoHoje += calcularValorLiquidoSalao(s); });
+    servicosSemana.forEach(s => { totalSalaoSemana += calcularValorLiquidoSalao(s); });
+    servicosMes.forEach(s => { totalSalaoMes += calcularValorLiquidoSalao(s); });
+    
+    // Atualizar cards do dashboard com valores CORRETOS
+    document.getElementById('todaySales').textContent = formatCurrency(totalSalaoHoje);
+    document.getElementById('weekSales').textContent = formatCurrency(totalSalaoSemana);
+    document.getElementById('monthSales').textContent = formatCurrency(totalSalaoMes);
+    
+    // Atualizar total de colaboradores
+    document.getElementById('totalCollaborators').textContent = funcionariosAtivos.length;
+    
+    // Gerar HTML do card de desempenho
+    let html = `
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>📊 Desempenho dos Funcionários</h5>
+                    <small><i class="fas fa-info-circle me-1"></i>Valores em EUR (€)</small>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr style="background-color: #f8f9fa;">
+                                    <th style="width: 20%;">Funcionário</th>
+                                    <th style="width: 20%;" class="text-center">🎯 Hoje</th>
+                                    <th style="width: 20%;" class="text-center">📅 Semana</th>
+                                    <th style="width: 20%;" class="text-center">📆 Mês</th>
+                                    <th style="width: 20%;" class="text-center">💰 Total Geral</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+    `;
+    
+    let totalBrutoGeral = 0;
+    let totalComissaoGeral = 0;
+    let totalSalaoGeral = 0;
+    
+    funcionariosAtivos.forEach(func => {
+        // Calcular para hoje
+        const statsHoje = calcularEstatisticasFuncionario(func.id, servicosHoje);
+        // Calcular para semana
+        const statsSemana = calcularEstatisticasFuncionario(func.id, servicosSemana);
+        // Calcular para mês
+        const statsMes = calcularEstatisticasFuncionario(func.id, servicosMes);
+        // Calcular total geral
+        const statsTotal = calcularEstatisticasFuncionario(func.id, allServices);
+        
+        totalBrutoGeral += statsTotal.valorBruto;
+        totalComissaoGeral += statsTotal.valorComissao;
+        totalSalaoGeral += statsTotal.valorSalao;
+        
+        const percentualExibicao = func.manualPercent || 0;
+        let corPercentual = percentualExibicao === 0 ? 'success' : (percentualExibicao >= 50 ? 'warning' : 'info');
+        
+        // Foto do funcionário (se tiver)
+        const fotoHtml = func.photoUrl ? 
+            `<img src="${func.photoUrl}" class="rounded-circle me-2" width="32" height="32" style="object-fit: cover;" onerror="this.style.display='none'">` : 
+            `<div class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px; font-size: 14px;">${func.name.charAt(0).toUpperCase()}</div>`;
+        
+        html += `
+            <tr class="align-middle">
+                <td>
+                    <div class="d-flex align-items-center">
+                        ${fotoHtml}
+                        <div>
+                            <strong>${func.name}</strong>
+                            <br>
+                            <small class="text-muted">${func.specialty || 'Sem especialidade'}</small>
+                        </div>
+                    </div>
+                </td>
+                <td class="text-center">
+                    <span class="fw-bold text-primary">${formatCurrency(statsHoje.valorBruto)}</span>
+                    <br>
+                    <small class="text-${corPercentual}">
+                        <i class="fas fa-percent"></i> ${percentualExibicao}%
+                    </small>
+                </td>
+                <td class="text-center fw-bold text-primary">${formatCurrency(statsSemana.valorBruto)}</td>
+                <td class="text-center fw-bold text-primary">${formatCurrency(statsMes.valorBruto)}</td>
+                <td class="text-center">
+                    <span class="fw-bold text-primary">${formatCurrency(statsTotal.valorBruto)}</span>
+                    <br>
+                    <small class="text-success">
+                        <i class="fas fa-euro-sign"></i> Salão: ${formatCurrency(statsTotal.valorSalao)}
+                    </small>
+                </td>
+            </tr>
+        `;
+    });
+    
+    // Linha de TOTAL
+    html += `
+                            </tbody>
+                            <tfoot style="background-color: #e9ecef; font-weight: bold;">
+                                <tr>
+                                    <td><strong>TOTAL GERAL</strong></td>
+                                    <td class="text-center text-primary">${formatCurrency(totalSalaoHoje)}</td>
+                                    <td class="text-center text-primary">${formatCurrency(totalSalaoSemana)}</td>
+                                    <td class="text-center text-primary">${formatCurrency(totalSalaoMes)}</td>
+                                    <td class="text-center">
+                                        <span class="text-primary">${formatCurrency(totalBrutoGeral)}</span>
+                                        <br>
+                                        <small class="text-muted">Salão: ${formatCurrency(totalSalaoGeral)}</small>
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Adicionar legenda explicativa
+    html += `
+        <div class="col-12 mt-3">
+            <div class="alert alert-info alert-dismissible fade show mb-0" role="alert" style="background-color: #e8f4f8; border-left: 4px solid #17a2b8;">
+                <button type="button" class="btn-close float-end" data-bs-dismiss="alert" aria-label="Close"></button>
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-calculator fa-2x me-3 text-info"></i>
+                    <div>
+                        <strong>📐 Como funciona o cálculo?</strong><br>
+                        <small>
+                            • <strong>Valor Bruto</strong> = Total que o funcionário FATUROU em serviços<br>
+                            • <strong>% do Funcionário</strong> = Configurado na ficha do colaborador<br>
+                            • <strong>Salão recebe</strong> = Valor Bruto × (100% - % do Funcionário)<br>
+                            • Exemplo: Serviço de R$100 com funcionário 70% → Salão recebe R$30
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    container.innerHTML = html;
+    dashboard.appendChild(container);
+}
+
+// ============================================
+// FUNÇÃO CORRIGIDA: updateDashboard COMPLETO
+// ============================================
+// Guardar a função original para não perder nada
+const updateDashboardOriginal = window.updateDashboard;
+
+// Substituir pela versão corrigida
+window.updateDashboard = function() {
+    // Calcular valores líquidos do salão para cada período
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const hojeStr = hoje.toISOString().split('T')[0];
+    
+    const inicioSemana = new Date(hoje);
+    const diaSemana = hoje.getDay();
+    const diffParaSegunda = diaSemana === 0 ? -6 : 1 - diaSemana;
+    inicioSemana.setDate(hoje.getDate() + diffParaSegunda);
+    inicioSemana.setHours(0, 0, 0, 0);
+    
+    const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+    inicioMes.setHours(0, 0, 0, 0);
+    
+    // Filtrar serviços por período
+    const servicosHoje = allServices.filter(s => {
+        const dataServico = s.timestamp?.toDate ? s.timestamp.toDate() : new Date(s.timestamp || s.date);
+        dataServico.setHours(0, 0, 0, 0);
+        return dataServico.getTime() === hoje.getTime();
+    });
+    
+    const servicosSemana = allServices.filter(s => {
+        const dataServico = s.timestamp?.toDate ? s.timestamp.toDate() : new Date(s.timestamp || s.date);
+        return dataServico >= inicioSemana;
+    });
+    
+    const servicosMes = allServices.filter(s => {
+        const dataServico = s.timestamp?.toDate ? s.timestamp.toDate() : new Date(s.timestamp || s.date);
+        return dataServico >= inicioMes;
+    });
+    
+    // Calcular total líquido do salão
+    let totalSalaoHoje = 0;
+    let totalSalaoSemana = 0;
+    let totalSalaoMes = 0;
+    
+    servicosHoje.forEach(s => { totalSalaoHoje += calcularValorLiquidoSalao(s); });
+    servicosSemana.forEach(s => { totalSalaoSemana += calcularValorLiquidoSalao(s); });
+    servicosMes.forEach(s => { totalSalaoMes += calcularValorLiquidoSalao(s); });
+    
+    // Atualizar cards do dashboard
+    document.getElementById('todaySales').textContent = formatCurrency(totalSalaoHoje);
+    document.getElementById('weekSales').textContent = formatCurrency(totalSalaoSemana);
+    document.getElementById('monthSales').textContent = formatCurrency(totalSalaoMes);
+    document.getElementById('todayServices').textContent = `${servicosHoje.length} serviços`;
+    document.getElementById('weekServices').textContent = `${servicosSemana.length} serviços`;
+    document.getElementById('monthServices').textContent = `${servicosMes.length} serviços`;
+    
+    // Produtos (não mudam, são 100% para o salão)
+    const todayProductsValue = todayProductSales.reduce((total, sale) => total + parseFloat(sale.totalValue || 0), 0);
     document.getElementById('todayProducts').textContent = formatCurrency(todayProductsValue);
     document.getElementById('todayProductsCount').textContent = `${todayProductSales.length} produtos`;
     
+    // Colaboradores e clientes
+    document.getElementById('totalCollaborators').textContent = collaborators.filter(c => c.active).length;
+    document.getElementById('totalClients').textContent = clients.length;
+    
+    // Serviços recentes
     const recentContainer = document.getElementById('recentServicesList');
     if (todayServices.length === 0) {
         recentContainer.innerHTML = '<p class="text-muted">Nenhum serviço hoje.</p>';
@@ -7483,97 +7775,83 @@
         recentServices.forEach(service => {
             const client = clients.find(c => c.id === service.clientId) || { name: 'Cliente não encontrado' };
             const collaborator = collaborators.find(c => c.id === service.collaboratorId) || { name: 'Colaborador não encontrado' };
-            
-            let salonValue = parseFloat(service.value || 0);
-            if (collaborator.id) {
-                let collaboratorPercent = 0;
-                if (service.type === 'manual') {
-                    collaboratorPercent = parseFloat(collaborator.manualPercent || 0);
-                } else if (service.type === 'product') {
-                    collaboratorPercent = parseFloat(collaborator.productPercent || 0);
-                }
-                const collaboratorValue = salonValue * (collaboratorPercent / 100);
-                salonValue = salonValue - collaboratorValue;
-            }
-            
-            let warningHtml = '';
-            if (!service.clientId || !service.collaboratorId || !service.value) {
-                warningHtml = `<div class="alert alert-warning p-1 mt-1"><small><i class="fas fa-exclamation-triangle me-1"></i>Faltam dados: cliente/colaborador/valor</small></div>`;
-            }
+            const valorLiquido = calcularValorLiquidoSalao(service);
             
             html += `
                 <div class="service-item mb-2">
                     <div class="d-flex justify-content-between">
                         <span>${client.name}</span>
-                        <span class="text-success">${formatCurrency(salonValue)} (salão)</span>
+                        <span class="text-success">${formatCurrency(service.value)}</span>
                     </div>
                     <small class="text-muted">${service.description} - ${collaborator.name}</small>
-                    ${warningHtml}
+                    <div class="small text-info">
+                        <i class="fas fa-euro-sign"></i> Salão: ${formatCurrency(valorLiquido)}
+                    </div>
                 </div>
             `;
         });
         recentContainer.innerHTML = html;
     }
     
+    // Carregar aniversários
     loadUpcomingBirthdays();
     
-    // Chamar a função com segurança
-if (typeof updateCollaboratorSalesCards === 'function') {
-    setTimeout(function() {
-        updateCollaboratorSalesCards();
-    }, 500);
-}
-}
+    // Renderizar card de desempenho dos funcionários
+    renderizarDesempenhoFuncionarios();
+    
+    // Atualizar caixa atual
+    if (currentCashier) {
+        const todayServicesValue = servicosHoje.reduce((total, service) => total + calcularValorLiquidoSalao(service), 0);
+        const todayProductsValue = todayProductSales.reduce((total, sale) => total + parseFloat(sale.totalValue || 0), 0);
+        const currentCashValue = (currentCashier.initialValue || 0) + todayServicesValue + todayProductsValue;
+        document.getElementById('currentCash').textContent = formatCurrency(currentCashValue);
+    }
+};
 
-function calculatePeriodSales() {
-    const today = new Date();
-    const startOfWeek = new Date(today);
-    const dayOfWeek = today.getDay();
-    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-    startOfWeek.setDate(today.getDate() + diffToMonday);
-    startOfWeek.setHours(0, 0, 0, 0);
-    
-    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-    
-    let weekSales = 0;
-    let weekServiceCount = 0;
-    let monthSales = 0;
-    let monthServiceCount = 0;
-    
-    allServices.forEach(service => {
-        const serviceDate = service.timestamp && service.timestamp.toDate ? service.timestamp.toDate() : new Date(service.timestamp || 0);
-        const serviceValue = parseFloat(service.value || 0);
-        
-        // Calcular valor líquido para o salão
-        const collaborator = collaborators.find(c => c.id === service.collaboratorId);
-        let salonValue = serviceValue;
-        if (collaborator) {
-            let collaboratorPercent = 0;
-            if (service.type === 'manual') {
-                collaboratorPercent = parseFloat(collaborator.manualPercent || 0);
-            } else if (service.type === 'product') {
-                collaboratorPercent = parseFloat(collaborator.productPercent || 0);
+// ============================================
+// GARANTIR QUE O CARD DE FUNCIONÁRIOS APAREÇA
+// ============================================
+// Adicionar um observador para quando o dashboard for ativado
+const observerDashboard = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+            const dashboard = document.getElementById('dashboard');
+            if (dashboard && dashboard.classList.contains('active')) {
+                setTimeout(() => {
+                    if (typeof renderizarDesempenhoFuncionarios === 'function') {
+                        renderizarDesempenhoFuncionarios();
+                    }
+                }, 100);
             }
-            const collaboratorValue = serviceValue * (collaboratorPercent / 100);
-            salonValue = serviceValue - collaboratorValue;
-        }
-        
-        if (serviceDate >= startOfWeek) {
-            weekSales += salonValue;
-            weekServiceCount++;
-        }
-        
-        if (serviceDate >= startOfMonth) {
-            monthSales += salonValue;
-            monthServiceCount++;
         }
     });
-    
-    document.getElementById('weekSales').textContent = formatCurrency(weekSales);
-    document.getElementById('weekServices').textContent = `${weekServiceCount} serviços`;
-    document.getElementById('monthSales').textContent = formatCurrency(monthSales);
-    document.getElementById('monthServices').textContent = `${monthServiceCount} serviços`;
-}
+});
+
+// Iniciar observador quando o DOM estiver pronto
+document.addEventListener('DOMContentLoaded', function() {
+    const dashboard = document.getElementById('dashboard');
+    if (dashboard) {
+        observerDashboard.observe(dashboard, { attributes: true });
+    }
+});
+
+// ============================================
+// CORRIGIR updateTodaySalesUI para mostrar valor líquido
+// ============================================
+const updateTodaySalesUIBackup = window.updateTodaySalesUI;
+window.updateTodaySalesUI = function() {
+    if (updateTodaySalesUIBackup) {
+        updateTodaySalesUIBackup();
+    }
+    // Atualizar dashboard para garantir
+    if (typeof window.updateDashboard === 'function') {
+        setTimeout(() => window.updateDashboard(), 100);
+    }
+};
+
+console.log('✅ Sistema corrigido! Cards agora mostram valores LÍQUIDOS do salão.');
+console.log('✅ Card "Desempenho dos Funcionários" adicionado com sucesso!');
+        
         function updateInventoryUI() {
     const tbody = document.getElementById('inventoryTable');
     
@@ -9260,223 +9538,6 @@ function calculatePeriodSales() {
                 document.getElementById('mobileHomeButton').style.display = 'none';
             }
         }
-
-// FUNÇÃO CORRIGIDA - Desempenho dos Funcionários (sem erros)
-function updateCollaboratorSalesCards() {
-    console.log('🟢 Executando updateCollaboratorSalesCards...');
-    
-    const container = document.getElementById('collaboratorSalesCards');
-    if (!container) {
-        console.log('❌ Elemento collaboratorSalesCards não encontrado');
-        return;
-    }
-    
-    // Verificar se collaborators existe e é um array
-    let colaboradoresArray = [];
-    if (window.collaborators && Array.isArray(window.collaborators)) {
-        colaboradoresArray = window.collaborators;
-    } else if (window.collaborators && typeof window.collaborators === 'object') {
-        // Se for objeto, converter para array
-        colaboradoresArray = Object.values(window.collaborators);
-    } else {
-        colaboradoresArray = [];
-    }
-    
-    console.log('📋 Colaboradores encontrados:', colaboradoresArray.length);
-    
-    if (colaboradoresArray.length === 0) {
-        container.innerHTML = '<div class="alert alert-warning">Nenhum colaborador cadastrado. Vá em "Colaboradores" e adicione.</div>';
-        return;
-    }
-    
-    // Filtrar apenas colaboradores ativos
-    const ativos = colaboradoresArray.filter(c => c && c.active === true);
-    console.log('✅ Colaboradores ativos:', ativos.length);
-    
-    if (ativos.length === 0) {
-        container.innerHTML = '<div class="alert alert-warning">Nenhum colaborador ativo. Edite os colaboradores e marque "Ativo".</div>';
-        return;
-    }
-    
-    // Data atual
-    const hoje = new Date();
-    const hojeStr = hoje.toISOString().split('T')[0];
-    
-    // Início da semana (segunda-feira)
-    const inicioSemana = new Date(hoje);
-    const diaSemana = hoje.getDay();
-    const diffSegunda = diaSemana === 0 ? -6 : 1 - diaSemana;
-    inicioSemana.setDate(hoje.getDate() + diffSegunda);
-    inicioSemana.setHours(0, 0, 0, 0);
-    
-    // Início do mês
-    const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-    
-    // Verificar se allServices existe e é array
-    let servicosArray = [];
-    if (window.allServices && Array.isArray(window.allServices)) {
-        servicosArray = window.allServices;
-    } else if (window.allServices && typeof window.allServices === 'object') {
-        servicosArray = Object.values(window.allServices);
-    }
-    
-    let html = '<div class="row">';
-    let totalFuncionariosMes = 0;
-    let totalSaldoMes = 0;
-    
-    // Para cada colaborador ativo
-    ativos.forEach(func => {
-        if (!func) return;
-        
-        let diarioValor = 0;
-        let diarioQtd = 0;
-        let semanalValor = 0;
-        let semanalQtd = 0;
-        let mensalValor = 0;
-        let mensalQtd = 0;
-        
-        // Percorrer todos os serviços
-        if (servicosArray.length > 0) {
-            servicosArray.forEach(servico => {
-                if (servico && servico.collaboratorId === func.id) {
-                    let dataServico;
-                    if (servico.timestamp && servico.timestamp.toDate) {
-                        dataServico = servico.timestamp.toDate();
-                    } else if (servico.date) {
-                        dataServico = new Date(servico.date);
-                    } else if (servico.timestamp) {
-                        dataServico = new Date(servico.timestamp);
-                    } else {
-                        dataServico = new Date();
-                    }
-                    
-                    const dataStr = dataServico.toISOString().split('T')[0];
-                    const valorServico = parseFloat(servico.value || 0);
-                    
-                    // Calcular % do funcionário
-                    let percentual = 0;
-                    if (servico.type === 'manual') {
-                        percentual = parseFloat(func.manualPercent || 0);
-                    } else if (servico.type === 'product') {
-                        percentual = parseFloat(func.productPercent || 0);
-                    }
-                    const valorFuncionario = valorServico * (percentual / 100);
-                    const valorSalao = valorServico - valorFuncionario;
-                    
-                    // DIÁRIO
-                    if (dataStr === hojeStr) {
-                        diarioValor += valorFuncionario;
-                        diarioQtd++;
-                    }
-                    
-                    // SEMANAL
-                    if (dataServico >= inicioSemana) {
-                        semanalValor += valorFuncionario;
-                        semanalQtd++;
-                    }
-                    
-                    // MENSAL
-                    if (dataServico >= inicioMes) {
-                        mensalValor += valorFuncionario;
-                        mensalQtd++;
-                        totalFuncionariosMes += valorFuncionario;
-                        totalSaldoMes += valorSalao;
-                    }
-                }
-            });
-        }
-        
-        // Foto do colaborador
-        const fotoHtml = func.photoUrl ? 
-            `<img src="${func.photoUrl}" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;" onerror="this.src='';">` : 
-            `<div style="width: 50px; height: 50px; border-radius: 50%; background: #26196b; color: white; display: flex; align-items: center; justify-content: center; font-size: 20px;">${(func.name || '?').charAt(0).toUpperCase()}</div>`;
-        
-        // Calcular a % que o funcionário recebe
-        let percentualExibir = (func.manualPercent || 0) + '%';
-        
-        html += `
-            <div class="col-md-6 col-lg-4 mb-3">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center mb-3">
-                            <div class="me-3">${fotoHtml}</div>
-                            <div>
-                                <h5 class="mb-0">${func.name || 'Sem nome'}</h5>
-                                <small class="text-muted">Recebe ${percentualExibir} dos serviços</small>
-                            </div>
-                        </div>
-                        <div class="row text-center">
-                            <div class="col-4">
-                                <div class="border-end">
-                                    <h6 class="text-primary mb-1">${formatCurrency(diarioValor)}</h6>
-                                    <small class="text-muted">Hoje (${diarioQtd})</small>
-                                </div>
-                            </div>
-                            <div class="col-4">
-                                <div class="border-end">
-                                    <h6 class="text-success mb-1">${formatCurrency(semanalValor)}</h6>
-                                    <small class="text-muted">Semana (${semanalQtd})</small>
-                                </div>
-                            </div>
-                            <div class="col-4">
-                                <h6 class="text-warning mb-1">${formatCurrency(mensalValor)}</h6>
-                                <small class="text-muted">Mês (${mensalQtd})</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-    });
-    
-    // Adicionar produtos ao total do salão
-    let vendasArray = [];
-    if (window.allProductSales && Array.isArray(window.allProductSales)) {
-        vendasArray = window.allProductSales;
-    } else if (window.allProductSales && typeof window.allProductSales === 'object') {
-        vendasArray = Object.values(window.allProductSales);
-    }
-    
-    if (vendasArray.length > 0) {
-        vendasArray.forEach(venda => {
-            if (venda) {
-                let dataVenda;
-                if (venda.timestamp && venda.timestamp.toDate) {
-                    dataVenda = venda.timestamp.toDate();
-                } else if (venda.date) {
-                    dataVenda = new Date(venda.date);
-                } else if (venda.timestamp) {
-                    dataVenda = new Date(venda.timestamp);
-                } else {
-                    dataVenda = new Date();
-                }
-                
-                if (dataVenda >= inicioMes) {
-                    totalSaldoMes += parseFloat(venda.totalValue || 0);
-                }
-            }
-        });
-    }
-    
-    html += '</div>';
-    
-    // Conferência
-    const totalGeral = totalFuncionariosMes + totalSaldoMes;
-    html += `
-        <div class="alert alert-info mt-3">
-            <small>
-                <strong>📊 CONFERÊNCIA:</strong><br>
-                💰 Total pago aos funcionários neste mês: <strong>${formatCurrency(totalFuncionariosMes)}</strong><br>
-                🏢 Lucro líquido do salão (Vendas Mês): <strong>${formatCurrency(totalSaldoMes)}</strong><br>
-                📌 Funcionários + Salão = <strong>${formatCurrency(totalGeral)}</strong>
-            </small>
-        </div>
-    `;
-    
-    container.innerHTML = html;
-    console.log('✅ Função executada com sucesso! Total funcionários:', totalFuncionariosMes);
-}
-
         
         // NOVA FUNÇÃO: Atualizar lista de clientes nos registros com fotos e canetinha
         function updateClientRecordsList() {
@@ -14123,222 +14184,6 @@ window.toggleProductStatus = function(productId, isActive) {
 };
 
 
-
-
-
-
-
-        // FUNÇÃO CORRIGIDA PARA MOSTRAR FUNCIONÁRIOS - VERSÃO SIMPLES E FUNCIONAL
-function mostrarFuncionarios() {
-    console.log('🔍 Procurando colaboradores...');
-    
-    // Tentar pegar colaboradores de todas as formas possíveis
-    let listaColaboradores = [];
-    
-    if (window.collaborators) {
-        if (Array.isArray(window.collaborators)) {
-            listaColaboradores = window.collaborators;
-        } else if (typeof window.collaborators === 'object') {
-            listaColaboradores = Object.values(window.collaborators);
-        }
-    }
-    
-    // Se não encontrou, tentar buscar do Firebase diretamente
-    if (listaColaboradores.length === 0 && window.currentUser) {
-        console.log('📡 Buscando colaboradores do Firebase...');
-        const db = firebase.firestore();
-        db.collection('collaborators')
-            .where('userId', '==', window.currentUser.uid)
-            .get()
-            .then((snapshot) => {
-                snapshot.forEach((doc) => {
-                    listaColaboradores.push({ id: doc.id, ...doc.data() });
-                });
-                console.log('✅ Encontrados:', listaColaboradores.length);
-                window.collaborators = listaColaboradores;
-                desenharCardFuncionarios(listaColaboradores);
-            })
-            .catch(err => console.log('Erro:', err));
-        return;
-    }
-    
-    desenharCardFuncionarios(listaColaboradores);
-}
-
-// Função que desenha o card dos funcionários
-function desenharCardFuncionarios(colaboradores) {
-    const container = document.getElementById('collaboratorSalesCards');
-    if (!container) {
-        console.log('Container não encontrado');
-        return;
-    }
-    
-    // Filtrar apenas ativos
-    const ativos = colaboradores.filter(c => c.active === true);
-    
-    if (ativos.length === 0) {
-        container.innerHTML = `
-            <div class="alert alert-warning text-center">
-                <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
-                <h5>Nenhum colaborador ativo encontrado!</h5>
-                <p>Vá em <strong>Colaboradores</strong> e:<br>
-                1. Adicione um colaborador<br>
-                2. Marque o campo <strong>"Ativo"</strong><br>
-                3. Salve as alterações</p>
-            </div>
-        `;
-        return;
-    }
-    
-    // Datas para cálculo
-    const hoje = new Date();
-    const hojeStr = hoje.toISOString().split('T')[0];
-    
-    const inicioSemana = new Date(hoje);
-    const diaSemana = hoje.getDay();
-    const diff = diaSemana === 0 ? -6 : 1 - diaSemana;
-    inicioSemana.setDate(hoje.getDate() + diff);
-    inicioSemana.setHours(0, 0, 0, 0);
-    
-    const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-    
-    // Buscar serviços
-    let servicos = [];
-    if (window.allServices && Array.isArray(window.allServices)) {
-        servicos = window.allServices;
-    }
-    
-    let html = '<div class="row">';
-    let totalFuncionarios = 0;
-    let totalSalao = 0;
-    
-    // Para cada funcionário ativo
-    ativos.forEach(func => {
-        let diario = 0, diarioQtd = 0;
-        let semanal = 0, semanalQtd = 0;
-        let mensal = 0, mensalQtd = 0;
-        
-        servicos.forEach(servico => {
-            if (servico.collaboratorId === func.id) {
-                // Data do serviço
-                let dataServico;
-                if (servico.timestamp && servico.timestamp.toDate) {
-                    dataServico = servico.timestamp.toDate();
-                } else if (servico.date) {
-                    dataServico = new Date(servico.date);
-                } else {
-                    dataServico = new Date();
-                }
-                
-                const valor = parseFloat(servico.value || 0);
-                
-                // Calcular % do funcionário
-                let percentual = 0;
-                if (servico.type === 'manual') {
-                    percentual = parseFloat(func.manualPercent || 0);
-                } else if (servico.type === 'product') {
-                    percentual = parseFloat(func.productPercent || 0);
-                }
-                
-                const valorFuncionario = valor * (percentual / 100);
-                const valorSalao = valor - valorFuncionario;
-                
-                // Verificar período
-                const dataStr = dataServico.toISOString().split('T')[0];
-                
-                if (dataStr === hojeStr) {
-                    diario += valorFuncionario;
-                    diarioQtd++;
-                }
-                
-                if (dataServico >= inicioSemana) {
-                    semanal += valorFuncionario;
-                    semanalQtd++;
-                }
-                
-                if (dataServico >= inicioMes) {
-                    mensal += valorFuncionario;
-                    mensalQtd++;
-                    totalFuncionarios += valorFuncionario;
-                    totalSalao += valorSalao;
-                }
-            }
-        });
-        
-        // Adicionar produtos ao salão
-        if (window.allProductSales && window.allProductSales.length > 0) {
-            window.allProductSales.forEach(venda => {
-                let dataVenda;
-                if (venda.timestamp && venda.timestamp.toDate) {
-                    dataVenda = venda.timestamp.toDate();
-                } else if (venda.date) {
-                    dataVenda = new Date(venda.date);
-                } else {
-                    dataVenda = new Date();
-                }
-                
-                if (dataVenda >= inicioMes) {
-                    totalSalao += parseFloat(venda.totalValue || 0);
-                }
-            });
-        }
-        
-        // Foto ou inicial
-        const foto = func.photoUrl ? 
-            `<img src="${func.photoUrl}" style="width: 55px; height: 55px; border-radius: 50%; object-fit: cover;">` : 
-            `<div style="width: 55px; height: 55px; border-radius: 50%; background: #26196b; color: white; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: bold;">${func.name.charAt(0).toUpperCase()}</div>`;
-        
-        html += `
-            <div class="col-md-6 col-lg-4 mb-3">
-                <div class="card h-100 shadow-sm">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center mb-3">
-                            <div class="me-3">${foto}</div>
-                            <div>
-                                <h5 class="mb-0">${func.name}</h5>
-                                <small class="text-muted">Recebe ${func.manualPercent || 0}%</small>
-                            </div>
-                        </div>
-                        <div class="row text-center pt-2">
-                            <div class="col-4">
-                                <div class="border-end">
-                                    <h6 class="text-primary mb-1">${formatCurrency(diario)}</h6>
-                                    <small class="text-muted">Hoje (${diarioQtd})</small>
-                                </div>
-                            </div>
-                            <div class="col-4">
-                                <div class="border-end">
-                                    <h6 class="text-success mb-1">${formatCurrency(semanal)}</h6>
-                                    <small class="text-muted">Semana (${semanalQtd})</small>
-                                </div>
-                            </div>
-                            <div class="col-4">
-                                <h6 class="text-warning mb-1">${formatCurrency(mensal)}</h6>
-                                <small class="text-muted">Mês (${mensalQtd})</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-    });
-    
-    html += '</div>';
-    
-    // Resumo
-    html += `
-        <div class="alert alert-success mt-3">
-            <i class="fas fa-calculator me-2"></i>
-            <strong>RESUMO DO MÊS:</strong><br>
-            💰 Funcionários receberam: ${formatCurrency(totalFuncionarios)}<br>
-            🏢 Salão (líquido): ${formatCurrency(totalSalao)}<br>
-            📊 Total geral: ${formatCurrency(totalFuncionarios + totalSalao)}
-        </div>
-    `;
-    
-    container.innerHTML = html;
-    console.log('✅ Card dos funcionários atualizado!', ativos.length, 'funcionários');
-}
 
 
         
