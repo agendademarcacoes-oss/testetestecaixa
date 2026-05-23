@@ -2395,6 +2395,25 @@
             background: linear-gradient(135deg, #26196b 0%, #4a3a9c 100%);
             box-shadow: 0 4px 15px rgba(38, 25, 107, 0.3);
         }
+
+        /* check box dos produtos ativos ou inativos */
+        .product-status-checkbox {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+}
+.product-status-checkbox:checked {
+    accent-color: #28a745;
+}
+.product-status-checkbox:not(:checked) {
+    accent-color: #dc3545;
+}
+.status-label {
+    font-size: 0.8rem;
+    margin-left: 5px;
+}
+.status-active { color: #28a745; }
+.status-inactive { color: #dc3545; }
         
         /* Badges modernos */
         .badge {
@@ -4955,16 +4974,16 @@
                                 <div class="mb-3">
                                     <label for="productCategory" class="form-label">Categoria</label>
                                     <select class="form-select" id="productCategory">
-    <option value="cabelo">Cabelo</option>
-    <option value="shampoo">Shampoo</option>
-    <option value="condicionador">Condicionador</option>
-    <option value="mascara">Máscara</option>
-    <option value="pele">Pele</option>
-    <option value="tintas">Tintas</option>
-    <option value="maquiagem">Maquiagem</option>
-    <option value="acessorios">Acessórios</option>
-    <option value="outros">Outros</option>
-</select>
+                                        <option value="cabelo">Cabelo</option>
+                                        <option value="shampoo">Shampoo</option>
+                                        <option value="condicionador">Condicionador</option>
+                                        <option value="mascara">Máscara</option>
+                                        <option value="pele">Pele</option>
+                                        <option value="tintas">Tintas</option>
+                                        <option value="maquiagem">Maquiagem</option>
+                                        <option value="acessorios">Acessórios</option>
+                                        <option value="outros">Outros</option>
+                                    </select>
                                 </div>
                             </div>
                             <div class="col-md-6">
@@ -6069,52 +6088,38 @@
         }
 
         function filterStoreProducts() {
-            const searchTerm = document.getElementById('storeSearch').value.toLowerCase().trim();
-            const activeFilter = document.querySelector('.filter-button.active')?.getAttribute('data-filter') || 'all';
-            const productCards = document.querySelectorAll('#storeProductList .col-md-4');
-            let visibleCount = 0;
-            
-            console.log('Filtro ativo:', activeFilter); // Para debug
-            console.log('Termo de busca:', searchTerm);
-            
-            productCards.forEach(card => {
-                const productCard = card.querySelector('.product-card');
-                const name = (productCard.getAttribute('data-product-name') || '').toLowerCase();
-                const description = (productCard.getAttribute('data-product-description') || '').toLowerCase();
-                const category = (productCard.getAttribute('data-product-category') || '').toLowerCase();
-                
-                console.log('Produto:', name, 'Categoria:', category); // Para debug
-                
-                // Aplicar filtro de busca
-                let matchesSearch = true;
-                if (searchTerm) {
-                    matchesSearch = name.includes(searchTerm) || 
-                                   description.includes(searchTerm) || 
-                                   category.includes(searchTerm);
-                }
-                
-                // Aplicar filtro de categoria
-                let matchesFilter = true;
-                if (activeFilter !== 'all') {
-                    // Verificar se o filtro atual corresponde à categoria do produto
-                    matchesFilter = category.includes(activeFilter);
-                    
-                    // Também verificar no nome e descrição como fallback
-                    if (!matchesFilter) {
-                        matchesFilter = name.includes(activeFilter) || description.includes(activeFilter);
-                    }
-                }
-                
-                if (matchesSearch && matchesFilter) {
-                    card.style.display = '';
-                    visibleCount++;
-                } else {
-                    card.style.display = 'none';
-                }
-            });
-            
-            document.getElementById('productsCount').textContent = `${visibleCount} produto(s) encontrado(s)`;
+    const searchTerm = document.getElementById('storeSearch').value.toLowerCase().trim();
+    const activeFilter = document.querySelector('.filter-button.active')?.getAttribute('data-filter') || 'all';
+    const productCards = document.querySelectorAll('#storeProductList .col-md-4');
+    let visibleCount = 0;
+    
+    productCards.forEach(card => {
+        const productCard = card.querySelector('.product-card');
+        const category = (productCard.getAttribute('data-product-category') || '').toLowerCase();
+        
+        let matchesSearch = true;
+        if (searchTerm) {
+            const name = (productCard.getAttribute('data-product-name') || '').toLowerCase();
+            const description = (productCard.getAttribute('data-product-description') || '').toLowerCase();
+            matchesSearch = name.includes(searchTerm) || description.includes(searchTerm);
         }
+        
+        // CORREÇÃO: Comparação EXATA, não "includes"
+        let matchesFilter = true;
+        if (activeFilter !== 'all') {
+            matchesFilter = (category === activeFilter);
+        }
+        
+        if (matchesSearch && matchesFilter) {
+            card.style.display = '';
+            visibleCount++;
+        } else {
+            card.style.display = 'none';
+        }
+    });
+    
+    document.getElementById('productsCount').textContent = `${visibleCount} produto(s) encontrado(s)`;
+}
         function sortStoreProducts() {
             const sortBy = document.getElementById('sortProducts').value;
             const container = document.getElementById('storeProductList');
@@ -6149,75 +6154,54 @@
 
         // NOVA FUNÇÃO: Renderizar a Loja com imagens carregadas
         function renderStore() {
-            const container = document.getElementById('storeProductList');
-            if (!container) return;
-            
-            if (products.length === 0) {
-                container.innerHTML = '<div class="col-12"><div class="alert alert-info text-center">Nenhum produto disponível na loja no momento.</div></div>';
-                document.getElementById('productsCount').textContent = '0 produto(s) encontrado(s)';
-                return;
-            }
-            
-            let html = '';
-            products.forEach(product => {
-                // Verificar se o produto tem imagem, senão usar placeholder
-                const imageUrl = product.imageUrl || '';
-                const isLowStock = product.quantity <= product.minQuantity;
-                
-                // Usar classes do Bootstrap para grid responsivo
-                html += `
-                    <div class="col-md-4 col-lg-3 col-6 mb-4">
-                        <div class="product-card" data-product-id="${product.id}" data-product-name="${product.name}" data-product-price="${product.salePrice}" data-product-description="${product.description || ''}" data-product-stock="${product.quantity}" data-product-category="${product.category || ''}">
-                            <div class="product-image-container" onclick="showProductPopup('${product.id}')">
-                                ${imageUrl ? 
-                                    `<img src="${imageUrl}" class="product-image" alt="${product.name}" onerror="this.onerror=null; this.style.display='none'; this.parentElement.innerHTML='<div class=\\'product-image-placeholder\\'><i class=\\'fas fa-box\\'></i></div>';">` : 
-                                    `<div class="product-image-placeholder"><i class="fas fa-box"></i></div>`
-                                }
-                            </div>
-                            <div class="product-details">
-                                <h5 class="product-name">${product.name}</h5>
-                                <p class="product-description">${product.description ? product.description.substring(0, 50) + (product.description.length > 50 ? '...' : '') : 'Sem descrição'}</p>
-                                <p class="product-price">${formatCurrency(product.salePrice)}</p>
-                                <div class="product-stock-badge ${isLowStock ? 'bg-warning' : 'bg-success'} text-white">
-                                    ${isLowStock ? 'Últimas unidades!' : `${product.quantity} em estoque`}
-                                </div>
-                            </div>
-                            <div class="product-actions">
-                                <button class="btn btn-success" onclick="buyProduct('${product.id}', '${product.name}', ${product.salePrice})">
-                                    <i class="fab fa-whatsapp me-2"></i>Comprar
-                                </button>
-                            </div>
+    const container = document.getElementById('storeProductList');
+    if (!container) return;
+    
+    // FILTRO: Mostrar apenas produtos ATIVOS na loja
+    const activeProducts = products.filter(product => product.active !== false);
+    
+    if (activeProducts.length === 0) {
+        container.innerHTML = '<div class="col-12"><div class="alert alert-info text-center">Nenhum produto disponível na loja no momento.</div></div>';
+        document.getElementById('productsCount').textContent = '0 produto(s) encontrado(s)';
+        return;
+    }
+    
+    let html = '';
+    activeProducts.forEach(product => {
+        const imageUrl = product.imageUrl || '';
+        const isLowStock = product.quantity <= product.minQuantity;
+        
+        html += `
+            <div class="col-md-4 col-lg-3 col-6 mb-4">
+                <div class="product-card" data-product-id="${product.id}" data-product-name="${product.name}" data-product-price="${product.salePrice}" data-product-description="${product.description || ''}" data-product-stock="${product.quantity}" data-product-category="${product.category || ''}">
+                    <div class="product-image-container" onclick="showProductPopup('${product.id}')">
+                        ${imageUrl ? 
+                            `<img src="${imageUrl}" class="product-image" alt="${product.name}" onerror="this.onerror=null; this.style.display='none'; this.parentElement.innerHTML='<div class=\\'product-image-placeholder\\'><i class=\\'fas fa-box\\'></i></div>';">` : 
+                            `<div class="product-image-placeholder"><i class="fas fa-box"></i></div>`
+                        }
+                    </div>
+                    <div class="product-details">
+                        <h5 class="product-name">${product.name}</h5>
+                        <p class="product-description">${product.description ? product.description.substring(0, 50) + (product.description.length > 50 ? '...' : '') : 'Sem descrição'}</p>
+                        <p class="product-price">${formatCurrency(product.salePrice)}</p>
+                        <div class="product-stock-badge ${isLowStock ? 'bg-warning' : 'bg-success'} text-white">
+                            ${isLowStock ? 'Últimas unidades!' : `${product.quantity} em estoque`}
                         </div>
                     </div>
-                `;
-            });
-            
-            container.innerHTML = html;
-            document.getElementById('productsCount').textContent = `${products.length} produto(s) encontrado(s)`;
-            
-            // Reaplicar filtros após renderizar
-            filterStoreProducts();
-
-            // No final da função renderStore(), adicione:
-            console.log('Loja renderizada com', products.length, 'produtos');
-            debugProductCategories(); // Para ver as categorias no console
-            
-            // Adicionar evento de clique nos cards para mobile
-            if (window.innerWidth <= 768) {
-                document.querySelectorAll('.product-card').forEach(card => {
-                    card.addEventListener('click', function(e) {
-                        // Não abrir popup se clicou no botão de comprar
-                        if (e.target.closest('.btn-success')) return;
-                        
-                        const productId = this.getAttribute('data-product-id');
-                        if (productId) {
-                            showProductPopup(productId);
-                        }
-                    });
-                });
-            }
-        }
-
+                    <div class="product-actions">
+                        <button class="btn btn-success" onclick="buyProduct('${product.id}', '${product.name}', ${product.salePrice})">
+                            <i class="fab fa-whatsapp me-2"></i>Comprar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+    document.getElementById('productsCount').textContent = `${activeProducts.length} produto(s) encontrado(s)`;
+    filterStoreProducts();
+}
         function debugProductCategories() {
             console.log('=== DEBUG CATEGORIAS DE PRODUTOS ===');
             products.forEach(product => {
@@ -7587,64 +7571,64 @@ function calculatePeriodSales() {
     document.getElementById('monthServices').textContent = `${monthServiceCount} serviços`;
 }
         function updateInventoryUI() {
-            const tbody = document.getElementById('inventoryTable');
-            
-            if (products.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Nenhum produto cadastrado.</td></tr>';
-                updateInventorySummary();
-                return;
-            }
-            
-            let html = '';
-            let totalValue = 0;
-            let totalInvestment = 0;
-            let lowStockCount = 0;
-            
-            products.forEach(product => {
-                const isLowStock = product.quantity <= product.minQuantity;
-                const stockValue = product.quantity * parseFloat(product.salePrice || 0);
-                const investmentValue = product.quantity * parseFloat(product.purchasePrice || 0);
-                
-                totalValue += stockValue;
-                totalInvestment += investmentValue;
-                
-                if (isLowStock) {
-                    lowStockCount++;
-                }
-                
-                const imageHtml = product.imageUrl ? 
-                    `<img src="${product.imageUrl}" width="50" height="50" style="object-fit: cover; border-radius: 4px;" onerror="this.onerror=null; this.src=''; this.innerHTML='<i class=\\'fas fa-box fa-2x text-muted\\'></i>';">` : 
-                    '<i class="fas fa-box fa-2x text-muted"></i>';
-                
-                html += `
-                    <tr class="${isLowStock ? 'low-stock' : ''}">
-                        <td>${product.name}</td>
-                        <td>${imageHtml}</td>
-                        <td>${product.quantity}</td>
-                        <td>${product.minQuantity}</td>
-                        <td>${formatCurrency(product.purchasePrice)}</td>
-                        <td>${formatCurrency(product.salePrice)}</td>
-                        <td>
-                            <span class="badge ${isLowStock ? 'bg-danger' : 'bg-success'}">
-                                ${isLowStock ? 'Estoque Baixo' : 'Normal'}
-                            </span>
-                        </td>
-                        <td>
-                            <button class="btn btn-sm btn-primary me-1" onclick="editProduct('${product.id}')">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="btn btn-sm btn-danger" onclick="deleteProduct('${product.id}')">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </td>
-                    </tr>
-                `;
-            });
-            
-            tbody.innerHTML = html;
-            updateInventorySummary(totalProducts = products.length, lowStockCount, totalValue, totalInvestment);
-        }
-
+    const tbody = document.getElementById('inventoryTable');
+    
+    if (products.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Nenhum produto cadastrado.您</tr>';
+        updateInventorySummary(0, 0, 0, 0);
+        return;
+    }
+    
+    let html = '';
+    let totalValue = 0;
+    let totalInvestment = 0;
+    let lowStockCount = 0;
+    
+    products.forEach(product => {
+        const isLowStock = product.quantity <= product.minQuantity;
+        const stockValue = product.quantity * parseFloat(product.salePrice || 0);
+        const investmentValue = product.quantity * parseFloat(product.purchasePrice || 0);
+        
+        totalValue += stockValue;
+        totalInvestment += investmentValue;
+        
+        if (isLowStock) lowStockCount++;
+        
+        const imageHtml = product.imageUrl ? 
+            `<img src="${product.imageUrl}" width="50" height="50" style="object-fit: cover; border-radius: 4px;" onerror="this.onerror=null; this.src='';">` : 
+            '<i class="fas fa-box fa-2x text-muted"></i>';
+        
+        const isActive = product.active !== false;
+        
+        html += `
+            <tr class="${isLowStock ? 'low-stock' : ''}">
+                <td>${product.name}</td>
+                <td>${imageHtml}</td>
+                <td>${product.quantity}</td>
+                <td>${product.minQuantity}</td>
+                <td>${formatCurrency(product.purchasePrice)}</td>
+                <td>${formatCurrency(product.salePrice)}</td>
+                <td>
+                    <div style="display: flex; align-items: center; gap: 5px;">
+                        <input type="checkbox" class="product-status-checkbox" ${isActive ? 'checked' : ''} onchange="toggleProductStatus('${product.id}', this.checked)">
+                        <span class="status-label ${isActive ? 'status-active' : 'status-inactive'}">${isActive ? 'Ativo' : 'Inativo'}</span>
+                    </div>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-primary me-1" onclick="editProduct('${product.id}')">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteProduct('${product.id}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+    
+    tbody.innerHTML = html;
+    updateInventorySummary(products.length, lowStockCount, totalValue, totalInvestment);
+}
         function updateInventorySummary(totalProducts, lowStockCount, totalValue, totalInvestment) {
             document.getElementById('totalProducts').textContent = totalProducts;
             document.getElementById('lowStockProducts').textContent = lowStockCount;
@@ -9274,7 +9258,7 @@ function calculatePeriodSales() {
         }
 
 
-// FUNÇÃO PARA MOSTRAR VENDAS POR FUNCIONÁRIO (DIÁRIO, SEMANAL, MENSAL)
+// FUNÇÃO PARA MOSTRAR VENDAS POR FUNCIONÁRIO (DIÁRIO, SEMANAL, MENSAL) - CORRIGIDA
 function updateCollaboratorSalesCards() {
     const container = document.getElementById('collaboratorSalesCards');
     if (!container) return;
@@ -9282,40 +9266,41 @@ function updateCollaboratorSalesCards() {
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
     
-    // Data de início da semana
+    // Data de início da semana (segunda-feira)
     const startOfWeek = new Date(today);
     const dayOfWeek = today.getDay();
     const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
     startOfWeek.setDate(today.getDate() + diffToMonday);
     startOfWeek.setHours(0, 0, 0, 0);
-    const weekStartStr = startOfWeek.toISOString().split('T')[0];
     
     // Data de início do mês
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-    const monthStartStr = startOfMonth.toISOString().split('T')[0];
+    
+    // Variáveis para somar e comparar
+    let totalColaboradoresMes = 0;
+    let totalSaldoMes = 0;
     
     let html = '<div class="row">';
     
     collaborators.filter(c => c.active).forEach(collaborator => {
-        // Valores DIÁRIOS
+        // Valores DIÁRIOS (valor que o FUNCIONÁRIO RECEBE)
         let dailyTotal = 0;
         let dailyServices = 0;
         
-        // Valores SEMANAIS
+        // Valores SEMANAIS (valor que o FUNCIONÁRIO RECEBE)
         let weeklyTotal = 0;
         let weeklyServices = 0;
         
-        // Valores MENSAIS
+        // Valores MENSAIS (valor que o FUNCIONÁRIO RECEBE)
         let monthlyTotal = 0;
         let monthlyServices = 0;
         
         allServices.forEach(service => {
             if (service.collaboratorId === collaborator.id) {
                 const serviceDate = service.timestamp && service.timestamp.toDate ? service.timestamp.toDate() : new Date(service.timestamp || service.date);
-                const serviceDateStr = serviceDate.toISOString().split('T')[0];
                 const serviceValue = parseFloat(service.value || 0);
                 
-                // Calcular valor que o funcionário RECEBE
+                // Calcular valor que o FUNCIONÁRIO RECEBE (NÃO o salão)
                 let collaboratorPercent = 0;
                 if (service.type === 'manual') {
                     collaboratorPercent = parseFloat(collaborator.manualPercent || 0);
@@ -9325,7 +9310,7 @@ function updateCollaboratorSalesCards() {
                 const collaboratorValue = serviceValue * (collaboratorPercent / 100);
                 
                 // DIÁRIO
-                if (serviceDateStr === todayStr) {
+                if (serviceDate.toISOString().split('T')[0] === todayStr) {
                     dailyTotal += collaboratorValue;
                     dailyServices++;
                 }
@@ -9336,11 +9321,41 @@ function updateCollaboratorSalesCards() {
                     weeklyServices++;
                 }
                 
-                // MENSAL
+                // MENSA
                 if (serviceDate >= startOfMonth) {
                     monthlyTotal += collaboratorValue;
                     monthlyServices++;
+                    totalColaboradoresMes += collaboratorValue;
                 }
+            }
+        });
+        
+        // Calcular total do SALÃO no mês (para comparação)
+        allServices.forEach(service => {
+            const serviceDate = service.timestamp && service.timestamp.toDate ? service.timestamp.toDate() : new Date(service.timestamp || service.date);
+            if (serviceDate >= startOfMonth) {
+                const serviceValue = parseFloat(service.value || 0);
+                const collaborator = collaborators.find(c => c.id === service.collaboratorId);
+                let salonValue = serviceValue;
+                if (collaborator) {
+                    let collaboratorPercent = 0;
+                    if (service.type === 'manual') {
+                        collaboratorPercent = parseFloat(collaborator.manualPercent || 0);
+                    } else if (service.type === 'product') {
+                        collaboratorPercent = parseFloat(collaborator.productPercent || 0);
+                    }
+                    const collaboratorValue = serviceValue * (collaboratorPercent / 100);
+                    salonValue = serviceValue - collaboratorValue;
+                }
+                totalSaldoMes += salonValue;
+            }
+        });
+        
+        // Adicionar produtos (100% para o salão)
+        allProductSales.forEach(sale => {
+            const saleDate = sale.timestamp && sale.timestamp.toDate ? sale.timestamp.toDate() : new Date(sale.timestamp || sale.date);
+            if (saleDate >= startOfMonth) {
+                totalSaldoMes += parseFloat(sale.totalValue || 0);
             }
         });
         
@@ -9349,6 +9364,11 @@ function updateCollaboratorSalesCards() {
             const photoHtml = collaborator.photoUrl ? 
                 `<img src="${collaborator.photoUrl}" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;" onerror="this.src='';">` : 
                 `<div style="width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, #26196b, #4a3a9c); color: white; display: flex; align-items: center; justify-content: center; font-size: 20px;">${collaborator.name.charAt(0).toUpperCase()}</div>`;
+            
+            // Calcular a % que o funcionário recebe (para exibir)
+            let displayPercent = '0%';
+            if (collaborator.manualPercent > 0) displayPercent = collaborator.manualPercent + '%';
+            if (collaborator.productPercent > 0) displayPercent = collaborator.productPercent + '%';
             
             html += `
                 <div class="col-md-6 col-lg-4 mb-3">
@@ -9360,7 +9380,7 @@ function updateCollaboratorSalesCards() {
                                 </div>
                                 <div>
                                     <h5 class="mb-0">${collaborator.name}</h5>
-                                    <small class="text-muted">${collaborator.specialty || 'Profissional'}</small>
+                                    <small class="text-muted">Recebe ${displayPercent} dos serviços</small>
                                 </div>
                             </div>
                             <div class="row text-center">
@@ -9390,15 +9410,26 @@ function updateCollaboratorSalesCards() {
     
     html += '</div>';
     
+    // Adicionar legenda de conferência
+    html += `
+        <div class="alert alert-secondary mt-3">
+            <small>
+                <i class="fas fa-info-circle me-1"></i>
+                <strong>Conferência:</strong> Valor total pago aos funcionários neste mês: <strong>${formatCurrency(totalColaboradoresMes)}</strong><br>
+                Valor líquido do salão neste mês (card "Vendas Mês"): <strong>${formatCurrency(totalSaldoMes)}</strong><br>
+                <span class="text-muted">✓ A soma dos valores dos funcionários + o lucro do salão = Total de serviços + produtos vendidos</span>
+            </small>
+        </div>
+    `;
+    
     if (collaborators.filter(c => c.active).length === 0) {
         container.innerHTML = '<div class="alert alert-info">Nenhum colaborador ativo cadastrado.</div>';
-    } else if (html === '<div class="row"></div>') {
+    } else if (html === '<div class="row"></div>' + htmlBonus) {
         container.innerHTML = '<div class="alert alert-info">Nenhum serviço registrado para os colaboradores ainda.</div>';
     } else {
         container.innerHTML = html;
     }
 }
-        
         
         // NOVA FUNÇÃO: Atualizar lista de clientes nos registros com fotos e canetinha
         function updateClientRecordsList() {
@@ -14024,7 +14055,25 @@ function sendWhatsAppToInactive(clientId, phone) {
 
 
 
-
+window.toggleProductStatus = function(productId, isActive) {
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+    
+    db.collection('products').doc(productId).update({
+        active: isActive,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(() => {
+        product.active = isActive;
+        if (document.getElementById('store').classList.contains('active')) {
+            renderStore();
+        }
+        updateInventoryUI();
+        showSuccess(`Produto ${isActive ? 'ativado' : 'desativado'}!`);
+    }).catch(error => {
+        showError('Erro: ' + error.message);
+        updateInventoryUI();
+    });
+};
 
 
 
