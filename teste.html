@@ -7517,8 +7517,12 @@
     
     loadUpcomingBirthdays();
     
-    // ATUALIZAR O CARD DE FUNCIONÁRIOS
-    updateCollaboratorSalesCards();
+    // Chamar a função com segurança
+if (typeof updateCollaboratorSalesCards === 'function') {
+    setTimeout(function() {
+        updateCollaboratorSalesCards();
+    }, 500);
+}
 }
 
 function calculatePeriodSales() {
@@ -9257,7 +9261,7 @@ function calculatePeriodSales() {
             }
         }
 
-// FUNÇÃO CORRIGIDA - Desempenho dos Funcionários
+// FUNÇÃO CORRIGIDA - Desempenho dos Funcionários (sem erros)
 function updateCollaboratorSalesCards() {
     console.log('🟢 Executando updateCollaboratorSalesCards...');
     
@@ -9267,14 +9271,26 @@ function updateCollaboratorSalesCards() {
         return;
     }
     
-    // Verificar se collaborators existe
-    if (!window.collaborators || window.collaborators.length === 0) {
+    // Verificar se collaborators existe e é um array
+    let colaboradoresArray = [];
+    if (window.collaborators && Array.isArray(window.collaborators)) {
+        colaboradoresArray = window.collaborators;
+    } else if (window.collaborators && typeof window.collaborators === 'object') {
+        // Se for objeto, converter para array
+        colaboradoresArray = Object.values(window.collaborators);
+    } else {
+        colaboradoresArray = [];
+    }
+    
+    console.log('📋 Colaboradores encontrados:', colaboradoresArray.length);
+    
+    if (colaboradoresArray.length === 0) {
         container.innerHTML = '<div class="alert alert-warning">Nenhum colaborador cadastrado. Vá em "Colaboradores" e adicione.</div>';
         return;
     }
     
     // Filtrar apenas colaboradores ativos
-    const ativos = window.collaborators.filter(c => c.active === true);
+    const ativos = colaboradoresArray.filter(c => c && c.active === true);
     console.log('✅ Colaboradores ativos:', ativos.length);
     
     if (ativos.length === 0) {
@@ -9296,12 +9312,22 @@ function updateCollaboratorSalesCards() {
     // Início do mês
     const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
     
+    // Verificar se allServices existe e é array
+    let servicosArray = [];
+    if (window.allServices && Array.isArray(window.allServices)) {
+        servicosArray = window.allServices;
+    } else if (window.allServices && typeof window.allServices === 'object') {
+        servicosArray = Object.values(window.allServices);
+    }
+    
     let html = '<div class="row">';
     let totalFuncionariosMes = 0;
     let totalSaldoMes = 0;
     
     // Para cada colaborador ativo
     ativos.forEach(func => {
+        if (!func) return;
+        
         let diarioValor = 0;
         let diarioQtd = 0;
         let semanalValor = 0;
@@ -9310,11 +9336,20 @@ function updateCollaboratorSalesCards() {
         let mensalQtd = 0;
         
         // Percorrer todos os serviços
-        if (window.allServices && window.allServices.length > 0) {
-            window.allServices.forEach(servico => {
-                if (servico.collaboratorId === func.id) {
-                    const dataServico = servico.timestamp && servico.timestamp.toDate ? 
-                        servico.timestamp.toDate() : new Date(servico.date || servico.timestamp);
+        if (servicosArray.length > 0) {
+            servicosArray.forEach(servico => {
+                if (servico && servico.collaboratorId === func.id) {
+                    let dataServico;
+                    if (servico.timestamp && servico.timestamp.toDate) {
+                        dataServico = servico.timestamp.toDate();
+                    } else if (servico.date) {
+                        dataServico = new Date(servico.date);
+                    } else if (servico.timestamp) {
+                        dataServico = new Date(servico.timestamp);
+                    } else {
+                        dataServico = new Date();
+                    }
+                    
                     const dataStr = dataServico.toISOString().split('T')[0];
                     const valorServico = parseFloat(servico.value || 0);
                     
@@ -9351,10 +9386,13 @@ function updateCollaboratorSalesCards() {
             });
         }
         
-        // Só mostrar se tiver serviços ou se quiser mostrar todos
+        // Foto do colaborador
         const fotoHtml = func.photoUrl ? 
-            `<img src="${func.photoUrl}" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;">` : 
-            `<div style="width: 50px; height: 50px; border-radius: 50%; background: #26196b; color: white; display: flex; align-items: center; justify-content: center; font-size: 20px;">${func.name.charAt(0).toUpperCase()}</div>`;
+            `<img src="${func.photoUrl}" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;" onerror="this.src='';">` : 
+            `<div style="width: 50px; height: 50px; border-radius: 50%; background: #26196b; color: white; display: flex; align-items: center; justify-content: center; font-size: 20px;">${(func.name || '?').charAt(0).toUpperCase()}</div>`;
+        
+        // Calcular a % que o funcionário recebe
+        let percentualExibir = (func.manualPercent || 0) + '%';
         
         html += `
             <div class="col-md-6 col-lg-4 mb-3">
@@ -9363,8 +9401,8 @@ function updateCollaboratorSalesCards() {
                         <div class="d-flex align-items-center mb-3">
                             <div class="me-3">${fotoHtml}</div>
                             <div>
-                                <h5 class="mb-0">${func.name}</h5>
-                                <small class="text-muted">Recebe ${func.manualPercent || 0}% dos serviços</small>
+                                <h5 class="mb-0">${func.name || 'Sem nome'}</h5>
+                                <small class="text-muted">Recebe ${percentualExibir} dos serviços</small>
                             </div>
                         </div>
                         <div class="row text-center">
@@ -9392,12 +9430,30 @@ function updateCollaboratorSalesCards() {
     });
     
     // Adicionar produtos ao total do salão
-    if (window.allProductSales) {
-        window.allProductSales.forEach(venda => {
-            const dataVenda = venda.timestamp && venda.timestamp.toDate ? 
-                venda.timestamp.toDate() : new Date(venda.date || venda.timestamp);
-            if (dataVenda >= inicioMes) {
-                totalSaldoMes += parseFloat(venda.totalValue || 0);
+    let vendasArray = [];
+    if (window.allProductSales && Array.isArray(window.allProductSales)) {
+        vendasArray = window.allProductSales;
+    } else if (window.allProductSales && typeof window.allProductSales === 'object') {
+        vendasArray = Object.values(window.allProductSales);
+    }
+    
+    if (vendasArray.length > 0) {
+        vendasArray.forEach(venda => {
+            if (venda) {
+                let dataVenda;
+                if (venda.timestamp && venda.timestamp.toDate) {
+                    dataVenda = venda.timestamp.toDate();
+                } else if (venda.date) {
+                    dataVenda = new Date(venda.date);
+                } else if (venda.timestamp) {
+                    dataVenda = new Date(venda.timestamp);
+                } else {
+                    dataVenda = new Date();
+                }
+                
+                if (dataVenda >= inicioMes) {
+                    totalSaldoMes += parseFloat(venda.totalValue || 0);
+                }
             }
         });
     }
@@ -9405,19 +9461,20 @@ function updateCollaboratorSalesCards() {
     html += '</div>';
     
     // Conferência
+    const totalGeral = totalFuncionariosMes + totalSaldoMes;
     html += `
         <div class="alert alert-info mt-3">
             <small>
                 <strong>📊 CONFERÊNCIA:</strong><br>
                 💰 Total pago aos funcionários neste mês: <strong>${formatCurrency(totalFuncionariosMes)}</strong><br>
                 🏢 Lucro líquido do salão (Vendas Mês): <strong>${formatCurrency(totalSaldoMes)}</strong><br>
-                📌 Funcionários + Salão = <strong>${formatCurrency(totalFuncionariosMes + totalSaldoMes)}</strong>
+                📌 Funcionários + Salão = <strong>${formatCurrency(totalGeral)}</strong>
             </small>
         </div>
     `;
     
     container.innerHTML = html;
-    console.log('✅ Função executada com sucesso!');
+    console.log('✅ Função executada com sucesso! Total funcionários:', totalFuncionariosMes);
 }
 
         
