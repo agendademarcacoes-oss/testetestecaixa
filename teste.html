@@ -14191,12 +14191,13 @@ window.toggleProductStatus = function(productId, isActive) {
 
 
 
+        
 // =================================================================
-// SCRIPT PARA EDITAR VENDAS PASSADAS - VERSÃO SIMPLIFICADA (SEM ÍNDICE)
+// SCRIPT COMPLETO - COM BOTÃO SALVAR TUDO E POPUP MAIOR
 // =================================================================
 
 (function() {
-    console.log("✅ Script de edição de vendas carregado (versão simplificada)");
+    console.log("✅ Script de edição de vendas carregado (versão completa)");
 
     // Aguarda o Firebase estar pronto
     const esperarFirebase = setInterval(() => {
@@ -14220,6 +14221,14 @@ window.toggleProductStatus = function(productId, isActive) {
         const modal = document.getElementById('collaboratorProfileModal');
         if (!modal) return;
         if (document.getElementById('vendasColaboradorTab')) return;
+        
+        // AUMENTAR A LARGURA DO MODAL
+        const modalDialog = modal.querySelector('.modal-dialog');
+        if (modalDialog) {
+            modalDialog.classList.add('modal-lg', 'modal-dialog-scrollable');
+            modalDialog.style.maxWidth = '90%';
+            modalDialog.style.width = '90%';
+        }
         
         const modalBody = modal.querySelector('.modal-body');
         if (!modalBody) return;
@@ -14248,7 +14257,7 @@ window.toggleProductStatus = function(productId, isActive) {
                 <div id="conteudoOriginalPerfil"></div>
             </div>
             <div class="tab-pane fade" id="vendas-colab" role="tabpanel">
-                <div id="listaVendasColaborador" style="max-height: 400px; overflow-y: auto;">
+                <div id="listaVendasColaborador" style="max-height: 500px; overflow-y: auto;">
                     <div class="text-center text-muted p-4">
                         <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
                         <p>Carregando vendas...</p>
@@ -14289,14 +14298,11 @@ window.toggleProductStatus = function(productId, isActive) {
         if (!container) return;
         
         try {
-            // MUDANÇA IMPORTANTE: Buscar TODOS os serviços do usuário e filtrar no JavaScript
-            // Isso evita precisar de índice composto no Firebase
             const snapshot = await firebase.firestore()
                 .collection('services')
                 .where('userId', '==', firebase.auth().currentUser.uid)
                 .get();
             
-            // Filtrar pelo colaborador no JavaScript (mais simples, sem índice)
             const vendas = [];
             snapshot.forEach(doc => {
                 const dados = doc.data();
@@ -14308,7 +14314,6 @@ window.toggleProductStatus = function(productId, isActive) {
                 }
             });
             
-            // Ordenar por data (mais recente primeiro)
             vendas.sort((a, b) => {
                 const dataA = a.date || '';
                 const dataB = b.date || '';
@@ -14336,20 +14341,30 @@ window.toggleProductStatus = function(productId, isActive) {
                 clientes[doc.id] = doc.data().name;
             });
             
-            // Montar tabela
+            // Botão Salvar Tudo e barra de ferramentas
             let html = `
-                <div class="alert alert-info small mb-3">
-                    <i class="fas fa-info-circle me-1"></i> 
-                    Edite os campos abaixo e clique em 💾 para salvar.
+                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <div class="alert alert-info small mb-0 flex-grow-1">
+                        <i class="fas fa-info-circle me-1"></i> 
+                        Edite os campos abaixo. Clique em <strong>"Salvar Tudo"</strong> quando terminar.
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-success btn-sm" id="btnSalvarTudo" style="background: #28a745;">
+                            <i class="fas fa-save me-1"></i> Salvar Tudo
+                        </button>
+                        <button class="btn btn-warning btn-sm" id="btnRecarregar">
+                            <i class="fas fa-sync-alt me-1"></i> Recarregar
+                        </button>
+                    </div>
                 </div>
-                <div style="max-height: 500px; overflow-y: auto;">
-                    <table class="table table-sm table-hover">
-                        <thead class="table-light position-sticky top-0">
+                <div style="max-height: 500px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 8px;">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light position-sticky top-0" style="z-index: 1;">
                             <tr>
                                 <th style="min-width: 100px">Cliente</th>
-                                <th style="min-width: 110px">Data</th>
-                                <th style="min-width: 150px">Serviço</th>
-                                <th style="min-width: 90px">Valor (€)</th>
+                                <th style="min-width: 120px">Data</th>
+                                <th style="min-width: 200px">Serviço</th>
+                                <th style="min-width: 100px">Valor (€)</th>
                                 <th style="min-width: 80px">Ações</th>
                             </tr>
                         </thead>
@@ -14361,19 +14376,23 @@ window.toggleProductStatus = function(productId, isActive) {
                 const dataAtual = venda.date || '';
                 
                 html += `
-                    <tr data-venda-id="${venda.id}">
+                    <tr data-venda-id="${venda.id}" data-venda-original='${JSON.stringify({
+                        date: dataAtual,
+                        description: venda.description || '',
+                        value: venda.value || 0
+                    })}'>
                         <td><small>${escapeHtml(nomeCliente)}</small></td>
                         <td>
-                            <input type="date" class="form-control form-control-sm venda-data" value="${dataAtual}" style="width: 120px;">
+                            <input type="date" class="form-control form-control-sm venda-data" value="${dataAtual}" style="width: 130px;">
                         </td>
                         <td>
-                            <input type="text" class="form-control form-control-sm venda-descricao" value="${escapeHtml(venda.description || '')}" style="min-width: 140px;">
+                            <input type="text" class="form-control form-control-sm venda-descricao" value="${escapeHtml(venda.description || '')}" style="min-width: 180px;">
                         </td>
                         <td>
-                            <input type="number" step="0.01" class="form-control form-control-sm venda-valor" value="${venda.value || 0}" style="width: 100px;">
+                            <input type="number" step="0.01" class="form-control form-control-sm venda-valor" value="${venda.value || 0}" style="width: 110px;">
                         </td>
                         <td>
-                            <button class="btn btn-sm btn-success me-1 salvar-venda" title="Salvar">
+                            <button class="btn btn-sm btn-success me-1 salvar-venda-unico" title="Salvar apenas esta">
                                 <i class="fas fa-save"></i>
                             </button>
                             <button class="btn btn-sm btn-danger excluir-venda" title="Excluir">
@@ -14392,8 +14411,80 @@ window.toggleProductStatus = function(productId, isActive) {
             
             container.innerHTML = html;
             
-            // Eventos dos botões
-            document.querySelectorAll('.salvar-venda').forEach(btn => {
+            // Botão Salvar Tudo
+            document.getElementById('btnSalvarTudo').addEventListener('click', async () => {
+                const linhas = document.querySelectorAll('#listaVendasColaborador tbody tr');
+                const alteracoes = [];
+                
+                linhas.forEach(row => {
+                    const vendaId = row.getAttribute('data-venda-id');
+                    const original = JSON.parse(row.getAttribute('data-venda-original') || '{}');
+                    const novaData = row.querySelector('.venda-data').value;
+                    const novaDescricao = row.querySelector('.venda-descricao').value;
+                    const novoValor = parseFloat(row.querySelector('.venda-valor').value);
+                    
+                    if (novaData !== original.date || 
+                        novaDescricao !== original.description || 
+                        novoValor !== original.value) {
+                        alteracoes.push({ id: vendaId, data: novaData, descricao: novaDescricao, valor: novoValor });
+                    }
+                });
+                
+                if (alteracoes.length === 0) {
+                    Swal.fire('Info', 'Nenhuma alteração detectada', 'info');
+                    return;
+                }
+                
+                Swal.fire({
+                    title: `Salvar ${alteracoes.length} alterações?`,
+                    text: 'Tem certeza que deseja salvar todas as alterações?',
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonText: 'Sim, salvar tudo!',
+                    cancelButtonText: 'Cancelar'
+                }).then(async (result) => {
+                    if (result.isConfirmed) {
+                        Swal.fire({ title: 'Salvando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                        
+                        let salvos = 0;
+                        let erros = 0;
+                        
+                        for (const alt of alteracoes) {
+                            try {
+                                await firebase.firestore().collection('services').doc(alt.id).update({
+                                    date: alt.data,
+                                    description: alt.descricao,
+                                    value: alt.valor,
+                                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                                });
+                                salvos++;
+                            } catch(e) {
+                                erros++;
+                                console.error('Erro:', e);
+                            }
+                        }
+                        
+                        if (erros === 0) {
+                            Swal.fire('Sucesso!', `${salvos} venda(s) atualizada(s)!`, 'success');
+                        } else {
+                            Swal.fire('Atenção!', `${salvos} salvas, ${erros} com erro`, 'warning');
+                        }
+                        
+                        carregarVendasDoColaborador(collaboratorId);
+                        
+                        if (typeof window.loadAllServices === 'function') window.loadAllServices();
+                        if (typeof window.updateDashboard === 'function') setTimeout(() => window.updateDashboard(), 500);
+                        if (typeof window.updateMonthlySalesChart === 'function') setTimeout(() => window.updateMonthlySalesChart(), 500);
+                    }
+                });
+            });
+            
+            document.getElementById('btnRecarregar').addEventListener('click', () => {
+                carregarVendasDoColaborador(collaboratorId);
+            });
+            
+            // Salvar venda individual
+            document.querySelectorAll('.salvar-venda-unico').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
                     const row = btn.closest('tr');
                     const vendaId = row.getAttribute('data-venda-id');
@@ -14421,6 +14512,7 @@ window.toggleProductStatus = function(productId, isActive) {
                         
                         if (typeof window.loadAllServices === 'function') window.loadAllServices();
                         if (typeof window.updateDashboard === 'function') setTimeout(() => window.updateDashboard(), 500);
+                        if (typeof window.updateMonthlySalesChart === 'function') setTimeout(() => window.updateMonthlySalesChart(), 500);
                         
                     } catch (error) {
                         Swal.fire('Erro', error.message, 'error');
@@ -14428,6 +14520,7 @@ window.toggleProductStatus = function(productId, isActive) {
                 });
             });
             
+            // Excluir venda
             document.querySelectorAll('.excluir-venda').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
                     const row = btn.closest('tr');
@@ -14453,6 +14546,7 @@ window.toggleProductStatus = function(productId, isActive) {
                             
                             if (typeof window.loadAllServices === 'function') window.loadAllServices();
                             if (typeof window.updateDashboard === 'function') setTimeout(() => window.updateDashboard(), 500);
+                            if (typeof window.updateMonthlySalesChart === 'function') setTimeout(() => window.updateMonthlySalesChart(), 500);
                             
                         } catch (error) {
                             Swal.fire('Erro', error.message, 'error');
@@ -14483,6 +14577,131 @@ window.toggleProductStatus = function(productId, isActive) {
     }
     
 })();
+
+// ============================================================
+// CORREÇÃO DO GRÁFICO - Para mostrar os valores CORRETOS
+// ============================================================
+
+// Guardar a função original
+const updateMonthlySalesChartOriginal = window.updateMonthlySalesChart;
+
+// Substituir pela versão corrigida (mostrando valores LÍQUIDOS do salão)
+window.updateMonthlySalesChart = function() {
+    if (!window.allServices || !window.allProductSales) {
+        if (updateMonthlySalesChartOriginal) updateMonthlySalesChartOriginal();
+        return;
+    }
+    
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    
+    const months = [];
+    const servicesData = [];
+    const productsData = [];
+    
+    // Função para calcular valor líquido do salão para um serviço
+    function calcularValorLiquidoSalao(servico) {
+        const colaborador = window.collaborators?.find(c => c.id === servico.collaboratorId);
+        if (!colaborador) return parseFloat(servico.value || 0);
+        
+        let percentualFuncionario = 0;
+        if (servico.type === 'manual') {
+            percentualFuncionario = parseFloat(colaborador.manualPercent) || 0;
+        } else if (servico.type === 'product') {
+            percentualFuncionario = parseFloat(colaborador.productPercent) || 0;
+        }
+        
+        const percentualSalao = 100 - percentualFuncionario;
+        const valorServico = parseFloat(servico.value || 0);
+        return valorServico * (percentualSalao / 100);
+    }
+    
+    for (let i = 5; i >= 0; i--) {
+        const monthDate = new Date(currentYear, today.getMonth() - i, 1);
+        const monthName = monthDate.toLocaleDateString('pt-PT', { month: 'short' });
+        months.push(monthName);
+        
+        // Serviços do mês (VALOR LÍQUIDO para o salão)
+        const monthServices = window.allServices.filter(service => {
+            const serviceDate = service.timestamp?.toDate ? service.timestamp.toDate() : new Date(service.timestamp || 0);
+            return serviceDate.getMonth() === monthDate.getMonth() && 
+                   serviceDate.getFullYear() === monthDate.getFullYear();
+        });
+        
+        const servicesValue = monthServices.reduce((sum, service) => sum + calcularValorLiquidoSalao(service), 0);
+        servicesData.push(servicesValue);
+        
+        // Produtos do mês (100% para o salão)
+        const monthProducts = window.allProductSales.filter(sale => {
+            const saleDate = sale.timestamp?.toDate ? sale.timestamp.toDate() : new Date(sale.timestamp || 0);
+            return saleDate.getMonth() === monthDate.getMonth() && 
+                   saleDate.getFullYear() === monthDate.getFullYear();
+        });
+        
+        const productsValue = monthProducts.reduce((sum, sale) => sum + parseFloat(sale.totalValue || 0), 0);
+        productsData.push(productsValue);
+    }
+    
+    const existingChart = Chart.getChart('monthlySalesChart');
+    if (existingChart) {
+        existingChart.destroy();
+    }
+    
+    const ctx = document.getElementById('monthlySalesChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: months,
+            datasets: [
+                {
+                    label: 'Serviços (Líquido para o Salão)',
+                    data: servicesData,
+                    backgroundColor: '#26196b',
+                    borderColor: '#26196b',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Produtos (Total)',
+                    data: productsData,
+                    backgroundColor: '#17a2b8',
+                    borderColor: '#17a2b8',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': ' + formatCurrency(context.raw);
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return '€' + value;
+                        }
+                    }
+                }
+            }
+        }
+    });
+};
+
+console.log("✅ Gráfico corrigido - agora mostra valores LÍQUIDOS do salão!");
+console.log("✅ Botão 'Salvar Tudo' adicionado!");
+console.log("✅ Popup de edição com largura maior!");
+
 
 
 
