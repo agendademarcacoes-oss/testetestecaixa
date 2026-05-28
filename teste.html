@@ -14195,109 +14195,113 @@ window.toggleProductStatus = function(productId, isActive) {
 
 
 // =================================================================
-// SISTEMA DE COLABORADORES COM CARDS E CALENDÁRIO
+// NOVA TELA: CARDS DE COLABORADORES COM CALENDÁRIO
 // =================================================================
 
 (function() {
-    console.log("✅ Sistema de cards de colaboradores carregado!");
+    console.log("✅ Inicializando nova tela de colaboradores...");
 
-    // ============================================================
-    // 1. CRIAR A TELA DE COLABORADORES COM CARDS
-    // ============================================================
-    
-    function criarTelaColaboradoresCards() {
-        const sectionColaboradores = document.getElementById('collaborators');
-        if (!sectionColaboradores) return;
-        
-        // Verificar se já foi modificada
-        if (document.getElementById('cardsColaboradoresContainer')) return;
-        
-        // Salvar o conteúdo original da tabela
-        const tabelaOriginal = sectionColaboradores.querySelector('.card .table-responsive');
-        const headerOriginal = sectionColaboradores.querySelector('.card-header');
-        const btnAdicionar = headerOriginal?.querySelector('#addCollaboratorBtn');
-        
-        // Limpar e recriar com cards
-        const card = sectionColaboradores.querySelector('.card');
-        if (!card) return;
-        
-        // Modificar o header
-        if (headerOriginal) {
-            headerOriginal.innerHTML = `
-                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                    <h5 class="mb-0">
-                        <i class="fas fa-user-friends me-2"></i>Colaboradores
-                    </h5>
+    // Aguardar o Firebase e os dados carregarem
+    const esperarDados = setInterval(() => {
+        if (typeof firebase !== 'undefined' && firebase.auth().currentUser && window.collaborators) {
+            clearInterval(esperarDados);
+            console.log("✅ Dados prontos. Criando nova tela...");
+            criarNovaTelaColaboradores();
+        }
+    }, 1000);
+
+    function criarNovaTelaColaboradores() {
+        // Verificar se a seção de colaboradores existe
+        const sectionColab = document.getElementById('collaborators');
+        if (!sectionColab) {
+            console.error("Seção de colaboradores não encontrada!");
+            return;
+        }
+
+        // Salvar o conteúdo original para poder voltar
+        if (!window.conteudoOriginalColaboradores) {
+            window.conteudoOriginalColaboradores = sectionColab.innerHTML;
+        }
+
+        // Substituir o conteúdo por cards
+        sectionColab.innerHTML = `
+            <div class="container-fluid px-0">
+                <!-- Cabeçalho -->
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+                    <h4 class="mb-0">
+                        <i class="fas fa-user-friends text-primary me-2"></i>
+                        Colaboradores
+                    </h4>
                     <div class="d-flex gap-2">
-                        <button class="btn btn-outline-secondary btn-sm" id="toggleViewBtn">
+                        <button class="btn btn-outline-secondary btn-sm" id="btnVoltarTabela">
                             <i class="fas fa-table me-1"></i> Ver Tabela
                         </button>
-                        <button class="btn btn-primary btn-sm" id="addCollaboratorBtn">
-                            <i class="fas fa-plus me-1"></i> Adicionar
+                        <button class="btn btn-primary btn-sm" id="btnAddColaboradorNovo">
+                            <i class="fas fa-plus me-1"></i> Novo Colaborador
                         </button>
                     </div>
                 </div>
-            `;
-            
-            // Recriar evento do botão adicionar
-            const novoBtnAdicionar = document.getElementById('addCollaboratorBtn');
-            if (novoBtnAdicionar && window.showAddCollaboratorModal) {
-                novoBtnAdicionar.addEventListener('click', window.showAddCollaboratorModal);
-            }
-        }
-        
-        // Criar container de cards
-        const cardBody = card.querySelector('.card-body');
-        if (cardBody) {
-            cardBody.innerHTML = `
-                <div class="row mb-3">
+
+                <!-- Busca -->
+                <div class="row mb-4">
                     <div class="col-md-6">
-                        <input type="text" class="form-control" id="searchColaboradorCard" placeholder="🔍 Buscar colaborador...">
+                        <div class="input-group">
+                            <span class="input-group-text bg-white">
+                                <i class="fas fa-search text-primary"></i>
+                            </span>
+                            <input type="text" class="form-control" id="buscaColaboradorCard" placeholder="Buscar por nome...">
+                        </div>
                     </div>
                     <div class="col-md-6 text-end">
                         <span class="text-muted" id="totalColaboradoresCards">0 colaboradores</span>
                     </div>
                 </div>
-                <div id="cardsColaboradoresContainer" class="row">
-                    <div class="col-12 text-center text-muted p-5">
-                        <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
-                        <p>Carregando colaboradores...</p>
+
+                <!-- Container dos Cards -->
+                <div id="cardsContainer" class="row">
+                    <div class="col-12 text-center py-5">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-2 text-muted">Carregando colaboradores...</p>
                     </div>
                 </div>
-            `;
-            
-            // Esconder a tabela original se existir
-            if (tabelaOriginal) tabelaOriginal.style.display = 'none';
-        }
-        
+            </div>
+        `;
+
         // Carregar os cards
-        carregarCardsColaboradores();
-        
-        // Evento de busca
-        document.getElementById('searchColaboradorCard')?.addEventListener('input', filtrarCardsColaboradores);
-        
-        // Botão toggle para voltar à tabela
-        document.getElementById('toggleViewBtn')?.addEventListener('click', () => {
-            if (confirm('Deseja voltar à visualização em tabela?')) {
-                location.reload();
+        carregarCards();
+
+        // Eventos
+        document.getElementById('btnVoltarTabela')?.addEventListener('click', () => {
+            if (window.conteudoOriginalColaboradores) {
+                sectionColab.innerHTML = window.conteudoOriginalColaboradores;
+                // Reativar os eventos originais
+                if (typeof window.loadCollaborators === 'function') window.loadCollaborators();
+                if (typeof window.setupEventListeners === 'function') window.setupEventListeners();
             }
         });
+
+        document.getElementById('btnAddColaboradorNovo')?.addEventListener('click', () => {
+            if (typeof window.showAddCollaboratorModal === 'function') {
+                window.showAddCollaboratorModal();
+            } else {
+                alert('Função de adicionar colaborador não disponível');
+            }
+        });
+
+        document.getElementById('buscaColaboradorCard')?.addEventListener('input', filtrarCards);
     }
-    
-    // ============================================================
-    // 2. CARREGAR CARDS DOS COLABORADORES
-    // ============================================================
-    
-    async function carregarCardsColaboradores() {
-        const container = document.getElementById('cardsColaboradoresContainer');
+
+    async function carregarCards() {
+        const container = document.getElementById('cardsContainer');
         if (!container) return;
-        
+
         try {
+            // Buscar colaboradores do Firebase
             const snapshot = await firebase.firestore()
                 .collection('collaborators')
                 .where('userId', '==', firebase.auth().currentUser.uid)
                 .get();
-            
+
             const colaboradores = [];
             snapshot.forEach(doc => {
                 colaboradores.push({
@@ -14305,13 +14309,13 @@ window.toggleProductStatus = function(productId, isActive) {
                     ...doc.data()
                 });
             });
-            
+
             if (colaboradores.length === 0) {
                 container.innerHTML = `
-                    <div class="col-12 text-center text-muted p-5">
-                        <i class="fas fa-users fa-3x mb-3"></i>
-                        <p>Nenhum colaborador cadastrado.</p>
-                        <button class="btn btn-primary btn-sm" onclick="window.showAddCollaboratorModal()">
+                    <div class="col-12 text-center py-5">
+                        <i class="fas fa-users fa-4x text-muted mb-3"></i>
+                        <h5 class="text-muted">Nenhum colaborador cadastrado</h5>
+                        <button class="btn btn-primary mt-3" onclick="document.getElementById('btnAddColaboradorNovo')?.click()">
                             <i class="fas fa-plus me-1"></i> Adicionar Colaborador
                         </button>
                     </div>
@@ -14319,61 +14323,65 @@ window.toggleProductStatus = function(productId, isActive) {
                 document.getElementById('totalColaboradoresCards').textContent = '0 colaboradores';
                 return;
             }
-            
+
             document.getElementById('totalColaboradoresCards').textContent = `${colaboradores.length} colaboradores`;
-            
+
             // Ordenar por nome
-            colaboradores.sort((a, b) => a.name.localeCompare(b.name));
-            
+            colaboradores.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
             // Gerar cards
             container.innerHTML = '';
             
             for (const colab of colaboradores) {
-                // Buscar estatísticas do colaborador
-                const stats = await buscarEstatisticasColaborador(colab.id);
+                // Buscar estatísticas
+                const stats = await buscarEstatisticas(colab.id);
                 
-                const card = document.createElement('div');
-                card.className = 'col-md-6 col-lg-4 mb-4';
-                card.setAttribute('data-colab-id', colab.id);
-                card.setAttribute('data-colab-name', colab.name.toLowerCase());
+                const colDiv = document.createElement('div');
+                colDiv.className = 'col-md-6 col-lg-4 mb-4';
+                colDiv.setAttribute('data-colab-id', colab.id);
+                colDiv.setAttribute('data-colab-nome', (colab.name || '').toLowerCase());
                 
-                const fotoHtml = colab.photoUrl ? 
-                    `<img src="${colab.photoUrl}" class="card-img-top" style="height: 180px; object-fit: cover; border-radius: 12px 12px 0 0;" 
-                        onerror="this.src='https://via.placeholder.com/300x180?text=Sem+Foto'">` :
-                    `<div style="height: 180px; background: linear-gradient(135deg, #26196b, #4a3a9c); display: flex; align-items: center; justify-content: center; border-radius: 12px 12px 0 0;">
-                        <i class="fas fa-user-circle fa-5x text-white" style="opacity: 0.8;"></i>
+                // Foto ou placeholder
+                const fotoUrl = colab.photoUrl;
+                const fotoHtml = fotoUrl ? 
+                    `<img src="${fotoUrl}" class="card-img-top" style="height: 180px; object-fit: cover; background: #f0f0f0;" onerror="this.src='https://placehold.co/600x400?text=Sem+Foto'">` :
+                    `<div style="height: 180px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-user-circle fa-5x text-white"></i>
                      </div>`;
                 
-                card.innerHTML = `
-                    <div class="card h-100 shadow-sm" style="border-radius: 12px; overflow: hidden;">
+                colDiv.innerHTML = `
+                    <div class="card h-100 shadow-sm border-0" style="border-radius: 16px; overflow: hidden;">
                         ${fotoHtml}
                         <div class="card-body">
                             <div class="d-flex justify-content-between align-items-start mb-2">
-                                <h5 class="card-title mb-0">${escapeHtml(colab.name)}</h5>
-                                <span class="badge ${colab.active ? 'bg-success' : 'bg-secondary'}">${colab.active ? 'Ativo' : 'Inativo'}</span>
+                                <h5 class="card-title mb-0">${escapeHtml(colab.name || 'Sem nome')}</h5>
+                                <span class="badge ${colab.active !== false ? 'bg-success' : 'bg-secondary'} px-2 py-1">
+                                    ${colab.active !== false ? 'Ativo' : 'Inativo'}
+                                </span>
                             </div>
                             <p class="text-muted small mb-2">
-                                <i class="fas fa-tag me-1"></i> ${colab.specialty || 'Sem especialidade'}
+                                <i class="fas fa-tag me-1"></i> ${escapeHtml(colab.specialty || 'Sem especialidade')}
                             </p>
-                            <p class="text-muted small mb-2">
-                                <i class="fas fa-phone me-1"></i> ${colab.contact || 'Sem contato'}
+                            <p class="text-muted small mb-3">
+                                <i class="fas fa-phone me-1"></i> ${escapeHtml(colab.contact || 'Sem contato')}
                             </p>
-                            <hr>
-                            <div class="row text-center mb-3">
+                            
+                            <div class="row text-center mb-3 pt-2 border-top">
                                 <div class="col-6">
-                                    <div class="small text-muted">💰 Vendas (Mês)</div>
-                                    <div class="fw-bold text-success">${formatCurrency(stats.mes)}</div>
+                                    <div class="small text-muted">💰 Vendas no Mês</div>
+                                    <div class="fw-bold text-success">${formatarMoeda(stats.mes)}</div>
                                 </div>
                                 <div class="col-6">
-                                    <div class="small text-muted">📊 Total Vendas</div>
-                                    <div class="fw-bold text-primary">${formatCurrency(stats.total)}</div>
+                                    <div class="small text-muted">📊 Total de Vendas</div>
+                                    <div class="fw-bold text-primary">${formatarMoeda(stats.total)}</div>
                                 </div>
                             </div>
-                            <div class="d-flex gap-2">
-                                <button class="btn btn-primary btn-sm flex-grow-1 btn-ver-calendario" data-colab-id="${colab.id}" data-colab-name="${escapeHtml(colab.name)}">
+                            
+                            <div class="d-flex gap-2 mt-2">
+                                <button class="btn btn-primary flex-grow-1 btn-ver-calendario" data-id="${colab.id}" data-nome="${escapeHtml(colab.name)}">
                                     <i class="fas fa-calendar-alt me-1"></i> Ver Calendário
                                 </button>
-                                <button class="btn btn-outline-secondary btn-sm btn-editar-colab" data-colab-id="${colab.id}">
+                                <button class="btn btn-outline-secondary btn-editar-colab" data-id="${colab.id}">
                                     <i class="fas fa-edit"></i>
                                 </button>
                             </div>
@@ -14381,49 +14389,49 @@ window.toggleProductStatus = function(productId, isActive) {
                     </div>
                 `;
                 
-                container.appendChild(card);
+                container.appendChild(colDiv);
             }
             
             // Adicionar eventos
             document.querySelectorAll('.btn-ver-calendario').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const colabId = btn.getAttribute('data-colab-id');
-                    const colabName = btn.getAttribute('data-colab-name');
-                    abrirCalendarioColaborador(colabId, colabName);
+                btn.addEventListener('click', () => {
+                    const id = btn.getAttribute('data-id');
+                    const nome = btn.getAttribute('data-nome');
+                    abrirCalendario(id, nome);
                 });
             });
             
             document.querySelectorAll('.btn-editar-colab').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const colabId = btn.getAttribute('data-colab-id');
-                    if (window.editCollaborator) window.editCollaborator(colabId);
+                btn.addEventListener('click', () => {
+                    const id = btn.getAttribute('data-id');
+                    if (typeof window.editCollaborator === 'function') {
+                        window.editCollaborator(id);
+                    } else {
+                        alert('Função de editar não disponível');
+                    }
                 });
             });
             
         } catch (error) {
             console.error('Erro:', error);
             container.innerHTML = `
-                <div class="col-12 text-center text-danger p-5">
-                    <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                <div class="col-12 text-center py-5 text-danger">
+                    <i class="fas fa-exclamation-triangle fa-3x mb-2"></i>
                     <p>Erro ao carregar colaboradores: ${error.message}</p>
                 </div>
             `;
         }
     }
-    
-    // ============================================================
-    // 3. BUSCAR ESTATÍSTICAS DO COLABORADOR
-    // ============================================================
-    
-    async function buscarEstatisticasColaborador(colaboradorId) {
+
+    async function buscarEstatisticas(colaboradorId) {
         try {
             const snapshot = await firebase.firestore()
                 .collection('services')
                 .where('userId', '==', firebase.auth().currentUser.uid)
                 .get();
             
-            let totalGeral = 0;
-            let totalMes = 0;
+            let total = 0;
+            let mes = 0;
             
             const hoje = new Date();
             const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
@@ -14432,33 +14440,37 @@ window.toggleProductStatus = function(productId, isActive) {
                 const service = doc.data();
                 if (service.collaboratorId === colaboradorId) {
                     const valor = parseFloat(service.value || 0);
-                    totalGeral += valor;
+                    total += valor;
                     
-                    const dataService = service.timestamp?.toDate ? service.timestamp.toDate() : new Date(service.date || 0);
+                    let dataService;
+                    if (service.timestamp?.toDate) {
+                        dataService = service.timestamp.toDate();
+                    } else if (service.date) {
+                        dataService = new Date(service.date);
+                    } else {
+                        dataService = new Date(0);
+                    }
+                    
                     if (dataService >= inicioMes) {
-                        totalMes += valor;
+                        mes += valor;
                     }
                 }
             });
             
-            return { total: totalGeral, mes: totalMes };
+            return { total, mes };
         } catch (error) {
             console.error('Erro ao buscar estatísticas:', error);
             return { total: 0, mes: 0 };
         }
     }
-    
-    // ============================================================
-    // 4. FILTRAR CARDS
-    // ============================================================
-    
-    function filtrarCardsColaboradores() {
-        const busca = document.getElementById('searchColaboradorCard')?.value.toLowerCase() || '';
-        const cards = document.querySelectorAll('#cardsColaboradoresContainer .col-md-6');
-        
+
+    function filtrarCards() {
+        const busca = document.getElementById('buscaColaboradorCard')?.value.toLowerCase() || '';
+        const cards = document.querySelectorAll('#cardsContainer .col-md-6');
         let visiveis = 0;
+        
         cards.forEach(card => {
-            const nome = card.getAttribute('data-colab-name') || '';
+            const nome = card.getAttribute('data-colab-nome') || '';
             if (nome.includes(busca)) {
                 card.style.display = '';
                 visiveis++;
@@ -14469,20 +14481,23 @@ window.toggleProductStatus = function(productId, isActive) {
         
         document.getElementById('totalColaboradoresCards').textContent = `${visiveis} colaboradores`;
     }
-    
+
     // ============================================================
-    // 5. ABRIR CALENDÁRIO DO COLABORADOR
+    // CALENDÁRIO
     // ============================================================
     
-    function abrirCalendarioColaborador(colaboradorId, colaboradorNome) {
-        // Criar modal customizado
+    let calendarioDataAtual = new Date();
+    
+    async function abrirCalendario(colaboradorId, colaboradorNome) {
+        // Criar modal
+        const modalId = 'modalCalendario_' + Date.now();
         const modalHtml = `
-            <div class="modal fade" id="calendarioColabModal" tabindex="-1" data-bs-backdrop="static">
+            <div class="modal fade" id="${modalId}" tabindex="-1" data-bs-backdrop="static">
                 <div class="modal-dialog modal-xl modal-dialog-scrollable">
                     <div class="modal-content" style="border-radius: 16px;">
-                        <div class="modal-header" style="background: linear-gradient(135deg, #26196b, #4a3a9c); color: white;">
+                        <div class="modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
                             <h5 class="modal-title">
-                                <i class="fas fa-calendar-alt me-2"></i> 
+                                <i class="fas fa-calendar-alt me-2"></i>
                                 Calendário - ${colaboradorNome}
                             </h5>
                             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -14490,21 +14505,18 @@ window.toggleProductStatus = function(productId, isActive) {
                         <div class="modal-body">
                             <div class="row">
                                 <div class="col-md-8">
-                                    <!-- Calendário -->
-                                    <div id="calendarioContainer" style="min-height: 400px;"></div>
+                                    <div id="calendarioGrid${modalId}" style="min-height: 400px;"></div>
                                 </div>
                                 <div class="col-md-4">
-                                    <!-- Lista de serviços do dia -->
-                                    <div class="card">
-                                        <div class="card-header bg-primary text-white">
-                                            <h6 class="mb-0">
-                                                <i class="fas fa-list me-1"></i> 
-                                                Serviços em <span id="dataSelecionadaLabel">--/--/----</span>
-                                            </h6>
+                                    <div class="card border-0 shadow-sm">
+                                        <div class="card-header bg-white fw-bold">
+                                            <i class="fas fa-list me-1"></i>
+                                            Serviços em <span id="dataSelecionadaLabel${modalId}">--/--/----</span>
                                         </div>
                                         <div class="card-body" style="max-height: 400px; overflow-y: auto;">
-                                            <div id="servicosDoDiaList">
-                                                <p class="text-muted text-center">Selecione uma data no calendário</p>
+                                            <div id="servicosLista${modalId}" class="text-center text-muted py-4">
+                                                <i class="fas fa-calendar-day fa-2x mb-2"></i>
+                                                <p>Selecione uma data</p>
                                             </div>
                                         </div>
                                     </div>
@@ -14519,20 +14531,16 @@ window.toggleProductStatus = function(productId, isActive) {
             </div>
         `;
         
-        // Remover modal existente se houver
-        const modalExistente = document.getElementById('calendarioColabModal');
-        if (modalExistente) modalExistente.remove();
-        
-        // Adicionar ao body
         document.body.insertAdjacentHTML('beforeend', modalHtml);
-        
-        // Inicializar calendário
-        const modalElement = document.getElementById('calendarioColabModal');
+        const modalElement = document.getElementById(modalId);
         const modal = new bootstrap.Modal(modalElement);
         
-        modalElement.addEventListener('shown.bs.modal', async () => {
-            await renderizarCalendario(colaboradorId, colaboradorNome);
-        });
+        // Carregar serviços do colaborador
+        const servicos = await buscarServicosColaborador(colaboradorId);
+        
+        // Renderizar calendário
+        const containerGrid = document.getElementById(`calendarioGrid${modalId}`);
+        renderizarCalendario(containerGrid, servicos, modalId);
         
         modal.show();
         
@@ -14541,17 +14549,7 @@ window.toggleProductStatus = function(productId, isActive) {
         });
     }
     
-    // ============================================================
-    // 6. RENDERIZAR CALENDÁRIO
-    // ============================================================
-    
-    let calendarioAtual = null;
-    
-    async function renderizarCalendario(colaboradorId, colaboradorNome) {
-        const container = document.getElementById('calendarioContainer');
-        if (!container) return;
-        
-        // Carregar serviços do colaborador
+    async function buscarServicosColaborador(colaboradorId) {
         const snapshot = await firebase.firestore()
             .collection('services')
             .where('userId', '==', firebase.auth().currentUser.uid)
@@ -14559,262 +14557,229 @@ window.toggleProductStatus = function(productId, isActive) {
         
         const servicosPorData = {};
         
-        snapshot.forEach(doc => {
-            const service = doc.data();
-            if (service.collaboratorId === colaboradorId) {
-                const data = service.date || (service.timestamp?.toDate ? service.timestamp.toDate().toISOString().split('T')[0] : '');
-                if (data) {
-                    if (!servicosPorData[data]) servicosPorData[data] = [];
-                    servicosPorData[data].push({
-                        id: doc.id,
-                        ...service
-                    });
-                }
-            }
-        });
-        
-        // Criar calendário simples
-        const hoje = new Date();
-        let anoAtual = hoje.getFullYear();
-        let mesAtual = hoje.getMonth();
-        
-        function renderizarMes(ano, mes) {
-            const primeiroDia = new Date(ano, mes, 1);
-            const ultimoDia = new Date(ano, mes + 1, 0);
-            const diasNaSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-            
-            let html = `
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <button class="btn btn-outline-primary btn-sm" id="mesAnteriorBtn">
-                        <i class="fas fa-chevron-left"></i> Anterior
-                    </button>
-                    <h5 class="mb-0">${primeiroDia.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' })}</h5>
-                    <button class="btn btn-outline-primary btn-sm" id="proximoMesBtn">
-                        Próximo <i class="fas fa-chevron-right"></i>
-                    </button>
-                </div>
-                <div class="calendario-grid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px;">
-            `;
-            
-            // Dias da semana
-            diasNaSemana.forEach(dia => {
-                html += `<div class="text-center fw-bold p-2" style="background: #f8f9fa; border-radius: 8px;">${dia}</div>`;
-            });
-            
-            // Dias vazios
-            const diaInicio = primeiroDia.getDay();
-            for (let i = 0; i < diaInicio; i++) {
-                html += `<div class="p-2" style="min-height: 80px;"></div>`;
-            }
-            
-            // Dias do mês
-            for (let d = 1; d <= ultimoDia.getDate(); d++) {
-                const dataStr = `${ano}-${String(mes + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                const temServicos = servicosPorData[dataStr] && servicosPorData[dataStr].length > 0;
-                const totalServicos = servicosPorData[dataStr]?.length || 0;
-                const totalValor = servicosPorData[dataStr]?.reduce((sum, s) => sum + parseFloat(s.value || 0), 0) || 0;
-                const isHoje = dataStr === hoje.toISOString().split('T')[0];
-                
-                html += `
-                    <div class="calendario-dia p-2" 
-                         style="min-height: 80px; border: 1px solid #e0e0e0; border-radius: 8px; cursor: pointer; 
-                                ${temServicos ? 'background: #e8f4e8;' : ''}
-                                ${isHoje ? 'border: 2px solid #26196b;' : ''}"
-                         data-data="${dataStr}">
-                        <div class="fw-bold ${isHoje ? 'text-primary' : ''}">${d}</div>
-                        ${temServicos ? `
-                            <div class="mt-1">
-                                <span class="badge bg-primary" style="font-size: 10px;">${totalServicos} serv.</span>
-                                <small class="text-success d-block" style="font-size: 10px;">${formatCurrency(totalValor)}</small>
-                            </div>
-                        ` : ''}
-                    </div>
-                `;
-            }
-            
-            html += `</div>`;
-            container.innerHTML = html;
-            
-            // Eventos dos dias
-            document.querySelectorAll('.calendario-dia').forEach(el => {
-                el.addEventListener('click', () => {
-                    const data = el.getAttribute('data-data');
-                    mostrarServicosDoDia(data, servicosPorData[data] || [], colaboradorNome);
-                    
-                    // Destacar dia selecionado
-                    document.querySelectorAll('.calendario-dia').forEach(d => d.style.background = '');
-                    el.style.background = '#e3f2fd';
-                });
-            });
-            
-            // Navegação
-            document.getElementById('mesAnteriorBtn')?.addEventListener('click', () => {
-                mesAtual--;
-                if (mesAtual < 0) {
-                    mesAtual = 11;
-                    anoAtual--;
-                }
-                renderizarMes(anoAtual, mesAtual);
-            });
-            
-            document.getElementById('proximoMesBtn')?.addEventListener('click', () => {
-                mesAtual++;
-                if (mesAtual > 11) {
-                    mesAtual = 0;
-                    anoAtual++;
-                }
-                renderizarMes(anoAtual, mesAtual);
-            });
-        }
-        
-        renderizarMes(anoAtual, mesAtual);
-    }
-    
-    // ============================================================
-    // 7. MOSTRAR SERVIÇOS DO DIA SELECIONADO
-    // ============================================================
-    
-    async function mostrarServicosDoDia(data, servicos, colaboradorNome) {
-        const labelData = document.getElementById('dataSelecionadaLabel');
-        const container = document.getElementById('servicosDoDiaList');
-        
-        if (labelData) {
-            const [ano, mes, dia] = data.split('-');
-            labelData.textContent = `${dia}/${mes}/${ano}`;
-        }
-        
-        if (!servicos || servicos.length === 0) {
-            container.innerHTML = `
-                <div class="text-center text-muted p-4">
-                    <i class="fas fa-calendar-day fa-2x mb-2"></i>
-                    <p>Nenhum serviço realizado nesta data.</p>
-                </div>
-            `;
-            return;
-        }
-        
         // Buscar clientes
-        const clientesSnapshot = await firebase.firestore()
+        const clientesSnap = await firebase.firestore()
             .collection('clients')
             .where('userId', '==', firebase.auth().currentUser.uid)
             .get();
         
         const clientes = {};
-        clientesSnapshot.forEach(doc => {
+        clientesSnap.forEach(doc => {
             clientes[doc.id] = doc.data().name;
         });
         
+        snapshot.forEach(doc => {
+            const service = doc.data();
+            if (service.collaboratorId === colaboradorId) {
+                let data = service.date;
+                if (!data && service.timestamp?.toDate) {
+                    data = service.timestamp.toDate().toISOString().split('T')[0];
+                }
+                if (data) {
+                    if (!servicosPorData[data]) servicosPorData[data] = [];
+                    servicosPorData[data].push({
+                        id: doc.id,
+                        description: service.description || 'Sem descrição',
+                        value: service.value || 0,
+                        clientId: service.clientId,
+                        clientName: clientes[service.clientId] || 'Cliente não encontrado'
+                    });
+                }
+            }
+        });
+        
+        return servicosPorData;
+    }
+    
+    function renderizarCalendario(container, servicosPorData, modalId) {
+        const ano = calendarioDataAtual.getFullYear();
+        const mes = calendarioDataAtual.getMonth();
+        
+        const primeiroDia = new Date(ano, mes, 1);
+        const ultimoDia = new Date(ano, mes + 1, 0);
+        const diasNaSemana = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+        const diasExtenso = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+        
         let html = `
-            <div class="mb-2">
-                <strong>Total:</strong> ${formatCurrency(servicos.reduce((sum, s) => sum + parseFloat(s.value || 0), 0))}
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <button class="btn btn-outline-primary btn-sm" id="btnMesAnterior${modalId}">
+                    <i class="fas fa-chevron-left"></i> Anterior
+                </button>
+                <h5 class="mb-0">${primeiroDia.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' })}</h5>
+                <button class="btn btn-outline-primary btn-sm" id="btnProximoMes${modalId}">
+                    Próximo <i class="fas fa-chevron-right"></i>
+                </button>
             </div>
-            <hr>
+            <div class="calendario-grid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px;">
         `;
         
-        servicos.forEach(servico => {
-            const nomeCliente = clientes[servico.clientId] || 'Cliente não encontrado';
+        // Cabeçalho dos dias
+        diasNaSemana.forEach((dia, idx) => {
+            html += `<div class="text-center fw-bold p-2" style="background: #f8f9fa; border-radius: 8px;" title="${diasExtenso[idx]}">${dia}</div>`;
+        });
+        
+        // Dias vazios
+        const diaInicio = primeiroDia.getDay();
+        for (let i = 0; i < diaInicio; i++) {
+            html += `<div class="p-2" style="min-height: 90px;"></div>`;
+        }
+        
+        // Dias do mês
+        const hoje = new Date().toISOString().split('T')[0];
+        
+        for (let d = 1; d <= ultimoDia.getDate(); d++) {
+            const dataStr = `${ano}-${String(mes + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const servicosDoDia = servicosPorData[dataStr] || [];
+            const totalServicos = servicosDoDia.length;
+            const totalValor = servicosDoDia.reduce((sum, s) => sum + parseFloat(s.value || 0), 0);
+            const isHoje = dataStr === hoje;
+            const temServico = totalServicos > 0;
+            
             html += `
-                <div class="mb-2 p-2 border rounded" style="border-left: 3px solid #26196b;">
-                    <div class="fw-bold">${escapeHtml(nomeCliente)}</div>
-                    <div class="small text-muted">${servico.description || 'Sem descrição'}</div>
-                    <div class="d-flex justify-content-between align-items-center mt-1">
-                        <span class="text-success fw-bold">${formatCurrency(servico.value)}</span>
-                        <div>
-                            <button class="btn btn-sm btn-outline-primary editar-servico-calendario" data-servico-id="${servico.id}" style="padding: 2px 6px;">
-                                <i class="fas fa-edit fa-xs"></i> Editar
-                            </button>
+                <div class="calendario-dia p-2" 
+                     style="min-height: 90px; border: 1px solid #e0e0e0; border-radius: 8px; cursor: pointer;
+                            ${temServico ? 'background: #e8f5e9;' : ''}
+                            ${isHoje ? 'border: 2px solid #667eea;' : ''}"
+                     data-data="${dataStr}"
+                     data-modal="${modalId}">
+                    <div class="fw-bold ${isHoje ? 'text-primary' : ''}">${d}</div>
+                    ${temServico ? `
+                        <div class="mt-1">
+                            <span class="badge bg-primary" style="font-size: 10px;">${totalServicos}</span>
+                            <small class="text-success d-block" style="font-size: 10px;">${formatarMoeda(totalValor)}</small>
                         </div>
-                    </div>
+                    ` : ''}
                 </div>
             `;
-        });
+        }
         
+        html += `</div>`;
         container.innerHTML = html;
         
-        // Adicionar evento de edição
-        document.querySelectorAll('.editar-servico-calendario').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const servicoId = btn.getAttribute('data-servico-id');
-                await editarServicoRapido(servicoId);
+        // Eventos dos dias
+        document.querySelectorAll(`.calendario-dia[data-modal="${modalId}"]`).forEach(el => {
+            el.addEventListener('click', async () => {
+                const data = el.getAttribute('data-data');
+                const servicos = servicosPorData[data] || [];
+                
+                // Atualizar label
+                const label = document.getElementById(`dataSelecionadaLabel${modalId}`);
+                if (label) {
+                    const [ano, mes, dia] = data.split('-');
+                    label.textContent = `${dia}/${mes}/${ano}`;
+                }
+                
+                // Mostrar serviços
+                const listaContainer = document.getElementById(`servicosLista${modalId}`);
+                if (servicos.length === 0) {
+                    listaContainer.innerHTML = `
+                        <div class="text-center text-muted py-4">
+                            <i class="fas fa-calendar-day fa-2x mb-2"></i>
+                            <p>Nenhum serviço nesta data</p>
+                        </div>
+                    `;
+                } else {
+                    let htmlServicos = '';
+                    for (const servico of servicos) {
+                        htmlServicos += `
+                            <div class="mb-2 p-2 border rounded" style="border-left: 3px solid #667eea;">
+                                <div class="fw-bold">${escapeHtml(servico.clientName)}</div>
+                                <div class="small text-muted">${escapeHtml(servico.description)}</div>
+                                <div class="d-flex justify-content-between align-items-center mt-1">
+                                    <span class="text-success fw-bold">${formatarMoeda(servico.value)}</span>
+                                    <button class="btn btn-sm btn-outline-primary btn-editar-servico" 
+                                            data-id="${servico.id}"
+                                            data-desc="${escapeHtml(servico.description)}"
+                                            data-valor="${servico.value}"
+                                            data-data="${data}">
+                                        <i class="fas fa-edit"></i> Editar
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    listaContainer.innerHTML = htmlServicos;
+                    
+                    // Eventos de edição
+                    listaContainer.querySelectorAll('.btn-editar-servico').forEach(btn => {
+                        btn.addEventListener('click', async () => {
+                            const id = btn.getAttribute('data-id');
+                            const descAtual = btn.getAttribute('data-desc');
+                            const valorAtual = parseFloat(btn.getAttribute('data-valor'));
+                            const dataAtual = btn.getAttribute('data-data');
+                            
+                            const result = await Swal.fire({
+                                title: 'Editar Serviço',
+                                html: `
+                                    <input type="text" id="editDesc" class="swal2-input" placeholder="Descrição" value="${descAtual}">
+                                    <input type="number" id="editValor" class="swal2-input" placeholder="Valor" step="0.01" value="${valorAtual}">
+                                    <input type="date" id="editData" class="swal2-input" value="${dataAtual}">
+                                `,
+                                showCancelButton: true,
+                                confirmButtonText: 'Salvar',
+                                cancelButtonText: 'Cancelar',
+                                preConfirm: () => {
+                                    const desc = document.getElementById('editDesc').value;
+                                    const valor = parseFloat(document.getElementById('editValor').value);
+                                    const data = document.getElementById('editData').value;
+                                    if (isNaN(valor)) {
+                                        Swal.showValidationMessage('Valor inválido');
+                                        return false;
+                                    }
+                                    return { desc, valor, data };
+                                }
+                            });
+                            
+                            if (result.isConfirmed) {
+                                Swal.fire({ title: 'Salvando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                                
+                                try {
+                                    await firebase.firestore().collection('services').doc(id).update({
+                                        description: result.value.desc,
+                                        value: result.value.valor,
+                                        date: result.value.data,
+                                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                                    });
+                                    
+                                    Swal.fire('Sucesso!', 'Serviço atualizado!', 'success');
+                                    
+                                    // Fechar modal e recarregar
+                                    const modalElem = document.getElementById(`modalCalendario_${modalId.split('_')[1]}`);
+                                    if (modalElem) {
+                                        bootstrap.Modal.getInstance(modalElem)?.hide();
+                                    }
+                                    
+                                    // Recarregar dados
+                                    if (typeof window.loadAllServices === 'function') window.loadAllServices();
+                                    if (typeof window.updateDashboard === 'function') setTimeout(() => window.updateDashboard(), 500);
+                                    
+                                } catch (error) {
+                                    Swal.fire('Erro', error.message, 'error');
+                                }
+                            }
+                        });
+                    });
+                }
+                
+                // Destacar dia selecionado
+                document.querySelectorAll(`.calendario-dia[data-modal="${modalId}"]`).forEach(d => {
+                    d.style.background = '';
+                });
+                el.style.background = '#e3f2fd';
             });
         });
-    }
-    
-    // ============================================================
-    // 8. EDITAR SERVIÇO RÁPIDO
-    // ============================================================
-    
-    async function editarServicoRapido(servicoId) {
-        const snapshot = await firebase.firestore().collection('services').doc(servicoId).get();
-        if (!snapshot.exists) return;
         
-        const servico = { id: snapshot.id, ...snapshot.data() };
-        
-        const { value: novoValor } = await Swal.fire({
-            title: 'Editar Serviço',
-            html: `
-                <div class="text-start">
-                    <div class="mb-3">
-                        <label class="form-label">Descrição do Serviço</label>
-                        <input type="text" id="editDescricao" class="form-control" value="${escapeHtml(servico.description || '')}">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Valor (€)</label>
-                        <input type="number" id="editValor" class="form-control" step="0.01" value="${servico.value || 0}">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Data</label>
-                        <input type="date" id="editData" class="form-control" value="${servico.date || ''}">
-                    </div>
-                </div>
-            `,
-            showCancelButton: true,
-            confirmButtonText: 'Salvar',
-            cancelButtonText: 'Cancelar',
-            preConfirm: () => {
-                const descricao = document.getElementById('editDescricao').value;
-                const valor = parseFloat(document.getElementById('editValor').value);
-                const data = document.getElementById('editData').value;
-                if (isNaN(valor)) {
-                    Swal.showValidationMessage('Valor inválido');
-                    return false;
-                }
-                return { descricao, valor, data };
-            }
+        // Navegação
+        document.getElementById(`btnMesAnterior${modalId}`)?.addEventListener('click', () => {
+            calendarioDataAtual.setMonth(calendarioDataAtual.getMonth() - 1);
+            renderizarCalendario(container, servicosPorData, modalId);
         });
         
-        if (novoValor) {
-            Swal.fire({ title: 'Salvando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-            
-            try {
-                await firebase.firestore().collection('services').doc(servicoId).update({
-                    description: novoValor.descricao,
-                    value: novoValor.valor,
-                    date: novoValor.data,
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
-                
-                Swal.fire('Sucesso!', 'Serviço atualizado!', 'success');
-                
-                // Recarregar tudo
-                if (window.loadAllServices) window.loadAllServices();
-                if (window.updateDashboard) setTimeout(() => window.updateDashboard(), 500);
-                if (window.atualizarTodosOsValores) setTimeout(() => window.atualizarTodosOsValores(), 500);
-                
-                // Fechar modal e recarregar calendário
-                const modal = bootstrap.Modal.getInstance(document.getElementById('calendarioColabModal'));
-                if (modal) modal.hide();
-                
-            } catch (error) {
-                Swal.fire('Erro', error.message, 'error');
-            }
-        }
+        document.getElementById(`btnProximoMes${modalId}`)?.addEventListener('click', () => {
+            calendarioDataAtual.setMonth(calendarioDataAtual.getMonth() + 1);
+            renderizarCalendario(container, servicosPorData, modalId);
+        });
     }
-    
-    // ============================================================
-    // 9. ESCAPE HTML
-    // ============================================================
     
     function escapeHtml(text) {
         if (!text) return '';
@@ -14823,47 +14788,12 @@ window.toggleProductStatus = function(productId, isActive) {
         return div.innerHTML;
     }
     
-    // ============================================================
-    // 10. INICIALIZAR QUANDO A SEÇÃO FOR ABERTA
-    // ============================================================
-    
-    // Observar quando a seção de colaboradores for aberta
-    const observer = new MutationObserver(() => {
-        const section = document.getElementById('collaborators');
-        if (section && section.classList.contains('active')) {
-            if (!document.getElementById('cardsColaboradoresContainer')) {
-                criarTelaColaboradoresCards();
-            }
-        }
-    });
-    
-    observer.observe(document.getElementById('collaborators'), { attributes: true });
-    
-    // Inicializar se já estiver visível
-    setTimeout(() => {
-        const section = document.getElementById('collaborators');
-        if (section && section.classList.contains('active')) {
-            criarTelaColaboradoresCards();
-        }
-    }, 1000);
-    
-    console.log("✅ Cards de colaboradores criados!");
-    console.log("✅ Calendário interativo adicionado!");
-    console.log("✅ Clique em 'Ver Calendário' para ver serviços por data!");
+    function formatarMoeda(value) {
+        if (typeof value !== 'number') value = parseFloat(value) || 0;
+        return '€ ' + value.toFixed(2).replace('.', ',');
+    }
     
 })();
-
-// Função auxiliar para formatar moeda
-window.formatCurrency = function(value) {
-    if (typeof value !== 'number') value = parseFloat(value) || 0;
-    return '€ ' + value.toFixed(2).replace('.', ',');
-};
-
-console.log("🎉 SISTEMA COMPLETO! Agora você tem:");
-console.log("   📇 Cards com foto de cada colaborador");
-console.log("   📊 Estatísticas de vendas por colaborador");
-console.log("   📅 Calendário interativo com serviços por data");
-console.log("   ✏️ Edição rápida de serviços no calendário");
 
 
 
