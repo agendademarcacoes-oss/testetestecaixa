@@ -7480,8 +7480,12 @@ function calcularEstatisticasFuncionario(colaboradorId, services) {
     };
 }
 
+
+
+
+
 // ============================================
-// FUNÇÃO: Renderizar card de desempenho dos funcionários
+// FUNÇÃO MELHORADA: Renderizar cards de desempenho dos funcionários
 // ============================================
 function renderizarDesempenhoFuncionarios() {
     // Verificar se o container existe, se não, criar
@@ -7526,7 +7530,6 @@ function renderizarDesempenhoFuncionarios() {
     // Datas para filtros
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
-    const hojeStr = hoje.toISOString().split('T')[0];
     
     const inicioSemana = new Date(hoje);
     const diaSemana = hoje.getDay();
@@ -7567,151 +7570,355 @@ function renderizarDesempenhoFuncionarios() {
     document.getElementById('todaySales').textContent = formatCurrency(totalSalaoHoje);
     document.getElementById('weekSales').textContent = formatCurrency(totalSalaoSemana);
     document.getElementById('monthSales').textContent = formatCurrency(totalSalaoMes);
-    
-    // Atualizar total de colaboradores
     document.getElementById('totalCollaborators').textContent = funcionariosAtivos.length;
     
-    // Gerar HTML do card de desempenho
-    let html = `
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>📊 Desempenho dos Funcionários</h5>
-                    <small><i class="fas fa-info-circle me-1"></i>Valores em EUR (€)</small>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead class="table-light">
-                                <tr style="background-color: #f8f9fa;">
-                                    <th style="width: 20%;">Funcionário</th>
-                                    <th style="width: 20%;" class="text-center">🎯 Hoje</th>
-                                    <th style="width: 20%;" class="text-center">📅 Semana</th>
-                                    <th style="width: 20%;" class="text-center">📆 Mês</th>
-                                    <th style="width: 20%;" class="text-center">💰 Total Geral</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-    `;
-    
+    // Variáveis para totais gerais
     let totalBrutoGeral = 0;
     let totalComissaoGeral = 0;
     let totalSalaoGeral = 0;
+    let totalServicosGeral = 0;
+    let ticketMedioGeral = 0;
+    
+    // Processar dados de cada funcionário
+    const funcionariosData = [];
     
     funcionariosAtivos.forEach(func => {
-        // Calcular para hoje
         const statsHoje = calcularEstatisticasFuncionario(func.id, servicosHoje);
-        // Calcular para semana
         const statsSemana = calcularEstatisticasFuncionario(func.id, servicosSemana);
-        // Calcular para mês
         const statsMes = calcularEstatisticasFuncionario(func.id, servicosMes);
-        // Calcular total geral
         const statsTotal = calcularEstatisticasFuncionario(func.id, allServices);
+        
+        // Contar serviços do funcionário
+        const servicosFuncionario = allServices.filter(s => s.collaboratorId === func.id);
+        const totalServicos = servicosFuncionario.length;
         
         totalBrutoGeral += statsTotal.valorBruto;
         totalComissaoGeral += statsTotal.valorComissao;
         totalSalaoGeral += statsTotal.valorSalao;
+        totalServicosGeral += totalServicos;
         
-        const percentualExibicao = func.manualPercent || 0;
-        let corPercentual = percentualExibicao === 0 ? 'success' : (percentualExibicao >= 50 ? 'warning' : 'info');
-        
-        // Foto do funcionário (se tiver)
-        const fotoHtml = func.photoUrl ? 
-            `<img src="${func.photoUrl}" class="rounded-circle me-2" width="32" height="32" style="object-fit: cover;" onerror="this.style.display='none'">` : 
-            `<div class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px; font-size: 14px;">${func.name.charAt(0).toUpperCase()}</div>`;
-        
-        html += `
-            <tr class="align-middle">
-                <td>
-                    <div class="d-flex align-items-center">
-                        ${fotoHtml}
-                        <div>
-                            <strong>${func.name}</strong>
-                            <br>
-                            <small class="text-muted">${func.specialty || 'Sem especialidade'}</small>
-                        </div>
-                    </div>
-                </td>
-                <td class="text-center">
-                    <span class="fw-bold text-primary">${formatCurrency(statsHoje.valorBruto)}</span>
-                    <br>
-                    <small class="text-${corPercentual}">
-                        <i class="fas fa-percent"></i> ${percentualExibicao}%
-                    </small>
-                </td>
-                <td class="text-center fw-bold text-primary">${formatCurrency(statsSemana.valorBruto)}</td>
-                <td class="text-center fw-bold text-primary">${formatCurrency(statsMes.valorBruto)}</td>
-                <td class="text-center">
-                    <span class="fw-bold text-primary">${formatCurrency(statsTotal.valorBruto)}</span>
-                    <br>
-                    <small class="text-success">
-                        <i class="fas fa-euro-sign"></i> Salão: ${formatCurrency(statsTotal.valorSalao)}
-                    </small>
-                </td>
-            </tr>
-        `;
+        funcionariosData.push({
+            func,
+            statsHoje,
+            statsSemana,
+            statsMes,
+            statsTotal,
+            totalServicos
+        });
     });
     
-    // Linha de TOTAL
-    html += `
-                            </tbody>
-                            <tfoot style="background-color: #e9ecef; font-weight: bold;">
-                                <tr>
-                                    <td><strong>TOTAL GERAL</strong></td>
-                                    <td class="text-center text-primary">${formatCurrency(totalSalaoHoje)}</td>
-                                    <td class="text-center text-primary">${formatCurrency(totalSalaoSemana)}</td>
-                                    <td class="text-center text-primary">${formatCurrency(totalSalaoMes)}</td>
-                                    <td class="text-center">
-                                        <span class="text-primary">${formatCurrency(totalBrutoGeral)}</span>
-                                        <br>
-                                        <small class="text-muted">Salão: ${formatCurrency(totalSalaoGeral)}</small>
-                                    </td>
-                                </tr>
-                            </tfoot>
-                        </table>
+    // Calcular ticket médio geral
+    ticketMedioGeral = totalServicosGeral > 0 ? totalBrutoGeral / totalServicosGeral : 0;
+    
+    // ============ CARD GERAL DA EMPRESA ============
+    const percentualComissaoMedia = totalBrutoGeral > 0 ? (totalComissaoGeral / totalBrutoGeral) * 100 : 0;
+    
+    let html = `
+        <!-- CARD GERAL DA EMPRESA -->
+        <div class="col-12 mb-4">
+            <div class="card bg-gradient-primary text-white shadow-lg" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <div class="card-header bg-transparent border-bottom border-white border-opacity-25">
+                    <h4 class="mb-0"><i class="fas fa-building me-2"></i>📊 Visão Geral da Empresa</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <!-- Coluna Esquerda - Métricas Principais -->
+                        <div class="col-md-6">
+                            <div class="row">
+                                <div class="col-6 mb-3">
+                                    <div class="bg-white bg-opacity-20 rounded p-3">
+                                        <small class="text-white-50">💰 Faturamento Bruto Total</small>
+                                        <h3 class="mb-0 text-white">${formatCurrency(totalBrutoGeral)}</h3>
+                                        <small><i class="fas fa-chart-line"></i> Valor total de serviços</small>
+                                    </div>
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <div class="bg-white bg-opacity-20 rounded p-3">
+                                        <small class="text-white-50">🏦 Lucro Líquido do Salão</small>
+                                        <h3 class="mb-0 text-white">${formatCurrency(totalSalaoGeral)}</h3>
+                                        <small><i class="fas fa-percent"></i> Após comissões</small>
+                                    </div>
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <div class="bg-white bg-opacity-20 rounded p-3">
+                                        <small class="text-white-50">💸 Total Pago em Comissões</small>
+                                        <h3 class="mb-0 text-white">${formatCurrency(totalComissaoGeral)}</h3>
+                                        <small><i class="fas fa-users"></i> ${percentualComissaoMedia.toFixed(1)}% média</small>
+                                    </div>
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <div class="bg-white bg-opacity-20 rounded p-3">
+                                        <small class="text-white-50">📈 Ticket Médio</small>
+                                        <h3 class="mb-0 text-white">${formatCurrency(ticketMedioGeral)}</h3>
+                                        <small><i class="fas fa-receipt"></i> Por serviço</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Coluna Direita - Períodos -->
+                        <div class="col-md-6">
+                            <div class="bg-white bg-opacity-20 rounded p-3 mb-3">
+                                <h6 class="mb-2"><i class="fas fa-calendar-day"></i> Desempenho por Período</h6>
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>Hoje:</span>
+                                    <strong>${formatCurrency(totalSalaoHoje)}</strong>
+                                </div>
+                                <div class="progress mb-3" style="height: 8px;">
+                                    <div class="progress-bar bg-success" style="width: ${totalBrutoGeral > 0 ? (totalSalaoHoje / totalBrutoGeral) * 100 : 0}%"></div>
+                                </div>
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>Esta Semana:</span>
+                                    <strong>${formatCurrency(totalSalaoSemana)}</strong>
+                                </div>
+                                <div class="progress mb-3" style="height: 8px;">
+                                    <div class="progress-bar bg-info" style="width: ${totalBrutoGeral > 0 ? (totalSalaoSemana / totalBrutoGeral) * 100 : 0}%"></div>
+                                </div>
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>Este Mês:</span>
+                                    <strong>${formatCurrency(totalSalaoMes)}</strong>
+                                </div>
+                                <div class="progress" style="height: 8px;">
+                                    <div class="progress-bar bg-warning" style="width: ${totalBrutoGeral > 0 ? (totalSalaoMes / totalBrutoGeral) * 100 : 0}%"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-white bg-opacity-20 rounded p-3">
+                                <div class="row text-center">
+                                    <div class="col-4">
+                                        <h5 class="mb-0">${funcionariosAtivos.length}</h5>
+                                        <small>👥 Funcionários</small>
+                                    </div>
+                                    <div class="col-4">
+                                        <h5 class="mb-0">${totalServicosGeral}</h5>
+                                        <small>✂️ Serviços</small>
+                                    </div>
+                                    <div class="col-4">
+                                        <h5 class="mb-0">${clients.length}</h5>
+                                        <small>👤 Clientes</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     `;
     
-    // Adicionar legenda explicativa
+    // ============ CARDS INDIVIDUAIS DOS FUNCIONÁRIOS ============
     html += `
-        <div class="col-12 mt-3">
-            <div class="alert alert-info alert-dismissible fade show mb-0" role="alert" style="background-color: #e8f4f8; border-left: 4px solid #17a2b8;">
-                <button type="button" class="btn-close float-end" data-bs-dismiss="alert" aria-label="Close"></button>
-                <div class="d-flex align-items-center">
-                    <i class="fas fa-calculator fa-2x me-3 text-info"></i>
-                    <div>
-                        <strong>📐 Como funciona o cálculo?</strong><br>
-                        <small>
-                            • <strong>Valor Bruto</strong> = Total que o funcionário FATUROU em serviços<br>
-                            • <strong>% do Funcionário</strong> = Configurado na ficha do colaborador<br>
-                            • <strong>Salão recebe</strong> = Valor Bruto × (100% - % do Funcionário)<br>
-                            • Exemplo: Serviço de R$100 com funcionário 70% → Salão recebe R$30
+        <div class="col-12 mb-3">
+            <h3 class="mb-3"><i class="fas fa-user-friends me-2"></i> Desempenho Individual</h3>
+        </div>
+    `;
+    
+    // Ordenar funcionários por faturamento total (decrescente)
+    funcionariosData.sort((a, b) => b.statsTotal.valorBruto - a.statsTotal.valorBruto);
+    
+    funcionariosData.forEach((data, index) => {
+        const { func, statsHoje, statsSemana, statsMes, statsTotal, totalServicos } = data;
+        const percentualExibicao = func.manualPercent || 0;
+        const percentualSalao = 100 - percentualExibicao;
+        
+        // Calcular ticket médio do funcionário
+        const ticketMedio = totalServicos > 0 ? statsTotal.valorBruto / totalServicos : 0;
+        
+        // Escolher cor baseada no desempenho
+        let corCard = '';
+        let corGradiente = '';
+        if (index === 0) {
+            corCard = 'bg-gradient-gold';
+            corGradiente = 'background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%);';
+        } else if (index === 1) {
+            corCard = 'bg-gradient-silver';
+            corGradiente = 'background: linear-gradient(135deg, #bdc3c7 0%, #2c3e50 100%);';
+        } else if (index === 2) {
+            corCard = 'bg-gradient-bronze';
+            corGradiente = 'background: linear-gradient(135deg, #cd7f32 0%, #8b4513 100%);';
+        } else {
+            corCard = 'bg-gradient-default';
+            corGradiente = 'background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);';
+        }
+        
+        // Foto do funcionário
+        const fotoHtml = func.photoUrl ? 
+            `<img src="${func.photoUrl}" class="rounded-circle border border-3 border-white shadow-sm" width="70" height="70" style="object-fit: cover;" onerror="this.style.display='none'">` : 
+            `<div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center mx-auto shadow-sm" style="width: 70px; height: 70px; font-size: 32px;">${func.name.charAt(0).toUpperCase()}</div>`;
+        
+        // Medalha para os top 3
+        let medalha = '';
+        if (index === 0) medalha = '🥇';
+        else if (index === 1) medalha = '🥈';
+        else if (index === 2) medalha = '🥉';
+        
+        html += `
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card h-100 shadow-sm hover-shadow transition-all" style="border-radius: 15px; overflow: hidden;">
+                    <!-- Cabeçalho com gradiente -->
+                    <div class="card-header text-center py-3" style="${corGradiente} color: ${index < 3 ? 'white' : '#333'}; border-bottom: none;">
+                        <div class="position-relative">
+                            ${fotoHtml}
+                            ${medalha ? `<div class="position-absolute top-0 start-0 fs-1">${medalha}</div>` : ''}
+                        </div>
+                        <h4 class="mt-2 mb-0 fw-bold">${func.name}</h4>
+                        <small class="opacity-75"><i class="fas fa-tag me-1"></i>${func.specialty || 'Especialidade não definida'}</small>
+                    </div>
+                    
+                    <div class="card-body">
+                        <!-- Métricas Principais -->
+                        <div class="row text-center mb-3">
+                            <div class="col-6 border-end">
+                                <div class="text-muted small">Comissão</div>
+                                <h5 class="mb-0 text-primary">${percentualExibicao}%</h5>
+                                <small class="text-success">Salão: ${percentualSalao}%</small>
+                            </div>
+                            <div class="col-6">
+                                <div class="text-muted small">Ticket Médio</div>
+                                <h5 class="mb-0 text-info">${formatCurrency(ticketMedio)}</h5>
+                                <small>${totalServicos} serviços</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Cards de Período -->
+                        <div class="row g-2 mb-3">
+                            <div class="col-12">
+                                <div class="bg-light rounded p-2">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span><i class="fas fa-sun text-warning"></i> Hoje</span>
+                                        <strong class="text-primary">${formatCurrency(statsHoje.valorBruto)}</strong>
+                                    </div>
+                                    <div class="d-flex justify-content-between small text-muted mt-1">
+                                        <span>💰 Salão: ${formatCurrency(statsHoje.valorSalao)}</span>
+                                        <span>💸 Comissão: ${formatCurrency(statsHoje.valorComissao)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="bg-light rounded p-2">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span><i class="fas fa-calendar-week text-info"></i> Semana</span>
+                                        <strong class="text-primary">${formatCurrency(statsSemana.valorBruto)}</strong>
+                                    </div>
+                                    <div class="d-flex justify-content-between small text-muted mt-1">
+                                        <span>💰 Salão: ${formatCurrency(statsSemana.valorSalao)}</span>
+                                        <span>💸 Comissão: ${formatCurrency(statsSemana.valorComissao)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="bg-light rounded p-2">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span><i class="fas fa-calendar-alt text-success"></i> Mês</span>
+                                        <strong class="text-primary">${formatCurrency(statsMes.valorBruto)}</strong>
+                                    </div>
+                                    <div class="d-flex justify-content-between small text-muted mt-1">
+                                        <span>💰 Salão: ${formatCurrency(statsMes.valorSalao)}</span>
+                                        <span>💸 Comissão: ${formatCurrency(statsMes.valorComissao)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Total Geral Destacado -->
+                        <div class="bg-primary bg-opacity-10 rounded p-2 mt-2">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="fw-bold"><i class="fas fa-chart-bar"></i> TOTAL GERAL</span>
+                                <span class="fw-bold text-primary fs-5">${formatCurrency(statsTotal.valorBruto)}</span>
+                            </div>
+                            <div class="progress mt-2" style="height: 6px;">
+                                <div class="progress-bar bg-success" style="width: ${percentualSalao}%"></div>
+                                <div class="progress-bar bg-warning" style="width: ${percentualExibicao}%"></div>
+                            </div>
+                            <div class="d-flex justify-content-between small mt-1">
+                                <span class="text-success">🏦 Salão: ${formatCurrency(statsTotal.valorSalao)}</span>
+                                <span class="text-warning">👤 Func.: ${formatCurrency(statsTotal.valorComissao)}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Rodapé com indicador de performance -->
+                    <div class="card-footer bg-transparent text-center py-2">
+                        <small class="text-muted">
+                            <i class="fas fa-chart-line me-1"></i>
+                            Performance: ${((statsTotal.valorBruto / totalBrutoGeral) * 100).toFixed(1)}% do faturamento
                         </small>
                     </div>
                 </div>
             </div>
+        `;
+    });
+    
+    // ============ LEGENDA E INFORMAÇÕES ============
+    html += `
+        <div class="col-12 mt-3">
+            <div class="alert alert-info alert-dismissible fade show mb-0 shadow-sm" role="alert" style="background: linear-gradient(135deg, #e8f4f8 0%, #d1ecf1 100%); border-left: 4px solid #17a2b8; border-radius: 10px;">
+                <button type="button" class="btn-close float-end" data-bs-dismiss="alert" aria-label="Close"></button>
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-calculator fa-2x me-3 text-info"></i>
+                    <div>
+                        <strong class="fs-6">📐 Como funciona o cálculo?</strong>
+                        <div class="row mt-2 small">
+                            <div class="col-md-4">
+                                <i class="fas fa-chart-simple text-primary"></i> <strong>Valor Bruto</strong> = Total faturado em serviços
+                            </div>
+                            <div class="col-md-4">
+                                <i class="fas fa-percent text-warning"></i> <strong>% do Funcionário</strong> = Comissão configurada
+                            </div>
+                            <div class="col-md-4">
+                                <i class="fas fa-building text-success"></i> <strong>Salão recebe</strong> = Bruto × (100% - % Func.)
+                            </div>
+                        </div>
+                        <div class="mt-1">
+                            <small class="text-muted">
+                                <i class="fas fa-lightbulb"></i> Exemplo: Serviço de ${formatCurrency(100)} com funcionário 70% → 
+                                Funcionário recebe ${formatCurrency(70)} | Salão recebe ${formatCurrency(30)}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     `;
+    
+    // Adicionar CSS personalizado para efeitos
+    const style = document.createElement('style');
+    style.textContent = `
+        .hover-shadow {
+            transition: all 0.3s ease;
+        }
+        .hover-shadow:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15) !important;
+        }
+        .transition-all {
+            transition: all 0.3s ease;
+        }
+        .bg-gradient-gold {
+            background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%);
+        }
+        .bg-gradient-silver {
+            background: linear-gradient(135deg, #bdc3c7 0%, #2c3e50 100%);
+        }
+        .bg-gradient-bronze {
+            background: linear-gradient(135deg, #cd7f32 0%, #8b4513 100%);
+        }
+    `;
+    document.head.appendChild(style);
     
     container.innerHTML = html;
     dashboard.appendChild(container);
 }
 
 // ============================================
-// FUNÇÃO CORRIGIDA: updateDashboard COMPLETO
+// ATUALIZAR DASHBOARD COM NOVA FUNÇÃO
 // ============================================
-// Guardar a função original para não perder nada
 const updateDashboardOriginal = window.updateDashboard;
 
-// Substituir pela versão corrigida
 window.updateDashboard = function() {
     // Calcular valores líquidos do salão para cada período
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
-    const hojeStr = hoje.toISOString().split('T')[0];
     
     const inicioSemana = new Date(hoje);
     const diaSemana = hoje.getDay();
@@ -7749,69 +7956,88 @@ window.updateDashboard = function() {
     servicosMes.forEach(s => { totalSalaoMes += calcularValorLiquidoSalao(s); });
     
     // Atualizar cards do dashboard
-    document.getElementById('todaySales').textContent = formatCurrency(totalSalaoHoje);
-    document.getElementById('weekSales').textContent = formatCurrency(totalSalaoSemana);
-    document.getElementById('monthSales').textContent = formatCurrency(totalSalaoMes);
-    document.getElementById('todayServices').textContent = `${servicosHoje.length} serviços`;
-    document.getElementById('weekServices').textContent = `${servicosSemana.length} serviços`;
-    document.getElementById('monthServices').textContent = `${servicosMes.length} serviços`;
+    if (document.getElementById('todaySales')) 
+        document.getElementById('todaySales').textContent = formatCurrency(totalSalaoHoje);
+    if (document.getElementById('weekSales')) 
+        document.getElementById('weekSales').textContent = formatCurrency(totalSalaoSemana);
+    if (document.getElementById('monthSales')) 
+        document.getElementById('monthSales').textContent = formatCurrency(totalSalaoMes);
+    if (document.getElementById('todayServices')) 
+        document.getElementById('todayServices').textContent = `${servicosHoje.length} serviços`;
+    if (document.getElementById('weekServices')) 
+        document.getElementById('weekServices').textContent = `${servicosSemana.length} serviços`;
+    if (document.getElementById('monthServices')) 
+        document.getElementById('monthServices').textContent = `${servicosMes.length} serviços`;
     
-    // Produtos (não mudam, são 100% para o salão)
-    const todayProductsValue = todayProductSales.reduce((total, sale) => total + parseFloat(sale.totalValue || 0), 0);
-    document.getElementById('todayProducts').textContent = formatCurrency(todayProductsValue);
-    document.getElementById('todayProductsCount').textContent = `${todayProductSales.length} produtos`;
+    // Produtos
+    if (typeof todayProductSales !== 'undefined') {
+        const todayProductsValue = todayProductSales.reduce((total, sale) => total + parseFloat(sale.totalValue || 0), 0);
+        if (document.getElementById('todayProducts')) 
+            document.getElementById('todayProducts').textContent = formatCurrency(todayProductsValue);
+        if (document.getElementById('todayProductsCount')) 
+            document.getElementById('todayProductsCount').textContent = `${todayProductSales.length} produtos`;
+    }
     
     // Colaboradores e clientes
-    document.getElementById('totalCollaborators').textContent = collaborators.filter(c => c.active).length;
-    document.getElementById('totalClients').textContent = clients.length;
+    if (document.getElementById('totalCollaborators')) 
+        document.getElementById('totalCollaborators').textContent = collaborators.filter(c => c.active).length;
+    if (document.getElementById('totalClients')) 
+        document.getElementById('totalClients').textContent = clients.length;
     
     // Serviços recentes
     const recentContainer = document.getElementById('recentServicesList');
-    if (todayServices.length === 0) {
-        recentContainer.innerHTML = '<p class="text-muted">Nenhum serviço hoje.</p>';
-    } else {
-        let html = '';
-        const recentServices = todayServices.slice(0, 5);
-        recentServices.forEach(service => {
-            const client = clients.find(c => c.id === service.clientId) || { name: 'Cliente não encontrado' };
-            const collaborator = collaborators.find(c => c.id === service.collaboratorId) || { name: 'Colaborador não encontrado' };
-            const valorLiquido = calcularValorLiquidoSalao(service);
-            
-            html += `
-                <div class="service-item mb-2">
-                    <div class="d-flex justify-content-between">
-                        <span>${client.name}</span>
-                        <span class="text-success">${formatCurrency(service.value)}</span>
+    if (recentContainer) {
+        if (servicosHoje.length === 0) {
+            recentContainer.innerHTML = '<p class="text-muted">Nenhum serviço hoje.</p>';
+        } else {
+            let html = '';
+            const recentServices = servicosHoje.slice(0, 5);
+            recentServices.forEach(service => {
+                const client = clients.find(c => c.id === service.clientId) || { name: 'Cliente não encontrado' };
+                const collaborator = collaborators.find(c => c.id === service.collaboratorId) || { name: 'Colaborador não encontrado' };
+                const valorLiquido = calcularValorLiquidoSalao(service);
+                
+                html += `
+                    <div class="service-item mb-2 p-2 border-bottom">
+                        <div class="d-flex justify-content-between">
+                            <span class="fw-bold">${client.name}</span>
+                            <span class="text-success">${formatCurrency(service.value)}</span>
+                        </div>
+                        <small class="text-muted">${service.description} - ${collaborator.name}</small>
+                        <div class="small text-info">
+                            <i class="fas fa-euro-sign"></i> Salão: ${formatCurrency(valorLiquido)}
+                        </div>
                     </div>
-                    <small class="text-muted">${service.description} - ${collaborator.name}</small>
-                    <div class="small text-info">
-                        <i class="fas fa-euro-sign"></i> Salão: ${formatCurrency(valorLiquido)}
-                    </div>
-                </div>
-            `;
-        });
-        recentContainer.innerHTML = html;
+                `;
+            });
+            recentContainer.innerHTML = html;
+        }
     }
     
     // Carregar aniversários
-    loadUpcomingBirthdays();
+    if (typeof loadUpcomingBirthdays === 'function') {
+        loadUpcomingBirthdays();
+    }
     
     // Renderizar card de desempenho dos funcionários
-    renderizarDesempenhoFuncionarios();
+    if (typeof renderizarDesempenhoFuncionarios === 'function') {
+        renderizarDesempenhoFuncionarios();
+    }
     
     // Atualizar caixa atual
-    if (currentCashier) {
+    if (typeof currentCashier !== 'undefined' && currentCashier) {
         const todayServicesValue = servicosHoje.reduce((total, service) => total + calcularValorLiquidoSalao(service), 0);
-        const todayProductsValue = todayProductSales.reduce((total, sale) => total + parseFloat(sale.totalValue || 0), 0);
+        const todayProductsValue = typeof todayProductSales !== 'undefined' ? 
+            todayProductSales.reduce((total, sale) => total + parseFloat(sale.totalValue || 0), 0) : 0;
         const currentCashValue = (currentCashier.initialValue || 0) + todayServicesValue + todayProductsValue;
-        document.getElementById('currentCash').textContent = formatCurrency(currentCashValue);
+        if (document.getElementById('currentCash')) 
+            document.getElementById('currentCash').textContent = formatCurrency(currentCashValue);
     }
 };
 
 // ============================================
-// GARANTIR QUE O CARD DE FUNCIONÁRIOS APAREÇA
+// OBSERVADOR PARA DASHBOARD
 // ============================================
-// Adicionar um observador para quando o dashboard for ativado
 const observerDashboard = new MutationObserver(function(mutations) {
     mutations.forEach(function(mutation) {
         if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
@@ -7827,7 +8053,7 @@ const observerDashboard = new MutationObserver(function(mutations) {
     });
 });
 
-// Iniciar observador quando o DOM estiver pronto
+// Iniciar observador
 document.addEventListener('DOMContentLoaded', function() {
     const dashboard = document.getElementById('dashboard');
     if (dashboard) {
@@ -7835,23 +8061,26 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// ============================================
-// CORRIGIR updateTodaySalesUI para mostrar valor líquido
-// ============================================
+// Backup da função original
 const updateTodaySalesUIBackup = window.updateTodaySalesUI;
 window.updateTodaySalesUI = function() {
     if (updateTodaySalesUIBackup) {
         updateTodaySalesUIBackup();
     }
-    // Atualizar dashboard para garantir
     if (typeof window.updateDashboard === 'function') {
         setTimeout(() => window.updateDashboard(), 100);
     }
 };
 
-console.log('✅ Sistema corrigido! Cards agora mostram valores LÍQUIDOS do salão.');
-console.log('✅ Card "Desempenho dos Funcionários" adicionado com sucesso!');
-        
+console.log('✅ Sistema atualizado! Layout melhorado com cards individuais e card geral da empresa!');
+console.log('✅ Funcionalidades: Cards por funcionário | Ranking | Ticket médio | Visão geral');
+
+
+
+
+
+
+
         function updateInventoryUI() {
     const tbody = document.getElementById('inventoryTable');
     
@@ -14192,677 +14421,6 @@ window.toggleProductStatus = function(productId, isActive) {
 
 
         
-
-// =================================================================
-// SISTEMA DE COLABORADORES COM CARDS E CALENDÁRIO
-// =================================================================
-
-(function() {
-    console.log("✅ Sistema de cards de colaboradores carregado!");
-
-    // ============================================================
-    // 1. CRIAR A TELA DE COLABORADORES COM CARDS
-    // ============================================================
-    
-    function criarTelaColaboradoresCards() {
-        const sectionColaboradores = document.getElementById('collaborators');
-        if (!sectionColaboradores) return;
-        
-        // Verificar se já foi modificada
-        if (document.getElementById('cardsColaboradoresContainer')) return;
-        
-        // Salvar o conteúdo original da tabela
-        const tabelaOriginal = sectionColaboradores.querySelector('.card .table-responsive');
-        const headerOriginal = sectionColaboradores.querySelector('.card-header');
-        const btnAdicionar = headerOriginal?.querySelector('#addCollaboratorBtn');
-        
-        // Limpar e recriar com cards
-        const card = sectionColaboradores.querySelector('.card');
-        if (!card) return;
-        
-        // Modificar o header
-        if (headerOriginal) {
-            headerOriginal.innerHTML = `
-                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                    <h5 class="mb-0">
-                        <i class="fas fa-user-friends me-2"></i>Colaboradores
-                    </h5>
-                    <div class="d-flex gap-2">
-                        <button class="btn btn-outline-secondary btn-sm" id="toggleViewBtn">
-                            <i class="fas fa-table me-1"></i> Ver Tabela
-                        </button>
-                        <button class="btn btn-primary btn-sm" id="addCollaboratorBtn">
-                            <i class="fas fa-plus me-1"></i> Adicionar
-                        </button>
-                    </div>
-                </div>
-            `;
-            
-            // Recriar evento do botão adicionar
-            const novoBtnAdicionar = document.getElementById('addCollaboratorBtn');
-            if (novoBtnAdicionar && window.showAddCollaboratorModal) {
-                novoBtnAdicionar.addEventListener('click', window.showAddCollaboratorModal);
-            }
-        }
-        
-        // Criar container de cards
-        const cardBody = card.querySelector('.card-body');
-        if (cardBody) {
-            cardBody.innerHTML = `
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        <input type="text" class="form-control" id="searchColaboradorCard" placeholder="🔍 Buscar colaborador...">
-                    </div>
-                    <div class="col-md-6 text-end">
-                        <span class="text-muted" id="totalColaboradoresCards">0 colaboradores</span>
-                    </div>
-                </div>
-                <div id="cardsColaboradoresContainer" class="row">
-                    <div class="col-12 text-center text-muted p-5">
-                        <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
-                        <p>Carregando colaboradores...</p>
-                    </div>
-                </div>
-            `;
-            
-            // Esconder a tabela original se existir
-            if (tabelaOriginal) tabelaOriginal.style.display = 'none';
-        }
-        
-        // Carregar os cards
-        carregarCardsColaboradores();
-        
-        // Evento de busca
-        document.getElementById('searchColaboradorCard')?.addEventListener('input', filtrarCardsColaboradores);
-        
-        // Botão toggle para voltar à tabela
-        document.getElementById('toggleViewBtn')?.addEventListener('click', () => {
-            if (confirm('Deseja voltar à visualização em tabela?')) {
-                location.reload();
-            }
-        });
-    }
-    
-    // ============================================================
-    // 2. CARREGAR CARDS DOS COLABORADORES
-    // ============================================================
-    
-    async function carregarCardsColaboradores() {
-        const container = document.getElementById('cardsColaboradoresContainer');
-        if (!container) return;
-        
-        try {
-            const snapshot = await firebase.firestore()
-                .collection('collaborators')
-                .where('userId', '==', firebase.auth().currentUser.uid)
-                .get();
-            
-            const colaboradores = [];
-            snapshot.forEach(doc => {
-                colaboradores.push({
-                    id: doc.id,
-                    ...doc.data()
-                });
-            });
-            
-            if (colaboradores.length === 0) {
-                container.innerHTML = `
-                    <div class="col-12 text-center text-muted p-5">
-                        <i class="fas fa-users fa-3x mb-3"></i>
-                        <p>Nenhum colaborador cadastrado.</p>
-                        <button class="btn btn-primary btn-sm" onclick="window.showAddCollaboratorModal()">
-                            <i class="fas fa-plus me-1"></i> Adicionar Colaborador
-                        </button>
-                    </div>
-                `;
-                document.getElementById('totalColaboradoresCards').textContent = '0 colaboradores';
-                return;
-            }
-            
-            document.getElementById('totalColaboradoresCards').textContent = `${colaboradores.length} colaboradores`;
-            
-            // Ordenar por nome
-            colaboradores.sort((a, b) => a.name.localeCompare(b.name));
-            
-            // Gerar cards
-            container.innerHTML = '';
-            
-            for (const colab of colaboradores) {
-                // Buscar estatísticas do colaborador
-                const stats = await buscarEstatisticasColaborador(colab.id);
-                
-                const card = document.createElement('div');
-                card.className = 'col-md-6 col-lg-4 mb-4';
-                card.setAttribute('data-colab-id', colab.id);
-                card.setAttribute('data-colab-name', colab.name.toLowerCase());
-                
-                const fotoHtml = colab.photoUrl ? 
-                    `<img src="${colab.photoUrl}" class="card-img-top" style="height: 180px; object-fit: cover; border-radius: 12px 12px 0 0;" 
-                        onerror="this.src='https://via.placeholder.com/300x180?text=Sem+Foto'">` :
-                    `<div style="height: 180px; background: linear-gradient(135deg, #26196b, #4a3a9c); display: flex; align-items: center; justify-content: center; border-radius: 12px 12px 0 0;">
-                        <i class="fas fa-user-circle fa-5x text-white" style="opacity: 0.8;"></i>
-                     </div>`;
-                
-                card.innerHTML = `
-                    <div class="card h-100 shadow-sm" style="border-radius: 12px; overflow: hidden;">
-                        ${fotoHtml}
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                <h5 class="card-title mb-0">${escapeHtml(colab.name)}</h5>
-                                <span class="badge ${colab.active ? 'bg-success' : 'bg-secondary'}">${colab.active ? 'Ativo' : 'Inativo'}</span>
-                            </div>
-                            <p class="text-muted small mb-2">
-                                <i class="fas fa-tag me-1"></i> ${colab.specialty || 'Sem especialidade'}
-                            </p>
-                            <p class="text-muted small mb-2">
-                                <i class="fas fa-phone me-1"></i> ${colab.contact || 'Sem contato'}
-                            </p>
-                            <hr>
-                            <div class="row text-center mb-3">
-                                <div class="col-6">
-                                    <div class="small text-muted">💰 Vendas (Mês)</div>
-                                    <div class="fw-bold text-success">${formatCurrency(stats.mes)}</div>
-                                </div>
-                                <div class="col-6">
-                                    <div class="small text-muted">📊 Total Vendas</div>
-                                    <div class="fw-bold text-primary">${formatCurrency(stats.total)}</div>
-                                </div>
-                            </div>
-                            <div class="d-flex gap-2">
-                                <button class="btn btn-primary btn-sm flex-grow-1 btn-ver-calendario" data-colab-id="${colab.id}" data-colab-name="${escapeHtml(colab.name)}">
-                                    <i class="fas fa-calendar-alt me-1"></i> Ver Calendário
-                                </button>
-                                <button class="btn btn-outline-secondary btn-sm btn-editar-colab" data-colab-id="${colab.id}">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                
-                container.appendChild(card);
-            }
-            
-            // Adicionar eventos
-            document.querySelectorAll('.btn-ver-calendario').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const colabId = btn.getAttribute('data-colab-id');
-                    const colabName = btn.getAttribute('data-colab-name');
-                    abrirCalendarioColaborador(colabId, colabName);
-                });
-            });
-            
-            document.querySelectorAll('.btn-editar-colab').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const colabId = btn.getAttribute('data-colab-id');
-                    if (window.editCollaborator) window.editCollaborator(colabId);
-                });
-            });
-            
-        } catch (error) {
-            console.error('Erro:', error);
-            container.innerHTML = `
-                <div class="col-12 text-center text-danger p-5">
-                    <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
-                    <p>Erro ao carregar colaboradores: ${error.message}</p>
-                </div>
-            `;
-        }
-    }
-    
-    // ============================================================
-    // 3. BUSCAR ESTATÍSTICAS DO COLABORADOR
-    // ============================================================
-    
-    async function buscarEstatisticasColaborador(colaboradorId) {
-        try {
-            const snapshot = await firebase.firestore()
-                .collection('services')
-                .where('userId', '==', firebase.auth().currentUser.uid)
-                .get();
-            
-            let totalGeral = 0;
-            let totalMes = 0;
-            
-            const hoje = new Date();
-            const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-            
-            snapshot.forEach(doc => {
-                const service = doc.data();
-                if (service.collaboratorId === colaboradorId) {
-                    const valor = parseFloat(service.value || 0);
-                    totalGeral += valor;
-                    
-                    const dataService = service.timestamp?.toDate ? service.timestamp.toDate() : new Date(service.date || 0);
-                    if (dataService >= inicioMes) {
-                        totalMes += valor;
-                    }
-                }
-            });
-            
-            return { total: totalGeral, mes: totalMes };
-        } catch (error) {
-            console.error('Erro ao buscar estatísticas:', error);
-            return { total: 0, mes: 0 };
-        }
-    }
-    
-    // ============================================================
-    // 4. FILTRAR CARDS
-    // ============================================================
-    
-    function filtrarCardsColaboradores() {
-        const busca = document.getElementById('searchColaboradorCard')?.value.toLowerCase() || '';
-        const cards = document.querySelectorAll('#cardsColaboradoresContainer .col-md-6');
-        
-        let visiveis = 0;
-        cards.forEach(card => {
-            const nome = card.getAttribute('data-colab-name') || '';
-            if (nome.includes(busca)) {
-                card.style.display = '';
-                visiveis++;
-            } else {
-                card.style.display = 'none';
-            }
-        });
-        
-        document.getElementById('totalColaboradoresCards').textContent = `${visiveis} colaboradores`;
-    }
-    
-    // ============================================================
-    // 5. ABRIR CALENDÁRIO DO COLABORADOR
-    // ============================================================
-    
-    function abrirCalendarioColaborador(colaboradorId, colaboradorNome) {
-        // Criar modal customizado
-        const modalHtml = `
-            <div class="modal fade" id="calendarioColabModal" tabindex="-1" data-bs-backdrop="static">
-                <div class="modal-dialog modal-xl modal-dialog-scrollable">
-                    <div class="modal-content" style="border-radius: 16px;">
-                        <div class="modal-header" style="background: linear-gradient(135deg, #26196b, #4a3a9c); color: white;">
-                            <h5 class="modal-title">
-                                <i class="fas fa-calendar-alt me-2"></i> 
-                                Calendário - ${colaboradorNome}
-                            </h5>
-                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                        </div>
-                        <div class="modal-body">
-                            <div class="row">
-                                <div class="col-md-8">
-                                    <!-- Calendário -->
-                                    <div id="calendarioContainer" style="min-height: 400px;"></div>
-                                </div>
-                                <div class="col-md-4">
-                                    <!-- Lista de serviços do dia -->
-                                    <div class="card">
-                                        <div class="card-header bg-primary text-white">
-                                            <h6 class="mb-0">
-                                                <i class="fas fa-list me-1"></i> 
-                                                Serviços em <span id="dataSelecionadaLabel">--/--/----</span>
-                                            </h6>
-                                        </div>
-                                        <div class="card-body" style="max-height: 400px; overflow-y: auto;">
-                                            <div id="servicosDoDiaList">
-                                                <p class="text-muted text-center">Selecione uma data no calendário</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        // Remover modal existente se houver
-        const modalExistente = document.getElementById('calendarioColabModal');
-        if (modalExistente) modalExistente.remove();
-        
-        // Adicionar ao body
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
-        
-        // Inicializar calendário
-        const modalElement = document.getElementById('calendarioColabModal');
-        const modal = new bootstrap.Modal(modalElement);
-        
-        modalElement.addEventListener('shown.bs.modal', async () => {
-            await renderizarCalendario(colaboradorId, colaboradorNome);
-        });
-        
-        modal.show();
-        
-        modalElement.addEventListener('hidden.bs.modal', () => {
-            modalElement.remove();
-        });
-    }
-    
-    // ============================================================
-    // 6. RENDERIZAR CALENDÁRIO
-    // ============================================================
-    
-    let calendarioAtual = null;
-    
-    async function renderizarCalendario(colaboradorId, colaboradorNome) {
-        const container = document.getElementById('calendarioContainer');
-        if (!container) return;
-        
-        // Carregar serviços do colaborador
-        const snapshot = await firebase.firestore()
-            .collection('services')
-            .where('userId', '==', firebase.auth().currentUser.uid)
-            .get();
-        
-        const servicosPorData = {};
-        
-        snapshot.forEach(doc => {
-            const service = doc.data();
-            if (service.collaboratorId === colaboradorId) {
-                const data = service.date || (service.timestamp?.toDate ? service.timestamp.toDate().toISOString().split('T')[0] : '');
-                if (data) {
-                    if (!servicosPorData[data]) servicosPorData[data] = [];
-                    servicosPorData[data].push({
-                        id: doc.id,
-                        ...service
-                    });
-                }
-            }
-        });
-        
-        // Criar calendário simples
-        const hoje = new Date();
-        let anoAtual = hoje.getFullYear();
-        let mesAtual = hoje.getMonth();
-        
-        function renderizarMes(ano, mes) {
-            const primeiroDia = new Date(ano, mes, 1);
-            const ultimoDia = new Date(ano, mes + 1, 0);
-            const diasNaSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-            
-            let html = `
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <button class="btn btn-outline-primary btn-sm" id="mesAnteriorBtn">
-                        <i class="fas fa-chevron-left"></i> Anterior
-                    </button>
-                    <h5 class="mb-0">${primeiroDia.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' })}</h5>
-                    <button class="btn btn-outline-primary btn-sm" id="proximoMesBtn">
-                        Próximo <i class="fas fa-chevron-right"></i>
-                    </button>
-                </div>
-                <div class="calendario-grid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px;">
-            `;
-            
-            // Dias da semana
-            diasNaSemana.forEach(dia => {
-                html += `<div class="text-center fw-bold p-2" style="background: #f8f9fa; border-radius: 8px;">${dia}</div>`;
-            });
-            
-            // Dias vazios
-            const diaInicio = primeiroDia.getDay();
-            for (let i = 0; i < diaInicio; i++) {
-                html += `<div class="p-2" style="min-height: 80px;"></div>`;
-            }
-            
-            // Dias do mês
-            for (let d = 1; d <= ultimoDia.getDate(); d++) {
-                const dataStr = `${ano}-${String(mes + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                const temServicos = servicosPorData[dataStr] && servicosPorData[dataStr].length > 0;
-                const totalServicos = servicosPorData[dataStr]?.length || 0;
-                const totalValor = servicosPorData[dataStr]?.reduce((sum, s) => sum + parseFloat(s.value || 0), 0) || 0;
-                const isHoje = dataStr === hoje.toISOString().split('T')[0];
-                
-                html += `
-                    <div class="calendario-dia p-2" 
-                         style="min-height: 80px; border: 1px solid #e0e0e0; border-radius: 8px; cursor: pointer; 
-                                ${temServicos ? 'background: #e8f4e8;' : ''}
-                                ${isHoje ? 'border: 2px solid #26196b;' : ''}"
-                         data-data="${dataStr}">
-                        <div class="fw-bold ${isHoje ? 'text-primary' : ''}">${d}</div>
-                        ${temServicos ? `
-                            <div class="mt-1">
-                                <span class="badge bg-primary" style="font-size: 10px;">${totalServicos} serv.</span>
-                                <small class="text-success d-block" style="font-size: 10px;">${formatCurrency(totalValor)}</small>
-                            </div>
-                        ` : ''}
-                    </div>
-                `;
-            }
-            
-            html += `</div>`;
-            container.innerHTML = html;
-            
-            // Eventos dos dias
-            document.querySelectorAll('.calendario-dia').forEach(el => {
-                el.addEventListener('click', () => {
-                    const data = el.getAttribute('data-data');
-                    mostrarServicosDoDia(data, servicosPorData[data] || [], colaboradorNome);
-                    
-                    // Destacar dia selecionado
-                    document.querySelectorAll('.calendario-dia').forEach(d => d.style.background = '');
-                    el.style.background = '#e3f2fd';
-                });
-            });
-            
-            // Navegação
-            document.getElementById('mesAnteriorBtn')?.addEventListener('click', () => {
-                mesAtual--;
-                if (mesAtual < 0) {
-                    mesAtual = 11;
-                    anoAtual--;
-                }
-                renderizarMes(anoAtual, mesAtual);
-            });
-            
-            document.getElementById('proximoMesBtn')?.addEventListener('click', () => {
-                mesAtual++;
-                if (mesAtual > 11) {
-                    mesAtual = 0;
-                    anoAtual++;
-                }
-                renderizarMes(anoAtual, mesAtual);
-            });
-        }
-        
-        renderizarMes(anoAtual, mesAtual);
-    }
-    
-    // ============================================================
-    // 7. MOSTRAR SERVIÇOS DO DIA SELECIONADO
-    // ============================================================
-    
-    async function mostrarServicosDoDia(data, servicos, colaboradorNome) {
-        const labelData = document.getElementById('dataSelecionadaLabel');
-        const container = document.getElementById('servicosDoDiaList');
-        
-        if (labelData) {
-            const [ano, mes, dia] = data.split('-');
-            labelData.textContent = `${dia}/${mes}/${ano}`;
-        }
-        
-        if (!servicos || servicos.length === 0) {
-            container.innerHTML = `
-                <div class="text-center text-muted p-4">
-                    <i class="fas fa-calendar-day fa-2x mb-2"></i>
-                    <p>Nenhum serviço realizado nesta data.</p>
-                </div>
-            `;
-            return;
-        }
-        
-        // Buscar clientes
-        const clientesSnapshot = await firebase.firestore()
-            .collection('clients')
-            .where('userId', '==', firebase.auth().currentUser.uid)
-            .get();
-        
-        const clientes = {};
-        clientesSnapshot.forEach(doc => {
-            clientes[doc.id] = doc.data().name;
-        });
-        
-        let html = `
-            <div class="mb-2">
-                <strong>Total:</strong> ${formatCurrency(servicos.reduce((sum, s) => sum + parseFloat(s.value || 0), 0))}
-            </div>
-            <hr>
-        `;
-        
-        servicos.forEach(servico => {
-            const nomeCliente = clientes[servico.clientId] || 'Cliente não encontrado';
-            html += `
-                <div class="mb-2 p-2 border rounded" style="border-left: 3px solid #26196b;">
-                    <div class="fw-bold">${escapeHtml(nomeCliente)}</div>
-                    <div class="small text-muted">${servico.description || 'Sem descrição'}</div>
-                    <div class="d-flex justify-content-between align-items-center mt-1">
-                        <span class="text-success fw-bold">${formatCurrency(servico.value)}</span>
-                        <div>
-                            <button class="btn btn-sm btn-outline-primary editar-servico-calendario" data-servico-id="${servico.id}" style="padding: 2px 6px;">
-                                <i class="fas fa-edit fa-xs"></i> Editar
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
-        });
-        
-        container.innerHTML = html;
-        
-        // Adicionar evento de edição
-        document.querySelectorAll('.editar-servico-calendario').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const servicoId = btn.getAttribute('data-servico-id');
-                await editarServicoRapido(servicoId);
-            });
-        });
-    }
-    
-    // ============================================================
-    // 8. EDITAR SERVIÇO RÁPIDO
-    // ============================================================
-    
-    async function editarServicoRapido(servicoId) {
-        const snapshot = await firebase.firestore().collection('services').doc(servicoId).get();
-        if (!snapshot.exists) return;
-        
-        const servico = { id: snapshot.id, ...snapshot.data() };
-        
-        const { value: novoValor } = await Swal.fire({
-            title: 'Editar Serviço',
-            html: `
-                <div class="text-start">
-                    <div class="mb-3">
-                        <label class="form-label">Descrição do Serviço</label>
-                        <input type="text" id="editDescricao" class="form-control" value="${escapeHtml(servico.description || '')}">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Valor (€)</label>
-                        <input type="number" id="editValor" class="form-control" step="0.01" value="${servico.value || 0}">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Data</label>
-                        <input type="date" id="editData" class="form-control" value="${servico.date || ''}">
-                    </div>
-                </div>
-            `,
-            showCancelButton: true,
-            confirmButtonText: 'Salvar',
-            cancelButtonText: 'Cancelar',
-            preConfirm: () => {
-                const descricao = document.getElementById('editDescricao').value;
-                const valor = parseFloat(document.getElementById('editValor').value);
-                const data = document.getElementById('editData').value;
-                if (isNaN(valor)) {
-                    Swal.showValidationMessage('Valor inválido');
-                    return false;
-                }
-                return { descricao, valor, data };
-            }
-        });
-        
-        if (novoValor) {
-            Swal.fire({ title: 'Salvando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-            
-            try {
-                await firebase.firestore().collection('services').doc(servicoId).update({
-                    description: novoValor.descricao,
-                    value: novoValor.valor,
-                    date: novoValor.data,
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
-                
-                Swal.fire('Sucesso!', 'Serviço atualizado!', 'success');
-                
-                // Recarregar tudo
-                if (window.loadAllServices) window.loadAllServices();
-                if (window.updateDashboard) setTimeout(() => window.updateDashboard(), 500);
-                if (window.atualizarTodosOsValores) setTimeout(() => window.atualizarTodosOsValores(), 500);
-                
-                // Fechar modal e recarregar calendário
-                const modal = bootstrap.Modal.getInstance(document.getElementById('calendarioColabModal'));
-                if (modal) modal.hide();
-                
-            } catch (error) {
-                Swal.fire('Erro', error.message, 'error');
-            }
-        }
-    }
-    
-    // ============================================================
-    // 9. ESCAPE HTML
-    // ============================================================
-    
-    function escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-    
-    // ============================================================
-    // 10. INICIALIZAR QUANDO A SEÇÃO FOR ABERTA
-    // ============================================================
-    
-    // Observar quando a seção de colaboradores for aberta
-    const observer = new MutationObserver(() => {
-        const section = document.getElementById('collaborators');
-        if (section && section.classList.contains('active')) {
-            if (!document.getElementById('cardsColaboradoresContainer')) {
-                criarTelaColaboradoresCards();
-            }
-        }
-    });
-    
-    observer.observe(document.getElementById('collaborators'), { attributes: true });
-    
-    // Inicializar se já estiver visível
-    setTimeout(() => {
-        const section = document.getElementById('collaborators');
-        if (section && section.classList.contains('active')) {
-            criarTelaColaboradoresCards();
-        }
-    }, 1000);
-    
-    console.log("✅ Cards de colaboradores criados!");
-    console.log("✅ Calendário interativo adicionado!");
-    console.log("✅ Clique em 'Ver Calendário' para ver serviços por data!");
-    
-})();
-
-// Função auxiliar para formatar moeda
-window.formatCurrency = function(value) {
-    if (typeof value !== 'number') value = parseFloat(value) || 0;
-    return '€ ' + value.toFixed(2).replace('.', ',');
-};
-
-console.log("🎉 SISTEMA COMPLETO! Agora você tem:");
-console.log("   📇 Cards com foto de cada colaborador");
-console.log("   📊 Estatísticas de vendas por colaborador");
-console.log("   📅 Calendário interativo com serviços por data");
-console.log("   ✏️ Edição rápida de serviços no calendário");
 
 
 
