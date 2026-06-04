@@ -14724,7 +14724,408 @@ window.toggleProductStatus = function(productId, isActive) {
 
 
 
+// ============================================
+// FUNÇÃO PARA REGISTRAR VENDA PASSADA
+// ============================================
 
+function showPastSaleModal() {
+    // Criar modal dinamicamente
+    const modalHtml = `
+        <div class="modal fade" id="pastSaleModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title"><i class="fas fa-calendar-plus me-2"></i>Registrar Venda Passada</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="pastSaleForm">
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                Atenção: Esta venda será registrada com a data selecionada abaixo.
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="pastSaleDate" class="form-label">Data da Venda *</label>
+                                    <input type="date" class="form-control" id="pastSaleDate" required max="${new Date().toISOString().split('T')[0]}">
+                                    <small class="text-muted">Selecione a data em que a venda ocorreu</small>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="pastSaleType" class="form-label">Tipo *</label>
+                                    <select class="form-select" id="pastSaleType" required>
+                                        <option value="">Selecione...</option>
+                                        <option value="service">Serviço</option>
+                                        <option value="product">Produto</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <!-- Campos para Serviço -->
+                            <div id="pastServiceFields" style="display: none;">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="pastClientSelect" class="form-label">Cliente *</label>
+                                        <div class="autocomplete-container">
+                                            <input type="text" class="form-control" id="pastClientSelect" placeholder="Digite para buscar cliente...">
+                                            <div class="autocomplete-list" id="pastClientAutocompleteList"></div>
+                                        </div>
+                                        <input type="hidden" id="pastSelectedClientId">
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="pastCollaboratorSelect" class="form-label">Colaborador *</label>
+                                        <select class="form-select" id="pastCollaboratorSelect">
+                                            <option value="">Selecione um colaborador</option>
+                                            ${collaborators.filter(c => c.active).map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="pastServiceType" class="form-label">Tipo de Serviço *</label>
+                                        <select class="form-select" id="pastServiceType">
+                                            <option value="">Selecione o tipo</option>
+                                            <option value="manual">Manual (Corte, Brushing, etc.)</option>
+                                            <option value="product">Com Produtos (Madeixas, Coloração, etc.)</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="pastServiceValue" class="form-label">Valor do Serviço (€) *</label>
+                                        <input type="number" class="form-control" id="pastServiceValue" step="0.01" min="0">
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="pastServiceDescription" class="form-label">Descrição do Serviço</label>
+                                    <textarea class="form-control" id="pastServiceDescription" rows="2"></textarea>
+                                </div>
+                            </div>
+                            
+                            <!-- Campos para Produto -->
+                            <div id="pastProductFields" style="display: none;">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="pastProductSelect" class="form-label">Produto *</label>
+                                        <div class="autocomplete-container">
+                                            <input type="text" class="form-control" id="pastProductSelect" placeholder="Digite para buscar produto...">
+                                            <div class="autocomplete-list" id="pastProductAutocompleteList"></div>
+                                        </div>
+                                        <input type="hidden" id="pastSelectedProductId">
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="pastProductQuantity" class="form-label">Quantidade *</label>
+                                        <input type="number" class="form-control" id="pastProductQuantity" min="1" value="1">
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="pastProductClient" class="form-label">Cliente (Opcional)</label>
+                                    <div class="autocomplete-container">
+                                        <input type="text" class="form-control" id="pastProductClient" placeholder="Digite para buscar cliente...">
+                                        <div class="autocomplete-list" id="pastProductClientAutocompleteList"></div>
+                                    </div>
+                                    <input type="hidden" id="pastSelectedProductClientId">
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-primary" id="savePastSaleBtn">
+                            <i class="fas fa-save me-2"></i>Salvar Venda Passada
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remover modal existente se houver
+    const existingModal = document.getElementById('pastSaleModal');
+    if (existingModal) existingModal.remove();
+    
+    // Adicionar modal ao body
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Inicializar autocompletes
+    setupPastSaleAutocompletes();
+    
+    // Evento para mostrar/esconder campos conforme tipo selecionado
+    document.getElementById('pastSaleType').addEventListener('change', function() {
+        const type = this.value;
+        document.getElementById('pastServiceFields').style.display = type === 'service' ? 'block' : 'none';
+        document.getElementById('pastProductFields').style.display = type === 'product' ? 'block' : 'none';
+        
+        // Marcar required nos campos
+        const serviceInputs = document.querySelectorAll('#pastServiceFields input, #pastServiceFields select, #pastServiceFields textarea');
+        const productInputs = document.querySelectorAll('#pastProductFields input, #pastProductFields select');
+        
+        serviceInputs.forEach(input => input.required = (type === 'service'));
+        productInputs.forEach(input => input.required = (type === 'product'));
+    });
+    
+    // Botão salvar
+    document.getElementById('savePastSaleBtn').addEventListener('click', savePastSale);
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('pastSaleModal'));
+    modal.show();
+}
+
+function setupPastSaleAutocompletes() {
+    // Autocomplete para clientes (serviço)
+    const clientInput = document.getElementById('pastClientSelect');
+    const clientList = document.getElementById('pastClientAutocompleteList');
+    
+    clientInput.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase();
+        if (searchTerm.length < 1) {
+            clientList.classList.remove('active');
+            return;
+        }
+        
+        const filtered = clients.filter(c => 
+            c.name.toLowerCase().includes(searchTerm) || 
+            (c.phone && c.phone.includes(searchTerm))
+        );
+        
+        let html = '';
+        filtered.slice(0, 10).forEach(c => {
+            html += `<div class="autocomplete-item" data-id="${c.id}" data-name="${c.name}">${c.name} (${c.phone || 'sem telefone'})</div>`;
+        });
+        
+        clientList.innerHTML = html;
+        clientList.classList.add('active');
+        
+        clientList.querySelectorAll('.autocomplete-item').forEach(item => {
+            item.addEventListener('click', () => {
+                clientInput.value = item.getAttribute('data-name');
+                document.getElementById('pastSelectedClientId').value = item.getAttribute('data-id');
+                clientList.classList.remove('active');
+            });
+        });
+    });
+    
+    // Autocomplete para produtos
+    const productInput = document.getElementById('pastProductSelect');
+    const productList = document.getElementById('pastProductAutocompleteList');
+    
+    productInput.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase();
+        if (searchTerm.length < 1) {
+            productList.classList.remove('active');
+            return;
+        }
+        
+        const filtered = products.filter(p => 
+            p.name.toLowerCase().includes(searchTerm) && p.active !== false
+        );
+        
+        let html = '';
+        filtered.slice(0, 10).forEach(p => {
+            html += `<div class="autocomplete-item" data-id="${p.id}" data-name="${p.name}" data-price="${p.salePrice}">${p.name} - ${formatCurrency(p.salePrice)} (${p.quantity} em estoque)</div>`;
+        });
+        
+        productList.innerHTML = html;
+        productList.classList.add('active');
+        
+        productList.querySelectorAll('.autocomplete-item').forEach(item => {
+            item.addEventListener('click', () => {
+                productInput.value = item.getAttribute('data-name');
+                document.getElementById('pastSelectedProductId').value = item.getAttribute('data-id');
+                productList.classList.remove('active');
+            });
+        });
+    });
+    
+    // Autocomplete para cliente do produto
+    const productClientInput = document.getElementById('pastProductClient');
+    const productClientList = document.getElementById('pastProductClientAutocompleteList');
+    
+    productClientInput.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase();
+        if (searchTerm.length < 1) {
+            productClientList.classList.remove('active');
+            return;
+        }
+        
+        const filtered = clients.filter(c => 
+            c.name.toLowerCase().includes(searchTerm) || 
+            (c.phone && c.phone.includes(searchTerm))
+        );
+        
+        let html = '';
+        filtered.slice(0, 10).forEach(c => {
+            html += `<div class="autocomplete-item" data-id="${c.id}" data-name="${c.name}">${c.name} (${c.phone || 'sem telefone'})</div>`;
+        });
+        html += '<div class="autocomplete-item" data-id="" data-name="Venda Avulsa">Venda Avulsa (sem cliente)</div>';
+        
+        productClientList.innerHTML = html;
+        productClientList.classList.add('active');
+        
+        productClientList.querySelectorAll('.autocomplete-item').forEach(item => {
+            item.addEventListener('click', () => {
+                productClientInput.value = item.getAttribute('data-name');
+                document.getElementById('pastSelectedProductClientId').value = item.getAttribute('data-id');
+                productClientList.classList.remove('active');
+            });
+        });
+    });
+    
+    // Fechar autocompletes ao clicar fora
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.autocomplete-container')) {
+            document.querySelectorAll('.autocomplete-list').forEach(list => list.classList.remove('active'));
+        }
+    });
+}
+
+async function savePastSale() {
+    const saleDate = document.getElementById('pastSaleDate').value;
+    const saleType = document.getElementById('pastSaleType').value;
+    
+    if (!saleDate || !saleType) {
+        showError('Por favor, preencha a data e o tipo da venda.');
+        return;
+    }
+    
+    // Verificar se a data não é futura
+    const today = new Date().toISOString().split('T')[0];
+    if (saleDate > today) {
+        showError('Não é possível registrar vendas com data futura.');
+        return;
+    }
+    
+    showLoading('Salvando venda passada...');
+    
+    try {
+        if (saleType === 'service') {
+            // Validar campos de serviço
+            const clientId = document.getElementById('pastSelectedClientId').value;
+            const collaboratorId = document.getElementById('pastCollaboratorSelect').value;
+            const serviceType = document.getElementById('pastServiceType').value;
+            const serviceValue = parseFloat(document.getElementById('pastServiceValue').value);
+            const description = document.getElementById('pastServiceDescription').value;
+            
+            if (!clientId || !collaboratorId || !serviceType || !serviceValue) {
+                throw new Error('Preencha todos os campos obrigatórios do serviço.');
+            }
+            
+            const serviceData = {
+                clientId: clientId,
+                collaboratorId: collaboratorId,
+                type: serviceType,
+                value: serviceValue,
+                description: description || 'Serviço registrado retroativamente',
+                date: saleDate,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                userId: currentUser.uid,
+                isPastSale: true,
+                originalDate: saleDate
+            };
+            
+            await db.collection('services').add(serviceData);
+            showSuccess(`Serviço registrado com sucesso na data ${formatDate(new Date(saleDate))}!`);
+            
+        } else if (saleType === 'product') {
+            // Validar campos de produto
+            const productId = document.getElementById('pastSelectedProductId').value;
+            const quantity = parseInt(document.getElementById('pastProductQuantity').value);
+            const clientId = document.getElementById('pastSelectedProductClientId').value || null;
+            
+            if (!productId || !quantity) {
+                throw new Error('Preencha todos os campos obrigatórios do produto.');
+            }
+            
+            const product = products.find(p => p.id === productId);
+            if (!product) {
+                throw new Error('Produto não encontrado.');
+            }
+            
+            // Verificar estoque (apenas aviso, não impedir)
+            if (product.quantity < quantity) {
+                const confirm = await Swal.fire({
+                    title: 'Atenção!',
+                    text: `Estoque atual: ${product.quantity}. Deseja continuar mesmo assim?`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'Sim, continuar',
+                    cancelButtonText: 'Cancelar'
+                });
+                if (!confirm.isConfirmed) return;
+            }
+            
+            const totalValue = quantity * parseFloat(product.salePrice);
+            
+            const saleData = {
+                productId: productId,
+                productName: product.name,
+                quantity: quantity,
+                unitPrice: product.salePrice,
+                totalValue: totalValue,
+                clientId: clientId,
+                date: saleDate,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                userId: currentUser.uid,
+                isPastSale: true,
+                originalDate: saleDate
+            };
+            
+            // Atualizar estoque
+            const newQuantity = Math.max(0, product.quantity - quantity);
+            await db.collection('products').doc(productId).update({ quantity: newQuantity });
+            await db.collection('productSales').add(saleData);
+            
+            showSuccess(`Venda de produto registrada com sucesso na data ${formatDate(new Date(saleDate))}!`);
+        }
+        
+        // Recarregar dados
+        await loadAllServices();
+        await loadAllProductSales();
+        await loadProducts();
+        updateDashboard();
+        updateMonthlySalesChart();
+        updateProductsSoldStats();
+        
+        // Fechar modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('pastSaleModal'));
+        if (modal) modal.hide();
+        
+        // Perguntar se quer registrar outra
+        const result = await Swal.fire({
+            title: 'Venda registrada!',
+            text: 'Deseja registrar outra venda passada?',
+            icon: 'success',
+            showCancelButton: true,
+            confirmButtonText: 'Sim',
+            cancelButtonText: 'Não'
+        });
+        
+        if (result.isConfirmed) {
+            showPastSaleModal();
+        }
+        
+    } catch (error) {
+        console.error('Erro ao salvar venda passada:', error);
+        showError('Erro ao salvar: ' + error.message);
+    }
+}
+
+// Adicionar botão na interface do Caixa
+function addPastSaleButton() {
+    const cashierHeader = document.querySelector('#cashier .card:first-child .card-header');
+    if (cashierHeader && !document.getElementById('pastSaleBtn')) {
+        const btn = document.createElement('button');
+        btn.id = 'pastSaleBtn';
+        btn.className = 'btn btn-outline-warning ms-2';
+        btn.innerHTML = '<i class="fas fa-calendar-plus me-1"></i> Registrar Venda Passada';
+        btn.addEventListener('click', showPastSaleModal);
+        cashierHeader.appendChild(btn);
+    }
+}
+
+// Executar após carregar dados
+setTimeout(() => {
+    addPastSaleButton();
+}, 2000);
 
         
 
