@@ -12348,323 +12348,312 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
         }
 
         // ========== SCRIPT DA FUNÇÃO DE AGENDA (CORRIGIDO - COM MÚLTIPLAS COLUNAS E ROLAGEM) ==========
-        
-        function initAgenda() {
-            if (!document.getElementById('agendaDateDisplay')) {
-                console.log('Elementos da agenda não encontrados, pulando inicialização');
-                return;
-            }
-            loadAppointments();
-            updateAgendaDisplay();
-        }
-        
-        function loadAppointments() {
-            if (!currentUser) return;
-            db.collection('appointments').where('userId', '==', currentUser.uid).get()
-                .then((querySnapshot) => {
-                    appointments = [];
-                    querySnapshot.forEach((doc) => {
-                        appointments.push({ id: doc.id, ...doc.data() });
-                    });
-                    renderAgendaGrid();
-                })
-                .catch((error) => console.error("Erro ao carregar agendamentos: ", error));
-        }
-        
-        function updateAgendaDisplay() {
-            const dateDisplay = document.getElementById('agendaDateDisplay');
-            if (!dateDisplay) return;
-            const options = { weekday: 'short', day: 'numeric', month: 'short' };
-            dateDisplay.innerHTML = `${currentAgendaDate.toLocaleDateString('pt-PT', options)} <i class="fas fa-chevron-down"></i>`;
-            updateAgendaProfessionals();
-            renderTimeColumn();
+ // ========== SCRIPT DA FUNÇÃO DE AGENDA (CORRIGIDO - MÚLTIPLAS COLUNAS, SEM CABEÇALHO DUPLICADO) ==========
+
+function initAgenda() {
+    if (!document.getElementById('agendaDateDisplay')) {
+        console.log('Elementos da agenda não encontrados, pulando inicialização');
+        return;
+    }
+    loadAppointments();
+    updateAgendaDisplay();
+}
+
+function loadAppointments() {
+    if (!currentUser) return;
+    db.collection('appointments').where('userId', '==', currentUser.uid).get()
+        .then((querySnapshot) => {
+            appointments = [];
+            querySnapshot.forEach((doc) => {
+                appointments.push({ id: doc.id, ...doc.data() });
+            });
             renderAgendaGrid();
-        }
-        
-        function updateAgendaProfessionals() {
-            const container = document.getElementById('agendaProfessionals');
-            if (!container) return;
-            container.innerHTML = '';
-            const activeCollaborators = collaborators.filter(c => c.active);
-            if (activeCollaborators.length === 0) {
-                container.innerHTML = '<div class="text-muted text-center p-3" style="width: 100%;">Nenhum colaborador ativo</div>';
-                return;
-            }
-            activeCollaborators.forEach((collaborator) => {
-                const div = document.createElement('div');
-                div.className = 'agenda-professional';
-                div.setAttribute('data-collaborator-id', collaborator.id);
-                const photoUrl = collaborator.photoUrl || '';
-                const initials = collaborator.name.charAt(0).toUpperCase();
-                div.innerHTML = `
-                    <div class="agenda-professional-photo-container" style="display: flex; justify-content: center; align-items: center; margin-bottom: 5px;">
-                        ${photoUrl ? 
-                            `<img src="${photoUrl}" class="agenda-professional-photo" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" alt="${collaborator.name}" data-id="${collaborator.id}" ondblclick="zoomPhoto('${photoUrl}', '${collaborator.name}')" onlongpress="zoomPhoto('${photoUrl}', '${collaborator.name}')">
-                             <div class="agenda-professional-placeholder" data-id="${collaborator.id}" style="display: none; width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, #26196b 0%, #4a3a9c 100%); color: white; font-size: 20px; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">${initials}</div>` :
-                            `<div class="agenda-professional-placeholder" data-id="${collaborator.id}" style="width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, #26196b 0%, #4a3a9c 100%); color: white; font-size: 20px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">${initials}</div>`
-                        }
-                    </div>
-                    <div class="agenda-professional-name">${collaborator.name}</div>
-                `;
-                div.addEventListener('click', function() {
-                    document.querySelectorAll('.agenda-professional').forEach(p => p.classList.remove('selected'));
-                    this.classList.add('selected');
-                    selectedCollaboratorId = collaborator.id;
-                    renderAgendaGrid();
-                });
-                container.appendChild(div);
-            });
-            // Selecionar o primeiro por padrão se necessário
-            const firstProfessional = document.querySelector('.agenda-professional');
-            if (firstProfessional && !selectedCollaboratorId) {
-                firstProfessional.click();
-            } else if (selectedCollaboratorId) {
-                const selectedEl = document.querySelector(`.agenda-professional[data-collaborator-id="${selectedCollaboratorId}"]`);
-                if (selectedEl) selectedEl.classList.add('selected');
-            }
-        }
-        
-        function renderTimeColumn() {
-            const container = document.getElementById('agendaTimeColumn');
-            if (!container) return;
-            container.innerHTML = '';
-            const now = new Date();
-            const currentHour = now.getHours();
-            const currentMinute = now.getMinutes();
-            for (let hour = 0; hour < 24; hour++) {
-                const slot = document.createElement('div');
-                slot.className = 'agenda-time-slot';
-                slot.setAttribute('data-hour', hour);
-                slot.innerHTML = `<span>${hour.toString().padStart(2, '0')}:00</span>`;
-                container.appendChild(slot);
-            }
-            const existingLine = document.querySelector('.current-time-line-global');
-            if (existingLine) existingLine.remove();
-            const existingIndicator = document.querySelector('.current-time-indicator');
-            if (existingIndicator) existingIndicator.remove();
-            const agendaContent = document.querySelector('.agenda-content');
-            if (agendaContent) {
-                const topPosition = (currentHour * 60) + currentMinute;
-                const globalLine = document.createElement('div');
-                globalLine.className = 'current-time-line-global';
-                globalLine.style.cssText = `position: absolute; left: 60px; right: 0; top: ${topPosition}px; height: 2px; background: #dc3545; z-index: 100; pointer-events: none;`;
-                const timeIndicator = document.createElement('div');
-                timeIndicator.className = 'current-time-indicator';
-                timeIndicator.style.cssText = `position: absolute; left: 0; top: ${topPosition}px; background: #dc3545; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; z-index: 101; transform: translateY(-50%); white-space: nowrap;`;
-                timeIndicator.textContent = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`;
-                agendaContent.style.position = 'relative';
-                agendaContent.appendChild(globalLine);
-                container.style.position = 'relative';
-                container.appendChild(timeIndicator);
-            }
-        }
-        
-        function renderAgendaGrid() {
-            const container = document.getElementById('agendaGrid');
-            if (!container) return;
-            container.innerHTML = '';
-            const activeCollaborators = collaborators.filter(c => c.active);
-            if (activeCollaborators.length === 0) {
-                const noCollabDiv = document.createElement('div');
-                noCollabDiv.className = 'agenda-day-column';
-                noCollabDiv.style.textAlign = 'center';
-                noCollabDiv.style.padding = '20px';
-                noCollabDiv.innerHTML = '<div class="text-muted">Nenhum colaborador ativo encontrado. Cadastre colaboradores em "Colaboradores" para usar a agenda.</div>';
-                container.appendChild(noCollabDiv);
-                return;
-            }
-            // Criar uma coluna para CADA colaborador ativo
-            activeCollaborators.forEach(collaborator => {
-                const dayColumn = document.createElement('div');
-                dayColumn.className = 'agenda-day-column';
-                dayColumn.setAttribute('data-date', currentAgendaDate.toISOString().split('T')[0]);
-                dayColumn.setAttribute('data-collaborator-id', collaborator.id);
-                // Adicionar cabeçalho com foto e nome do colaborador
-                const header = document.createElement('div');
-                header.className = 'agenda-day-header';
-                header.style.display = 'flex';
-                header.style.flexDirection = 'column';
-                header.style.alignItems = 'center';
-                header.style.padding = '10px';
-                header.style.borderBottom = '1px solid #e0e0e0';
-                header.style.backgroundColor = '#f8f9fa';
-                header.style.position = 'sticky';
-                header.style.top = '0';
-                header.style.zIndex = '15';
-                const photoUrl = collaborator.photoUrl || '';
-                const initials = collaborator.name.charAt(0).toUpperCase();
-                header.innerHTML = `
-                    <div style="width: 40px; height: 40px; border-radius: 50%; overflow: hidden; margin-bottom: 5px;">
-                        ${photoUrl ? `<img src="${photoUrl}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">` : ''}
-                        ${!photoUrl ? `<div style="width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #26196b 0%, #4a3a9c 100%); color: white; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold;">${initials}</div>` : ''}
-                    </div>
-                    <div style="font-size: 12px; font-weight: 600; text-align: center;">${collaborator.name}</div>
-                `;
-                dayColumn.appendChild(header);
-                // Adicionar slots de 15 minutos
-                for (let hour = 0; hour < 24; hour++) {
-                    for (let quarter = 0; quarter < 4; quarter++) {
-                        const slot = document.createElement('div');
-                        slot.className = 'agenda-slot-quarter';
-                        if (quarter === 0) slot.classList.add('hour-start');
-                        if (quarter === 2) slot.classList.add('half-hour');
-                        const minutes = quarter * 15;
-                        slot.setAttribute('data-hour', hour);
-                        slot.setAttribute('data-quarter', quarter);
-                        slot.setAttribute('data-minutes', minutes);
-                        slot.setAttribute('data-date', currentAgendaDate.toISOString().split('T')[0]);
-                        slot.setAttribute('data-collaborator-id', collaborator.id);
-                        slot.title = `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-                        slot.addEventListener('mousedown', (e) => startTimeSelection(e, collaborator.id));
-                        slot.addEventListener('touchstart', (e) => startTimeSelection(e, collaborator.id), { passive: false });
-                        slot.addEventListener('mouseenter', updateTimeSelection);
-                        slot.addEventListener('touchmove', updateTimeSelection, { passive: false });
-                        slot.addEventListener('mouseup', endTimeSelection);
-                        slot.addEventListener('touchend', endTimeSelection);
-                        dayColumn.appendChild(slot);
-                    }
+        })
+        .catch((error) => console.error("Erro ao carregar agendamentos: ", error));
+}
+
+function updateAgendaDisplay() {
+    const dateDisplay = document.getElementById('agendaDateDisplay');
+    if (!dateDisplay) return;
+    const options = { weekday: 'short', day: 'numeric', month: 'short' };
+    dateDisplay.innerHTML = `${currentAgendaDate.toLocaleDateString('pt-PT', options)} <i class="fas fa-chevron-down"></i>`;
+    updateAgendaProfessionals();
+    renderTimeColumn();
+    renderAgendaGrid();
+}
+
+function updateAgendaProfessionals() {
+    const container = document.getElementById('agendaProfessionals');
+    if (!container) return;
+    container.innerHTML = '';
+    const activeCollaborators = collaborators.filter(c => c.active);
+    if (activeCollaborators.length === 0) {
+        container.innerHTML = '<div class="text-muted text-center p-3" style="width: 100%;">Nenhum colaborador ativo</div>';
+        return;
+    }
+    activeCollaborators.forEach((collaborator) => {
+        const div = document.createElement('div');
+        div.className = 'agenda-professional';
+        div.setAttribute('data-collaborator-id', collaborator.id);
+        const photoUrl = collaborator.photoUrl || '';
+        const initials = collaborator.name.charAt(0).toUpperCase();
+        // Foto e nome com altura 60px (quadrado)
+        div.innerHTML = `
+            <div class="agenda-professional-photo-container" style="display: flex; justify-content: center; align-items: center; margin-bottom: 5px;">
+                ${photoUrl ? 
+                    `<img src="${photoUrl}" class="agenda-professional-photo" style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" alt="${collaborator.name}" data-id="${collaborator.id}" ondblclick="zoomPhoto('${photoUrl}', '${collaborator.name}')" onlongpress="zoomPhoto('${photoUrl}', '${collaborator.name}')">
+                     <div class="agenda-professional-placeholder" data-id="${collaborator.id}" style="display: none; width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, #26196b 0%, #4a3a9c 100%); color: white; font-size: 24px; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">${initials}</div>` :
+                    `<div class="agenda-professional-placeholder" data-id="${collaborator.id}" style="width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, #26196b 0%, #4a3a9c 100%); color: white; font-size: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">${initials}</div>`
                 }
-                container.appendChild(dayColumn);
-            });
-            renderAppointments();
-            addSelectionOverlay();
+            </div>
+            <div class="agenda-professional-name" style="font-size: 12px;">${collaborator.name}</div>
+        `;
+        div.addEventListener('click', function() {
+            document.querySelectorAll('.agenda-professional').forEach(p => p.classList.remove('selected'));
+            this.classList.add('selected');
+            selectedCollaboratorId = collaborator.id;
+            renderAgendaGrid(); // apenas re-renderiza para destacar visualmente (não altera colunas)
+        });
+        container.appendChild(div);
+    });
+    // Selecionar o primeiro por padrão se necessário
+    const firstProfessional = document.querySelector('.agenda-professional');
+    if (firstProfessional && !selectedCollaboratorId) {
+        firstProfessional.click();
+    } else if (selectedCollaboratorId) {
+        const selectedEl = document.querySelector(`.agenda-professional[data-collaborator-id="${selectedCollaboratorId}"]`);
+        if (selectedEl) selectedEl.classList.add('selected');
+    }
+}
+
+function renderTimeColumn() {
+    const container = document.getElementById('agendaTimeColumn');
+    if (!container) return;
+    container.innerHTML = '';
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    for (let hour = 0; hour < 24; hour++) {
+        const slot = document.createElement('div');
+        slot.className = 'agenda-time-slot';
+        slot.setAttribute('data-hour', hour);
+        slot.innerHTML = `<span>${hour.toString().padStart(2, '0')}:00</span>`;
+        container.appendChild(slot);
+    }
+    const existingLine = document.querySelector('.current-time-line-global');
+    if (existingLine) existingLine.remove();
+    const existingIndicator = document.querySelector('.current-time-indicator');
+    if (existingIndicator) existingIndicator.remove();
+    const agendaContent = document.querySelector('.agenda-content');
+    if (agendaContent) {
+        const topPosition = (currentHour * 60) + currentMinute;
+        const globalLine = document.createElement('div');
+        globalLine.className = 'current-time-line-global';
+        globalLine.style.cssText = `position: absolute; left: 60px; right: 0; top: ${topPosition}px; height: 2px; background: #dc3545; z-index: 100; pointer-events: none;`;
+        const timeIndicator = document.createElement('div');
+        timeIndicator.className = 'current-time-indicator';
+        timeIndicator.style.cssText = `position: absolute; left: 0; top: ${topPosition}px; background: #dc3545; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; z-index: 101; transform: translateY(-50%); white-space: nowrap;`;
+        timeIndicator.textContent = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`;
+        agendaContent.style.position = 'relative';
+        agendaContent.appendChild(globalLine);
+        container.style.position = 'relative';
+        container.appendChild(timeIndicator);
+    }
+}
+
+function renderAgendaGrid() {
+    const container = document.getElementById('agendaGrid');
+    if (!container) return;
+    container.innerHTML = '';
+    const activeCollaborators = collaborators.filter(c => c.active);
+    if (activeCollaborators.length === 0) {
+        const noCollabDiv = document.createElement('div');
+        noCollabDiv.className = 'agenda-day-column';
+        noCollabDiv.style.textAlign = 'center';
+        noCollabDiv.style.padding = '20px';
+        noCollabDiv.innerHTML = '<div class="text-muted">Nenhum colaborador ativo encontrado. Cadastre colaboradores em "Colaboradores" para usar a agenda.</div>';
+        container.appendChild(noCollabDiv);
+        return;
+    }
+    // Criar uma coluna para CADA colaborador ativo (sem cabeçalho interno)
+    activeCollaborators.forEach(collaborator => {
+        const dayColumn = document.createElement('div');
+        dayColumn.className = 'agenda-day-column';
+        dayColumn.setAttribute('data-date', currentAgendaDate.toISOString().split('T')[0]);
+        dayColumn.setAttribute('data-collaborator-id', collaborator.id);
+        // Adicionar slots de 15 minutos
+        for (let hour = 0; hour < 24; hour++) {
+            for (let quarter = 0; quarter < 4; quarter++) {
+                const slot = document.createElement('div');
+                slot.className = 'agenda-slot-quarter';
+                if (quarter === 0) slot.classList.add('hour-start');
+                if (quarter === 2) slot.classList.add('half-hour');
+                const minutes = quarter * 15;
+                slot.setAttribute('data-hour', hour);
+                slot.setAttribute('data-quarter', quarter);
+                slot.setAttribute('data-minutes', minutes);
+                slot.setAttribute('data-date', currentAgendaDate.toISOString().split('T')[0]);
+                slot.setAttribute('data-collaborator-id', collaborator.id);
+                slot.title = `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+                // Evento de clique (mouse e toque)
+                slot.addEventListener('mousedown', (e) => startTimeSelection(e, collaborator.id));
+                slot.addEventListener('touchstart', (e) => startTimeSelection(e, collaborator.id), { passive: false });
+                slot.addEventListener('mouseenter', updateTimeSelection);
+                slot.addEventListener('touchmove', updateTimeSelection, { passive: false });
+                slot.addEventListener('mouseup', endTimeSelection);
+                slot.addEventListener('touchend', endTimeSelection);
+                dayColumn.appendChild(slot);
+            }
         }
-        
-        // Modificado para receber o ID do colaborador
-        function startTimeSelection(e, collaboratorId) {
-            const slot = e.target.closest('.agenda-slot-quarter');
-            if (!slot) return;
-            const date = slot.getAttribute('data-date');
+        container.appendChild(dayColumn);
+    });
+    renderAppointments();
+    addSelectionOverlay();
+}
+
+// Função de início de seleção (restaurada com colaboratorId)
+function startTimeSelection(e, collaboratorId) {
+    const slot = e.target.closest('.agenda-slot-quarter');
+    if (!slot) return;
+    const date = slot.getAttribute('data-date');
+    const hour = parseInt(slot.getAttribute('data-hour'));
+    const quarter = parseInt(slot.getAttribute('data-quarter'));
+    // Armazenar o colaborador atual
+    selectedCollaboratorId = collaboratorId;
+    // Marcar visualmente o profissional no topo
+    document.querySelectorAll('.agenda-professional').forEach(p => p.classList.remove('selected'));
+    const profDiv = document.querySelector(`.agenda-professional[data-collaborator-id="${collaboratorId}"]`);
+    if (profDiv) profDiv.classList.add('selected');
+
+    if (e.type === 'mousedown') {
+        e.preventDefault();
+        isSelectingTime = true;
+        selectionStartTime = { date, hour, quarter };
+        selectionEndTime = { date, hour, quarter };
+        updateSelectionOverlay();
+        return;
+    }
+    if (e.type === 'touchstart') {
+        isSelectingTime = false;
+        if (longPressTimer) clearTimeout(longPressTimer);
+        longPressTimer = setTimeout(() => {
+            isSelectingTime = true;
+            selectionStartTime = { date, hour, quarter };
+            selectionEndTime = { date, hour, quarter };
+            updateSelectionOverlay();
+            if (navigator.vibrate) navigator.vibrate(50);
+        }, 500);
+    }
+}
+
+function updateTimeSelection(e) {
+    if (!isSelectingTime) return;
+    if (e.type === 'touchmove') {
+        e.preventDefault();
+        const touch = e.touches[0];
+        const element = document.elementFromPoint(touch.clientX, touch.clientY);
+        const slot = element ? element.closest('.agenda-slot-quarter') : null;
+        if (slot) {
             const hour = parseInt(slot.getAttribute('data-hour'));
             const quarter = parseInt(slot.getAttribute('data-quarter'));
-            selectedCollaboratorId = collaboratorId;
-            if (e.type === 'mousedown') {
-                e.preventDefault();
-                isSelectingTime = true;
-                selectionStartTime = { date, hour, quarter };
+            const date = slot.getAttribute('data-date');
+            if (date === selectionStartTime.date) {
                 selectionEndTime = { date, hour, quarter };
                 updateSelectionOverlay();
-                return;
-            }
-            if (e.type === 'touchstart') {
-                isSelectingTime = false;
-                longPressTimer = setTimeout(() => {
-                    isSelectingTime = true;
-                    selectionStartTime = { date, hour, quarter };
-                    selectionEndTime = { date, hour, quarter };
-                    updateSelectionOverlay();
-                    if (navigator.vibrate) navigator.vibrate(50);
-                }, 500);
             }
         }
-        
-        function updateTimeSelection(e) {
-            if (!isSelectingTime) return;
-            if (e.type === 'touchmove') {
-                if (!isSelectingTime) return;
-                e.preventDefault();
-                const touch = e.touches[0];
-                const element = document.elementFromPoint(touch.clientX, touch.clientY);
-                const slot = element ? element.closest('.agenda-slot-quarter') : null;
-                if (slot) {
-                    const hour = parseInt(slot.getAttribute('data-hour'));
-                    const quarter = parseInt(slot.getAttribute('data-quarter'));
-                    const date = slot.getAttribute('data-date');
-                    if (date === selectionStartTime.date) {
-                        selectionEndTime = { date, hour, quarter };
-                        updateSelectionOverlay();
-                    }
-                }
-                return;
-            }
-            if (e.type === 'mouseenter') {
-                const slot = e.target.closest('.agenda-slot-quarter');
-                if (!slot) return;
-                const date = slot.getAttribute('data-date');
-                const hour = parseInt(slot.getAttribute('data-hour'));
-                const quarter = parseInt(slot.getAttribute('data-quarter'));
-                if (date === selectionStartTime.date) {
-                    selectionEndTime = { date, hour, quarter };
-                    updateSelectionOverlay();
-                }
-            }
+        return;
+    }
+    if (e.type === 'mouseenter') {
+        const slot = e.target.closest('.agenda-slot-quarter');
+        if (!slot) return;
+        const date = slot.getAttribute('data-date');
+        const hour = parseInt(slot.getAttribute('data-hour'));
+        const quarter = parseInt(slot.getAttribute('data-quarter'));
+        if (date === selectionStartTime.date) {
+            selectionEndTime = { date, hour, quarter };
+            updateSelectionOverlay();
         }
-        
-        function endTimeSelection(e) {
-            if (longPressTimer) clearTimeout(longPressTimer);
-            if (!isSelectingTime) return;
-            if (selectionStartTime && selectionEndTime) {
-                const startTotal = selectionStartTime.hour * 60 + selectionStartTime.quarter * 15;
-                const endTotal = selectionEndTime.hour * 60 + selectionEndTime.quarter * 15;
-                const minTotal = Math.min(startTotal, endTotal);
-                const hour = Math.floor(minTotal / 60);
-                const minute = minTotal % 60;
-                selectedDate = selectionStartTime.date;
-                selectedTime = { hour, minute };
-                showClientSelection();
-            }
-            const overlay = document.getElementById('agendaSelectionOverlay');
-            if (overlay) overlay.style.display = 'none';
-            selectionStartTime = null;
-            selectionEndTime = null;
-            isSelectingTime = false;
-        }
-        
-        function updateSelectionOverlay() {
-            if (!selectionStartTime || !selectionEndTime) return;
-            const overlay = document.getElementById('agendaSelectionOverlay');
-            if (!overlay) return;
-            const startTotal = selectionStartTime.hour * 4 + selectionStartTime.quarter;
-            const endTotal = selectionEndTime.hour * 4 + selectionEndTime.quarter;
-            const minPos = Math.min(startTotal, endTotal);
-            const maxPos = Math.max(startTotal, endTotal);
-            overlay.style.display = 'block';
-            overlay.style.top = `${minPos * 15}px`;
-            overlay.style.height = `${(maxPos - minPos + 1) * 15}px`;
-            overlay.style.left = '0';
-            overlay.style.right = '0';
-            const startHour = Math.floor(minPos / 4);
-            const startMin = (minPos % 4) * 15;
-            const endHour = Math.floor((maxPos + 1) / 4);
-            const endMin = ((maxPos + 1) % 4) * 15;
-            overlay.innerHTML = `<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(38, 25, 107, 0.9); color: white; padding: 5px 10px; border-radius: 4px; font-size: 12px; font-weight: bold;">${startHour.toString().padStart(2, '0')}:${startMin.toString().padStart(2, '0')} - ${endHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')}</div>`;
-        }
-        
-        function addSelectionOverlay() {
-            let overlay = document.getElementById('agendaSelectionOverlay');
-            if (!overlay) {
-                overlay = document.createElement('div');
-                overlay.id = 'agendaSelectionOverlay';
-                overlay.className = 'agenda-selection-overlay';
-                overlay.style.display = 'none';
-                document.getElementById('agendaSlotsContainer').appendChild(overlay);
-            }
-            return overlay;
-        }
-        
-        function renderAppointments() {
-            document.querySelectorAll('.agenda-appointment').forEach(el => el.remove());
-            const currentDateStr = currentAgendaDate.toISOString().split('T')[0];
-            appointments.forEach(appointment => {
-                if (appointment.date !== currentDateStr) return;
-                const dayColumn = document.querySelector(`.agenda-day-column[data-collaborator-id="${appointment.collaboratorId}"]`);
-                if (!dayColumn) return;
-                const startHour = parseInt(appointment.startTime.split(':')[0]);
-                const startMinute = parseInt(appointment.startTime.split(':')[1]);
-                const duration = appointment.duration || 60;
-                const totalMinutes = startHour * 60 + startMinute;
-                const topPosition = totalMinutes;
-                const height = duration;
-                const appointmentEl = document.createElement('div');
-                appointmentEl.className = 'agenda-appointment';
-                appointmentEl.style.top = `${topPosition}px`;
-                appointmentEl.style.height = `${Math.max(height, 30)}px`;
-                appointmentEl.style.background = `linear-gradient(135deg, #26196b 0%, #4a3a9c 100%)`;
-                appointmentEl.innerHTML = `<div class="agenda-appointment-time">${appointment.startTime} - ${appointment.endTime || ''}</div><div class="agenda-appointment-client">${appointment.clientName || 'Cliente'}</div><div class="agenda-appointment-service">${appointment.serviceName || 'Serviço'}</div>`;
-                appointmentEl.addEventListener('click', (e) => { e.stopPropagation(); showAppointmentDetails(appointment.id); });
-                dayColumn.appendChild(appointmentEl);
-            });
-        }
+    }
+}
+
+function endTimeSelection(e) {
+    if (longPressTimer) clearTimeout(longPressTimer);
+    if (!isSelectingTime) return;
+    if (selectionStartTime && selectionEndTime) {
+        const startTotal = selectionStartTime.hour * 60 + selectionStartTime.quarter * 15;
+        const endTotal = selectionEndTime.hour * 60 + selectionEndTime.quarter * 15;
+        const minTotal = Math.min(startTotal, endTotal);
+        const hour = Math.floor(minTotal / 60);
+        const minute = minTotal % 60;
+        selectedDate = selectionStartTime.date;
+        selectedTime = { hour, minute };
+        // Abrir tela de seleção de cliente
+        showClientSelection();
+    }
+    const overlay = document.getElementById('agendaSelectionOverlay');
+    if (overlay) overlay.style.display = 'none';
+    selectionStartTime = null;
+    selectionEndTime = null;
+    isSelectingTime = false;
+}
+
+function updateSelectionOverlay() {
+    if (!selectionStartTime || !selectionEndTime) return;
+    const overlay = document.getElementById('agendaSelectionOverlay');
+    if (!overlay) return;
+    const startTotal = selectionStartTime.hour * 4 + selectionStartTime.quarter;
+    const endTotal = selectionEndTime.hour * 4 + selectionEndTime.quarter;
+    const minPos = Math.min(startTotal, endTotal);
+    const maxPos = Math.max(startTotal, endTotal);
+    overlay.style.display = 'block';
+    overlay.style.top = `${minPos * 15}px`;
+    overlay.style.height = `${(maxPos - minPos + 1) * 15}px`;
+    overlay.style.left = '0';
+    overlay.style.right = '0';
+    const startHour = Math.floor(minPos / 4);
+    const startMin = (minPos % 4) * 15;
+    const endHour = Math.floor((maxPos + 1) / 4);
+    const endMin = ((maxPos + 1) % 4) * 15;
+    overlay.innerHTML = `<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(38, 25, 107, 0.9); color: white; padding: 5px 10px; border-radius: 4px; font-size: 12px; font-weight: bold;">${startHour.toString().padStart(2, '0')}:${startMin.toString().padStart(2, '0')} - ${endHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')}</div>`;
+}
+
+function addSelectionOverlay() {
+    let overlay = document.getElementById('agendaSelectionOverlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'agendaSelectionOverlay';
+        overlay.className = 'agenda-selection-overlay';
+        overlay.style.display = 'none';
+        document.getElementById('agendaSlotsContainer').appendChild(overlay);
+    }
+    return overlay;
+}
+
+function renderAppointments() {
+    document.querySelectorAll('.agenda-appointment').forEach(el => el.remove());
+    const currentDateStr = currentAgendaDate.toISOString().split('T')[0];
+    appointments.forEach(appointment => {
+        if (appointment.date !== currentDateStr) return;
+        const dayColumn = document.querySelector(`.agenda-day-column[data-collaborator-id="${appointment.collaboratorId}"]`);
+        if (!dayColumn) return;
+        const startHour = parseInt(appointment.startTime.split(':')[0]);
+        const startMinute = parseInt(appointment.startTime.split(':')[1]);
+        const duration = appointment.duration || 60;
+        const totalMinutes = startHour * 60 + startMinute;
+        const topPosition = totalMinutes;
+        const height = duration;
+        const appointmentEl = document.createElement('div');
+        appointmentEl.className = 'agenda-appointment';
+        appointmentEl.style.top = `${topPosition}px`;
+        appointmentEl.style.height = `${Math.max(height, 30)}px`;
+        appointmentEl.style.background = `linear-gradient(135deg, #26196b 0%, #4a3a9c 100%)`;
+        appointmentEl.innerHTML = `<div class="agenda-appointment-time">${appointment.startTime} - ${appointment.endTime || ''}</div><div class="agenda-appointment-client">${appointment.clientName || 'Cliente'}</div><div class="agenda-appointment-service">${appointment.serviceName || 'Serviço'}</div>`;
+        appointmentEl.addEventListener('click', (e) => { e.stopPropagation(); showAppointmentDetails(appointment.id); });
+        dayColumn.appendChild(appointmentEl);
+    });
+}
+
         
         // As funções auxiliares de seleção de cliente, serviço e salvamento permanecem as mesmas da versão anterior
         // (showClientSelection, loadClientsForSelection, searchClientsForAgenda, showAddClientModalFromAgenda, selectNoReservation, 
