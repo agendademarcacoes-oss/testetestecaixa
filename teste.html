@@ -3016,6 +3016,55 @@
     flex: 1;
 }
 
+/* Adicione NO FINAL da tag <style> - NÃO remova nada existente */
+
+/* Garante que perfis e colunas tenham a mesma largura */
+.agenda-professionals {
+    display: flex;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    background: white;
+    border-bottom: 2px solid #e0e0e0;
+    padding: 10px 0;
+}
+
+.agenda-professionals .agenda-professional {
+    min-width: 220px;
+    flex: 0 0 auto;
+    text-align: center;
+    padding: 5px 10px;
+    transition: all 0.3s ease;
+}
+
+.agenda-day-column {
+    min-width: 220px;
+    flex: 0 0 auto;
+    border-right: 1px solid #e0e0e0;
+    position: relative;
+}
+
+/* Para quando tem poucos colaboradores, ocupar toda a largura */
+.agenda-grid.single-column .agenda-day-column,
+.agenda-grid.two-columns .agenda-day-column,
+.agenda-grid.three-columns .agenda-day-column {
+    min-width: 220px;
+    flex: 1;
+}
+
+/* Mantém a rolagem suave */
+.agenda-slots-container {
+    overflow-x: auto;
+    overflow-y: auto;
+}
+
+/* Espaço reservado para o cabeçalho dos perfis */
+.agenda-professionals .empty-header-placeholder {
+    width: 60px;
+    min-width: 60px;
+    flex-shrink: 0;
+}
+
        /* ===== DASHBOARD OTIMIZADO PARA CELULAR - VERSÃO FINAL COM ESPAÇO NAS LATERAIS ===== */
 @media (max-width: 768px) {
     
@@ -12428,6 +12477,82 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                 });
         }
 
+// SUA FUNÇÃO ORIGINAL - apenas adicione a última linha
+function renderAgendaGrid() {
+    const container = document.getElementById('agendaGrid');
+    if (!container) return;
+    container.innerHTML = '';
+    
+    const activeCollaborators = collaborators.filter(c => c.active === true);
+    
+    if (activeCollaborators.length === 0) {
+        const noCollabDiv = document.createElement('div');
+        noCollabDiv.className = 'agenda-day-column';
+        noCollabDiv.style.textAlign = 'center';
+        noCollabDiv.style.padding = '20px';
+        noCollabDiv.innerHTML = '<div class="text-muted">Nenhum colaborador ativo encontrado. Cadastre colaboradores em "Colaboradores" para usar a agenda.</div>';
+        container.appendChild(noCollabDiv);
+        return;
+    }
+
+    container.classList.remove('single-column', 'two-columns', 'three-columns', 'scrollable');
+    if (activeCollaborators.length === 1) {
+        container.classList.add('single-column');
+    } else if (activeCollaborators.length === 2) {
+        container.classList.add('two-columns');
+    } else if (activeCollaborators.length === 3) {
+        container.classList.add('three-columns');
+    } else {
+        container.classList.add('scrollable');
+    }
+    
+    activeCollaborators.forEach(collaborator => {
+        const dayColumn = document.createElement('div');
+        dayColumn.className = 'agenda-day-column';
+        dayColumn.setAttribute('data-date', currentAgendaDate.toISOString().split('T')[0]);
+        dayColumn.setAttribute('data-collaborator-id', collaborator.id);
+        
+        const collaboratorHeader = document.createElement('div');
+        collaboratorHeader.className = 'agenda-day-header';
+        collaboratorHeader.textContent = collaborator.name;
+        collaboratorHeader.style.cssText = 'padding: 8px; text-align: center; font-weight: bold; background: #f8f9fa; border-bottom: 1px solid #e0e0e0;';
+        dayColumn.appendChild(collaboratorHeader);
+
+        for (let hour = 0; hour < 24; hour++) {
+            for (let quarter = 0; quarter < 4; quarter++) {
+                const slot = document.createElement('div');
+                slot.className = 'agenda-slot-quarter';
+                if (quarter === 0) slot.classList.add('hour-start');
+                if (quarter === 2) slot.classList.add('half-hour');
+                const minutes = quarter * 15;
+                
+                slot.setAttribute('data-hour', hour);
+                slot.setAttribute('data-quarter', quarter);
+                slot.setAttribute('data-minutes', minutes);
+                slot.setAttribute('data-date', currentAgendaDate.toISOString().split('T')[0]);
+                slot.setAttribute('data-collaborator-id', collaborator.id);
+                slot.title = `${collaborator.name} - ${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+                
+                slot.addEventListener('mousedown', startTimeSelection);
+                slot.addEventListener('touchstart', startTimeSelection, { passive: false });
+                slot.addEventListener('mouseenter', updateTimeSelection);
+                slot.addEventListener('touchmove', updateTimeSelection, { passive: false });
+                slot.addEventListener('mouseup', endTimeSelection);
+                slot.addEventListener('touchend', endTimeSelection);
+                
+                dayColumn.appendChild(slot);
+            }
+        }
+        container.appendChild(dayColumn);
+    });
+    
+    renderAppointmentsForAll();
+    
+    // 🔥 APENAS ADICIONE ESTA LINHA - NÃO MUDE MAIS NADA 🔥
+    syncAgendaScrollAndWidths();
+}
+        
+
                 function updateAgendaDisplay() {
     const dateDisplay = document.getElementById('agendaDateDisplay');
     if (!dateDisplay) return;
@@ -12440,8 +12565,49 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
     renderTimeColumn();
     renderAgendaGrid();
     
-    // Reforça o sincronismo após a renderização
-    setTimeout(syncAgendaScrollAndWidth, 150);
+    // 🔥 ADICIONE ESTA LINHA 🔥
+    setTimeout(syncAgendaScrollAndWidths, 150);
+}
+
+// FUNÇÃO NOVA: Sincroniza rolagem e larguras entre perfis e agenda
+function syncAgendaScrollAndWidths() {
+    const perfisContainer = document.getElementById('agendaProfessionals');
+    const agendaContainer = document.getElementById('agendaSlotsContainer');
+    
+    if (!perfisContainer || !agendaContainer) return;
+    
+    // Sincroniza a rolagem horizontal
+    const syncScroll = () => {
+        perfisContainer.scrollLeft = agendaContainer.scrollLeft;
+    };
+    
+    agendaContainer.addEventListener('scroll', syncScroll);
+    perfisContainer.addEventListener('scroll', () => {
+        agendaContainer.scrollLeft = perfisContainer.scrollLeft;
+    });
+    
+    // Sincroniza as larguras
+    function syncWidths() {
+        const columns = document.querySelectorAll('.agenda-day-column');
+        const profileCards = document.querySelectorAll('.agenda-professional');
+        
+        if (columns.length > 0 && profileCards.length > 0) {
+            columns.forEach((column, index) => {
+                if (profileCards[index]) {
+                    const width = column.offsetWidth;
+                    profileCards[index].style.minWidth = width + 'px';
+                    profileCards[index].style.width = width + 'px';
+                    profileCards[index].style.maxWidth = width + 'px';
+                }
+            });
+        }
+    }
+    
+    agendaContainer.addEventListener('scroll', syncWidths);
+    window.addEventListener('resize', syncWidths);
+    setTimeout(syncWidths, 100);
+    
+    console.log('✅ Sincronismo de agenda ativado');
 }
 
 
@@ -12635,12 +12801,13 @@ function syncAgendaScroll() {
             }
         }
 
-                function updateAgendaProfessionals() {
+                // SUA FUNÇÃO ORIGINAL - mantenha como está, apenas verifique se tem o placeholder
+function updateAgendaProfessionals() {
     const container = document.getElementById('agendaProfessionals');
     if (!container) return;
     container.innerHTML = '';
     
-    // Adiciona um espaço vazio para alinhar com a coluna de horários
+    // Adiciona espaço para alinhar com a coluna de horários
     const emptyHeader = document.createElement('div');
     emptyHeader.className = 'empty-header-placeholder';
     emptyHeader.style.width = '60px';
@@ -12655,11 +12822,17 @@ function syncAgendaScroll() {
         return;
     }
     
-    activeCollaborators.forEach(collaborator => {
+    activeCollaborators.forEach((collaborator, index) => {
         const div = document.createElement('div');
         div.className = 'agenda-professional';
         div.setAttribute('data-collaborator-id', collaborator.id);
-        div.style.flex = '0 0 auto';
+        
+        if (index === 0 && !selectedCollaboratorId) {
+            selectedCollaboratorId = collaborator.id;
+            div.classList.add('selected');
+        } else if (selectedCollaboratorId === collaborator.id) {
+            div.classList.add('selected');
+        }
         
         const photoUrl = collaborator.photoUrl || '';
         const initials = collaborator.name.charAt(0).toUpperCase();
@@ -12670,31 +12843,34 @@ function syncAgendaScroll() {
                     `<img src="${photoUrl}" class="agenda-professional-photo" 
                          onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" 
                          alt="${collaborator.name}"
-                         style="width: 55px; height: 55px; border-radius: 50%; object-fit: cover; cursor: pointer; border: 3px solid transparent; transition: all 0.3s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
+                         data-id="${collaborator.id}"
                          ondblclick="zoomPhoto('${photoUrl}', '${collaborator.name}')"
                          onlongpress="zoomPhoto('${photoUrl}', '${collaborator.name}')">
                      <div class="agenda-professional-placeholder" 
-                          style="display: none; width: 55px; height: 55px; border-radius: 50%; background: linear-gradient(135deg, #26196b 0%, #4a3a9c 100%); color: white; font-size: 22px; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
+                          data-id="${collaborator.id}"
+                          style="display: none; width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, #26196b 0%, #4a3a9c 100%); color: white; font-size: 20px; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
                          ${initials}
                      </div>` :
                     `<div class="agenda-professional-placeholder" 
-                          style="width: 55px; height: 55px; border-radius: 50%; background: linear-gradient(135deg, #26196b 0%, #4a3a9c 100%); color: white; font-size: 22px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
+                          data-id="${collaborator.id}"
+                          style="width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, #26196b 0%, #4a3a9c 100%); color: white; font-size: 20px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
                          ${initials}
                      </div>`
                 }
             </div>
-            <div class="agenda-professional-name" style="font-size: 13px; font-weight: 600; text-align: center; white-space: normal; word-break: break-word;">${collaborator.name}</div>
+            <div class="agenda-professional-name">${collaborator.name}</div>
         `;
         
         div.addEventListener('click', function() {
             document.querySelectorAll('.agenda-professional').forEach(p => p.classList.remove('selected'));
             this.classList.add('selected');
+            selectedCollaboratorId = collaborator.id;
+            renderAgendaGrid();
         });
         
         container.appendChild(div);
     });
 }
-
 
         // FUNÇÃO PARA SINCRONIZAR A ROLAGEM ENTRE PERFIS E AGENDA
         function syncAgendaScroll() {
