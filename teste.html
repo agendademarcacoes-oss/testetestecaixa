@@ -3065,25 +3065,6 @@
     flex-shrink: 0;
 }
 
-/* Melhora a experiência de toque na agenda */
-.agenda-slot-quarter {
-    cursor: pointer;
-    touch-action: none; /* Previne scroll da página enquanto arrasta na agenda */
-    transition: background-color 0.1s ease;
-    -webkit-tap-highlight-color: transparent; /* Remove o highlight cinza no toque */
-}
-
-/* Feedback visual para toque longo */
-.agenda-slot-quarter.long-press-active {
-    background: rgba(38, 25, 107, 0.15);
-}
-
-/* Overlay de seleção com transição suave */
-.agenda-selection-overlay {
-    transition: all 0.05s linear;
-    will-change: top, height;
-}
-
        /* ===== DASHBOARD OTIMIZADO PARA CELULAR - VERSÃO FINAL COM ESPAÇO NAS LATERAIS ===== */
 @media (max-width: 768px) {
     
@@ -5400,12 +5381,6 @@
         let products = [];
         let selectedClientId = null;
         let clientNotes = {};
-        // Variáveis para controle de toque na agenda
-let touchStartTime = null;
-let touchStartPos = null;
-let touchMoved = false;
-const LONG_PRESS_DURATION = 300; // milissegundos para considerar toque longo
-const SCROLL_SENSITIVITY = 10; // pixels de movimento para considerar scroll
         
         // NOVA VARIÁVEL: Serviços da Empresa (apenas nome)
         let companyServices = [];
@@ -12051,30 +12026,6 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             }
         }
 
-
-        // Adiciona feedback visual durante toque longo
-function addLongPressFeedback() {
-    const slots = document.querySelectorAll('.agenda-slot-quarter');
-    
-    slots.forEach(slot => {
-        slot.addEventListener('touchstart', function() {
-            this.classList.add('long-press-active');
-        });
-        
-        slot.addEventListener('touchend', function() {
-            this.classList.remove('long-press-active');
-        });
-        
-        slot.addEventListener('touchcancel', function() {
-            this.classList.remove('long-press-active');
-        });
-    });
-}
-
-// Chame esta função após renderizar a agenda
-// Adicione dentro de renderAgendaGrid(), no final:
-// addLongPressFeedback();
-
         // NOVA FUNÇÃO: Buscar clientes na tabela (adaptada para mostrar fotos)
         function searchClients() {
             const searchTerm = document.getElementById('clientSearch').value.toLowerCase();
@@ -13046,177 +12997,46 @@ function updateAgendaProfessionals() {
         let isLongPress = false;
         let touchStartY = 0;
 
-        // ============================================
-// FUNÇÕES DE SELEÇÃO DE HORÁRIO COM TOQUE MELHORADO
-// ============================================
-
-function startTimeSelection(e) {
-    const slot = e.target.closest('.agenda-slot-quarter');
-    if (!slot) return;
-    
-    const date = slot.getAttribute('data-date');
-    const hour = parseInt(slot.getAttribute('data-hour'));
-    const quarter = parseInt(slot.getAttribute('data-quarter'));
-    const clickedCollaboratorId = slot.closest('.agenda-day-column')?.getAttribute('data-collaborator-id');
-    
-    if (clickedCollaboratorId) {
-        selectedCollaboratorId = clickedCollaboratorId;
-        document.querySelectorAll('.agenda-professional').forEach(p => {
-            p.classList.remove('selected');
-            if (p.getAttribute('data-collaborator-id') === clickedCollaboratorId) p.classList.add('selected');
-        });
-    }
-    
-    // Para MOUSE (clique e arrasto)
-    if (e.type === 'mousedown') {
-        e.preventDefault();
-        isSelectingTime = true;
-        selectionStartTime = { date, hour, quarter, collaboratorId: clickedCollaboratorId };
-        selectionEndTime = { date, hour, quarter, collaboratorId: clickedCollaboratorId };
-        updateSelectionOverlay();
-        return;
-    }
-    
-    // Para TOUCH (tela sensível ao toque)
-    if (e.type === 'touchstart') {
-        e.preventDefault();
-        
-        // Armazena o início do toque
-        touchStartTime = Date.now();
-        touchStartPos = {
-            x: e.touches[0].clientX,
-            y: e.touches[0].clientY
-        };
-        touchMoved = false;
-        
-        // Configura um timer para detectar toque longo
-        const longPressTimer = setTimeout(() => {
-            // Se passou do tempo limite e não moveu muito, inicia seleção
-            if (!touchMoved && (Date.now() - touchStartTime) >= LONG_PRESS_DURATION) {
+        function startTimeSelection(e) {
+            const slot = e.target.closest('.agenda-slot-quarter');
+            if (!slot) return;
+            
+            const date = slot.getAttribute('data-date');
+            const hour = parseInt(slot.getAttribute('data-hour'));
+            const quarter = parseInt(slot.getAttribute('data-quarter'));
+            const clickedCollaboratorId = slot.closest('.agenda-day-column')?.getAttribute('data-collaborator-id');
+            
+            if (clickedCollaboratorId) {
+                selectedCollaboratorId = clickedCollaboratorId;
+                document.querySelectorAll('.agenda-professional').forEach(p => {
+                    p.classList.remove('selected');
+                    if (p.getAttribute('data-collaborator-id') === clickedCollaboratorId) p.classList.add('selected');
+                });
+            }
+            
+            if (e.type === 'mousedown') {
+                e.preventDefault();
                 isSelectingTime = true;
+                isLongPress = true;
                 selectionStartTime = { date, hour, quarter, collaboratorId: clickedCollaboratorId };
                 selectionEndTime = { date, hour, quarter, collaboratorId: clickedCollaboratorId };
                 updateSelectionOverlay();
-                
-                // Feedback tátil (vibração) se disponível
-                if (navigator.vibrate) navigator.vibrate(50);
+                return;
             }
-        }, LONG_PRESS_DURATION);
-        
-        // Armazena o timer para limpar depois
-        slot._longPressTimer = longPressTimer;
-    }
-}
-
-function updateTimeSelection(e) {
-    // Para TOUCH MOVE
-    if (e.type === 'touchmove') {
-        const currentPos = {
-            x: e.touches[0].clientX,
-            y: e.touches[0].clientY
-        };
-        
-        if (touchStartPos) {
-            const deltaX = Math.abs(currentPos.x - touchStartPos.x);
-            const deltaY = Math.abs(currentPos.y - touchStartPos.y);
             
-            // Se moveu mais que o limite, marca como movimento (scroll)
-            if (deltaX > SCROLL_SENSITIVITY || deltaY > SCROLL_SENSITIVITY) {
-                touchMoved = true;
-            }
-        }
-        
-        // Se está em modo de seleção, atualiza o overlay
-        if (isSelectingTime) {
-            e.preventDefault();
-            const touch = e.touches[0];
-            const element = document.elementFromPoint(touch.clientX, touch.clientY);
-            const slot = element?.closest('.agenda-slot-quarter');
-            
-            if (slot) {
-                const hour = parseInt(slot.getAttribute('data-hour'));
-                const quarter = parseInt(slot.getAttribute('data-quarter'));
-                const date = slot.getAttribute('data-date');
-                if (date === selectionStartTime.date) {
-                    selectionEndTime = { date, hour, quarter };
+            if (e.type === 'touchstart') {
+                touchStartY = e.touches[0].clientY;
+                isLongPress = false;
+                longPressTimer = setTimeout(() => {
+                    isLongPress = true;
+                    isSelectingTime = true;
+                    selectionStartTime = { date, hour, quarter, collaboratorId: clickedCollaboratorId };
+                    selectionEndTime = { date, hour, quarter, collaboratorId: clickedCollaboratorId };
                     updateSelectionOverlay();
-                }
+                    if (navigator.vibrate) navigator.vibrate(50);
+                }, 500);
             }
         }
-        return;
-    }
-    
-    // Para MOUSE ENTER
-    if (!isSelectingTime || e.type !== 'mouseenter') return;
-    const slot = e.target.closest('.agenda-slot-quarter');
-    if (!slot) return;
-    
-    const date = slot.getAttribute('data-date');
-    const hour = parseInt(slot.getAttribute('data-hour'));
-    const quarter = parseInt(slot.getAttribute('data-quarter'));
-    
-    if (date === selectionStartTime.date) {
-        selectionEndTime = { date, hour, quarter };
-        updateSelectionOverlay();
-    }
-}
-
-function endTimeSelection(e) {
-    // Limpa os timers pendentes
-    document.querySelectorAll('.agenda-slot-quarter').forEach(slot => {
-        if (slot._longPressTimer) {
-            clearTimeout(slot._longPressTimer);
-            delete slot._longPressTimer;
-        }
-    });
-    
-    // Se não está selecionando, apenas reseta e sai
-    if (!isSelectingTime) {
-        touchStartTime = null;
-        touchStartPos = null;
-        touchMoved = false;
-        return;
-    }
-    
-    // Previne comportamento padrão no toque
-    if (e.type === 'touchend') {
-        e.preventDefault();
-    }
-    
-    isSelectingTime = false;
-    
-    // Se tem uma seleção válida, abre a tela de agendamento
-    if (selectionStartTime && selectionEndTime) {
-        const startTotal = selectionStartTime.hour * 60 + selectionStartTime.quarter * 15;
-        const endTotal = selectionEndTime.hour * 60 + selectionEndTime.quarter * 15;
-        const minTotal = Math.min(startTotal, endTotal);
-        const maxTotal = Math.max(startTotal, endTotal);
-        
-        const hour = Math.floor(minTotal / 60);
-        const minute = minTotal % 60;
-        
-        selectedDate = selectionStartTime.date;
-        selectedTime = { hour, minute };
-        
-        // Calcula a duração em minutos
-        const durationMinutes = maxTotal - minTotal;
-        
-        // Fecha o overlay
-        const overlay = document.getElementById('agendaSelectionOverlay');
-        if (overlay) overlay.style.display = 'none';
-        
-        // Abre a tela de seleção de cliente (que leva ao agendamento)
-        showClientSelection();
-        
-        // Limpa a seleção
-        selectionStartTime = null;
-        selectionEndTime = null;
-    }
-    
-    touchStartTime = null;
-    touchStartPos = null;
-    touchMoved = false;
-}
 
         function updateTimeSelection(e) {
             if (e.type === 'touchmove') {
