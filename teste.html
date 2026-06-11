@@ -2959,6 +2959,63 @@
             transform: none;
         }
 
+        /* Sincroniza a largura dos cards de perfil com as colunas da agenda */
+.agenda-professionals {
+    display: flex;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    background: white;
+    border-bottom: 2px solid #e0e0e0;
+    padding: 10px 0;
+    /* Importante: mesma largura de scroll que a agenda */
+}
+
+.agenda-professionals .agenda-professional {
+    min-width: 220px;  /* mesma largura da coluna da agenda */
+    flex: 0 0 auto;
+    text-align: center;
+    padding: 5px 10px;
+    cursor: pointer;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+}
+
+#agendaSlotsContainer {
+    flex: 1;
+    overflow-x: auto;
+    overflow-y: auto;
+    position: relative;
+}
+
+.agenda-grid {
+    display: flex;
+    min-width: 100%;
+}
+
+.agenda-day-column {
+    min-width: 220px;  /* MESMA largura do card de perfil */
+    flex: 0 0 auto;
+    border-right: 1px solid #e0e0e0;
+    position: relative;
+}
+
+/* Para desktop com poucos colaboradores */
+.agenda-grid.single-column .agenda-day-column {
+    min-width: 220px;
+    flex: 1;
+}
+
+.agenda-grid.two-columns .agenda-day-column {
+    min-width: 220px;
+    flex: 1;
+}
+
+.agenda-grid.three-columns .agenda-day-column {
+    min-width: 220px;
+    flex: 1;
+}
+
        /* ===== DASHBOARD OTIMIZADO PARA CELULAR - VERSÃO FINAL COM ESPAÇO NAS LATERAIS ===== */
 @media (max-width: 768px) {
     
@@ -12372,21 +12429,65 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
         }
 
                 function updateAgendaDisplay() {
-            const dateDisplay = document.getElementById('agendaDateDisplay');
-            if (!dateDisplay) return;
-            
-            const options = { weekday: 'short', day: 'numeric', month: 'short' };
-            const dateString = currentAgendaDate.toLocaleDateString('pt-PT', options);
-            dateDisplay.innerHTML = `${dateString} <i class="fas fa-chevron-down"></i>`;
-            
-            updateAgendaProfessionals();
-            renderTimeColumn();
-            renderAgendaGrid();
-            
-            // 🔥 LINHA NOVA: REATIVA O SINCRONISMO 🔥
-            setTimeout(syncAgendaScroll, 100);
-            
-        }
+    const dateDisplay = document.getElementById('agendaDateDisplay');
+    if (!dateDisplay) return;
+    
+    const options = { weekday: 'short', day: 'numeric', month: 'short' };
+    const dateString = currentAgendaDate.toLocaleDateString('pt-PT', options);
+    dateDisplay.innerHTML = `${dateString} <i class="fas fa-chevron-down"></i>`;
+    
+    updateAgendaProfessionals();
+    renderTimeColumn();
+    renderAgendaGrid();
+    
+    // Reforça o sincronismo após a renderização
+    setTimeout(syncAgendaScrollAndWidth, 150);
+}
+
+
+// Sincroniza rolagem e larguras entre perfis e agenda
+function syncAgendaScrollAndWidth() {
+    const perfisContainer = document.getElementById('agendaProfessionals');
+    const agendaContainer = document.getElementById('agendaSlotsContainer');
+    const grid = document.getElementById('agendaGrid');
+    
+    if (!perfisContainer || !agendaContainer) return;
+    
+    // 1. Sincroniza a rolagem horizontal
+    agendaContainer.addEventListener('scroll', function() {
+        perfisContainer.scrollLeft = this.scrollLeft;
+    });
+    
+    perfisContainer.addEventListener('scroll', function() {
+        agendaContainer.scrollLeft = this.scrollLeft;
+    });
+    
+    // 2. Ajusta as larguras dos cards de perfil para igualar as colunas
+    function syncWidths() {
+        const columns = document.querySelectorAll('.agenda-day-column');
+        const profileCards = document.querySelectorAll('.agenda-professional');
+        
+        if (columns.length === 0 || profileCards.length === 0) return;
+        
+        // Para cada coluna, pega sua largura e aplica ao card correspondente
+        columns.forEach((column, index) => {
+            if (profileCards[index]) {
+                const columnWidth = column.offsetWidth;
+                profileCards[index].style.minWidth = columnWidth + 'px';
+                profileCards[index].style.width = columnWidth + 'px';
+                profileCards[index].style.maxWidth = columnWidth + 'px';
+            }
+        });
+        
+        console.log('✅ Larguras sincronizadas:', columns.length, 'colunas');
+    }
+    
+    // Executa após renderizar e sempre que a tela for redimensionada
+    setTimeout(syncWidths, 100);
+    window.addEventListener('resize', syncWidths);
+    
+    console.log('✅ Sincronismo de rolagem e largura ativado');
+}
 
         // Sincroniza a rolagem horizontal entre a barra de perfis e a agenda
 function syncAgendaScroll() {
@@ -12534,91 +12635,65 @@ function syncAgendaScroll() {
             }
         }
 
-                // Renderizar grid de agendamentos (CORRIGIDO: Mostra todos os colaboradores)
-        function renderAgendaGrid() {
-            const container = document.getElementById('agendaGrid');
-            if (!container) return;
-            container.innerHTML = '';
-            
-            // Pegar SOMENTE colaboradores ATIVOS
-            const activeCollaborators = collaborators.filter(c => c.active === true);
-            
-            // Se não houver colaboradores ativos, mostra mensagem
-            if (activeCollaborators.length === 0) {
-                const noCollabDiv = document.createElement('div');
-                noCollabDiv.className = 'agenda-day-column';
-                noCollabDiv.style.textAlign = 'center';
-                noCollabDiv.style.padding = '20px';
-                noCollabDiv.innerHTML = '<div class="text-muted">Nenhum colaborador ativo encontrado. Cadastre colaboradores em "Colaboradores" para usar a agenda.</div>';
-                container.appendChild(noCollabDiv);
-                return;
-            }
-
-            // Define a classe para o grid baseado na quantidade de colaboradores
-            // Isso ajuda na responsividade
-            container.classList.remove('single-column', 'two-columns', 'three-columns', 'scrollable');
-            if (activeCollaborators.length === 1) {
-                container.classList.add('single-column');
-            } else if (activeCollaborators.length === 2) {
-                container.classList.add('two-columns');
-            } else if (activeCollaborators.length === 3) {
-                container.classList.add('three-columns');
-            } else {
-                container.classList.add('scrollable');
-            }
-            
-            // Loop para criar UMA COLUNA para CADA colaborador
-            activeCollaborators.forEach(collaborator => {
-                // Cria a coluna do dia para este colaborador
-                const dayColumn = document.createElement('div');
-                dayColumn.className = 'agenda-day-column';
-                // Adiciona um atributo com o ID do colaborador e a data atual
-                dayColumn.setAttribute('data-date', currentAgendaDate.toISOString().split('T')[0]);
-                dayColumn.setAttribute('data-collaborator-id', collaborator.id);
-                
-                // Adiciona o NOME do colaborador no topo da coluna (opcional, mas útil)
-                const collaboratorHeader = document.createElement('div');
-                collaboratorHeader.className = 'agenda-day-header';
-                collaboratorHeader.textContent = collaborator.name;
-                collaboratorHeader.style.cssText = 'padding: 8px; text-align: center; font-weight: bold; background: #f8f9fa; border-bottom: 1px solid #e0e0e0;';
-                dayColumn.appendChild(collaboratorHeader);
-
-                // Cria os slots de horário (cada 15 minutos) para esta coluna
-                for (let hour = 0; hour < 24; hour++) {
-                    for (let quarter = 0; quarter < 4; quarter++) {
-                        const slot = document.createElement('div');
-                        slot.className = 'agenda-slot-quarter';
-                        if (quarter === 0) slot.classList.add('hour-start');
-                        if (quarter === 2) slot.classList.add('half-hour');
-                        const minutes = quarter * 15;
-                        
-                        // Guarda informações importantes nos atributos do slot
-                        slot.setAttribute('data-hour', hour);
-                        slot.setAttribute('data-quarter', quarter);
-                        slot.setAttribute('data-minutes', minutes);
-                        slot.setAttribute('data-date', currentAgendaDate.toISOString().split('T')[0]);
-                        slot.setAttribute('data-collaborator-id', collaborator.id);
-                        slot.title = `${collaborator.name} - ${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-                        
-                        // Adiciona os eventos para selecionar horário (arrastar)
-                        slot.addEventListener('mousedown', startTimeSelection);
-                        slot.addEventListener('touchstart', startTimeSelection, { passive: false });
-                        slot.addEventListener('mouseenter', updateTimeSelection);
-                        slot.addEventListener('touchmove', updateTimeSelection, { passive: false });
-                        slot.addEventListener('mouseup', endTimeSelection);
-                        slot.addEventListener('touchend', endTimeSelection);
-                        
-                        dayColumn.appendChild(slot);
-                    }
+                function updateAgendaProfessionals() {
+    const container = document.getElementById('agendaProfessionals');
+    if (!container) return;
+    container.innerHTML = '';
+    
+    // Adiciona um espaço vazio para alinhar com a coluna de horários
+    const emptyHeader = document.createElement('div');
+    emptyHeader.className = 'empty-header-placeholder';
+    emptyHeader.style.width = '60px';
+    emptyHeader.style.minWidth = '60px';
+    emptyHeader.style.flexShrink = '0';
+    container.appendChild(emptyHeader);
+    
+    const activeCollaborators = collaborators.filter(c => c.active);
+    
+    if (activeCollaborators.length === 0) {
+        container.innerHTML = '<div class="text-muted text-center p-3" style="width: 100%;">Nenhum colaborador ativo</div>';
+        return;
+    }
+    
+    activeCollaborators.forEach(collaborator => {
+        const div = document.createElement('div');
+        div.className = 'agenda-professional';
+        div.setAttribute('data-collaborator-id', collaborator.id);
+        div.style.flex = '0 0 auto';
+        
+        const photoUrl = collaborator.photoUrl || '';
+        const initials = collaborator.name.charAt(0).toUpperCase();
+        
+        div.innerHTML = `
+            <div class="agenda-professional-photo-container" style="display: flex; justify-content: center; align-items: center; margin-bottom: 8px;">
+                ${photoUrl ? 
+                    `<img src="${photoUrl}" class="agenda-professional-photo" 
+                         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" 
+                         alt="${collaborator.name}"
+                         style="width: 55px; height: 55px; border-radius: 50%; object-fit: cover; cursor: pointer; border: 3px solid transparent; transition: all 0.3s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
+                         ondblclick="zoomPhoto('${photoUrl}', '${collaborator.name}')"
+                         onlongpress="zoomPhoto('${photoUrl}', '${collaborator.name}')">
+                     <div class="agenda-professional-placeholder" 
+                          style="display: none; width: 55px; height: 55px; border-radius: 50%; background: linear-gradient(135deg, #26196b 0%, #4a3a9c 100%); color: white; font-size: 22px; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
+                         ${initials}
+                     </div>` :
+                    `<div class="agenda-professional-placeholder" 
+                          style="width: 55px; height: 55px; border-radius: 50%; background: linear-gradient(135deg, #26196b 0%, #4a3a9c 100%); color: white; font-size: 22px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
+                         ${initials}
+                     </div>`
                 }
-                container.appendChild(dayColumn);
-            });
-            
-            // Após criar todas as colunas, renderiza os agendamentos em cada uma
-            renderAppointmentsForAll();
-                        syncAgendaScroll();
-                        
-        }
+            </div>
+            <div class="agenda-professional-name" style="font-size: 13px; font-weight: 600; text-align: center; white-space: normal; word-break: break-word;">${collaborator.name}</div>
+        `;
+        
+        div.addEventListener('click', function() {
+            document.querySelectorAll('.agenda-professional').forEach(p => p.classList.remove('selected'));
+            this.classList.add('selected');
+        });
+        
+        container.appendChild(div);
+    });
+}
 
 
         // FUNÇÃO PARA SINCRONIZAR A ROLAGEM ENTRE PERFIS E AGENDA
