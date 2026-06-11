@@ -15847,13 +15847,185 @@ document.head.appendChild(swalStyle);
 
 
 // ============================================================
-// TELA COMPLETA DE DETALHES/EDIÇÃO DE AGENDAMENTO - VERSÃO FINAL
+// SISTEMA DE AGENDAMENTO COM SINCRONIZAÇÃO EM TEMPO REAL
 // ============================================================
 
-// Variável global para armazenar o agendamento sendo editado
+// Variáveis globais
 let currentEditingAppointment = null;
+let appointmentsRealtimeListener = null;
+let servicesRealtimeListener = null;
 
-// Substitui a função original showAppointmentDetails
+// ============================================================
+// INICIALIZAR LISTENERS EM TEMPO REAL
+// ============================================================
+
+function initRealtimeSync() {
+    if (!currentUser) return;
+    
+    console.log('🔄 Iniciando sincronização em tempo real...');
+    
+    // Remover listeners antigos se existirem
+    if (appointmentsRealtimeListener) {
+        appointmentsRealtimeListener();
+    }
+    if (servicesRealtimeListener) {
+        servicesRealtimeListener();
+    }
+    
+    // Listener para agendamentos em tempo real
+    appointmentsRealtimeListener = db.collection('appointments')
+        .where('userId', '==', currentUser.uid)
+        .onSnapshot((snapshot) => {
+            console.log('📡 Agendamentos atualizados em tempo real!');
+            
+            snapshot.docChanges().forEach((change) => {
+                const appointmentData = { id: change.doc.id, ...change.doc.data() };
+                
+                switch (change.type) {
+                    case 'added':
+                        console.log('✨ Novo agendamento adicionado:', appointmentData.clientName);
+                        const exists = appointments.some(a => a.id === appointmentData.id);
+                        if (!exists) {
+                            appointments.push(appointmentData);
+                        }
+                        break;
+                    case 'modified':
+                        console.log('✏️ Agendamento modificado:', appointmentData.clientName);
+                        const index = appointments.findIndex(a => a.id === appointmentData.id);
+                        if (index !== -1) {
+                            appointments[index] = appointmentData;
+                        } else {
+                            appointments.push(appointmentData);
+                        }
+                        break;
+                    case 'removed':
+                        console.log('🗑️ Agendamento removido:', appointmentData.id);
+                        const removeIndex = appointments.findIndex(a => a.id === appointmentData.id);
+                        if (removeIndex !== -1) {
+                            appointments.splice(removeIndex, 1);
+                        }
+                        break;
+                }
+            });
+            
+            // Re-renderizar agenda e atualizar dashboards
+            if (typeof renderAppointmentsForAll === 'function') {
+                renderAppointmentsForAll();
+            }
+            if (typeof updateDashboard === 'function') {
+                updateDashboard();
+            }
+            if (typeof updateFinancialSummary === 'function') {
+                updateFinancialSummary();
+            }
+            
+            // Mostrar notificação visual (opcional)
+            showRealtimeNotification('Agendamentos atualizados');
+        }, (error) => {
+            console.error('Erro no listener de agendamentos:', error);
+        });
+    
+    // Listener para serviços em tempo real
+    servicesRealtimeListener = db.collection('services')
+        .where('userId', '==', currentUser.uid)
+        .onSnapshot((snapshot) => {
+            console.log('📡 Serviços atualizados em tempo real!');
+            
+            snapshot.docChanges().forEach((change) => {
+                const serviceData = { id: change.doc.id, ...change.doc.data() };
+                const today = new Date().toISOString().split('T')[0];
+                
+                switch (change.type) {
+                    case 'added':
+                        const exists = allServices.some(s => s.id === serviceData.id);
+                        if (!exists) {
+                            allServices.push(serviceData);
+                            if (serviceData.date === today) {
+                                todayServices.push(serviceData);
+                            }
+                        }
+                        break;
+                    case 'modified':
+                        const index = allServices.findIndex(s => s.id === serviceData.id);
+                        if (index !== -1) {
+                            allServices[index] = serviceData;
+                        } else {
+                            allServices.push(serviceData);
+                        }
+                        // Atualizar todayServices
+                        const todayIndex = todayServices.findIndex(s => s.id === serviceData.id);
+                        if (serviceData.date === today) {
+                            if (todayIndex === -1) todayServices.push(serviceData);
+                            else todayServices[todayIndex] = serviceData;
+                        } else {
+                            if (todayIndex !== -1) todayServices.splice(todayIndex, 1);
+                        }
+                        break;
+                    case 'removed':
+                        const removeIndex = allServices.findIndex(s => s.id === serviceData.id);
+                        if (removeIndex !== -1) allServices.splice(removeIndex, 1);
+                        const todayRemoveIndex = todayServices.findIndex(s => s.id === serviceData.id);
+                        if (todayRemoveIndex !== -1) todayServices.splice(todayRemoveIndex, 1);
+                        break;
+                }
+            });
+            
+            // Atualizar UI
+            if (typeof updateTodaySalesUI === 'function') updateTodaySalesUI();
+            if (typeof updateDashboard === 'function') updateDashboard();
+            if (typeof updateMonthlySalesChart === 'function') updateMonthlySalesChart();
+            
+            showRealtimeNotification('Serviços atualizados');
+        }, (error) => {
+            console.error('Erro no listener de serviços:', error);
+        });
+    
+    console.log('✅ Sincronização em tempo real ativada!');
+}
+
+// Função para mostrar notificação visual de atualização
+let notificationTimeout = null;
+function showRealtimeNotification(message) {
+    // Verificar se já existe uma notificação
+    let notif = document.getElementById('realtimeNotification');
+    if (!notif) {
+        notif = document.createElement('div');
+        notif.id = 'realtimeNotification';
+        notif.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 30px;
+            font-size: 14px;
+            z-index: 1000000;
+            font-family: sans-serif;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transition: opacity 0.3s ease;
+            opacity: 0;
+            pointer-events: none;
+        `;
+        document.body.appendChild(notif);
+    }
+    
+    // Mostrar notificação
+    notif.textContent = `🔄 ${message}`;
+    notif.style.opacity = '1';
+    
+    // Esconder após 2 segundos
+    if (notificationTimeout) clearTimeout(notificationTimeout);
+    notificationTimeout = setTimeout(() => {
+        notif.style.opacity = '0';
+    }, 2000);
+}
+
+// ============================================================
+// TELA COMPLETA DE DETALHES/EDIÇÃO DE AGENDAMENTO
+// ============================================================
+
 window.showAppointmentDetails = async function(appointmentId) {
     const appointment = appointments.find(a => a.id === appointmentId);
     if (!appointment) {
@@ -15872,9 +16044,7 @@ window.showAppointmentDetails = async function(appointmentId) {
     await openAppointmentDetailsModal(appointment, clientData, servicesList);
 };
 
-// Função principal que abre o modal
 async function openAppointmentDetailsModal(appointment, clientData, servicesList) {
-    // Garantir que os serviços estão carregados
     if (companyServices.length === 0) {
         await loadCompanyServices();
     }
@@ -15883,7 +16053,6 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
     const availableServices = [...companyServices];
     const hasServices = availableServices.length > 0;
     
-    // Fechar qualquer modal do Bootstrap que possa estar aberto
     const existingBsModal = bootstrap.Modal.getInstance(document.getElementById('appointmentDetailsModal'));
     if (existingBsModal) existingBsModal.dispose();
     
@@ -15961,6 +16130,16 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
                                                 <input type="time" class="form-control" id="appointmentEndTime" value="${appointment.endTime || ''}" readonly style="background: #f8f9fa;">
                                             </div>
                                             <div class="col-md-6">
+                                                <label class="form-label small fw-bold">Profissional Principal</label>
+                                                <select class="form-select" id="appointmentMainCollaborator">
+                                                    <option value="">Selecionar profissional principal</option>
+                                                    ${activeCollaborators.map(c => `<option value="${c.id}" ${c.id === appointment.collaboratorId ? 'selected' : ''}>${c.name}</option>`).join('')}
+                                                </select>
+                                                <small class="text-muted">Profissional responsável pelo agendamento</small>
+                                            </div>
+                                        </div>
+                                        <div class="row g-2 mt-1">
+                                            <div class="col-md-6">
                                                 <label class="form-label small fw-bold">Status</label>
                                                 <select class="form-select" id="appointmentStatus">
                                                     <option value="scheduled" ${appointment.status === 'scheduled' ? 'selected' : ''}>📅 Agendado</option>
@@ -15970,6 +16149,10 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
                                                     <option value="cancelled" ${appointment.status === 'cancelled' ? 'selected' : ''}>❌ Cancelado</option>
                                                     <option value="no_show" ${appointment.status === 'no_show' ? 'selected' : ''}>👤 Não compareceu</option>
                                                 </select>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-bold">Criado por</label>
+                                                <input type="text" class="form-control" id="appointmentCreatedBy" value="${appointment.createdByName || currentUser?.email || 'Sistema'}" readonly style="background: #f8f9fa;">
                                             </div>
                                         </div>
                                         <div class="mt-3">
@@ -16048,9 +16231,18 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                        <button type="button" class="btn btn-danger" id="cancelAppointmentBtn">Cancelar Agendamento</button>
-                        <button type="button" class="btn btn-warning" id="completeAppointmentBtn">Finalizar Atendimento</button>
-                        <button type="button" class="btn btn-primary" id="saveAppointmentChangesBtn">Salvar Alterações</button>
+                        <button type="button" class="btn btn-danger" id="deleteAppointmentBtn">
+                            <i class="fas fa-trash me-1"></i>Excluir Agendamento
+                        </button>
+                        <button type="button" class="btn btn-warning" id="cancelAppointmentBtn">
+                            <i class="fas fa-ban me-1"></i>Cancelar Agendamento
+                        </button>
+                        <button type="button" class="btn btn-success" id="completeAppointmentBtn">
+                            <i class="fas fa-check-circle me-1"></i>Finalizar Atendimento
+                        </button>
+                        <button type="button" class="btn btn-primary" id="saveAppointmentChangesBtn">
+                            <i class="fas fa-save me-1"></i>Salvar Alterações
+                        </button>
                     </div>
                 </div>
             </div>
@@ -16075,6 +16267,7 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
         
         let html = '';
         servicesList.forEach((service, idx) => {
+            const selectedCollabId = service.collaboratorId || appointment.collaboratorId || '';
             html += `
                 <div class="list-group-item" data-service-index="${idx}">
                     <div class="d-flex justify-content-between align-items-start">
@@ -16085,7 +16278,7 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
                                     <label class="small text-muted">Profissional</label>
                                     <select class="form-select form-select-sm service-collaborator" data-index="${idx}">
                                         <option value="">Selecionar profissional</option>
-                                        ${activeCollaborators.map(c => `<option value="${c.id}" ${c.id === service.collaboratorId ? 'selected' : ''}>${c.name}</option>`).join('')}
+                                        ${activeCollaborators.map(c => `<option value="${c.id}" ${c.id === selectedCollabId ? 'selected' : ''}>${c.name}</option>`).join('')}
                                     </select>
                                 </div>
                                 <div class="col-md-3">
@@ -16109,6 +16302,7 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
         });
         container.innerHTML = html;
         recalcTotalsAndDuration();
+        bindServiceEvents();
     }
     
     function recalcTotalsAndDuration() {
@@ -16146,7 +16340,7 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
     async function validateDateTime() {
         const date = document.getElementById('appointmentDate').value;
         const startTime = document.getElementById('appointmentStartTime').value;
-        let collaboratorId = servicesList[0]?.collaboratorId || currentEditingAppointment.collaboratorId;
+        let collaboratorId = document.getElementById('appointmentMainCollaborator').value;
         
         if (!date || !startTime || !collaboratorId) return true;
         
@@ -16221,6 +16415,50 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
         }
     }
     
+    async function deleteAppointment() {
+        const confirm = await Swal.fire({
+            title: 'Excluir Agendamento',
+            text: `Tem certeza que deseja EXCLUIR PERMANENTEMENTE o agendamento de ${currentEditingAppointment.clientName}?`,
+            icon: 'error',
+            showCancelButton: true,
+            confirmButtonText: 'Sim, excluir permanentemente',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#d33',
+            customClass: { popup: 'swal-z-index-high' }
+        });
+        
+        if (confirm.isConfirmed) {
+            showLoading('Excluindo agendamento...');
+            try {
+                await db.collection('appointments').doc(currentEditingAppointment.id).delete();
+                bootstrap.Modal.getInstance(document.getElementById('appointmentDetailsModal')).hide();
+                showSuccess('Agendamento excluído permanentemente!');
+                showRealtimeNotification('Agendamento excluído');
+            } catch (error) {
+                console.error(error);
+                showError('Erro ao excluir: ' + error.message);
+            }
+        }
+    }
+    
+    async function cancelAppointment() {
+        const confirm = await Swal.fire({
+            title: 'Cancelar Agendamento',
+            text: `Deseja cancelar o agendamento de ${currentEditingAppointment.clientName}? O agendamento será mantido no histórico como cancelado.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Sim, cancelar',
+            cancelButtonText: 'Não',
+            confirmButtonColor: '#d33',
+            customClass: { popup: 'swal-z-index-high' }
+        });
+        
+        if (confirm.isConfirmed) {
+            document.getElementById('appointmentStatus').value = 'cancelled';
+            showSuccess('Agendamento cancelado! Clique em "Salvar Alterações" para confirmar.');
+        }
+    }
+    
     async function completeAppointment() {
         const total = parseFloat(document.getElementById('appointmentTotal').innerText.replace('€', '').replace(',', '.').trim());
         const paid = parseFloat(document.getElementById('appointmentPaid').value) || 0;
@@ -16275,6 +16513,15 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
             return false;
         }
         
+        const mainCollaboratorId = document.getElementById('appointmentMainCollaborator').value;
+        servicesList.forEach(service => {
+            if (!service.collaboratorId && mainCollaboratorId) {
+                service.collaboratorId = mainCollaboratorId;
+                const collab = collaborators.find(c => c.id === mainCollaboratorId);
+                service.collaboratorName = collab ? collab.name : '';
+            }
+        });
+        
         const isValid = await validateDateTime();
         if (!isValid) return false;
         
@@ -16288,6 +16535,7 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
             endTime: document.getElementById('appointmentEndTime').value,
             status: document.getElementById('appointmentStatus').value,
             notes: document.getElementById('appointmentNotes').value,
+            collaboratorId: document.getElementById('appointmentMainCollaborator').value,
             services: servicesList,
             serviceName: servicesList.map(s => s.name).join(', '),
             total: parseFloat(document.getElementById('appointmentTotal').innerText.replace('€', '').replace(',', '.').trim()),
@@ -16299,21 +16547,9 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
         showLoading('Salvando alterações...');
         try {
             await db.collection('appointments').doc(currentEditingAppointment.id).update(updatedAppointment);
-            
-            const index = appointments.findIndex(a => a.id === currentEditingAppointment.id);
-            if (index !== -1) appointments[index] = { ...appointments[index], ...updatedAppointment };
-            
-            // Forçar re-renderização completa da agenda
-            renderAppointmentsForAll();
-            
-            // Atualizar dashboard e financeiro
-            await updateDashboard();
-            await updateFinancialSummary();
-            await updateMonthlySalesChart();
-            await updateProductsSoldStats();
-            
             bootstrap.Modal.getInstance(document.getElementById('appointmentDetailsModal')).hide();
             showSuccess('Agendamento atualizado com sucesso!');
+            showRealtimeNotification('Agendamento atualizado');
             return true;
         } catch (error) {
             console.error(error);
@@ -16322,7 +16558,7 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
         }
     }
     
-    // ========== EVENTOS ==========
+    // ========== BIND DE EVENTOS ==========
     
     function bindServiceEvents() {
         document.querySelectorAll('.service-collaborator').forEach(select => {
@@ -16364,19 +16600,16 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
                 if (confirm.isConfirmed) {
                     servicesList.splice(idx, 1);
                     renderServicesList();
-                    bindServiceEvents();
                 }
             };
         });
     }
     
+    // Eventos dos botões
     document.getElementById('viewClientHistoryBtn').onclick = async () => {
         const clientId = document.getElementById('appointmentClientSelect').value;
-        if (clientId) {
-            await showClientHistory(clientId);
-        } else {
-            showError('Selecione um cliente primeiro');
-        }
+        if (clientId) await showClientHistory(clientId);
+        else showError('Selecione um cliente primeiro');
     };
     
     document.getElementById('callClientBtn').onclick = () => {
@@ -16397,9 +16630,7 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
             const modalEl = document.getElementById('appointmentDetailsModal');
             const bsModal = bootstrap.Modal.getInstance(modalEl);
             if (bsModal) bsModal.hide();
-            setTimeout(() => {
-                editClientFromTable(clientId);
-            }, 300);
+            setTimeout(() => editClientFromTable(clientId), 300);
         } else {
             showError('Selecione um cliente primeiro');
         }
@@ -16409,8 +16640,8 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
         const clientId = e.target.value;
         const client = clients.find(c => c.id === clientId);
         currentEditingAppointment.clientId = clientId;
-        currentEditingAppointment.clientName = client ? client.name : '';
-        currentEditingAppointment.clientPhone = client ? client.phone : '';
+        currentEditingAppointment.clientName = client?.name || '';
+        currentEditingAppointment.clientPhone = client?.phone || '';
         
         const avatarDiv = document.getElementById('appointmentClientAvatar');
         if (client?.photoUrl) {
@@ -16477,11 +16708,10 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
                     name: selected.name,
                     price: 0,
                     duration: 30,
-                    collaboratorId: '',
+                    collaboratorId: document.getElementById('appointmentMainCollaborator').value || '',
                     collaboratorName: ''
                 });
                 renderServicesList();
-                bindServiceEvents();
                 showSuccess('Serviço adicionado! Defina o profissional e os valores.');
             }
         }
@@ -16489,6 +16719,20 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
     
     document.getElementById('appointmentDate').onchange = validateDateTime;
     document.getElementById('appointmentStartTime').onchange = validateDateTime;
+    document.getElementById('appointmentMainCollaborator').onchange = () => {
+        const mainCollabId = document.getElementById('appointmentMainCollaborator').value;
+        if (mainCollabId) {
+            servicesList.forEach(service => {
+                if (!service.collaboratorId) {
+                    service.collaboratorId = mainCollabId;
+                    const collab = collaborators.find(c => c.id === mainCollabId);
+                    service.collaboratorName = collab ? collab.name : '';
+                }
+            });
+            renderServicesList();
+        }
+        validateDateTime();
+    };
     document.getElementById('appointmentDiscount').oninput = recalcTotalsAndDuration;
     document.getElementById('appointmentPaid').oninput = recalcTotalsAndDuration;
     
@@ -16528,36 +16772,19 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
         sendGoogleReview(client?.name || 'Cliente', client?.phone);
     };
     
-    document.getElementById('cancelAppointmentBtn').onclick = async () => {
-        const confirm = await Swal.fire({
-            title: 'Cancelar agendamento',
-            text: 'Tem certeza que deseja cancelar este agendamento?',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonText: 'Sim, cancelar',
-            cancelButtonText: 'Não',
-            customClass: { popup: 'swal-z-index-high' }
-        });
-        if (confirm.isConfirmed) {
-            document.getElementById('appointmentStatus').value = 'cancelled';
-            showSuccess('Agendamento cancelado');
-        }
-    };
-    
+    document.getElementById('deleteAppointmentBtn').onclick = deleteAppointment;
+    document.getElementById('cancelAppointmentBtn').onclick = cancelAppointment;
     document.getElementById('completeAppointmentBtn').onclick = completeAppointment;
-    
     document.getElementById('saveAppointmentChangesBtn').onclick = async () => {
         await saveChangesAndClose();
     };
     
     renderServicesList();
-    bindServiceEvents();
     
     const modalElement = document.getElementById('appointmentDetailsModal');
     const modal = new bootstrap.Modal(modalElement, { backdrop: 'static', keyboard: false });
     modal.show();
     
-    // Garantir que o modal fique na frente em dispositivos móveis
     setTimeout(() => {
         const modalBackdrop = document.querySelector('.modal-backdrop');
         if (modalBackdrop) modalBackdrop.style.zIndex = '999990';
@@ -16566,114 +16793,111 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
 }
 
 // ============================================================
-// FUNÇÃO CORRIGIDA PARA RENDERIZAR AGENDAMENTOS COM CORES
+// RENDERIZAÇÃO DE AGENDAMENTOS COM CORES
 // ============================================================
 
-const originalRenderAppointments = window.renderAppointmentsForAll;
 window.renderAppointmentsForAll = function() {
-    if (originalRenderAppointments) {
-        originalRenderAppointments();
-    } else {
-        // Fallback: implementação básica
-        document.querySelectorAll('.agenda-appointment').forEach(el => el.remove());
-        const currentDateStr = currentAgendaDate.toISOString().split('T')[0];
-        
-        appointments.forEach(appointment => {
-            if (appointment.date !== currentDateStr) return;
-            
-            const dayColumn = document.querySelector(`.agenda-day-column[data-collaborator-id="${appointment.collaboratorId}"]`);
-            if (!dayColumn) return;
-            
-            const startHour = parseInt(appointment.startTime.split(':')[0]);
-            const startMinute = parseInt(appointment.startTime.split(':')[1]);
-            const duration = appointment.duration || 60;
-            const totalMinutes = startHour * 60 + startMinute;
-            const topPosition = totalMinutes;
-            const height = duration;
-            
-            const appointmentEl = document.createElement('div');
-            appointmentEl.className = 'agenda-appointment';
-            appointmentEl.setAttribute('data-appointment-id', appointment.id);
-            appointmentEl.style.top = `${topPosition}px`;
-            appointmentEl.style.height = `${Math.max(height, 30)}px`;
-            appointmentEl.style.background = `linear-gradient(135deg, #26196b 0%, #4a3a9c 100%)`;
-            appointmentEl.style.color = 'white';
-            appointmentEl.style.borderRadius = '6px';
-            appointmentEl.style.padding = '6px 10px';
-            appointmentEl.style.fontSize = '12px';
-            appointmentEl.style.overflow = 'hidden';
-            appointmentEl.style.cursor = 'pointer';
-            appointmentEl.style.zIndex = '2';
-            appointmentEl.style.boxShadow = '0 2px 8px rgba(38, 25, 107, 0.3)';
-            appointmentEl.style.transition = 'transform 0.2s, box-shadow 0.2s';
-            appointmentEl.innerHTML = `
-                <div class="agenda-appointment-time" style="font-size: 10px; opacity: 0.9;">${appointment.startTime} - ${appointment.endTime || ''}</div>
-                <div class="agenda-appointment-client" style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${appointment.clientName || 'Cliente'}</div>
-                <div class="agenda-appointment-service" style="font-size: 11px; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${appointment.serviceName || 'Serviço'}</div>
-            `;
-            
-            appointmentEl.addEventListener('click', (e) => {
-                e.stopPropagation();
-                showAppointmentDetails(appointment.id);
-            });
-            
-            dayColumn.appendChild(appointmentEl);
-        });
-    }
+    document.querySelectorAll('.agenda-appointment').forEach(el => el.remove());
+    const currentDateStr = currentAgendaDate.toISOString().split('T')[0];
     
-    // Aplicar cores baseadas no status
-    setTimeout(() => {
-        document.querySelectorAll('.agenda-appointment').forEach(el => {
-            const appointmentId = el.getAttribute('data-appointment-id');
-            if (appointmentId) {
-                const appointment = appointments.find(a => a.id === appointmentId);
-                if (appointment) {
-                    applyAppointmentColor(el, appointment.status);
-                }
-            } else {
-                const clientName = el.querySelector('.agenda-appointment-client')?.innerText;
-                const appointment = appointments.find(a => a.clientName === clientName);
-                if (appointment) {
-                    el.setAttribute('data-appointment-id', appointment.id);
-                    applyAppointmentColor(el, appointment.status);
-                }
-            }
+    appointments.forEach(appointment => {
+        if (appointment.date !== currentDateStr) return;
+        
+        const dayColumn = document.querySelector(`.agenda-day-column[data-collaborator-id="${appointment.collaboratorId}"]`);
+        if (!dayColumn) return;
+        
+        const startHour = parseInt(appointment.startTime.split(':')[0]);
+        const startMinute = parseInt(appointment.startTime.split(':')[1]);
+        const duration = appointment.duration || 60;
+        const totalMinutes = startHour * 60 + startMinute;
+        const topPosition = totalMinutes;
+        const height = duration;
+        
+        const appointmentEl = document.createElement('div');
+        appointmentEl.className = 'agenda-appointment';
+        appointmentEl.setAttribute('data-appointment-id', appointment.id);
+        appointmentEl.style.top = `${topPosition}px`;
+        appointmentEl.style.height = `${Math.max(height, 30)}px`;
+        appointmentEl.innerHTML = `
+            <div class="agenda-appointment-time" style="font-size: 10px; opacity: 0.9;">${appointment.startTime} - ${appointment.endTime || ''}</div>
+            <div class="agenda-appointment-client" style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${appointment.clientName || 'Cliente'}</div>
+            <div class="agenda-appointment-service" style="font-size: 11px; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${appointment.serviceName || 'Serviço'}</div>
+        `;
+        
+        // Aplicar cor baseada no status
+        if (appointment.status === 'completed' || appointment.status === 'cancelled') {
+            appointmentEl.style.background = 'linear-gradient(135deg, #6c757d, #495057)';
+            appointmentEl.style.opacity = '0.7';
+        } else if (appointment.status === 'in_progress') {
+            appointmentEl.style.background = 'linear-gradient(135deg, #28a745, #20c997)';
+            appointmentEl.style.opacity = '1';
+        } else if (appointment.status === 'confirmed') {
+            appointmentEl.style.background = 'linear-gradient(135deg, #17a2b8, #0d6efd)';
+            appointmentEl.style.opacity = '1';
+        } else {
+            appointmentEl.style.background = 'linear-gradient(135deg, #26196b, #4a3a9c)';
+            appointmentEl.style.opacity = '1';
+        }
+        
+        appointmentEl.style.color = 'white';
+        appointmentEl.style.borderRadius = '6px';
+        appointmentEl.style.padding = '6px 10px';
+        appointmentEl.style.fontSize = '12px';
+        appointmentEl.style.overflow = 'hidden';
+        appointmentEl.style.cursor = 'pointer';
+        appointmentEl.style.zIndex = '2';
+        appointmentEl.style.boxShadow = '0 2px 8px rgba(38, 25, 107, 0.3)';
+        appointmentEl.style.transition = 'transform 0.2s, box-shadow 0.2s';
+        
+        appointmentEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showAppointmentDetails(appointment.id);
         });
-    }, 50);
+        
+        dayColumn.appendChild(appointmentEl);
+    });
 };
 
-function applyAppointmentColor(element, status) {
-    if (status === 'completed' || status === 'cancelled') {
-        element.style.background = 'linear-gradient(135deg, #6c757d, #495057)';
-        element.style.opacity = '0.7';
-    } else if (status === 'in_progress') {
-        element.style.background = 'linear-gradient(135deg, #28a745, #20c997)';
-        element.style.opacity = '1';
-    } else if (status === 'confirmed') {
-        element.style.background = 'linear-gradient(135deg, #17a2b8, #0d6efd)';
-        element.style.opacity = '1';
-    } else {
-        element.style.background = 'linear-gradient(135deg, #26196b, #4a3a9c)';
-        element.style.opacity = '1';
-    }
-}
+// ============================================================
+// FUNÇÃO PARA SALVAR AGENDAMENTO COM COLABORADOR CORRETO
+// ============================================================
 
-// Garantir que ao criar novo agendamento, ele tenha status padrão e cor
 const originalSaveAppointment = window.saveAppointment;
 if (originalSaveAppointment) {
     window.saveAppointment = async function() {
+        if (!selectedCollaboratorId && collaborators.filter(c => c.active).length > 0) {
+            selectedCollaboratorId = collaborators.filter(c => c.active)[0]?.id;
+        }
+        
         await originalSaveAppointment();
+        
         setTimeout(() => {
             if (typeof renderAppointmentsForAll === 'function') {
                 renderAppointmentsForAll();
             }
             updateDashboard();
             updateFinancialSummary();
+            showRealtimeNotification('Novo agendamento criado');
         }, 500);
     };
 }
 
-// CSS adicional para garantir z-index dos modais
+// ============================================================
+// INICIALIZAR SINCRONIZAÇÃO APÓS LOGIN
+// ============================================================
+
+// Aguardar currentUser estar disponível
+const checkUserInterval = setInterval(() => {
+    if (currentUser) {
+        clearInterval(checkUserInterval);
+        setTimeout(() => {
+            initRealtimeSync();
+            console.log('✅ Sincronização em tempo real iniciada!');
+        }, 2000);
+    }
+}, 1000);
+
+// CSS para notificações e modais
 const styleZIndex = document.createElement('style');
 styleZIndex.textContent = `
     .swal2-container.swal2-center {
@@ -16691,7 +16915,7 @@ styleZIndex.textContent = `
 `;
 document.head.appendChild(styleZIndex);
 
-console.log('✅ Sistema de agendamento completo e corrigido carregado!');
+console.log('✅ Sistema de agendamento com sincronização em tempo real carregado!');
         
     </script>
 
