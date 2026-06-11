@@ -15376,137 +15376,6 @@ function showSalesForDate(date) {
     if (daySalesContainer) daySalesContainer.innerHTML = salesHtml;
 }
 
-// --- Função principal que mostra o modal (já existente, mantida) ---
-function showManageSalesModal() {
-    const modalHtml = `
-        <div class="modal fade" id="manageSalesModal" tabindex="-1" data-bs-backdrop="static" style="z-index: 99999;">
-            <div class="modal-dialog modal-xl modal-dialog-scrollable">
-                <div class="modal-content">
-                    <div class="modal-header bg-primary text-white">
-                        <h5 class="modal-title"><i class="fas fa-calendar-alt me-2"></i>Gerenciar Vendas</h5>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="row g-3 mb-4">
-                            <div class="col-md-5">
-                                <label class="form-label fw-bold"><i class="fas fa-user me-1"></i> Colaborador</label>
-                                <select class="form-select" id="manageSalesCollaborator">
-                                    <option value="all">Todos os colaboradores</option>
-                                    ${(window.collaborators || []).filter(c => c.active).map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
-                                </select>
-                            </div>
-                            <div class="col-md-5">
-                                <label class="form-label fw-bold"><i class="fas fa-calendar me-1"></i> Mês/Ano</label>
-                                <div class="d-flex gap-2">
-                                    <button class="btn btn-outline-secondary" id="prevMonthBtn"><i class="fas fa-chevron-left"></i></button>
-                                    <span id="calendarMonthYear" class="flex-grow-1 text-center fw-bold py-2 bg-light rounded"></span>
-                                    <button class="btn btn-outline-secondary" id="nextMonthBtn"><i class="fas fa-chevron-right"></i></button>
-                                </div>
-                            </div>
-                            <div class="col-md-2 d-flex align-items-end">
-                                <button class="btn btn-primary w-100" id="todayBtn"><i class="fas fa-calendar-day me-1"></i> Hoje</button>
-                            </div>
-                        </div>
-                        <div class="calendar-container mb-4">
-                            <div class="calendar-weekdays" id="calendarWeekdays"></div>
-                            <div class="calendar-days" id="calendarDays"></div>
-                        </div>
-                        <div class="d-flex justify-content-center gap-4 mb-4 p-2 bg-light rounded">
-                            <div class="d-flex align-items-center">
-                                <div class="me-2" style="width: 14px; height: 14px; background-color: #FF6B35; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.2);"></div>
-                                <small><strong>Serviços</strong> (Laranja)</small>
-                            </div>
-                            <div class="d-flex align-items-center">
-                                <div class="me-2" style="width: 14px; height: 14px; background-color: #00C853; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.2);"></div>
-                                <small><strong>Produtos</strong> (Verde)</small>
-                            </div>
-                            <div class="d-flex align-items-center">
-                                <div class="me-2" style="width: 14px; height: 14px; background: linear-gradient(135deg, #FF6B35 50%, #00C853 50%); border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.2);"></div>
-                                <small><strong>Ambos</strong> (Laranja + Verde)</small>
-                            </div>
-                        </div>
-                        <div id="selectedDayInfo" class="alert alert-info d-none">
-                            <div class="d-flex justify-content-between align-items-center flex-wrap">
-                                <div><i class="fas fa-calendar-day me-2"></i><strong id="selectedDayText">Selecione um dia</strong></div>
-                                <div id="selectedDaySummary"></div>
-                            </div>
-                        </div>
-                        <div id="daySalesContainer" style="max-height: 400px; overflow-y: auto;">
-                            <div class="text-center text-muted py-4">
-                                <i class="fas fa-calendar-alt fa-3x mb-3 opacity-50"></i>
-                                <p>Selecione um dia no calendário para ver as vendas</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    const existingModal = document.getElementById('manageSalesModal');
-    if (existingModal) existingModal.remove();
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-    
-    const style = document.createElement('style');
-    style.textContent = `
-        #manageSalesModal { z-index: 99999 !important; }
-        #manageSalesModal .modal { z-index: 100000 !important; }
-        #manageSalesModal .modal-backdrop { z-index: 99990 !important; }
-        .calendar-container { background: white; border-radius: 12px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        .calendar-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; margin-bottom: 10px; }
-        .calendar-weekday { font-weight: 600; padding: 10px; color: #6c757d; font-size: 14px; }
-        .calendar-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
-        .calendar-day { aspect-ratio: 1; padding: 8px; text-align: center; cursor: pointer; border-radius: 50%; transition: all 0.2s; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f8f9fa; font-weight: 500; }
-        .calendar-day:hover { background: #e9ecef; transform: scale(1.05); }
-        .calendar-day.selected { background: var(--primary-color, #26196b); color: white; }
-        .calendar-day.today { border: 2px solid var(--primary-color, #26196b); font-weight: bold; }
-        .calendar-day.other-month { opacity: 0.4; }
-        .calendar-day .markers { display: flex; gap: 4px; justify-content: center; margin-top: 4px; }
-        .calendar-day .marker { width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
-        .calendar-day .marker.service { background-color: #FF6B35; }
-        .calendar-day .marker.product { background-color: #00C853; }
-        .day-sale-card { background: white; border-radius: 10px; padding: 12px; margin-bottom: 10px; border-left: 4px solid; transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .day-sale-card.service { border-left-color: #FF6B35; }
-        .day-sale-card.product { border-left-color: #00C853; }
-        .day-sale-card:hover { transform: translateX(5px); box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
-        @media (max-width: 768px) {
-            .calendar-day { font-size: 12px; padding: 4px; }
-            .calendar-day .marker { width: 5px; height: 5px; }
-            .day-sale-card { padding: 8px; font-size: 12px; }
-        }
-    `;
-    document.head.appendChild(style);
-    
-    document.getElementById('manageSalesCollaborator').addEventListener('change', () => loadSalesDataAndRenderCalendar());
-    document.getElementById('prevMonthBtn').addEventListener('click', () => {
-        currentCalendarDate.setMonth(currentCalendarDate.getMonth() - 1);
-        loadSalesDataAndRenderCalendar();
-    });
-    document.getElementById('nextMonthBtn').addEventListener('click', () => {
-        currentCalendarDate.setMonth(currentCalendarDate.getMonth() + 1);
-        loadSalesDataAndRenderCalendar();
-    });
-    document.getElementById('todayBtn').addEventListener('click', () => {
-        currentCalendarDate = new Date();
-        loadSalesDataAndRenderCalendar();
-    });
-    
-    const modal = new bootstrap.Modal(document.getElementById('manageSalesModal'), { backdrop: 'static', keyboard: true });
-    modal.show();
-    loadSalesDataAndRenderCalendar();
-}
-
-// --- Garantia de que tudo estará disponível globalmente ---
-window.formatDate = formatDate;
-window.formatCurrency = formatCurrency;
-window.escapeHtml = escapeHtml;
-window.showSalesForDate = showSalesForDate;
-window.loadSalesDataAndRenderCalendar = loadSalesDataAndRenderCalendar;
-window.renderCalendar = renderCalendar;
-window.showManageSalesModal = showManageSalesModal;
 
 
 
@@ -17562,6 +17431,644 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
                 });
             }
         }
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+// ============================================
+// CALENDÁRIO COM MARCADORES - VERSÃO CORRIGIDA
+// CORES ATUALIZADAS: Laranja (#FF6B35) e Verde (#00C853)
+// ============================================
+
+let currentCalendarDate = new Date();
+let salesByDateCache = {};
+
+function showManageSalesModal() {
+    // Criar modal dinamicamente
+    const modalHtml = `
+        <div class="modal fade" id="manageSalesModal" tabindex="-1" data-bs-backdrop="static" style="z-index: 99999;">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title"><i class="fas fa-calendar-alt me-2"></i>Gerenciar Vendas</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <!-- Filtros -->
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-5">
+                                <label class="form-label fw-bold">
+                                    <i class="fas fa-user me-1"></i> Colaborador
+                                </label>
+                                <select class="form-select" id="manageSalesCollaborator">
+                                    <option value="all">Todos os colaboradores</option>
+                                    ${collaborators.filter(c => c.active).map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label fw-bold">
+                                    <i class="fas fa-calendar me-1"></i> Mês/Ano
+                                </label>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-outline-secondary" id="prevMonthBtn">
+                                        <i class="fas fa-chevron-left"></i>
+                                    </button>
+                                    <span id="calendarMonthYear" class="flex-grow-1 text-center fw-bold py-2 bg-light rounded"></span>
+                                    <button class="btn btn-outline-secondary" id="nextMonthBtn">
+                                        <i class="fas fa-chevron-right"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <button class="btn btn-primary w-100" id="todayBtn">
+                                    <i class="fas fa-calendar-day me-1"></i> Hoje
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Calendário -->
+                        <div class="calendar-container mb-4">
+                            <div class="calendar-weekdays" id="calendarWeekdays"></div>
+                            <div class="calendar-days" id="calendarDays"></div>
+                        </div>
+                        
+                        <!-- Legenda com novas cores contrastantes -->
+                        <div class="d-flex justify-content-center gap-4 mb-4 p-2 bg-light rounded">
+                            <div class="d-flex align-items-center">
+                                <div class="me-2" style="width: 14px; height: 14px; background-color: #FF6B35; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.2);"></div>
+                                <small><strong>Serviços</strong> (Laranja)</small>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <div class="me-2" style="width: 14px; height: 14px; background-color: #00C853; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.2);"></div>
+                                <small><strong>Produtos</strong> (Verde)</small>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <div class="me-2" style="width: 14px; height: 14px; background: linear-gradient(135deg, #FF6B35 50%, #00C853 50%); border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.2);"></div>
+                                <small><strong>Ambos</strong> (Laranja + Verde)</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Resumo e Vendas do Dia Selecionado -->
+                        <div id="selectedDayInfo" class="alert alert-info d-none">
+                            <div class="d-flex justify-content-between align-items-center flex-wrap">
+                                <div>
+                                    <i class="fas fa-calendar-day me-2"></i>
+                                    <strong id="selectedDayText">Selecione um dia</strong>
+                                </div>
+                                <div id="selectedDaySummary"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Vendas do Dia -->
+                        <div id="daySalesContainer" style="max-height: 400px; overflow-y: auto;">
+                            <div class="text-center text-muted py-4">
+                                <i class="fas fa-calendar-alt fa-3x mb-3 opacity-50"></i>
+                                <p>Selecione um dia no calendário para ver as vendas</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remover modal existente se houver
+    const existingModal = document.getElementById('manageSalesModal');
+    if (existingModal) existingModal.remove();
+    
+    // Adicionar modal ao body
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Adicionar CSS específico para o calendário com cores atualizadas
+    const style = document.createElement('style');
+    style.textContent = `
+        #manageSalesModal {
+            z-index: 99999 !important;
+        }
+        #manageSalesModal .modal {
+            z-index: 100000 !important;
+        }
+        #manageSalesModal .modal-backdrop {
+            z-index: 99990 !important;
+        }
+        .calendar-container {
+            background: white;
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .calendar-weekdays {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .calendar-weekday {
+            font-weight: 600;
+            padding: 10px;
+            color: #6c757d;
+            font-size: 14px;
+        }
+        .calendar-days {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 5px;
+        }
+        .calendar-day {
+            aspect-ratio: 1;
+            padding: 8px;
+            text-align: center;
+            cursor: pointer;
+            border-radius: 50%;
+            transition: all 0.2s;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #f8f9fa;
+            font-weight: 500;
+        }
+        .calendar-day:hover {
+            background: #e9ecef;
+            transform: scale(1.05);
+        }
+        .calendar-day.selected {
+            background: var(--primary-color, #26196b);
+            color: white;
+        }
+        .calendar-day.today {
+            border: 2px solid var(--primary-color, #26196b);
+            font-weight: bold;
+        }
+        .calendar-day.other-month {
+            opacity: 0.4;
+        }
+        .calendar-day .markers {
+            display: flex;
+            gap: 4px;
+            justify-content: center;
+            margin-top: 4px;
+        }
+        .calendar-day .marker {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }
+        .calendar-day .marker.service {
+            background-color: #FF6B35;
+        }
+        .calendar-day .marker.product {
+            background-color: #00C853;
+        }
+        .day-sale-card {
+            background: white;
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-left: 4px solid;
+            transition: all 0.2s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .day-sale-card.service {
+            border-left-color: #FF6B35;
+        }
+        .day-sale-card.product {
+            border-left-color: #00C853;
+        }
+        .day-sale-card:hover {
+            transform: translateX(5px);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        }
+        @media (max-width: 768px) {
+            .calendar-day {
+                font-size: 12px;
+                padding: 4px;
+            }
+            .calendar-day .marker {
+                width: 5px;
+                height: 5px;
+            }
+            .day-sale-card {
+                padding: 8px;
+                font-size: 12px;
+            }
+        }
+    `;
+    document.head.appendChild(style);
+    
+    // Inicializar eventos
+    document.getElementById('manageSalesCollaborator').addEventListener('change', () => {
+        loadSalesDataAndRenderCalendar();
+    });
+    
+    document.getElementById('prevMonthBtn').addEventListener('click', () => {
+        currentCalendarDate.setMonth(currentCalendarDate.getMonth() - 1);
+        loadSalesDataAndRenderCalendar();
+    });
+    
+    document.getElementById('nextMonthBtn').addEventListener('click', () => {
+        currentCalendarDate.setMonth(currentCalendarDate.getMonth() + 1);
+        loadSalesDataAndRenderCalendar();
+    });
+    
+    document.getElementById('todayBtn').addEventListener('click', () => {
+        currentCalendarDate = new Date();
+        loadSalesDataAndRenderCalendar();
+    });
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('manageSalesModal'), {
+        backdrop: 'static',
+        keyboard: true
+    });
+    modal.show();
+    
+    // Carregar dados e renderizar calendário
+    loadSalesDataAndRenderCalendar();
+}
+
+async function loadSalesDataAndRenderCalendar() {
+    const collaboratorId = document.getElementById('manageSalesCollaborator').value;
+    const year = currentCalendarDate.getFullYear();
+    const month = currentCalendarDate.getMonth();
+    
+    // Mostrar loading no calendário
+    const calendarDays = document.getElementById('calendarDays');
+    if (calendarDays) {
+        calendarDays.innerHTML = '<div class="text-center py-5 col-12">Carregando calendário...</div>';
+    }
+    
+    const daySalesContainer = document.getElementById('daySalesContainer');
+    if (daySalesContainer) {
+        daySalesContainer.innerHTML = `
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p>Carregando vendas...</p>
+            </div>
+        `;
+    }
+    
+    try {
+        console.log('📊 Carregando vendas para:', `${year}/${month + 1}`);
+        console.log('📊 Total de serviços:', allServices?.length || 0);
+        console.log('📊 Total de produtos:', allProductSales?.length || 0);
+        console.log('📊 Colaborador filtro:', collaboratorId);
+        
+        // Filtrar serviços
+        let servicesQuery = allServices || [];
+        if (collaboratorId !== 'all') {
+            servicesQuery = servicesQuery.filter(s => s.collaboratorId === collaboratorId);
+        }
+        
+        // Produtos (não têm colaborador, então sempre inclui todos)
+        let productsQuery = allProductSales || [];
+        
+        console.log('📊 Serviços após filtro:', servicesQuery.length);
+        console.log('📊 Produtos:', productsQuery.length);
+        
+        // Agrupar por data
+        const salesByDate = {};
+        
+        servicesQuery.forEach(service => {
+            const date = service.date;
+            if (!date) return;
+            
+            if (!salesByDate[date]) {
+                salesByDate[date] = { services: [], products: [] };
+            }
+            salesByDate[date].services.push(service);
+        });
+        
+        productsQuery.forEach(product => {
+            const date = product.date;
+            if (!date) return;
+            
+            if (!salesByDate[date]) {
+                salesByDate[date] = { services: [], products: [] };
+            }
+            salesByDate[date].products.push(product);
+        });
+        
+        salesByDateCache = salesByDate;
+        
+        console.log('📊 Datas com vendas:', Object.keys(salesByDate).length);
+        
+        // Renderizar calendário
+        renderCalendar(year, month, salesByDate);
+        
+    } catch (error) {
+        console.error('❌ Erro ao carregar vendas:', error);
+        const calendarDaysEl = document.getElementById('calendarDays');
+        if (calendarDaysEl) {
+            calendarDaysEl.innerHTML = `<div class="text-center text-danger py-5 col-12">Erro ao carregar dados: ${error.message}</div>`;
+        }
+    }
+}
+
+function renderCalendar(year, month, salesByDate) {
+    // Atualizar título do mês
+    const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    const monthYearEl = document.getElementById('calendarMonthYear');
+    if (monthYearEl) {
+        monthYearEl.textContent = `${monthNames[month]} ${year}`;
+    }
+    
+    // Dias da semana
+    const weekdaysFull = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    let weekdaysHtml = '';
+    weekdaysFull.forEach(day => {
+        weekdaysHtml += `<div class="calendar-weekday">${day}</div>`;
+    });
+    const weekdaysEl = document.getElementById('calendarWeekdays');
+    if (weekdaysEl) weekdaysEl.innerHTML = weekdaysHtml;
+    
+    // Calcular primeiro dia do mês e dias totais
+    const firstDayOfMonth = new Date(year, month, 1);
+    const startDayOfWeek = firstDayOfMonth.getDay(); // 0 = Domingo
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    
+    // Dias do mês anterior para preencher
+    const prevMonthDays = new Date(year, month, 0).getDate();
+    
+    let daysHtml = '';
+    let dayCounter = 1;
+    let nextMonthCounter = 1;
+    
+    // Hoje para comparação
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    
+    // 42 dias (6 semanas)
+    for (let i = 0; i < 42; i++) {
+        let isCurrentMonth = true;
+        let dayNumber = 0;
+        let dateStr = '';
+        let monthIdx = month;
+        let yearIdx = year;
+        
+        if (i < startDayOfWeek) {
+            // Dias do mês anterior
+            isCurrentMonth = false;
+            dayNumber = prevMonthDays - (startDayOfWeek - i) + 1;
+            monthIdx = month === 0 ? 11 : month - 1;
+            yearIdx = month === 0 ? year - 1 : year;
+            dateStr = `${yearIdx}-${String(monthIdx + 1).padStart(2, '0')}-${String(dayNumber).padStart(2, '0')}`;
+        } 
+        else if (dayCounter <= daysInMonth) {
+            // Dias do mês atual
+            isCurrentMonth = true;
+            dayNumber = dayCounter;
+            dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNumber).padStart(2, '0')}`;
+            dayCounter++;
+        } 
+        else {
+            // Dias do próximo mês
+            isCurrentMonth = false;
+            dayNumber = nextMonthCounter;
+            monthIdx = month === 11 ? 0 : month + 1;
+            yearIdx = month === 11 ? year + 1 : year;
+            dateStr = `${yearIdx}-${String(monthIdx + 1).padStart(2, '0')}-${String(dayNumber).padStart(2, '0')}`;
+            nextMonthCounter++;
+        }
+        
+        // Verificar se tem vendas nesta data
+        const daySales = salesByDate[dateStr] || { services: [], products: [] };
+        const hasServices = daySales.services.length > 0;
+        const hasProducts = daySales.products.length > 0;
+        
+        // Verificar se é hoje
+        const isToday = dateStr === todayStr;
+        
+        // Classes CSS
+        let dayClasses = 'calendar-day';
+        if (!isCurrentMonth) dayClasses += ' other-month';
+        if (isToday) dayClasses += ' today';
+        
+        // Marcadores com novas cores
+        let markersHtml = '';
+        if (hasServices || hasProducts) {
+            markersHtml = '<div class="markers">';
+            if (hasServices) markersHtml += '<div class="marker service"></div>';
+            if (hasProducts) markersHtml += '<div class="marker product"></div>';
+            markersHtml += '</div>';
+        }
+        
+        daysHtml += `
+            <div class="${dayClasses}" data-date="${dateStr}" data-day="${dayNumber}" data-month="${monthIdx}" data-year="${yearIdx}">
+                <div>${dayNumber}</div>
+                ${markersHtml}
+            </div>
+        `;
+    }
+    
+    const calendarDaysEl = document.getElementById('calendarDays');
+    if (calendarDaysEl) {
+        calendarDaysEl.innerHTML = daysHtml;
+    }
+    
+    // Adicionar evento de clique nos dias
+    document.querySelectorAll('#calendarDays .calendar-day').forEach(dayEl => {
+        dayEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // Remover seleção anterior
+            document.querySelectorAll('#calendarDays .calendar-day.selected').forEach(el => {
+                el.classList.remove('selected');
+            });
+            dayEl.classList.add('selected');
+            
+            const date = dayEl.getAttribute('data-date');
+            if (date) {
+                showSalesForDate(date);
+            }
+        });
+    });
+    
+    // Se houver alguma data selecionada, manter a seleção
+    const selectedDate = document.querySelector('#calendarDays .calendar-day.selected')?.getAttribute('data-date');
+    if (selectedDate) {
+        showSalesForDate(selectedDate);
+    } else {
+        // Limpar container de vendas
+        const daySalesContainer = document.getElementById('daySalesContainer');
+        if (daySalesContainer) {
+            daySalesContainer.innerHTML = `
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-calendar-alt fa-3x mb-3 opacity-50"></i>
+                    <p>Selecione um dia no calendário para ver as vendas</p>
+                </div>
+            `;
+        }
+        const selectedDayInfo = document.getElementById('selectedDayInfo');
+        if (selectedDayInfo) selectedDayInfo.classList.add('d-none');
+    }
+}
+
+function showSalesForDate(date) {
+    const sales = salesByDateCache[date] || { services: [], products: [] };
+    const formattedDate = formatDate(new Date(date));
+    
+    console.log(`📅 Mostrando vendas para ${formattedDate}:`, sales.services.length, 'serviços,', sales.products.length, 'produtos');
+    
+    // Atualizar cabeçalho
+    const selectedDayText = document.getElementById('selectedDayText');
+    if (selectedDayText) {
+        selectedDayText.innerHTML = `<i class="fas fa-calendar-check me-1"></i>${formattedDate}`;
+    }
+    
+    const totalServices = sales.services.reduce((sum, s) => sum + (parseFloat(s.value) || 0), 0);
+    const totalProducts = sales.products.reduce((sum, p) => sum + (parseFloat(p.totalValue) || 0), 0);
+    const totalValue = totalServices + totalProducts;
+    
+    const summaryHtml = `
+        <div class="text-end">
+            <span class="badge" style="background-color: #FF6B35; color: white;">${sales.services.length} serviços | ${formatCurrency(totalServices)}</span>
+            <span class="badge ms-2" style="background-color: #00C853; color: white;">${sales.products.length} produtos | ${formatCurrency(totalProducts)}</span>
+            <span class="badge bg-success fw-bold ms-2">Total: ${formatCurrency(totalValue)}</span>
+        </div>
+    `;
+    const selectedDaySummary = document.getElementById('selectedDaySummary');
+    if (selectedDaySummary) selectedDaySummary.innerHTML = summaryHtml;
+    
+    const selectedDayInfo = document.getElementById('selectedDayInfo');
+    if (selectedDayInfo) selectedDayInfo.classList.remove('d-none');
+    
+    // Gerar lista de vendas do dia com cores nas bordas
+    let salesHtml = '';
+    
+    // Serviços
+    if (sales.services.length > 0) {
+        salesHtml += `
+            <div class="mb-3">
+                <h6 class="fw-bold mb-2" style="color: #FF6B35;">
+                    <i class="fas fa-cut me-2"></i>Serviços (${sales.services.length})
+                </h6>
+        `;
+        
+        sales.services.forEach(service => {
+            const client = clients.find(c => c.id === service.clientId) || { name: 'Cliente não encontrado' };
+            const collaborator = collaborators.find(c => c.id === service.collaboratorId) || { name: 'Colaborador não encontrado' };
+            
+            salesHtml += `
+                <div class="day-sale-card service" id="service-card-${service.id}">
+                    <div class="d-flex justify-content-between align-items-start flex-wrap">
+                        <div class="flex-grow-1">
+                            <div class="fw-bold">${escapeHtml(client.name)}</div>
+                            <small class="text-muted">Colaborador: ${escapeHtml(collaborator.name)}</small>
+                            <div class="mt-1">
+                                <span class="badge bg-light text-dark">${service.type === 'manual' ? 'Manual' : 'Com Produtos'}</span>
+                                <span class="badge bg-light text-dark ms-1">${escapeHtml(service.description || 'Serviço')}</span>
+                            </div>
+                        </div>
+                        <div class="text-end mt-2 mt-sm-0">
+                            <div class="fw-bold text-success fs-5">${formatCurrency(service.value)}</div>
+                            <div>
+                                <button class="btn btn-sm btn-outline-primary me-1" onclick="editServiceSaleFromCalendar('${service.id}')">
+                                    <i class="fas fa-edit"></i> Editar
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteSaleFromCalendar('${service.id}', 'service', '${date}')">
+                                    <i class="fas fa-trash-alt"></i> Excluir
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        salesHtml += `</div>`;
+    }
+    
+    // Produtos
+    if (sales.products.length > 0) {
+        salesHtml += `
+            <div class="mb-3">
+                <h6 class="fw-bold mb-2" style="color: #00C853;">
+                    <i class="fas fa-box me-2"></i>Produtos (${sales.products.length})
+                </h6>
+        `;
+        
+        sales.products.forEach(sale => {
+            const product = products.find(p => p.id === sale.productId) || { name: 'Produto não encontrado' };
+            const client = sale.clientId ? (clients.find(c => c.id === sale.clientId) || { name: 'Cliente não encontrado' }) : { name: 'Venda Avulsa' };
+            
+            salesHtml += `
+                <div class="day-sale-card product" id="product-card-${sale.id}">
+                    <div class="d-flex justify-content-between align-items-start flex-wrap">
+                        <div class="flex-grow-1">
+                            <div class="fw-bold">${escapeHtml(product.name)}</div>
+                            <small class="text-muted">Cliente: ${escapeHtml(client.name)} | Quantidade: ${sale.quantity || 1}</small>
+                        </div>
+                        <div class="text-end mt-2 mt-sm-0">
+                            <div class="fw-bold text-success fs-5">${formatCurrency(sale.totalValue)}</div>
+                            <div>
+                                <button class="btn btn-sm btn-outline-primary me-1" onclick="editProductSaleFromCalendar('${sale.id}')">
+                                    <i class="fas fa-edit"></i> Editar
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteSaleFromCalendar('${sale.id}', 'product', '${date}')">
+                                    <i class="fas fa-trash-alt"></i> Excluir
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        salesHtml += `</div>`;
+    }
+    
+    if (sales.services.length === 0 && sales.products.length === 0) {
+        salesHtml = `
+            <div class="text-center text-muted py-5">
+                <i class="fas fa-calendar-times fa-3x mb-3 opacity-50"></i>
+                <p>Nenhuma venda registrada nesta data.</p>
+                <small class="text-muted">Clique no botão "Registrar Venda Passada" para adicionar vendas retroativas.</small>
+            </div>
+        `;
+    }
+    
+    const daySalesContainer = document.getElementById('daySalesContainer');
+    if (daySalesContainer) {
+        daySalesContainer.innerHTML = salesHtml;
+    }
+}
+
+// Função auxiliar para escapar HTML
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Garantir que as funções de edição e exclusão estão acessíveis globalmente
+window.editServiceSaleFromCalendar = editServiceSaleFromCalendar;
+window.editProductSaleFromCalendar = editProductSaleFromCalendar;
+window.deleteSaleFromCalendar = deleteSaleFromCalendar;
+    
+    
+    
+    
     
     
     </script>
