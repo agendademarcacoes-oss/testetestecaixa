@@ -16607,6 +16607,469 @@ if (originalSaveAppointment) {
     };
 }
 
+
+    // ============================================================
+// FUNÇÕES CORRIGIDAS PARA SINCRONIZAR COM O CAIXA
+// ============================================================
+
+// Função para converter agendamento em serviço no caixa
+async function convertAppointmentToService(appointment, status, paymentAmount = null) {
+    if (!appointment.clientId) {
+        console.log('Agendamento sem cliente, ignorando...');
+        return null;
+    }
+    
+    // Verificar se já existe um serviço para este agendamento
+    const existingService = allServices.find(s => s.appointmentId === appointment.id);
+    if (existingService) {
+        console.log('Serviço já existe para este agendamento:', existingService.id);
+        return existingService;
+    }
+    
+    // Buscar colaborador do primeiro serviço
+    let collaboratorId = appointment.collaboratorId;
+    if (!collaboratorId && appointment.services && appointment.services.length > 0) {
+        collaboratorId = appointment.services[0].collaboratorId;
+    }
+    
+    if (!collaboratorId) {
+        console.log('Agendamento sem colaborador, ignorando...');
+        return null;
+    }
+    
+    // Determinar o tipo do serviço baseado na descrição
+    const serviceType = 'manual'; // padrão
+    
+    // Calcular valor do serviço (usar total do agendamento ou valor pago)
+    const serviceValue = paymentAmount || appointment.total || 0;
+    
+    const serviceData = {
+        clientId: appointment.clientId,
+        collaboratorId: collaboratorId,
+        type: serviceType,
+        value: serviceValue,
+        description: appointment.serviceName || appointment.services?.map(s => s.name).join(', ') || 'Serviço agendado',
+        date: appointment.date,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+        userId: currentUser.uid,
+        appointmentId: appointment.id, // Link para o agendamento original
+        status: status || 'completed',
+        paid: appointment.paid || 0,
+        total: appointment.total || serviceValue
+    };
+    
+    showLoading('Registrando serviço no caixa...');
+    
+    try {
+        const docRef = await db.collection('services').add(serviceData);
+        console.log('✅ Serviço criado no caixa:', docRef.id);
+        
+        // Recarregar serviços
+        await loadAllServices();
+        await loadAllProductSales();
+        
+        // Atualizar dashboard e financeiro
+        updateDashboard();
+        updateFinancialSummary();
+        updateMonthlySalesChart();
+        
+        Swal.close();
+        return { id: docRef.id, ...serviceData };
+    } catch (error) {
+        console.error('Erro ao criar serviço:', error);
+        Swal.close();
+        return null;
+    }
+}
+
+// Função para atualizar serviço existente
+async function updateServiceFromAppointment(appointment) {
+    const existingService = allServices.find(s => s.appointmentId === appointment.id);
+    
+    if (!existingService) {
+        // Se não existe, criar novo
+        return await convertAppointmentToService(appointment, appointment.status);
+    }
+    
+    // Atualizar serviço existente
+    const serviceValue = appointment.paid || appointment.total || 0;
+    
+    const updateData = {
+        value: serviceValue,
+        paid: appointment.paid || 0,
+        total: appointment.total || serviceValue,
+        status: appointment.status,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    
+    try {
+        await db.collection('services').doc(existingService.id).update(updateData);
+        console.log('✅ Serviço atualizado no caixa:', existingService.id);
+        
+        await loadAllServices();
+        updateDashboard();
+        updateFinancialSummary();
+        updateMonthlySalesChart();
+        
+        return existingService;
+    } catch (error) {
+        console.error('Erro ao atualizar serviço:', error);
+        return null;
+    }
+}
+
+// ============================================================
+// FUNÇÃO CORRIGIDA - Finalizar Atendimento
+// ============================================================
+
+async function completeAppointmentAndRegister() {
+    const clientId = document.getElementById('appointmentClientSelect').value;
+    const client = clients.find(c => c.id === clientId);
+    const total = parseFloat(document.getElementById('appointmentTotal').innerText.replace('€', '').replace(',', '.').trim());
+    const paid = parseFloat(document.getElementById('appointmentPaid').value) || 0;
+    
+    if (!clientId) {
+        showError('Selecione um cliente');
+        return;
+    }
+    
+    if (servicesList.length === 0) {
+        showError('Adicione pelo menos um serviço');
+        return;
+    }
+    
+    // Verificar pagamento pendente
+    if (paid < total) {
+        const confirmPending = await Swal.fire({
+            title: 'Pagamento pendente',
+            text: `Ainda falta ${formatCurrency(total - paid)} para quitar. Deseja finalizar mesmo assim?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Sim, finalizar',
+            cancelButtonText: 'Não'
+        });
+        if (!confirmPending.isConfirmed) return;
+    }
+    
+    // Atualizar status no agendamento
+    document.getElementById('appointmentStatus').value = 'completed';
+    
+    // Preparar dados atualizados do agendamento
+    const updatedAppointment = {
+        ...currentEditingAppointment,
+        clientId: clientId,
+        clientName: client?.name || '',
+        clientPhone: client?.phone || '',
+        date: document.getElementById('appointmentDate').value,
+        startTime: document.getElementById('appointmentStartTime').value,
+        endTime: document.getElementById('appointmentEndTime').value,
+        status: 'completed',
+        notes: document.getElementById('appointmentNotes').value,
+        services: servicesList,
+        serviceName: servicesList.map(s => s.name).join(', '),
+        total: total,
+        paid: paid,
+        discount: parseFloat(document.getElementById('appointmentDiscount').value) || 0,
+        completedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    
+    showLoading('Finalizando atendimento...');
+    
+    try {
+        // 1. Atualizar agendamento
+        await db.collection('appointments').doc(currentEditingAppointment.id).update(updatedAppointment);
+        
+        // 2. Criar/Atualizar serviço no caixa
+        const serviceResult = await convertAppointmentToService(updatedAppointment, 'completed', paid);
+        
+        if (serviceResult) {
+            showSuccess(`Atendimento finalizado! ${formatCurrency(paid)} registrado no caixa.`);
+        } else {
+            showSuccess('Atendimento finalizado! (Serviço registrado)');
+        }
+        
+        // 3. Atualizar array local
+        const index = appointments.findIndex(a => a.id === currentEditingAppointment.id);
+        if (index !== -1) appointments[index] = { ...appointments[index], ...updatedAppointment };
+        
+        // 4. Renderizar agenda com cores atualizadas
+        renderAppointmentsForAll();
+        
+        // 5. Fechar modal
+        bootstrap.Modal.getInstance(document.getElementById('appointmentDetailsModal')).hide();
+        
+        // 6. Perguntar sobre avaliação Google
+        const sendReview = await Swal.fire({
+            title: 'Solicitar avaliação?',
+            text: 'Deseja enviar um link para o cliente avaliar no Google?',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Sim, enviar',
+            cancelButtonText: 'Não'
+        });
+        
+        if (sendReview.isConfirmed && client?.phone) {
+            const reviewLink = 'https://g.page/r/CebJa41iu0E6EAE/review';
+            const message = `Olá ${client.name}! ✨\n\nSeu atendimento foi concluído com sucesso! Gostaríamos muito de saber sua opinião.\n\n⭐ Avalie-nos no Google:\n${reviewLink}\n\nSua avaliação é muito importante! 💙`;
+            const whatsappUrl = `https://wa.me/${client.phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
+            window.open(whatsappUrl, '_blank');
+        }
+        
+    } catch (error) {
+        console.error('Erro ao finalizar:', error);
+        showError('Erro ao finalizar atendimento: ' + error.message);
+    }
+}
+
+// ============================================================
+// FUNÇÃO CORRIGIDA - Registrar Pagamento
+// ============================================================
+
+async function registerPaymentAndUpdate() {
+    const total = parseFloat(document.getElementById('appointmentTotal').innerText.replace('€', '').replace(',', '.').trim());
+    const currentPaid = parseFloat(document.getElementById('appointmentPaid').value) || 0;
+    const remaining = total - currentPaid;
+    
+    if (remaining <= 0) {
+        showError('Agendamento já está totalmente pago');
+        return;
+    }
+    
+    const { value: amount } = await Swal.fire({
+        title: 'Registrar Pagamento',
+        input: 'number',
+        inputLabel: `Valor a pagar (máximo ${formatCurrency(remaining)})`,
+        inputValue: remaining,
+        inputAttributes: { step: '0.01', min: '0.01', max: remaining },
+        showCancelButton: true,
+        confirmButtonText: 'Registrar',
+        cancelButtonText: 'Cancelar'
+    });
+    
+    if (amount && amount > 0) {
+        const newPaid = currentPaid + parseFloat(amount);
+        document.getElementById('appointmentPaid').value = newPaid.toFixed(2);
+        
+        // Recalcular valores na tela
+        const subtotal = parseFloat(document.getElementById('appointmentSubtotal').innerText.replace('€', '').replace(',', '.').trim());
+        const discount = parseFloat(document.getElementById('appointmentDiscount').value) || 0;
+        const newTotal = subtotal - discount;
+        const newPending = newTotal - newPaid;
+        
+        document.getElementById('appointmentTotal').innerHTML = formatCurrency(newTotal);
+        document.getElementById('appointmentPending').innerHTML = formatCurrency(newPending);
+        
+        // Atualizar cor do pendente
+        const pendingSpan = document.getElementById('appointmentPending');
+        if (pendingSpan) {
+            if (newPending <= 0) pendingSpan.style.color = '#28a745';
+            else pendingSpan.style.color = '#dc3545';
+        }
+        
+        // Se o agendamento já existe no sistema, atualizar o serviço
+        if (currentEditingAppointment && currentEditingAppointment.id) {
+            // Verificar se já existe serviço
+            const existingService = allServices.find(s => s.appointmentId === currentEditingAppointment.id);
+            
+            if (existingService) {
+                // Atualizar serviço existente
+                const newServiceValue = newPaid;
+                try {
+                    await db.collection('services').doc(existingService.id).update({
+                        value: newServiceValue,
+                        paid: newPaid,
+                        total: newTotal,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    console.log('✅ Serviço atualizado com novo pagamento');
+                    
+                    // Recarregar dados
+                    await loadAllServices();
+                    updateDashboard();
+                    updateFinancialSummary();
+                    
+                    showSuccess(`Pagamento de ${formatCurrency(amount)} registrado! Total pago: ${formatCurrency(newPaid)}`);
+                } catch (error) {
+                    console.error('Erro ao atualizar serviço:', error);
+                    showSuccess(`Pagamento de ${formatCurrency(amount)} registrado! (Não foi possível atualizar o caixa)`);
+                }
+            } else {
+                showSuccess(`Pagamento de ${formatCurrency(amount)} registrado! Finalize o atendimento para registrar no caixa.`);
+            }
+        } else {
+            showSuccess(`Pagamento de ${formatCurrency(amount)} registrado!`);
+        }
+    }
+}
+
+// ============================================================
+// FUNÇÃO CORRIGIDA - Salvar Alterações do Agendamento
+// ============================================================
+
+async function saveAppointmentChanges() {
+    if (!document.getElementById('appointmentClientSelect').value) {
+        showError('Selecione um cliente');
+        return;
+    }
+    if (servicesList.length === 0) {
+        showError('Adicione pelo menos um serviço');
+        return;
+    }
+    
+    const isValid = await validateDateTime();
+    if (!isValid) return;
+    
+    const clientId = document.getElementById('appointmentClientSelect').value;
+    const client = clients.find(c => c.id === clientId);
+    const total = parseFloat(document.getElementById('appointmentTotal').innerText.replace('€', '').replace(',', '.').trim());
+    const paid = parseFloat(document.getElementById('appointmentPaid').value) || 0;
+    const newStatus = document.getElementById('appointmentStatus').value;
+    
+    const updatedAppointment = {
+        ...currentEditingAppointment,
+        clientId: clientId,
+        clientName: client?.name || '',
+        clientPhone: client?.phone || '',
+        date: document.getElementById('appointmentDate').value,
+        startTime: document.getElementById('appointmentStartTime').value,
+        endTime: document.getElementById('appointmentEndTime').value,
+        status: newStatus,
+        notes: document.getElementById('appointmentNotes').value,
+        services: servicesList,
+        serviceName: servicesList.map(s => s.name).join(', '),
+        total: total,
+        paid: paid,
+        discount: parseFloat(document.getElementById('appointmentDiscount').value) || 0,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    
+    showLoading('Salvando alterações...');
+    
+    try {
+        // 1. Atualizar agendamento
+        await db.collection('appointments').doc(currentEditingAppointment.id).update(updatedAppointment);
+        
+        // 2. Se status for 'completed' ou 'in_progress', sincronizar com caixa
+        if (newStatus === 'completed' || newStatus === 'in_progress') {
+            await convertAppointmentToService(updatedAppointment, newStatus, paid);
+        } else if (newStatus === 'cancelled') {
+            // Se cancelado, remover serviço associado se existir
+            const existingService = allServices.find(s => s.appointmentId === currentEditingAppointment.id);
+            if (existingService) {
+                await db.collection('services').doc(existingService.id).delete();
+                await loadAllServices();
+                console.log('✅ Serviço removido devido ao cancelamento');
+            }
+        } else if (newStatus === 'scheduled' || newStatus === 'confirmed') {
+            // Se for apenas agendado/confirmado, não registrar no caixa ainda
+            console.log('Agendamento mantido como reserva');
+        }
+        
+        // 3. Atualizar array local
+        const index = appointments.findIndex(a => a.id === currentEditingAppointment.id);
+        if (index !== -1) appointments[index] = { ...appointments[index], ...updatedAppointment };
+        
+        // 4. Renderizar agenda
+        renderAppointmentsForAll();
+        
+        // 5. Fechar modal
+        bootstrap.Modal.getInstance(document.getElementById('appointmentDetailsModal')).hide();
+        
+        showSuccess('Agendamento atualizado com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao salvar:', error);
+        showError('Erro ao salvar: ' + error.message);
+    }
+}
+
+// ============================================================
+// FUNÇÃO CORRIGIDA - Cores na Agenda
+// ============================================================
+
+function applyAppointmentColor(element, status) {
+    if (!element) return;
+    
+    switch (status) {
+        case 'completed':
+            element.style.background = 'linear-gradient(135deg, #6c757d, #495057)';
+            element.style.opacity = '0.7';
+            break;
+        case 'cancelled':
+            element.style.background = 'linear-gradient(135deg, #dc3545, #a71d2a)';
+            element.style.opacity = '0.6';
+            break;
+        case 'in_progress':
+            element.style.background = 'linear-gradient(135deg, #28a745, #1e7e34)';
+            element.style.opacity = '1';
+            break;
+        case 'confirmed':
+            element.style.background = 'linear-gradient(135deg, #17a2b8, #0d6efd)';
+            element.style.opacity = '1';
+            break;
+        default: // scheduled
+            element.style.background = 'linear-gradient(135deg, #26196b, #4a3a9c)';
+            element.style.opacity = '1';
+            break;
+    }
+}
+
+// Sobrescrever renderAppointmentsForAll para aplicar cores
+const originalRenderAppointmentsForAll = window.renderAppointmentsForAll;
+window.renderAppointmentsForAll = function() {
+    if (originalRenderAppointmentsForAll) {
+        originalRenderAppointmentsForAll();
+    }
+    
+    // Aplicar cores baseadas no status
+    setTimeout(() => {
+        document.querySelectorAll('.agenda-appointment').forEach(el => {
+            // Tentar encontrar o appointment pelo conteúdo
+            const clientNameEl = el.querySelector('.agenda-appointment-client');
+            const timeEl = el.querySelector('.agenda-appointment-time');
+            
+            if (clientNameEl && timeEl) {
+                const clientName = clientNameEl.innerText;
+                const time = timeEl.innerText.split(' - ')[0];
+                
+                const appointment = appointments.find(a => 
+                    a.clientName === clientName && a.startTime === time
+                );
+                
+                if (appointment) {
+                    el.setAttribute('data-appointment-id', appointment.id);
+                    applyAppointmentColor(el, appointment.status);
+                }
+            }
+        });
+    }, 100);
+};
+
+// ============================================================
+// ATUALIZAR OS BOTÕES DO MODAL
+// ============================================================
+
+// Substituir os event listeners no modal
+// Dentro de openAppointmentDetailsModal, substitua:
+
+// Em vez de:
+// document.getElementById('completeAppointmentBtn').onclick = completeAppointment;
+
+// Use:
+document.getElementById('completeAppointmentBtn').onclick = completeAppointmentAndRegister;
+
+// Em vez de:
+// document.getElementById('registerPaymentBtn').onclick = ...;
+
+// Use:
+document.getElementById('registerPaymentBtn').onclick = registerPaymentAndUpdate;
+
+// Em vez de:
+// document.getElementById('saveAppointmentChangesBtn').onclick = ...;
+
+// Use:
+document.getElementById('saveAppointmentChangesBtn').onclick = saveAppointmentChanges;
         
     </script>
 
