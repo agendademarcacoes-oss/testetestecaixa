@@ -15848,88 +15848,86 @@ document.head.appendChild(swalStyle);
 
 // ============================================================
 // SISTEMA DE AGENDAMENTO COM SINCRONIZAÇÃO EM TEMPO REAL
+// VERSÃO COMPLETA - TODAS AS AÇÕES SINCRONIZADAS
 // ============================================================
 
 // Variáveis globais
 let currentEditingAppointment = null;
 let appointmentsRealtimeListener = null;
 let servicesRealtimeListener = null;
+let productsRealtimeListener = null;
+let collaboratorsRealtimeListener = null;
+let clientsRealtimeListener = null;
 
 // ============================================================
-// INICIALIZAR LISTENERS EM TEMPO REAL
+// 1. INICIALIZAR LISTENERS EM TEMPO REAL
 // ============================================================
 
 function initRealtimeSync() {
-    if (!currentUser) return;
+    if (!currentUser) {
+        console.log('⚠️ Aguardando usuário logado para iniciar sincronização...');
+        return;
+    }
     
-    console.log('🔄 Iniciando sincronização em tempo real...');
+    console.log('🔄 Iniciando sincronização em tempo real para usuário:', currentUser.uid);
     
     // Remover listeners antigos se existirem
-    if (appointmentsRealtimeListener) {
-        appointmentsRealtimeListener();
-    }
-    if (servicesRealtimeListener) {
-        servicesRealtimeListener();
-    }
+    if (appointmentsRealtimeListener) appointmentsRealtimeListener();
+    if (servicesRealtimeListener) servicesRealtimeListener();
+    if (productsRealtimeListener) productsRealtimeListener();
+    if (collaboratorsRealtimeListener) collaboratorsRealtimeListener();
+    if (clientsRealtimeListener) clientsRealtimeListener();
     
-    // Listener para agendamentos em tempo real
+    // ========== LISTENER PARA AGENDAMENTOS ==========
     appointmentsRealtimeListener = db.collection('appointments')
         .where('userId', '==', currentUser.uid)
         .onSnapshot((snapshot) => {
-            console.log('📡 Agendamentos atualizados em tempo real!');
+            console.log('📡 [REALTIME] Agendamentos atualizados!');
             
             snapshot.docChanges().forEach((change) => {
                 const appointmentData = { id: change.doc.id, ...change.doc.data() };
                 
                 switch (change.type) {
                     case 'added':
-                        console.log('✨ Novo agendamento adicionado:', appointmentData.clientName);
+                        console.log('  ✨ Novo agendamento:', appointmentData.clientName);
                         const exists = appointments.some(a => a.id === appointmentData.id);
                         if (!exists) {
                             appointments.push(appointmentData);
+                            showRealtimeNotification(`➕ Novo: ${appointmentData.clientName}`);
                         }
                         break;
                     case 'modified':
-                        console.log('✏️ Agendamento modificado:', appointmentData.clientName);
+                        console.log('  ✏️ Agendamento modificado:', appointmentData.clientName, 'Status:', appointmentData.status);
                         const index = appointments.findIndex(a => a.id === appointmentData.id);
                         if (index !== -1) {
                             appointments[index] = appointmentData;
                         } else {
                             appointments.push(appointmentData);
                         }
+                        showRealtimeNotification(`✏️ Atualizado: ${appointmentData.clientName}`);
                         break;
                     case 'removed':
-                        console.log('🗑️ Agendamento removido:', appointmentData.id);
+                        console.log('  🗑️ Agendamento removido:', appointmentData.id);
                         const removeIndex = appointments.findIndex(a => a.id === appointmentData.id);
                         if (removeIndex !== -1) {
                             appointments.splice(removeIndex, 1);
+                            showRealtimeNotification(`🗑️ Agendamento removido`);
                         }
                         break;
                 }
             });
             
-            // Re-renderizar agenda e atualizar dashboards
-            if (typeof renderAppointmentsForAll === 'function') {
-                renderAppointmentsForAll();
-            }
-            if (typeof updateDashboard === 'function') {
-                updateDashboard();
-            }
-            if (typeof updateFinancialSummary === 'function') {
-                updateFinancialSummary();
-            }
-            
-            // Mostrar notificação visual (opcional)
-            showRealtimeNotification('Agendamentos atualizados');
+            // Atualizar tudo após qualquer mudança
+            refreshAllAfterRealtimeUpdate();
         }, (error) => {
-            console.error('Erro no listener de agendamentos:', error);
+            console.error('❌ Erro no listener de agendamentos:', error);
         });
     
-    // Listener para serviços em tempo real
+    // ========== LISTENER PARA SERVIÇOS ==========
     servicesRealtimeListener = db.collection('services')
         .where('userId', '==', currentUser.uid)
         .onSnapshot((snapshot) => {
-            console.log('📡 Serviços atualizados em tempo real!');
+            console.log('📡 [REALTIME] Serviços atualizados!');
             
             snapshot.docChanges().forEach((change) => {
                 const serviceData = { id: change.doc.id, ...change.doc.data() };
@@ -15940,19 +15938,14 @@ function initRealtimeSync() {
                         const exists = allServices.some(s => s.id === serviceData.id);
                         if (!exists) {
                             allServices.push(serviceData);
-                            if (serviceData.date === today) {
-                                todayServices.push(serviceData);
-                            }
+                            if (serviceData.date === today) todayServices.push(serviceData);
                         }
                         break;
                     case 'modified':
                         const index = allServices.findIndex(s => s.id === serviceData.id);
-                        if (index !== -1) {
-                            allServices[index] = serviceData;
-                        } else {
-                            allServices.push(serviceData);
-                        }
-                        // Atualizar todayServices
+                        if (index !== -1) allServices[index] = serviceData;
+                        else allServices.push(serviceData);
+                        
                         const todayIndex = todayServices.findIndex(s => s.id === serviceData.id);
                         if (serviceData.date === today) {
                             if (todayIndex === -1) todayServices.push(serviceData);
@@ -15970,52 +15963,208 @@ function initRealtimeSync() {
                 }
             });
             
-            // Atualizar UI
-            if (typeof updateTodaySalesUI === 'function') updateTodaySalesUI();
-            if (typeof updateDashboard === 'function') updateDashboard();
-            if (typeof updateMonthlySalesChart === 'function') updateMonthlySalesChart();
-            
-            showRealtimeNotification('Serviços atualizados');
+            refreshAllAfterRealtimeUpdate();
+            showRealtimeNotification('🔄 Serviços atualizados');
         }, (error) => {
-            console.error('Erro no listener de serviços:', error);
+            console.error('❌ Erro no listener de serviços:', error);
         });
     
-    console.log('✅ Sincronização em tempo real ativada!');
+    // ========== LISTENER PARA PRODUTOS ==========
+    productsRealtimeListener = db.collection('products')
+        .where('userId', '==', currentUser.uid)
+        .onSnapshot((snapshot) => {
+            console.log('📡 [REALTIME] Produtos atualizados!');
+            
+            snapshot.docChanges().forEach((change) => {
+                const productData = { id: change.doc.id, ...change.doc.data() };
+                
+                switch (change.type) {
+                    case 'added':
+                        const exists = products.some(p => p.id === productData.id);
+                        if (!exists) products.push(productData);
+                        break;
+                    case 'modified':
+                        const index = products.findIndex(p => p.id === productData.id);
+                        if (index !== -1) products[index] = productData;
+                        else products.push(productData);
+                        break;
+                    case 'removed':
+                        const removeIndex = products.findIndex(p => p.id === productData.id);
+                        if (removeIndex !== -1) products.splice(removeIndex, 1);
+                        break;
+                }
+            });
+            
+            refreshAllAfterRealtimeUpdate();
+            if (typeof renderStore === 'function') renderStore();
+            showRealtimeNotification('🔄 Produtos atualizados');
+        }, (error) => {
+            console.error('❌ Erro no listener de produtos:', error);
+        });
+    
+    // ========== LISTENER PARA COLABORADORES ==========
+    collaboratorsRealtimeListener = db.collection('collaborators')
+        .where('userId', '==', currentUser.uid)
+        .onSnapshot((snapshot) => {
+            console.log('📡 [REALTIME] Colaboradores atualizados!');
+            
+            snapshot.docChanges().forEach((change) => {
+                const collabData = { id: change.doc.id, ...change.doc.data() };
+                
+                switch (change.type) {
+                    case 'added':
+                        const exists = collaborators.some(c => c.id === collabData.id);
+                        if (!exists) collaborators.push(collabData);
+                        break;
+                    case 'modified':
+                        const index = collaborators.findIndex(c => c.id === collabData.id);
+                        if (index !== -1) collaborators[index] = collabData;
+                        else collaborators.push(collabData);
+                        break;
+                    case 'removed':
+                        const removeIndex = collaborators.findIndex(c => c.id === collabData.id);
+                        if (removeIndex !== -1) collaborators.splice(removeIndex, 1);
+                        break;
+                }
+            });
+            
+            refreshAllAfterRealtimeUpdate();
+            showRealtimeNotification('🔄 Colaboradores atualizados');
+        }, (error) => {
+            console.error('❌ Erro no listener de colaboradores:', error);
+        });
+    
+    // ========== LISTENER PARA CLIENTES ==========
+    clientsRealtimeListener = db.collection('clients')
+        .where('userId', '==', currentUser.uid)
+        .onSnapshot((snapshot) => {
+            console.log('📡 [REALTIME] Clientes atualizados!');
+            
+            snapshot.docChanges().forEach((change) => {
+                const clientData = { id: change.doc.id, ...change.doc.data() };
+                
+                switch (change.type) {
+                    case 'added':
+                        const exists = clients.some(c => c.id === clientData.id);
+                        if (!exists) clients.push(clientData);
+                        break;
+                    case 'modified':
+                        const index = clients.findIndex(c => c.id === clientData.id);
+                        if (index !== -1) clients[index] = clientData;
+                        else clients.push(clientData);
+                        break;
+                    case 'removed':
+                        const removeIndex = clients.findIndex(c => c.id === clientData.id);
+                        if (removeIndex !== -1) clients.splice(removeIndex, 1);
+                        break;
+                }
+            });
+            
+            refreshAllAfterRealtimeUpdate();
+            showRealtimeNotification('🔄 Clientes atualizados');
+        }, (error) => {
+            console.error('❌ Erro no listener de clientes:', error);
+        });
+    
+    console.log('✅ Sincronização em tempo real ativada para TODOS os dados!');
 }
 
-// Função para mostrar notificação visual de atualização
+// ============================================================
+// 2. FUNÇÃO PARA ATUALIZAR TUDO APÓS MUDANÇAS EM TEMPO REAL
+// ============================================================
+
+let refreshTimeout = null;
+function refreshAllAfterRealtimeUpdate() {
+    // Debounce para evitar múltiplas atualizações seguidas
+    if (refreshTimeout) clearTimeout(refreshTimeout);
+    
+    refreshTimeout = setTimeout(() => {
+        console.log('🔄 Atualizando interface após mudanças em tempo real...');
+        
+        // Atualizar agenda
+        if (typeof renderAppointmentsForAll === 'function') {
+            renderAppointmentsForAll();
+        }
+        
+        // Atualizar dashboard
+        if (typeof updateDashboard === 'function') {
+            updateDashboard();
+        }
+        
+        // Atualizar financeiro
+        if (typeof updateFinancialSummary === 'function') {
+            updateFinancialSummary();
+        }
+        
+        // Atualizar gráficos
+        if (typeof updateMonthlySalesChart === 'function') {
+            updateMonthlySalesChart();
+        }
+        
+        // Atualizar estatísticas de produtos
+        if (typeof updateProductsSoldStats === 'function') {
+            updateProductsSoldStats();
+        }
+        
+        // Atualizar lista de clientes
+        if (typeof updateClientsUI === 'function') {
+            updateClientsUI();
+        }
+        
+        // Atualizar lista de colaboradores
+        if (typeof updateCollaboratorsUI === 'function') {
+            updateCollaboratorsUI();
+        }
+        
+        // Atualizar selects
+        if (typeof updateCollaboratorSelect === 'function') {
+            updateCollaboratorSelect();
+            updateReportCollaboratorSelect();
+            updateSalaryCollaboratorSelect();
+        }
+        
+        // Atualizar loja
+        if (typeof renderStore === 'function' && document.getElementById('store')?.classList.contains('active')) {
+            renderStore();
+        }
+        
+        console.log('✅ Interface atualizada após mudanças em tempo real!');
+    }, 300);
+}
+
+// ============================================================
+// 3. NOTIFICAÇÃO VISUAL
+// ============================================================
+
 let notificationTimeout = null;
 function showRealtimeNotification(message) {
-    // Verificar se já existe uma notificação
     let notif = document.getElementById('realtimeNotification');
     if (!notif) {
         notif = document.createElement('div');
         notif.id = 'realtimeNotification';
         notif.style.cssText = `
             position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
+            bottom: 80px;
+            right: 20px;
             background: linear-gradient(135deg, #28a745, #20c997);
             color: white;
             padding: 10px 20px;
             border-radius: 30px;
-            font-size: 14px;
+            font-size: 13px;
             z-index: 1000000;
             font-family: sans-serif;
             box-shadow: 0 4px 15px rgba(0,0,0,0.2);
             transition: opacity 0.3s ease;
             opacity: 0;
             pointer-events: none;
+            white-space: nowrap;
         `;
         document.body.appendChild(notif);
     }
     
-    // Mostrar notificação
     notif.textContent = `🔄 ${message}`;
     notif.style.opacity = '1';
     
-    // Esconder após 2 segundos
     if (notificationTimeout) clearTimeout(notificationTimeout);
     notificationTimeout = setTimeout(() => {
         notif.style.opacity = '0';
@@ -16023,7 +16172,7 @@ function showRealtimeNotification(message) {
 }
 
 // ============================================================
-// TELA COMPLETA DE DETALHES/EDIÇÃO DE AGENDAMENTO
+// 4. TELA COMPLETA DE DETALHES/EDIÇÃO DE AGENDAMENTO
 // ============================================================
 
 window.showAppointmentDetails = async function(appointmentId) {
@@ -16433,7 +16582,7 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
                 await db.collection('appointments').doc(currentEditingAppointment.id).delete();
                 bootstrap.Modal.getInstance(document.getElementById('appointmentDetailsModal')).hide();
                 showSuccess('Agendamento excluído permanentemente!');
-                showRealtimeNotification('Agendamento excluído');
+                showRealtimeNotification('🗑️ Agendamento excluído');
             } catch (error) {
                 console.error(error);
                 showError('Erro ao excluir: ' + error.message);
@@ -16549,7 +16698,7 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
             await db.collection('appointments').doc(currentEditingAppointment.id).update(updatedAppointment);
             bootstrap.Modal.getInstance(document.getElementById('appointmentDetailsModal')).hide();
             showSuccess('Agendamento atualizado com sucesso!');
-            showRealtimeNotification('Agendamento atualizado');
+            showRealtimeNotification(`✏️ ${updatedAppointment.clientName} atualizado`);
             return true;
         } catch (error) {
             console.error(error);
@@ -16793,7 +16942,7 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
 }
 
 // ============================================================
-// RENDERIZAÇÃO DE AGENDAMENTOS COM CORES
+// 5. RENDERIZAÇÃO DE AGENDAMENTOS COM CORES
 // ============================================================
 
 window.renderAppointmentsForAll = function() {
@@ -16859,7 +17008,7 @@ window.renderAppointmentsForAll = function() {
 };
 
 // ============================================================
-// FUNÇÃO PARA SALVAR AGENDAMENTO COM COLABORADOR CORRETO
+// 6. FUNÇÃO PARA SALVAR AGENDAMENTO COM COLABORADOR CORRETO
 // ============================================================
 
 const originalSaveAppointment = window.saveAppointment;
@@ -16877,27 +17026,31 @@ if (originalSaveAppointment) {
             }
             updateDashboard();
             updateFinancialSummary();
-            showRealtimeNotification('Novo agendamento criado');
+            showRealtimeNotification('✨ Novo agendamento criado');
         }, 500);
     };
 }
 
 // ============================================================
-// INICIALIZAR SINCRONIZAÇÃO APÓS LOGIN
+// 7. INICIALIZAR SINCRONIZAÇÃO APÓS LOGIN
 // ============================================================
 
-// Aguardar currentUser estar disponível
+let syncInitialized = false;
 const checkUserInterval = setInterval(() => {
-    if (currentUser) {
+    if (currentUser && !syncInitialized) {
+        syncInitialized = true;
         clearInterval(checkUserInterval);
         setTimeout(() => {
             initRealtimeSync();
-            console.log('✅ Sincronização em tempo real iniciada!');
+            console.log('✅ Sincronização em tempo real iniciada para todos os dados!');
         }, 2000);
     }
 }, 1000);
 
-// CSS para notificações e modais
+// ============================================================
+// 8. CSS PARA NOTIFICAÇÕES E MODAIS
+// ============================================================
+
 const styleZIndex = document.createElement('style');
 styleZIndex.textContent = `
     .swal2-container.swal2-center {
@@ -16912,10 +17065,15 @@ styleZIndex.textContent = `
     .modal {
         z-index: 999999 !important;
     }
+    #realtimeNotification {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        font-weight: 500;
+        backdrop-filter: blur(5px);
+    }
 `;
 document.head.appendChild(styleZIndex);
 
-console.log('✅ Sistema de agendamento com sincronização em tempo real carregado!');
+console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLETO carregado!');
         
     </script>
 
