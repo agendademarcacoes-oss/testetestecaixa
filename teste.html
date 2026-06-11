@@ -15844,8 +15844,8 @@ document.head.appendChild(swalStyle);
 
 
 
-        // ============================================================
-// TELA COMPLETA DE DETALHES/EDIÇÃO DE AGENDAMENTO
+// ============================================================
+// TELA COMPLETA DE DETALHES/EDIÇÃO DE AGENDAMENTO - VERSÃO CORRIGIDA
 // ============================================================
 
 // Variável global para armazenar o agendamento sendo editado
@@ -15858,7 +15858,7 @@ window.showAppointmentDetails = async function(appointmentId) {
         showError('Agendamento não encontrado');
         return;
     }
-    currentEditingAppointment = { ...appointment }; // clone para edição
+    currentEditingAppointment = JSON.parse(JSON.stringify(appointment)); // clone profundo para edição
     
     // Carregar dados completos do cliente
     let clientData = null;
@@ -15866,7 +15866,7 @@ window.showAppointmentDetails = async function(appointmentId) {
         clientData = clients.find(c => c.id === appointment.clientId);
     }
     
-    // Preparar lista de serviços
+    // Preparar lista de serviços (garantir que existe)
     let servicesList = appointment.services || [];
     
     // Abrir modal principal
@@ -15878,15 +15878,24 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
     // Buscar lista de profissionais ativos
     const activeCollaborators = collaborators.filter(c => c.active);
     
-    // Buscar lista de serviços cadastrados (companyServices)
-    const availableServices = companyServices.length ? companyServices : [];
+    // Buscar lista de serviços cadastrados (companyServices - cadastrados no Perfil da Empresa)
+    // Se não houver, tentar carregar novamente
+    let availableServices = [...companyServices];
+    if (availableServices.length === 0) {
+        // Tentar carregar serviços do Firebase novamente
+        await loadCompanyServices();
+        availableServices = [...companyServices];
+    }
+    
+    // Se ainda não tiver serviços, mostrar mensagem
+    const hasServices = availableServices.length > 0;
     
     // Criar o modal HTML dinamicamente
     const modalHtml = `
-        <div class="modal fade" id="appointmentDetailsModal" tabindex="-1" data-bs-backdrop="static" style="z-index: 99999;">
+        <div class="modal fade" id="appointmentDetailsModal" tabindex="-1" data-bs-backdrop="static" style="z-index: 105000;">
             <div class="modal-dialog modal-xl modal-dialog-scrollable">
                 <div class="modal-content">
-                    <div class="modal-header bg-primary text-white">
+                    <div class="modal-header" style="background: linear-gradient(135deg, #26196b, #4a3a9c); color: white;">
                         <h5 class="modal-title">
                             <i class="fas fa-calendar-check me-2"></i>Detalhes do Agendamento
                         </h5>
@@ -15894,18 +15903,18 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
                     </div>
                     <div class="modal-body">
                         <div class="row">
-                            <!-- COLUDA ESQUERDA: Cliente + Agendamento -->
+                            <!-- COLUNA ESQUERDA: Cliente + Agendamento -->
                             <div class="col-md-6">
                                 <!-- CARD DO CLIENTE -->
-                                <div class="card mb-3">
+                                <div class="card mb-3 shadow-sm">
                                     <div class="card-header bg-light">
                                         <h6 class="mb-0"><i class="fas fa-user me-2"></i>Cliente</h6>
                                     </div>
                                     <div class="card-body">
                                         <div class="d-flex align-items-center mb-3">
-                                            <div class="me-3" id="appointmentClientAvatar">
+                                            <div class="me-3" id="appointmentClientAvatar" style="cursor: pointer;" onclick="if(document.getElementById('appointmentClientSelect').value) showClientRecord(document.getElementById('appointmentClientSelect').value)">
                                                 ${clientData?.photoUrl ? 
-                                                    `<img src="${clientData.photoUrl}" width="60" height="60" class="rounded-circle" style="object-fit: cover;">` :
+                                                    `<img src="${clientData.photoUrl}" width="60" height="60" class="rounded-circle" style="object-fit: cover; border: 2px solid #26196b;">` :
                                                     `<div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width: 60px; height: 60px; font-size: 24px;">
                                                         ${clientData?.name?.charAt(0).toUpperCase() || '?'}
                                                      </div>`
@@ -15914,10 +15923,10 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
                                             <div class="flex-grow-1">
                                                 <select class="form-select" id="appointmentClientSelect">
                                                     <option value="">Selecione um cliente</option>
-                                                    ${clients.map(c => `<option value="${c.id}" ${c.id === appointment.clientId ? 'selected' : ''}>${c.name} (${c.phone || 'sem telefone'})</option>`).join('')}
+                                                    ${clients.map(c => `<option value="${c.id}" ${c.id === appointment.clientId ? 'selected' : ''} data-name="${c.name}" data-phone="${c.phone || ''}" data-photo="${c.photoUrl || ''}">${c.name} (${c.phone || 'sem telefone'})</option>`).join('')}
                                                 </select>
                                                 <div class="mt-2">
-                                                    <div class="btn-group btn-group-sm">
+                                                    <div class="btn-group btn-group-sm flex-wrap">
                                                         <button class="btn btn-outline-primary" id="callClientBtn" ${!clientData?.phone ? 'disabled' : ''}>
                                                             <i class="fas fa-phone"></i> Ligar
                                                         </button>
@@ -15934,48 +15943,55 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
                                                 </div>
                                             </div>
                                         </div>
+                                        <div id="clientHistoryContainer" style="display: none; margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 8px; max-height: 200px; overflow-y: auto;">
+                                            <!-- Histórico será carregado aqui -->
+                                        </div>
                                     </div>
                                 </div>
                                 
                                 <!-- CARD DO AGENDAMENTO -->
-                                <div class="card mb-3">
+                                <div class="card mb-3 shadow-sm">
                                     <div class="card-header bg-light">
                                         <h6 class="mb-0"><i class="fas fa-calendar-alt me-2"></i>Agendamento</h6>
                                     </div>
                                     <div class="card-body">
                                         <div class="row g-2">
                                             <div class="col-md-6">
-                                                <label class="form-label small">Data</label>
+                                                <label class="form-label small fw-bold">Data</label>
                                                 <input type="date" class="form-control" id="appointmentDate" value="${appointment.date}">
                                             </div>
                                             <div class="col-md-6">
-                                                <label class="form-label small">Hora Início</label>
+                                                <label class="form-label small fw-bold">Hora Início</label>
                                                 <input type="time" class="form-control" id="appointmentStartTime" value="${appointment.startTime}">
                                             </div>
                                             <div class="col-md-6">
-                                                <label class="form-label small">Hora Fim</label>
-                                                <input type="time" class="form-control" id="appointmentEndTime" value="${appointment.endTime || ''}" readonly>
+                                                <label class="form-label small fw-bold">Hora Fim</label>
+                                                <input type="time" class="form-control" id="appointmentEndTime" value="${appointment.endTime || ''}" readonly style="background: #f8f9fa;">
                                             </div>
                                             <div class="col-md-6">
-                                                <label class="form-label small">Status</label>
+                                                <label class="form-label small fw-bold">Status</label>
                                                 <select class="form-select" id="appointmentStatus">
-                                                    <option value="scheduled" ${appointment.status === 'scheduled' ? 'selected' : ''}>Agendado</option>
-                                                    <option value="confirmed" ${appointment.status === 'confirmed' ? 'selected' : ''}>Confirmado</option>
-                                                    <option value="in_progress" ${appointment.status === 'in_progress' ? 'selected' : ''}>Em atendimento</option>
-                                                    <option value="completed" ${appointment.status === 'completed' ? 'selected' : ''}>Concluído</option>
-                                                    <option value="cancelled" ${appointment.status === 'cancelled' ? 'selected' : ''}>Cancelado</option>
-                                                    <option value="no_show" ${appointment.status === 'no_show' ? 'selected' : ''}>Não compareceu</option>
+                                                    <option value="scheduled" ${appointment.status === 'scheduled' ? 'selected' : ''}>📅 Agendado</option>
+                                                    <option value="confirmed" ${appointment.status === 'confirmed' ? 'selected' : ''}>✅ Confirmado</option>
+                                                    <option value="in_progress" ${appointment.status === 'in_progress' ? 'selected' : ''}>✂️ Em atendimento</option>
+                                                    <option value="completed" ${appointment.status === 'completed' ? 'selected' : ''}>🏁 Concluído</option>
+                                                    <option value="cancelled" ${appointment.status === 'cancelled' ? 'selected' : ''}>❌ Cancelado</option>
+                                                    <option value="no_show" ${appointment.status === 'no_show' ? 'selected' : ''}>👤 Não compareceu</option>
                                                 </select>
                                             </div>
                                         </div>
                                         <div class="mt-3">
-                                            <label class="form-label small">Recorrência</label>
+                                            <label class="form-label small fw-bold">Recorrência</label>
                                             <select class="form-select" id="appointmentRecurrence">
-                                                <option value="none">Não se repete</option>
-                                                <option value="daily">Diário</option>
-                                                <option value="weekly">Semanal</option>
-                                                <option value="monthly">Mensal</option>
+                                                <option value="none">🔁 Não se repete</option>
+                                                <option value="daily">📆 Diário</option>
+                                                <option value="weekly">📆 Semanal</option>
+                                                <option value="monthly">📆 Mensal</option>
                                             </select>
+                                        </div>
+                                        <div class="mt-3">
+                                            <label class="form-label small fw-bold">Observações</label>
+                                            <textarea class="form-control" id="appointmentNotes" rows="2" placeholder="Observações adicionais...">${appointment.notes || ''}</textarea>
                                         </div>
                                     </div>
                                 </div>
@@ -15983,13 +15999,20 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
                             
                             <!-- COLUNA DIREITA: SERVIÇOS E VALORES -->
                             <div class="col-md-6">
-                                <div class="card mb-3">
+                                <div class="card mb-3 shadow-sm">
                                     <div class="card-header bg-light d-flex justify-content-between align-items-center">
                                         <h6 class="mb-0"><i class="fas fa-cut me-2"></i>Serviços</h6>
-                                        <button class="btn btn-sm btn-primary" id="addServiceToAppointmentBtn">
+                                        <button class="btn btn-sm btn-primary" id="addServiceToAppointmentBtn" ${!hasServices ? 'disabled' : ''}>
                                             <i class="fas fa-plus"></i> Adicionar serviço
                                         </button>
                                     </div>
+                                    ${!hasServices ? `
+                                        <div class="alert alert-warning m-2">
+                                            <i class="fas fa-exclamation-triangle me-2"></i>
+                                            Nenhum serviço cadastrado. 
+                                            <a href="#" onclick="showSection('business-profile'); bootstrap.Modal.getInstance(document.getElementById('appointmentDetailsModal')).hide();">Clique aqui para cadastrar serviços</a>
+                                        </div>
+                                    ` : ''}
                                     <div class="card-body p-0">
                                         <div id="appointmentServicesList" class="list-group list-group-flush">
                                             <!-- Serviços serão inseridos dinamicamente -->
@@ -15997,40 +16020,52 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
                                     </div>
                                 </div>
                                 
-                                <div class="card">
+                                <div class="card shadow-sm">
                                     <div class="card-header bg-light">
                                         <h6 class="mb-0"><i class="fas fa-euro-sign me-2"></i>Valores</h6>
                                     </div>
                                     <div class="card-body">
                                         <div class="d-flex justify-content-between mb-2">
                                             <span>Subtotal:</span>
-                                            <span id="appointmentSubtotal">€ 0,00</span>
+                                            <span id="appointmentSubtotal" class="fw-bold">€ 0,00</span>
                                         </div>
-                                        <div class="d-flex justify-content-between mb-2">
+                                        <div class="d-flex justify-content-between mb-2 align-items-center">
                                             <span>Desconto:</span>
-                                            <div class="input-group input-group-sm" style="width: 120px;">
-                                                <input type="number" class="form-control" id="appointmentDiscount" value="0" step="0.01" min="0">
+                                            <div class="input-group input-group-sm" style="width: 130px;">
+                                                <input type="number" class="form-control text-end" id="appointmentDiscount" value="${appointment.discount || 0}" step="0.01" min="0">
                                                 <span class="input-group-text">€</span>
                                             </div>
                                         </div>
-                                        <div class="d-flex justify-content-between mb-2 fw-bold">
-                                            <span>Total:</span>
-                                            <span id="appointmentTotal">€ 0,00</span>
+                                        <div class="d-flex justify-content-between mb-2 pt-2 border-top">
+                                            <span class="fw-bold">Total:</span>
+                                            <span id="appointmentTotal" class="fw-bold fs-5" style="color: #26196b;">€ 0,00</span>
                                         </div>
                                         <hr>
-                                        <div class="d-flex justify-content-between mb-2">
+                                        <div class="d-flex justify-content-between mb-2 align-items-center">
                                             <span>Pago:</span>
-                                            <input type="number" class="form-control form-control-sm" id="appointmentPaid" style="width: 100px;" step="0.01" min="0" value="${appointment.paid || 0}">
+                                            <div class="input-group input-group-sm" style="width: 130px;">
+                                                <input type="number" class="form-control text-end" id="appointmentPaid" step="0.01" min="0" value="${appointment.paid || 0}">
+                                                <span class="input-group-text">€</span>
+                                            </div>
                                         </div>
-                                        <div class="d-flex justify-content-between mb-2">
-                                            <span>Pendente:</span>
-                                            <span id="appointmentPending">€ 0,00</span>
+                                        <div class="d-flex justify-content-between mb-3">
+                                            <span class="fw-bold">Pendente:</span>
+                                            <span id="appointmentPending" class="fw-bold" style="color: #dc3545;">€ 0,00</span>
                                         </div>
-                                        <div class="mt-3">
-                                            <button class="btn btn-sm btn-success w-100" id="registerPaymentBtn">
-                                                <i class="fas fa-money-bill-wave"></i> Registrar Pagamento
+                                        <div class="d-grid gap-2">
+                                            <button class="btn btn-sm btn-success" id="registerPaymentBtn">
+                                                <i class="fas fa-money-bill-wave me-2"></i>Registrar Pagamento
                                             </button>
                                         </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Botão de avaliação Google -->
+                                <div class="card mt-3 shadow-sm">
+                                    <div class="card-body text-center">
+                                        <button class="btn btn-outline-danger w-100" id="sendGoogleReviewBtn">
+                                            <i class="fab fa-google me-2"></i>Solicitar Avaliação Google
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -16040,6 +16075,7 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
                         <button type="button" class="btn btn-danger" id="cancelAppointmentBtn">Cancelar Agendamento</button>
                         <button type="button" class="btn btn-primary" id="saveAppointmentChangesBtn">Salvar Alterações</button>
+                        <button type="button" class="btn btn-warning" id="completeAppointmentBtn">Finalizar Atendimento</button>
                     </div>
                 </div>
             </div>
@@ -16053,39 +16089,44 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
     // Inserir modal no DOM
     document.body.insertAdjacentHTML('beforeend', modalHtml);
     
+    // ========== FUNÇÕES INTERNAS ==========
+    
     // Renderizar lista de serviços
     function renderServicesList() {
         const container = document.getElementById('appointmentServicesList');
         if (!container) return;
         
-        if (!servicesList.length) {
-            container.innerHTML = '<div class="list-group-item text-center text-muted">Nenhum serviço adicionado</div>';
+        if (!servicesList || servicesList.length === 0) {
+            container.innerHTML = '<div class="list-group-item text-center text-muted py-4">Nenhum serviço adicionado</div>';
             return;
         }
         
         let html = '';
         servicesList.forEach((service, idx) => {
-            const collaborator = collaborators.find(c => c.id === service.collaboratorId) || { name: 'Não atribuído' };
+            const collaborator = collaborators.find(c => c.id === service.collaboratorId) || { name: 'Selecionar profissional' };
             html += `
                 <div class="list-group-item" data-service-index="${idx}">
                     <div class="d-flex justify-content-between align-items-start">
                         <div class="flex-grow-1">
                             <div class="fw-bold">${service.name}</div>
-                            <div class="row g-1 mt-1">
+                            <div class="row g-1 mt-2">
                                 <div class="col-md-5">
+                                    <label class="small text-muted">Profissional</label>
                                     <select class="form-select form-select-sm service-collaborator" data-index="${idx}">
                                         <option value="">Selecionar profissional</option>
                                         ${activeCollaborators.map(c => `<option value="${c.id}" ${c.id === service.collaboratorId ? 'selected' : ''}>${c.name}</option>`).join('')}
                                     </select>
                                 </div>
                                 <div class="col-md-3">
-                                    <input type="number" class="form-control form-control-sm service-duration" data-index="${idx}" value="${service.duration || 30}" step="5" min="5" placeholder="Duração (min)">
+                                    <label class="small text-muted">Duração (min)</label>
+                                    <input type="number" class="form-control form-control-sm service-duration" data-index="${idx}" value="${service.duration || 30}" step="5" min="5">
                                 </div>
                                 <div class="col-md-3">
-                                    <input type="number" class="form-control form-control-sm service-price" data-index="${idx}" value="${service.price || 0}" step="0.01" min="0" placeholder="Preço">
+                                    <label class="small text-muted">Preço (€)</label>
+                                    <input type="number" class="form-control form-control-sm service-price" data-index="${idx}" value="${service.price || 0}" step="0.01" min="0">
                                 </div>
-                                <div class="col-md-1">
-                                    <button class="btn btn-sm btn-outline-danger remove-service-btn" data-index="${idx}">
+                                <div class="col-md-1 d-flex align-items-end">
+                                    <button class="btn btn-sm btn-outline-danger remove-service-btn w-100" data-index="${idx}" title="Remover serviço">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                 </div>
@@ -16118,75 +16159,335 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
         document.getElementById('appointmentTotal').innerText = formatCurrency(total);
         document.getElementById('appointmentPending').innerText = formatCurrency(pending);
         
+        // Mudar cor do pendente
+        const pendingSpan = document.getElementById('appointmentPending');
+        if (pendingSpan) {
+            if (pending <= 0) pendingSpan.style.color = '#28a745';
+            else if (pending > 0) pendingSpan.style.color = '#dc3545';
+        }
+        
         // Atualizar hora de término baseado na duração total
         const startTime = document.getElementById('appointmentStartTime').value;
         if (startTime && totalDuration > 0) {
             const [hour, minute] = startTime.split(':').map(Number);
-            let totalMinutes = hour * 60 + minute + totalDuration;
+            let totalMinutes = (hour * 60) + minute + totalDuration;
             const endHour = Math.floor(totalMinutes / 60) % 24;
             const endMinute = totalMinutes % 60;
             document.getElementById('appointmentEndTime').value = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
         }
+        
+        // Atualizar cor do card na agenda (se finalizado, fica cinza)
+        updateAppointmentColorInAgenda();
     }
     
-    // Eventos dinâmicos
-    function bindServiceEvents() {
-        document.querySelectorAll('.service-collaborator').forEach(select => {
-            select.addEventListener('change', (e) => {
-                const idx = parseInt(e.target.dataset.index);
-                servicesList[idx].collaboratorId = e.target.value;
-                const collab = collaborators.find(c => c.id === e.target.value);
-                servicesList[idx].collaboratorName = collab ? collab.name : '';
-            });
+    // Atualizar cor do agendamento na agenda baseado no status
+    function updateAppointmentColorInAgenda() {
+        const status = document.getElementById('appointmentStatus').value;
+        const appointmentElement = document.querySelector(`.agenda-appointment[data-appointment-id="${currentEditingAppointment.id}"]`);
+        if (appointmentElement) {
+            if (status === 'completed' || status === 'cancelled') {
+                appointmentElement.style.background = 'linear-gradient(135deg, #6c757d, #495057)';
+                appointmentElement.style.opacity = '0.7';
+            } else if (status === 'in_progress') {
+                appointmentElement.style.background = 'linear-gradient(135deg, #28a745, #20c997)';
+                appointmentElement.style.opacity = '1';
+            } else {
+                appointmentElement.style.background = 'linear-gradient(135deg, #26196b, #4a3a9c)';
+                appointmentElement.style.opacity = '1';
+            }
+        }
+    }
+    
+    // Validar data/hora com conflitos
+    async function validateDateTime() {
+        const date = document.getElementById('appointmentDate').value;
+        const startTime = document.getElementById('appointmentStartTime').value;
+        
+        // Pegar o profissional do primeiro serviço ou do agendamento
+        let collaboratorId = servicesList[0]?.collaboratorId || currentEditingAppointment.collaboratorId;
+        
+        if (!date || !startTime || !collaboratorId) return true;
+        
+        // Verificar conflito (checar se existe outro agendamento no mesmo horário)
+        const startMinutes = parseInt(startTime.split(':')[0]) * 60 + parseInt(startTime.split(':')[1]);
+        const endTime = document.getElementById('appointmentEndTime').value;
+        const endMinutes = endTime ? (parseInt(endTime.split(':')[0]) * 60 + parseInt(endTime.split(':')[1])) : startMinutes + 60;
+        
+        const conflicts = appointments.filter(a => 
+            a.id !== currentEditingAppointment.id &&
+            a.date === date &&
+            a.collaboratorId === collaboratorId
+        ).filter(a => {
+            const aStart = parseInt(a.startTime.split(':')[0]) * 60 + parseInt(a.startTime.split(':')[1]);
+            const aEnd = a.endTime ? (parseInt(a.endTime.split(':')[0]) * 60 + parseInt(a.endTime.split(':')[1])) : aStart + 60;
+            return (startMinutes < aEnd && endMinutes > aStart);
         });
-        document.querySelectorAll('.service-duration').forEach(input => {
-            input.addEventListener('change', (e) => {
-                const idx = parseInt(e.target.dataset.index);
-                servicesList[idx].duration = parseInt(e.target.value);
-                recalcTotalsAndDuration();
+        
+        if (conflicts.length > 0) {
+            await Swal.fire({
+                title: 'Conflito de horário',
+                text: `Já existe um agendamento para este horário com ${conflicts[0].clientName}`,
+                icon: 'warning',
+                confirmButtonText: 'Ok'
             });
+            return false;
+        }
+        return true;
+    }
+    
+    // Mostrar histórico do cliente
+    async function showClientHistory(clientId) {
+        const container = document.getElementById('clientHistoryContainer');
+        if (!container) return;
+        
+        const clientServices = allServices.filter(s => s.clientId === clientId).sort((a, b) => {
+            const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.date || 0);
+            const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.date || 0);
+            return dateB - dateA;
         });
-        document.querySelectorAll('.service-price').forEach(input => {
-            input.addEventListener('change', (e) => {
-                const idx = parseInt(e.target.dataset.index);
-                servicesList[idx].price = parseFloat(e.target.value);
-                recalcTotalsAndDuration();
-            });
-        });
-        document.querySelectorAll('.remove-service-btn').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                const idx = parseInt(btn.dataset.index);
-                const confirm = await Swal.fire({
-                    title: 'Remover serviço',
-                    text: `Deseja remover "${servicesList[idx].name}"?`,
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonText: 'Sim, remover',
-                    cancelButtonText: 'Cancelar'
-                });
-                if (confirm.isConfirmed) {
-                    servicesList.splice(idx, 1);
-                    renderServicesList();
-                    bindServiceEvents();
+        
+        const clientAppointments = appointments.filter(a => a.clientId === clientId).sort((a, b) => new Date(b.date) - new Date(a.date));
+        
+        if (clientServices.length === 0 && clientAppointments.length === 0) {
+            container.innerHTML = '<p class="text-muted text-center mb-0">Nenhum histórico encontrado</p>';
+        } else {
+            let html = '<strong>📋 Últimos atendimentos:</strong><ul class="mb-0 mt-1">';
+            const allItems = [...clientServices.map(s => ({ type: 'service', date: s.date, name: s.description, value: s.value })), 
+                              ...clientAppointments.map(a => ({ type: 'appointment', date: a.date, name: a.serviceName, status: a.status }))];
+            allItems.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5).forEach(item => {
+                if (item.type === 'service') {
+                    html += `<li>📅 ${item.date} - ${item.name} - ${formatCurrency(item.value)}</li>`;
+                } else {
+                    html += `<li>📅 ${item.date} - ${item.name} - Status: ${item.status}</li>`;
                 }
             });
+            html += '</ul>';
+            container.innerHTML = html;
+        }
+        container.style.display = 'block';
+    }
+    
+    // Enviar mensagem de avaliação Google
+    function sendGoogleReview(clientName, clientPhone) {
+        const reviewLink = 'https://g.page/r/CebJa41iu0E6EAE/review';
+        const message = `Olá ${clientName}! ✨\n\nSeu atendimento foi concluído com sucesso! Gostaríamos muito de saber sua opinião sobre o serviço prestado.\n\n⭐ Por favor, dedique 1 minuto para nos avaliar no Google:\n${reviewLink}\n\nSua avaliação é muito importante para nós! 💙\n\nEquipe ${businessSettings.name || 'Studio DeVitto'}`;
+        
+        if (clientPhone) {
+            const whatsappUrl = `https://wa.me/${clientPhone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
+            window.open(whatsappUrl, '_blank');
+        } else {
+            // Copiar link para clipboard
+            navigator.clipboard.writeText(reviewLink);
+            showSuccess('Link de avaliação copiado! Envie para o cliente por WhatsApp.');
+        }
+    }
+    
+    // Finalizar atendimento
+    async function completeAppointment() {
+        const confirm = await Swal.fire({
+            title: 'Finalizar Atendimento',
+            text: 'Confirme se todos os serviços foram realizados e o pagamento foi registrado.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Sim, finalizar',
+            cancelButtonText: 'Cancelar'
+        });
+        
+        if (confirm.isConfirmed) {
+            const total = parseFloat(document.getElementById('appointmentTotal').innerText.replace('€', '').replace(',', '.').trim());
+            const paid = parseFloat(document.getElementById('appointmentPaid').value) || 0;
+            
+            if (paid < total) {
+                const confirmPending = await Swal.fire({
+                    title: 'Pagamento pendente',
+                    text: `Ainda falta ${formatCurrency(total - paid)} para quitar. Deseja finalizar mesmo assim?`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'Sim, finalizar',
+                    cancelButtonText: 'Não'
+                });
+                if (!confirmPending.isConfirmed) return;
+            }
+            
+            document.getElementById('appointmentStatus').value = 'completed';
+            showSuccess('Atendimento finalizado com sucesso!');
+            
+            // Perguntar se quer enviar avaliação Google
+            const sendReview = await Swal.fire({
+                title: 'Solicitar avaliação?',
+                text: 'Deseja enviar um link para o cliente avaliar no Google?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Sim, enviar',
+                cancelButtonText: 'Não'
+            });
+            if (sendReview.isConfirmed) {
+                const clientId = document.getElementById('appointmentClientSelect').value;
+                const client = clients.find(c => c.id === clientId);
+                if (client) sendGoogleReview(client.name, client.phone);
+            }
+        }
+    }
+    
+    // ========== EVENTOS DINÂMICOS ==========
+    
+    // Vincular eventos dos serviços
+    function bindServiceEvents() {
+        document.querySelectorAll('.service-collaborator').forEach(select => {
+            select.removeEventListener('change', handleCollaboratorChange);
+            select.addEventListener('change', handleCollaboratorChange);
+        });
+        document.querySelectorAll('.service-duration').forEach(input => {
+            input.removeEventListener('change', handleDurationChange);
+            input.addEventListener('change', handleDurationChange);
+        });
+        document.querySelectorAll('.service-price').forEach(input => {
+            input.removeEventListener('change', handlePriceChange);
+            input.addEventListener('change', handlePriceChange);
+        });
+        document.querySelectorAll('.remove-service-btn').forEach(btn => {
+            btn.removeEventListener('click', handleRemoveService);
+            btn.addEventListener('click', handleRemoveService);
         });
     }
     
-    // Adicionar novo serviço
+    function handleCollaboratorChange(e) {
+        const idx = parseInt(e.target.dataset.index);
+        servicesList[idx].collaboratorId = e.target.value;
+        const collab = collaborators.find(c => c.id === e.target.value);
+        servicesList[idx].collaboratorName = collab ? collab.name : '';
+        validateDateTime();
+    }
+    
+    function handleDurationChange(e) {
+        const idx = parseInt(e.target.dataset.index);
+        servicesList[idx].duration = parseInt(e.target.value);
+        recalcTotalsAndDuration();
+        validateDateTime();
+    }
+    
+    function handlePriceChange(e) {
+        const idx = parseInt(e.target.dataset.index);
+        servicesList[idx].price = parseFloat(e.target.value);
+        recalcTotalsAndDuration();
+    }
+    
+    async function handleRemoveService(e) {
+        const idx = parseInt(e.target.dataset.index);
+        const confirm = await Swal.fire({
+            title: 'Remover serviço',
+            text: `Deseja remover "${servicesList[idx].name}"?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Sim, remover',
+            cancelButtonText: 'Cancelar'
+        });
+        if (confirm.isConfirmed) {
+            servicesList.splice(idx, 1);
+            renderServicesList();
+            bindServiceEvents();
+        }
+    }
+    
+    // Cliente - histórico
+    document.getElementById('viewClientHistoryBtn')?.addEventListener('click', async () => {
+        const clientId = document.getElementById('appointmentClientSelect').value;
+        if (clientId) {
+            await showClientHistory(clientId);
+        } else {
+            showError('Selecione um cliente primeiro');
+        }
+    });
+    
+    // Cliente - ligar
+    document.getElementById('callClientBtn')?.addEventListener('click', () => {
+        const clientId = document.getElementById('appointmentClientSelect').value;
+        const client = clients.find(c => c.id === clientId);
+        if (client?.phone) window.open(`tel:${client.phone}`);
+    });
+    
+    // Cliente - WhatsApp
+    document.getElementById('whatsappClientBtn')?.addEventListener('click', () => {
+        const clientId = document.getElementById('appointmentClientSelect').value;
+        const client = clients.find(c => c.id === clientId);
+        if (client?.phone) window.open(`https://wa.me/${client.phone.replace(/\D/g, '')}`);
+    });
+    
+    // Cliente - Editar
+    document.getElementById('editClientBtn')?.addEventListener('click', () => {
+        const clientId = document.getElementById('appointmentClientSelect').value;
+        if (clientId) {
+            editClientFromTable(clientId);
+        } else {
+            showError('Selecione um cliente primeiro');
+        }
+    });
+    
+    // Troca de cliente - atualizar avatar
+    document.getElementById('appointmentClientSelect').addEventListener('change', (e) => {
+        const selectedOption = e.target.options[e.target.selectedIndex];
+        const clientId = e.target.value;
+        const client = clients.find(c => c.id === clientId);
+        currentEditingAppointment.clientId = clientId;
+        currentEditingAppointment.clientName = client ? client.name : '';
+        currentEditingAppointment.clientPhone = client ? client.phone : '';
+        
+        const avatarDiv = document.getElementById('appointmentClientAvatar');
+        if (client?.photoUrl) {
+            avatarDiv.innerHTML = `<img src="${client.photoUrl}" width="60" height="60" class="rounded-circle" style="object-fit: cover; border: 2px solid #26196b; cursor: pointer;" onclick="showClientRecord('${clientId}')">`;
+        } else {
+            avatarDiv.innerHTML = `<div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width: 60px; height: 60px; font-size: 24px; cursor: pointer;" onclick="showClientRecord('${clientId}')">
+                                        ${client?.name?.charAt(0).toUpperCase() || '?'}
+                                    </div>`;
+        }
+        
+        // Habilitar/desabilitar botões
+        const callBtn = document.getElementById('callClientBtn');
+        const whatsBtn = document.getElementById('whatsappClientBtn');
+        if (client?.phone) {
+            callBtn.disabled = false;
+            whatsBtn.disabled = false;
+        } else {
+            callBtn.disabled = true;
+            whatsBtn.disabled = true;
+        }
+        
+        // Esconder histórico
+        const historyContainer = document.getElementById('clientHistoryContainer');
+        if (historyContainer) historyContainer.style.display = 'none';
+    });
+    
+    // Adicionar serviço
     document.getElementById('addServiceToAppointmentBtn').addEventListener('click', async () => {
         if (availableServices.length === 0) {
-            showError('Nenhum serviço cadastrado. Cadastre serviços em Perfil da Empresa.');
+            Swal.fire({
+                title: 'Nenhum serviço cadastrado',
+                text: 'Deseja cadastrar serviços agora?',
+                icon: 'info',
+                showCancelButton: true,
+                confirmButtonText: 'Sim, cadastrar',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    showSection('business-profile');
+                    bootstrap.Modal.getInstance(document.getElementById('appointmentDetailsModal')).hide();
+                }
+            });
             return;
         }
-        // Selecionar serviço da lista
+        
+        const serviceOptions = {};
+        availableServices.forEach(s => { serviceOptions[s.id] = s.name; });
+        
         const { value: serviceId } = await Swal.fire({
             title: 'Adicionar serviço',
             input: 'select',
-            inputOptions: Object.fromEntries(availableServices.map(s => [s.id, s.name])),
+            inputOptions: serviceOptions,
             inputPlaceholder: 'Selecione um serviço',
-            showCancelButton: true
+            showCancelButton: true,
+            confirmButtonText: 'Adicionar'
         });
+        
         if (serviceId) {
             const selected = availableServices.find(s => s.id === serviceId);
             if (selected) {
@@ -16200,130 +16501,63 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
                 });
                 renderServicesList();
                 bindServiceEvents();
+                showSuccess('Serviço adicionado! Defina o profissional e os valores.');
             }
         }
-    });
-    
-    // Eventos de cliente
-    document.getElementById('appointmentClientSelect').addEventListener('change', (e) => {
-        const clientId = e.target.value;
-        const client = clients.find(c => c.id === clientId);
-        currentEditingAppointment.clientId = clientId;
-        currentEditingAppointment.clientName = client ? client.name : '';
-        currentEditingAppointment.clientPhone = client ? client.phone : '';
-        // Atualizar avatar
-        const avatarDiv = document.getElementById('appointmentClientAvatar');
-        if (client?.photoUrl) {
-            avatarDiv.innerHTML = `<img src="${client.photoUrl}" width="60" height="60" class="rounded-circle" style="object-fit: cover;">`;
-        } else {
-            avatarDiv.innerHTML = `<div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width: 60px; height: 60px; font-size: 24px;">
-                                        ${client?.name?.charAt(0).toUpperCase() || '?'}
-                                    </div>`;
-        }
-        // Habilitar/desabilitar botões
-        const callBtn = document.getElementById('callClientBtn');
-        const whatsBtn = document.getElementById('whatsappClientBtn');
-        if (client?.phone) {
-            callBtn.disabled = false;
-            whatsBtn.disabled = false;
-        } else {
-            callBtn.disabled = true;
-            whatsBtn.disabled = true;
-        }
-    });
-    
-    document.getElementById('callClientBtn')?.addEventListener('click', () => {
-        const clientId = document.getElementById('appointmentClientSelect').value;
-        const client = clients.find(c => c.id === clientId);
-        if (client?.phone) window.open(`tel:${client.phone}`);
-    });
-    document.getElementById('whatsappClientBtn')?.addEventListener('click', () => {
-        const clientId = document.getElementById('appointmentClientSelect').value;
-        const client = clients.find(c => c.id === clientId);
-        if (client?.phone) window.open(`https://wa.me/${client.phone.replace(/\D/g, '')}`);
-    });
-    document.getElementById('viewClientHistoryBtn')?.addEventListener('click', () => {
-        const clientId = document.getElementById('appointmentClientSelect').value;
-        if (clientId) showClientRecord(clientId);
-        else showError('Selecione um cliente primeiro');
-    });
-    document.getElementById('editClientBtn')?.addEventListener('click', () => {
-        const clientId = document.getElementById('appointmentClientSelect').value;
-        if (clientId) editClientFromTable(clientId);
-        else showError('Selecione um cliente primeiro');
     });
     
     // Eventos de data/hora
     document.getElementById('appointmentDate').addEventListener('change', validateDateTime);
     document.getElementById('appointmentStartTime').addEventListener('change', validateDateTime);
+    document.getElementById('appointmentDiscount').addEventListener('input', recalcTotalsAndDuration);
+    document.getElementById('appointmentPaid').addEventListener('input', recalcTotalsAndDuration);
     
-    async function validateDateTime() {
-        const date = document.getElementById('appointmentDate').value;
-        const startTime = document.getElementById('appointmentStartTime').value;
-        const collaboratorId = servicesList[0]?.collaboratorId || currentEditingAppointment.collaboratorId;
-        if (!date || !startTime || !collaboratorId) return;
+    // Registrar pagamento
+    document.getElementById('registerPaymentBtn').addEventListener('click', async () => {
+        const total = parseFloat(document.getElementById('appointmentTotal').innerText.replace('€', '').replace(',', '.').trim());
+        const currentPaid = parseFloat(document.getElementById('appointmentPaid').value) || 0;
+        const remaining = total - currentPaid;
         
-        // Verificar conflito (simplificado: checar se existe outro agendamento no mesmo horário)
-        const conflicts = appointments.filter(a => 
-            a.id !== currentEditingAppointment.id &&
-            a.date === date &&
-            a.collaboratorId === collaboratorId &&
-            a.startTime === startTime
-        );
-        if (conflicts.length > 0) {
-            showError('Conflito de horário com outro agendamento!');
-            return false;
-        }
-        recalcTotalsAndDuration();
-        return true;
-    }
-    
-    // Salvar alterações
-    document.getElementById('saveAppointmentChangesBtn').addEventListener('click', async () => {
-        // Validar
-        if (!document.getElementById('appointmentClientSelect').value) {
-            showError('Selecione um cliente');
+        if (remaining <= 0) {
+            showError('Agendamento já está totalmente pago');
             return;
         }
-        if (servicesList.length === 0) {
-            showError('Adicione pelo menos um serviço');
-            return;
-        }
-        const isValid = await validateDateTime();
-        if (!isValid) return;
         
-        // Montar objeto atualizado
-        const updatedAppointment = {
-            ...currentEditingAppointment,
-            clientId: document.getElementById('appointmentClientSelect').value,
-            clientName: clients.find(c => c.id === document.getElementById('appointmentClientSelect').value)?.name || '',
-            clientPhone: clients.find(c => c.id === document.getElementById('appointmentClientSelect').value)?.phone || '',
-            date: document.getElementById('appointmentDate').value,
-            startTime: document.getElementById('appointmentStartTime').value,
-            endTime: document.getElementById('appointmentEndTime').value,
-            status: document.getElementById('appointmentStatus').value,
-            recurrence: document.getElementById('appointmentRecurrence').value,
-            services: servicesList,
-            total: parseFloat(document.getElementById('appointmentTotal').innerText.replace('€', '').replace(',', '.').trim()),
-            paid: parseFloat(document.getElementById('appointmentPaid').value) || 0,
-            discount: parseFloat(document.getElementById('appointmentDiscount').value) || 0,
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        };
+        const { value: amount } = await Swal.fire({
+            title: 'Registrar Pagamento',
+            input: 'number',
+            inputLabel: `Valor a pagar (máximo ${formatCurrency(remaining)})`,
+            inputValue: remaining,
+            inputAttributes: { step: '0.01', min: '0.01', max: remaining },
+            showCancelButton: true,
+            confirmButtonText: 'Registrar',
+            cancelButtonText: 'Cancelar'
+        });
         
-        showLoading('Salvando alterações...');
-        try {
-            await db.collection('appointments').doc(currentEditingAppointment.id).update(updatedAppointment);
-            // Atualizar array local
-            const index = appointments.findIndex(a => a.id === currentEditingAppointment.id);
-            if (index !== -1) appointments[index] = { ...appointments[index], ...updatedAppointment };
-            // Recarregar agenda
-            renderAppointmentsForAll();
-            bootstrap.Modal.getInstance(document.getElementById('appointmentDetailsModal')).hide();
-            showSuccess('Agendamento atualizado com sucesso!');
-        } catch (error) {
-            console.error(error);
-            showError('Erro ao salvar: ' + error.message);
+        if (amount && amount > 0) {
+            const newPaid = currentPaid + parseFloat(amount);
+            document.getElementById('appointmentPaid').value = newPaid.toFixed(2);
+            recalcTotalsAndDuration();
+            
+            // Registrar no caixa (se caixa estiver aberto)
+            if (currentCashier && total > 0) {
+                // Adicionar ao dashboard e financeiro
+                updateDashboard();
+                updateFinancialSummary();
+            }
+            
+            showSuccess(`Pagamento de ${formatCurrency(amount)} registrado com sucesso!`);
         }
+    });
+    
+    // Finalizar atendimento
+    document.getElementById('completeAppointmentBtn').addEventListener('click', completeAppointment);
+    
+    // Enviar avaliação Google
+    document.getElementById('sendGoogleReviewBtn').addEventListener('click', () => {
+        const clientId = document.getElementById('appointmentClientSelect').value;
+        const client = clients.find(c => c.id === clientId);
+        sendGoogleReview(client?.name || 'Cliente', client?.phone);
     });
     
     // Cancelar agendamento
@@ -16337,44 +16571,61 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
             cancelButtonText: 'Não'
         });
         if (confirm.isConfirmed) {
-            showLoading('Cancelando...');
-            try {
-                await db.collection('appointments').doc(currentEditingAppointment.id).update({
-                    status: 'cancelled',
-                    cancelledAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
-                appointments.find(a => a.id === currentEditingAppointment.id).status = 'cancelled';
-                renderAppointmentsForAll();
-                bootstrap.Modal.getInstance(document.getElementById('appointmentDetailsModal')).hide();
-                showSuccess('Agendamento cancelado');
-            } catch (error) {
-                showError('Erro ao cancelar: ' + error.message);
-            }
+            document.getElementById('appointmentStatus').value = 'cancelled';
+            showSuccess('Agendamento cancelado');
+            updateAppointmentColorInAgenda();
         }
     });
     
-    // Registrar pagamento
-    document.getElementById('registerPaymentBtn').addEventListener('click', async () => {
-        const total = parseFloat(document.getElementById('appointmentTotal').innerText.replace('€', '').replace(',', '.').trim());
-        const currentPaid = parseFloat(document.getElementById('appointmentPaid').value) || 0;
-        const remaining = total - currentPaid;
-        if (remaining <= 0) {
-            showError('Agendamento já está totalmente pago');
+    // Salvar alterações
+    document.getElementById('saveAppointmentChangesBtn').addEventListener('click', async () => {
+        if (!document.getElementById('appointmentClientSelect').value) {
+            showError('Selecione um cliente');
             return;
         }
-        const { value: amount } = await Swal.fire({
-            title: 'Registrar Pagamento',
-            input: 'number',
-            inputLabel: `Valor a pagar (máximo ${formatCurrency(remaining)})`,
-            inputValue: remaining,
-            inputAttributes: { step: '0.01', min: '0.01', max: remaining },
-            showCancelButton: true
-        });
-        if (amount) {
-            const newPaid = currentPaid + parseFloat(amount);
-            document.getElementById('appointmentPaid').value = newPaid;
-            recalcTotalsAndDuration();
-            showSuccess(`Pagamento de ${formatCurrency(amount)} registrado`);
+        if (servicesList.length === 0) {
+            showError('Adicione pelo menos um serviço');
+            return;
+        }
+        
+        const isValid = await validateDateTime();
+        if (!isValid) return;
+        
+        const updatedAppointment = {
+            ...currentEditingAppointment,
+            clientId: document.getElementById('appointmentClientSelect').value,
+            clientName: clients.find(c => c.id === document.getElementById('appointmentClientSelect').value)?.name || '',
+            clientPhone: clients.find(c => c.id === document.getElementById('appointmentClientSelect').value)?.phone || '',
+            date: document.getElementById('appointmentDate').value,
+            startTime: document.getElementById('appointmentStartTime').value,
+            endTime: document.getElementById('appointmentEndTime').value,
+            status: document.getElementById('appointmentStatus').value,
+            recurrence: document.getElementById('appointmentRecurrence').value,
+            notes: document.getElementById('appointmentNotes').value,
+            services: servicesList,
+            serviceName: servicesList.map(s => s.name).join(', '),
+            total: parseFloat(document.getElementById('appointmentTotal').innerText.replace('€', '').replace(',', '.').trim()),
+            paid: parseFloat(document.getElementById('appointmentPaid').value) || 0,
+            discount: parseFloat(document.getElementById('appointmentDiscount').value) || 0,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        
+        showLoading('Salvando alterações...');
+        try {
+            await db.collection('appointments').doc(currentEditingAppointment.id).update(updatedAppointment);
+            
+            const index = appointments.findIndex(a => a.id === currentEditingAppointment.id);
+            if (index !== -1) appointments[index] = { ...appointments[index], ...updatedAppointment };
+            
+            renderAppointmentsForAll();
+            bootstrap.Modal.getInstance(document.getElementById('appointmentDetailsModal')).hide();
+            showSuccess('Agendamento atualizado com sucesso!');
+            
+            updateDashboard();
+            updateFinancialSummary();
+        } catch (error) {
+            console.error(error);
+            showError('Erro ao salvar: ' + error.message);
         }
     });
     
@@ -16385,6 +16636,9 @@ async function openAppointmentDetailsModal(appointment, clientData, servicesList
     // Mostrar modal
     const modal = new bootstrap.Modal(document.getElementById('appointmentDetailsModal'), { backdrop: 'static', keyboard: true });
     modal.show();
+    
+    // Ajustar cor do card na agenda
+    updateAppointmentColorInAgenda();
 }
 
         
