@@ -4675,7 +4675,7 @@
                                 </div>
                             </div>
 
-                            <!-- NOVA SEÇÃO: Gerenciamento de Serviços -->
+                                                        <!-- NOVA SEÇÃO: Gerenciamento de Serviços (COMPLETO) -->
                             <div class="row mt-4">
                                 <div class="col-md-12">
                                     <div class="card">
@@ -4698,7 +4698,63 @@
                                     </div>
                                 </div>
                             </div>
-                        </div>
+
+                            <!-- NOVO MODAL: Adicionar/Editar Serviço (COM VALOR E COLABORADORES) -->
+                            <div class="modal fade" id="serviceAdminModal" tabindex="-1">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title" id="serviceAdminModalTitle">Adicionar Serviço</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <form id="serviceAdminForm">
+                                                <input type="hidden" id="serviceAdminId">
+                                                
+                                                <div class="mb-3">
+                                                    <label for="serviceAdminName" class="form-label">Nome do Serviço *</label>
+                                                    <input type="text" class="form-control" id="serviceAdminName" placeholder="Ex: Brushing, Corte, Coloração" required>
+                                                </div>
+                                                
+                                                <div class="mb-3">
+                                                    <label for="serviceAdminPrice" class="form-label">Valor Padrão (€) *</label>
+                                                    <div class="input-group">
+                                                        <span class="input-group-text">€</span>
+                                                        <input type="number" class="form-control" id="serviceAdminPrice" step="0.01" min="0" placeholder="0.00" required>
+                                                    </div>
+                                                    <small class="text-muted">Valor padrão para este serviço. Pode ser alterado no momento do atendimento.</small>
+                                                </div>
+                                                
+                                                <div class="mb-3">
+                                                    <label for="serviceAdminDuration" class="form-label">Duração Estimada (minutos)</label>
+                                                    <div class="input-group">
+                                                        <input type="number" class="form-control" id="serviceAdminDuration" step="5" min="5" placeholder="30">
+                                                        <span class="input-group-text">min</span>
+                                                    </div>
+                                                    <small class="text-muted">Tempo estimado para este serviço (opcional).</small>
+                                                </div>
+                                                
+                                                <div class="mb-3">
+                                                    <label class="form-label">Colaborador(es) que realizam este serviço *</label>
+                                                    <div id="collaboratorsForServiceList" class="border rounded p-2" style="max-height: 150px; overflow-y: auto;">
+                                                        <p class="text-muted text-center">Carregando colaboradores...</p>
+                                                    </div>
+                                                    <small class="text-muted">Selecione quais colaboradores podem realizar este serviço.</small>
+                                                </div>
+                                                
+                                                <div class="mb-3">
+                                                    <label for="serviceAdminDescription" class="form-label">Descrição (opcional)</label>
+                                                    <textarea class="form-control" id="serviceAdminDescription" rows="2" placeholder="Descrição do serviço..."></textarea>
+                                                </div>
+                                            </form>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                            <button type="button" class="btn btn-primary" id="saveServiceAdminBtn">Salvar Serviço</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
 
                         <!-- Relatórios -->
                         <div id="reports" class="section">
@@ -5546,6 +5602,19 @@
             document.getElementById('showRegister').addEventListener('click', showRegisterForm);
             document.getElementById('showLogin').addEventListener('click', showLoginForm);
             
+            // NOVOS EVENTOS: Gerenciamento de Serviços (completo)
+            document.getElementById('addServiceAdminBtn')?.addEventListener('click', showAddServiceAdminModal);
+            document.getElementById('serviceAdminSearch')?.addEventListener('input', filterServicesAdmin);
+            document.getElementById('saveServiceAdminBtn')?.addEventListener('click', saveServiceAdmin);
+            
+            // Evento para filtrar colaboradores baseado no serviço digitado
+            const serviceDescInput = document.getElementById('serviceDescription');
+            if (serviceDescInput) {
+                serviceDescInput.addEventListener('input', function() {
+                    updateCollaboratorSelectByService(this.value);
+                });
+            }
+
             // Registro
             document.getElementById('registerForm').addEventListener('submit', handleRegister);
             
@@ -17075,6 +17144,468 @@ document.head.appendChild(styleZIndex);
 
 console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLETO carregado!');
         
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+            // ============================================
+        // NOVAS FUNÇÕES PARA SERVIÇOS (COM VALOR E COLABORADORES)
+        // ============================================
+
+        // Carregar serviços da empresa do Firestore
+        async function loadCompanyServices() {
+            if (!currentUser) return Promise.resolve();
+            
+            try {
+                const querySnapshot = await db.collection('companyServices')
+                    .where('userId', '==', currentUser.uid)
+                    .get();
+                
+                companyServices = [];
+                querySnapshot.forEach((doc) => {
+                    companyServices.push({
+                        id: doc.id,
+                        ...doc.data()
+                    });
+                });
+                console.log('✅ Serviços carregados:', companyServices.length);
+                renderServicesAdminList();
+                updateQuickServicesInCashier();
+                
+                // Também atualizar selects de serviço na agenda/caixa
+                updateServiceSelects();
+            } catch (error) {
+                console.error('Erro ao carregar serviços:', error);
+            }
+        }
+
+        // Atualizar todos os selects de serviço no sistema
+        function updateServiceSelects() {
+            // Se houver elementos de seleção de serviço, atualizar
+            const serviceSelects = document.querySelectorAll('.service-select');
+            serviceSelects.forEach(select => {
+                const oldValue = select.value;
+                select.innerHTML = '<option value="">Selecione um serviço</option>';
+                companyServices.forEach(service => {
+                    const option = document.createElement('option');
+                    option.value = service.id;
+                    option.textContent = `${service.name} - ${formatCurrency(service.price || 0)}`;
+                    if (service.id === oldValue) option.selected = true;
+                    select.appendChild(option);
+                });
+            });
+        }
+
+        // Renderizar lista de serviços no painel admin
+        function renderServicesAdminList() {
+            const container = document.getElementById('servicesListAdmin');
+            if (!container) return;
+            
+            if (companyServices.length === 0) {
+                container.innerHTML = '<p class="text-muted text-center py-3">Nenhum serviço cadastrado. Clique em "Novo Serviço" para adicionar.</p>';
+                return;
+            }
+            
+            let html = '';
+            companyServices.forEach(service => {
+                const collaboratorsList = service.collaboratorIds && service.collaboratorIds.length > 0 
+                    ? service.collaboratorIds.map(cid => {
+                        const collab = collaborators.find(c => c.id === cid);
+                        return collab ? collab.name : 'Desconhecido';
+                      }).join(', ')
+                    : 'Todos os colaboradores';
+                
+                html += `
+                    <div class="service-admin-item" data-service-id="${service.id}">
+                        <div class="service-admin-info">
+                            <h6>
+                                ${service.name}
+                                <span class="badge bg-success ms-2">${formatCurrency(service.price || 0)}</span>
+                                ${service.duration ? `<span class="badge bg-info ms-1">${service.duration} min</span>` : ''}
+                            </h6>
+                            <p class="text-muted small mb-1">
+                                <i class="fas fa-users me-1"></i> Realizado por: ${collaboratorsList}
+                            </p>
+                            ${service.description ? `<p class="text-muted small mb-0">${service.description.substring(0, 60)}${service.description.length > 60 ? '...' : ''}</p>` : ''}
+                        </div>
+                        <div class="service-admin-actions">
+                            <button class="btn btn-sm btn-outline-primary" onclick="editServiceAdmin('${service.id}')" title="Editar">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteServiceAdmin('${service.id}')" title="Excluir">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        // Filtrar serviços no admin
+        function filterServicesAdmin() {
+            const searchTerm = document.getElementById('serviceAdminSearch')?.value.toLowerCase() || '';
+            const container = document.getElementById('servicesListAdmin');
+            
+            if (companyServices.length === 0) {
+                container.innerHTML = '<p class="text-muted text-center py-3">Nenhum serviço cadastrado.</p>';
+                return;
+            }
+            
+            const filtered = companyServices.filter(service => 
+                service.name.toLowerCase().includes(searchTerm) ||
+                (service.description && service.description.toLowerCase().includes(searchTerm))
+            );
+            
+            if (filtered.length === 0) {
+                container.innerHTML = '<p class="text-muted text-center py-3">Nenhum serviço encontrado.</p>';
+                return;
+            }
+            
+            let html = '';
+            filtered.forEach(service => {
+                const collaboratorsList = service.collaboratorIds && service.collaboratorIds.length > 0 
+                    ? service.collaboratorIds.map(cid => {
+                        const collab = collaborators.find(c => c.id === cid);
+                        return collab ? collab.name : 'Desconhecido';
+                      }).join(', ')
+                    : 'Todos os colaboradores';
+                
+                html += `
+                    <div class="service-admin-item" data-service-id="${service.id}">
+                        <div class="service-admin-info">
+                            <h6>
+                                ${service.name}
+                                <span class="badge bg-success ms-2">${formatCurrency(service.price || 0)}</span>
+                                ${service.duration ? `<span class="badge bg-info ms-1">${service.duration} min</span>` : ''}
+                            </h6>
+                            <p class="text-muted small mb-1">
+                                <i class="fas fa-users me-1"></i> Realizado por: ${collaboratorsList}
+                            </p>
+                            ${service.description ? `<p class="text-muted small mb-0">${service.description.substring(0, 60)}${service.description.length > 60 ? '...' : ''}</p>` : ''}
+                        </div>
+                        <div class="service-admin-actions">
+                            <button class="btn btn-sm btn-outline-primary" onclick="editServiceAdmin('${service.id}')" title="Editar">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteServiceAdmin('${service.id}')" title="Excluir">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        // Carregar lista de colaboradores para o checkbox de serviços
+        function loadCollaboratorsForServiceModal() {
+            const container = document.getElementById('collaboratorsForServiceList');
+            if (!container) return;
+            
+            const activeCollaborators = collaborators.filter(c => c.active);
+            
+            if (activeCollaborators.length === 0) {
+                container.innerHTML = '<p class="text-muted text-center py-2">Nenhum colaborador ativo. Cadastre colaboradores primeiro.</p>';
+                return;
+            }
+            
+            let html = '';
+            activeCollaborators.forEach(collab => {
+                html += `
+                    <div class="form-check">
+                        <input class="form-check-input service-collaborator-checkbox" type="checkbox" value="${collab.id}" id="serviceCollab_${collab.id}">
+                        <label class="form-check-label" for="serviceCollab_${collab.id}">
+                            ${collab.name} 
+                            <span class="text-muted small">(${collab.specialty || 'Sem especialidade'})</span>
+                        </label>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        // Preencher checkboxes com os colaboradores selecionados do serviço
+        function fillCollaboratorsCheckboxes(selectedIds = []) {
+            const checkboxes = document.querySelectorAll('.service-collaborator-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = selectedIds.includes(checkbox.value);
+            });
+        }
+
+        // Obter IDs dos colaboradores selecionados
+        function getSelectedCollaboratorIds() {
+            const selectedIds = [];
+            const checkboxes = document.querySelectorAll('.service-collaborator-checkbox:checked');
+            checkboxes.forEach(checkbox => {
+                selectedIds.push(checkbox.value);
+            });
+            return selectedIds;
+        }
+
+        // Mostrar modal para adicionar serviço
+        async function showAddServiceAdminModal() {
+            document.getElementById('serviceAdminModalTitle').textContent = 'Adicionar Serviço';
+            document.getElementById('serviceAdminForm').reset();
+            document.getElementById('serviceAdminId').value = '';
+            
+            await loadCollaboratorsForServiceModal();
+            fillCollaboratorsCheckboxes([]);
+            
+            const modal = new bootstrap.Modal(document.getElementById('serviceAdminModal'));
+            modal.show();
+        }
+
+        // Editar serviço
+        async function editServiceAdmin(serviceId) {
+            const service = companyServices.find(s => s.id === serviceId);
+            if (!service) return;
+            
+            document.getElementById('serviceAdminModalTitle').textContent = 'Editar Serviço';
+            document.getElementById('serviceAdminId').value = service.id;
+            document.getElementById('serviceAdminName').value = service.name || '';
+            document.getElementById('serviceAdminPrice').value = service.price || '';
+            document.getElementById('serviceAdminDuration').value = service.duration || '';
+            document.getElementById('serviceAdminDescription').value = service.description || '';
+            
+            await loadCollaboratorsForServiceModal();
+            fillCollaboratorsCheckboxes(service.collaboratorIds || []);
+            
+            const modal = new bootstrap.Modal(document.getElementById('serviceAdminModal'));
+            modal.show();
+        }
+
+        // Salvar serviço (adicionar/editar)
+        function saveServiceAdmin() {
+            const serviceId = document.getElementById('serviceAdminId').value;
+            const name = document.getElementById('serviceAdminName').value.trim();
+            const price = parseFloat(document.getElementById('serviceAdminPrice').value);
+            const duration = parseInt(document.getElementById('serviceAdminDuration').value) || null;
+            const description = document.getElementById('serviceAdminDescription').value;
+            const collaboratorIds = getSelectedCollaboratorIds();
+            
+            if (!name) {
+                showError('Por favor, preencha o nome do serviço.');
+                return;
+            }
+            
+            if (isNaN(price) || price < 0) {
+                showError('Por favor, preencha um valor válido.');
+                return;
+            }
+            
+            if (collaboratorIds.length === 0) {
+                showError('Selecione pelo menos um colaborador que realiza este serviço.');
+                return;
+            }
+            
+            const serviceData = {
+                name: name,
+                price: price,
+                duration: duration,
+                description: description,
+                collaboratorIds: collaboratorIds,
+                userId: currentUser.uid,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            
+            let promise;
+            
+            if (serviceId) {
+                promise = db.collection('companyServices').doc(serviceId).update(serviceData);
+            } else {
+                serviceData.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+                promise = db.collection('companyServices').add(serviceData);
+            }
+            
+            showLoading('Salvando serviço...');
+            
+            promise
+                .then(() => {
+                    bootstrap.Modal.getInstance(document.getElementById('serviceAdminModal')).hide();
+                    return loadCompanyServices();
+                })
+                .then(() => {
+                    showSuccess(serviceId ? 'Serviço atualizado com sucesso!' : 'Serviço adicionado com sucesso!');
+                })
+                .catch((error) => {
+                    console.error('Erro ao salvar serviço:', error);
+                    showError('Erro ao salvar serviço: ' + error.message);
+                });
+        }
+
+        // Excluir serviço
+        function deleteServiceAdmin(serviceId) {
+            Swal.fire({
+                title: 'Tem certeza?',
+                text: "Esta ação não pode ser desfeita!",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Sim, excluir!',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    db.collection('companyServices').doc(serviceId).delete()
+                        .then(() => {
+                            loadCompanyServices();
+                            showSuccess('Serviço excluído com sucesso!');
+                        })
+                        .catch((error) => {
+                            console.error('Erro ao excluir serviço:', error);
+                            showError('Erro ao excluir serviço: ' + error.message);
+                        });
+                }
+            });
+        }
+
+        // Atualizar botões de acesso rápido no caixa (COM VALOR)
+        function updateQuickServicesInCashier() {
+            const container = document.getElementById('quickServicesContainer');
+            if (!container) return;
+            
+            container.innerHTML = '';
+            
+            if (companyServices.length === 0) {
+                container.innerHTML = '<p class="text-muted small">Nenhum serviço cadastrado em Perfil da Empresa.</p>';
+                return;
+            }
+            
+            companyServices.forEach(service => {
+                const button = document.createElement('button');
+                button.className = 'quick-service-btn';
+                button.innerHTML = `<i class="fas fa-cut me-1"></i> ${service.name} <small class="text-success">${formatCurrency(service.price || 0)}</small>`;
+                button.setAttribute('data-service-id', service.id);
+                button.setAttribute('data-service-name', service.name);
+                button.setAttribute('data-service-price', service.price || 0);
+                
+                button.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    
+                    const descField = document.getElementById('serviceDescription');
+                    const valueField = document.getElementById('serviceValue');
+                    const currentText = descField.value;
+                    const serviceName = this.getAttribute('data-service-name');
+                    const servicePrice = parseFloat(this.getAttribute('data-service-price'));
+                    
+                    // Verificar se o serviço já está na descrição
+                    const servicePattern = new RegExp('(^|\\s\\+\\s)' + escapeRegExp(serviceName) + '($|\\s\\+\\s)', 'i');
+                    
+                    if (servicePattern.test(currentText)) {
+                        // REMOVER o serviço da descrição
+                        let newText = currentText.replace(new RegExp('(^|\\s\\+\\s)' + escapeRegExp(serviceName) + '($|\\s\\+\\s)', 'g'), '');
+                        newText = newText.replace(/^\s*\+\s*|\s*\+\s*$/g, '').trim();
+                        descField.value = newText;
+                        
+                        // Subtrair o valor
+                        const currentValue = parseFloat(valueField.value) || 0;
+                        valueField.value = (currentValue - servicePrice).toFixed(2);
+                        
+                        // Feedback visual
+                        this.style.background = 'linear-gradient(135deg, #f8f9fa, #e9ecef)';
+                        this.style.color = 'var(--primary-color)';
+                    } else {
+                        // ADICIONAR o serviço à descrição
+                        if (currentText) {
+                            descField.value = currentText + ' + ' + serviceName;
+                        } else {
+                            descField.value = serviceName;
+                        }
+                        
+                        // Adicionar o valor
+                        const currentValue = parseFloat(valueField.value) || 0;
+                        valueField.value = (currentValue + servicePrice).toFixed(2);
+                        
+                        // Feedback visual de ativo
+                        this.style.background = 'var(--primary-color)';
+                        this.style.color = 'white';
+                        
+                        // Reset após 300ms
+                        setTimeout(() => {
+                            this.style.background = 'linear-gradient(135deg, #f8f9fa, #e9ecef)';
+                            this.style.color = 'var(--primary-color)';
+                        }, 300);
+                    }
+                    
+                    // Disparar evento de mudança
+                    descField.dispatchEvent(new Event('input', { bubbles: true }));
+                    valueField.dispatchEvent(new Event('input', { bubbles: true }));
+                });
+                
+                container.appendChild(button);
+            });
+        }
+
+        // Filtrar colaboradores no caixa baseado no serviço selecionado
+        function filterCollaboratorsByService(serviceId) {
+            const service = companyServices.find(s => s.id === serviceId);
+            if (!service) return collaborators;
+            
+            if (!service.collaboratorIds || service.collaboratorIds.length === 0) {
+                return collaborators;
+            }
+            
+            return collaborators.filter(c => service.collaboratorIds.includes(c.id));
+        }
+
+        // Atualizar o select de colaboradores baseado no tipo de serviço (se tiver ID)
+        function updateCollaboratorSelectByService(serviceDescription) {
+            // Tentar encontrar o serviço pelo nome na descrição
+            if (!serviceDescription) return;
+            
+            const matchedService = companyServices.find(s => 
+                serviceDescription.toLowerCase().includes(s.name.toLowerCase())
+            );
+            
+            if (matchedService && matchedService.collaboratorIds && matchedService.collaboratorIds.length > 0) {
+                const select = document.getElementById('collaboratorSelect');
+                const currentValue = select.value;
+                
+                // Filtrar opções
+                Array.from(select.options).forEach(option => {
+                    if (option.value === '') return;
+                    const shouldShow = matchedService.collaboratorIds.includes(option.value);
+                    option.style.display = shouldShow ? '' : 'none';
+                });
+                
+                // Se o valor atual não está disponível, limpar
+                const currentOption = Array.from(select.options).find(opt => opt.value === currentValue);
+                if (currentValue && (!currentOption || currentOption.style.display === 'none')) {
+                    select.value = '';
+                }
+            } else {
+                // Mostrar todos os colaboradores
+                Array.from(document.getElementById('collaboratorSelect').options).forEach(option => {
+                    if (option.value !== '') option.style.display = '';
+                });
+            }
+        }
+
+        // Adicionar event listener para a descrição do serviço
+        function setupServiceDescriptionListener() {
+            const descField = document.getElementById('serviceDescription');
+            if (descField) {
+                descField.addEventListener('input', function() {
+                    updateCollaboratorSelectByService(this.value);
+                });
+            }
+        }
+    
+    
     </script>
 
 </body>
