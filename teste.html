@@ -15832,7 +15832,560 @@ document.head.appendChild(swalStyle);
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+        // ============================================================
+// TELA COMPLETA DE DETALHES/EDIÇÃO DE AGENDAMENTO
+// ============================================================
+
+// Variável global para armazenar o agendamento sendo editado
+let currentEditingAppointment = null;
+
+// Substitui a função original showAppointmentDetails
+window.showAppointmentDetails = async function(appointmentId) {
+    const appointment = appointments.find(a => a.id === appointmentId);
+    if (!appointment) {
+        showError('Agendamento não encontrado');
+        return;
+    }
+    currentEditingAppointment = { ...appointment }; // clone para edição
+    
+    // Carregar dados completos do cliente
+    let clientData = null;
+    if (appointment.clientId) {
+        clientData = clients.find(c => c.id === appointment.clientId);
+    }
+    
+    // Preparar lista de serviços
+    let servicesList = appointment.services || [];
+    
+    // Abrir modal principal
+    await openAppointmentDetailsModal(appointment, clientData, servicesList);
+};
+
+// Função principal que abre o modal
+async function openAppointmentDetailsModal(appointment, clientData, servicesList) {
+    // Buscar lista de profissionais ativos
+    const activeCollaborators = collaborators.filter(c => c.active);
+    
+    // Buscar lista de serviços cadastrados (companyServices)
+    const availableServices = companyServices.length ? companyServices : [];
+    
+    // Criar o modal HTML dinamicamente
+    const modalHtml = `
+        <div class="modal fade" id="appointmentDetailsModal" tabindex="-1" data-bs-backdrop="static" style="z-index: 99999;">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title">
+                            <i class="fas fa-calendar-check me-2"></i>Detalhes do Agendamento
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row">
+                            <!-- COLUDA ESQUERDA: Cliente + Agendamento -->
+                            <div class="col-md-6">
+                                <!-- CARD DO CLIENTE -->
+                                <div class="card mb-3">
+                                    <div class="card-header bg-light">
+                                        <h6 class="mb-0"><i class="fas fa-user me-2"></i>Cliente</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="d-flex align-items-center mb-3">
+                                            <div class="me-3" id="appointmentClientAvatar">
+                                                ${clientData?.photoUrl ? 
+                                                    `<img src="${clientData.photoUrl}" width="60" height="60" class="rounded-circle" style="object-fit: cover;">` :
+                                                    `<div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width: 60px; height: 60px; font-size: 24px;">
+                                                        ${clientData?.name?.charAt(0).toUpperCase() || '?'}
+                                                     </div>`
+                                                }
+                                            </div>
+                                            <div class="flex-grow-1">
+                                                <select class="form-select" id="appointmentClientSelect">
+                                                    <option value="">Selecione um cliente</option>
+                                                    ${clients.map(c => `<option value="${c.id}" ${c.id === appointment.clientId ? 'selected' : ''}>${c.name} (${c.phone || 'sem telefone'})</option>`).join('')}
+                                                </select>
+                                                <div class="mt-2">
+                                                    <div class="btn-group btn-group-sm">
+                                                        <button class="btn btn-outline-primary" id="callClientBtn" ${!clientData?.phone ? 'disabled' : ''}>
+                                                            <i class="fas fa-phone"></i> Ligar
+                                                        </button>
+                                                        <button class="btn btn-outline-success" id="whatsappClientBtn" ${!clientData?.phone ? 'disabled' : ''}>
+                                                            <i class="fab fa-whatsapp"></i> WhatsApp
+                                                        </button>
+                                                        <button class="btn btn-outline-info" id="viewClientHistoryBtn">
+                                                            <i class="fas fa-history"></i> Histórico
+                                                        </button>
+                                                        <button class="btn btn-outline-warning" id="editClientBtn">
+                                                            <i class="fas fa-edit"></i> Editar
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- CARD DO AGENDAMENTO -->
+                                <div class="card mb-3">
+                                    <div class="card-header bg-light">
+                                        <h6 class="mb-0"><i class="fas fa-calendar-alt me-2"></i>Agendamento</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row g-2">
+                                            <div class="col-md-6">
+                                                <label class="form-label small">Data</label>
+                                                <input type="date" class="form-control" id="appointmentDate" value="${appointment.date}">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small">Hora Início</label>
+                                                <input type="time" class="form-control" id="appointmentStartTime" value="${appointment.startTime}">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small">Hora Fim</label>
+                                                <input type="time" class="form-control" id="appointmentEndTime" value="${appointment.endTime || ''}" readonly>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small">Status</label>
+                                                <select class="form-select" id="appointmentStatus">
+                                                    <option value="scheduled" ${appointment.status === 'scheduled' ? 'selected' : ''}>Agendado</option>
+                                                    <option value="confirmed" ${appointment.status === 'confirmed' ? 'selected' : ''}>Confirmado</option>
+                                                    <option value="in_progress" ${appointment.status === 'in_progress' ? 'selected' : ''}>Em atendimento</option>
+                                                    <option value="completed" ${appointment.status === 'completed' ? 'selected' : ''}>Concluído</option>
+                                                    <option value="cancelled" ${appointment.status === 'cancelled' ? 'selected' : ''}>Cancelado</option>
+                                                    <option value="no_show" ${appointment.status === 'no_show' ? 'selected' : ''}>Não compareceu</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="mt-3">
+                                            <label class="form-label small">Recorrência</label>
+                                            <select class="form-select" id="appointmentRecurrence">
+                                                <option value="none">Não se repete</option>
+                                                <option value="daily">Diário</option>
+                                                <option value="weekly">Semanal</option>
+                                                <option value="monthly">Mensal</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- COLUNA DIREITA: SERVIÇOS E VALORES -->
+                            <div class="col-md-6">
+                                <div class="card mb-3">
+                                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                                        <h6 class="mb-0"><i class="fas fa-cut me-2"></i>Serviços</h6>
+                                        <button class="btn btn-sm btn-primary" id="addServiceToAppointmentBtn">
+                                            <i class="fas fa-plus"></i> Adicionar serviço
+                                        </button>
+                                    </div>
+                                    <div class="card-body p-0">
+                                        <div id="appointmentServicesList" class="list-group list-group-flush">
+                                            <!-- Serviços serão inseridos dinamicamente -->
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="card">
+                                    <div class="card-header bg-light">
+                                        <h6 class="mb-0"><i class="fas fa-euro-sign me-2"></i>Valores</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span>Subtotal:</span>
+                                            <span id="appointmentSubtotal">€ 0,00</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span>Desconto:</span>
+                                            <div class="input-group input-group-sm" style="width: 120px;">
+                                                <input type="number" class="form-control" id="appointmentDiscount" value="0" step="0.01" min="0">
+                                                <span class="input-group-text">€</span>
+                                            </div>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2 fw-bold">
+                                            <span>Total:</span>
+                                            <span id="appointmentTotal">€ 0,00</span>
+                                        </div>
+                                        <hr>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span>Pago:</span>
+                                            <input type="number" class="form-control form-control-sm" id="appointmentPaid" style="width: 100px;" step="0.01" min="0" value="${appointment.paid || 0}">
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span>Pendente:</span>
+                                            <span id="appointmentPending">€ 0,00</span>
+                                        </div>
+                                        <div class="mt-3">
+                                            <button class="btn btn-sm btn-success w-100" id="registerPaymentBtn">
+                                                <i class="fas fa-money-bill-wave"></i> Registrar Pagamento
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                        <button type="button" class="btn btn-danger" id="cancelAppointmentBtn">Cancelar Agendamento</button>
+                        <button type="button" class="btn btn-primary" id="saveAppointmentChangesBtn">Salvar Alterações</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remover modal existente
+    const existingModal = document.getElementById('appointmentDetailsModal');
+    if (existingModal) existingModal.remove();
+    
+    // Inserir modal no DOM
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Renderizar lista de serviços
+    function renderServicesList() {
+        const container = document.getElementById('appointmentServicesList');
+        if (!container) return;
         
+        if (!servicesList.length) {
+            container.innerHTML = '<div class="list-group-item text-center text-muted">Nenhum serviço adicionado</div>';
+            return;
+        }
+        
+        let html = '';
+        servicesList.forEach((service, idx) => {
+            const collaborator = collaborators.find(c => c.id === service.collaboratorId) || { name: 'Não atribuído' };
+            html += `
+                <div class="list-group-item" data-service-index="${idx}">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <div class="fw-bold">${service.name}</div>
+                            <div class="row g-1 mt-1">
+                                <div class="col-md-5">
+                                    <select class="form-select form-select-sm service-collaborator" data-index="${idx}">
+                                        <option value="">Selecionar profissional</option>
+                                        ${activeCollaborators.map(c => `<option value="${c.id}" ${c.id === service.collaboratorId ? 'selected' : ''}>${c.name}</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <input type="number" class="form-control form-control-sm service-duration" data-index="${idx}" value="${service.duration || 30}" step="5" min="5" placeholder="Duração (min)">
+                                </div>
+                                <div class="col-md-3">
+                                    <input type="number" class="form-control form-control-sm service-price" data-index="${idx}" value="${service.price || 0}" step="0.01" min="0" placeholder="Preço">
+                                </div>
+                                <div class="col-md-1">
+                                    <button class="btn btn-sm btn-outline-danger remove-service-btn" data-index="${idx}">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+        
+        // Recalcular totais e duração
+        recalcTotalsAndDuration();
+    }
+    
+    // Recalcular subtotal, total, pendente e duração total
+    function recalcTotalsAndDuration() {
+        let subtotal = 0;
+        let totalDuration = 0;
+        servicesList.forEach(s => {
+            subtotal += parseFloat(s.price) || 0;
+            totalDuration += parseInt(s.duration) || 0;
+        });
+        const discount = parseFloat(document.getElementById('appointmentDiscount')?.value) || 0;
+        const total = subtotal - discount;
+        const paid = parseFloat(document.getElementById('appointmentPaid')?.value) || 0;
+        const pending = total - paid;
+        
+        document.getElementById('appointmentSubtotal').innerText = formatCurrency(subtotal);
+        document.getElementById('appointmentTotal').innerText = formatCurrency(total);
+        document.getElementById('appointmentPending').innerText = formatCurrency(pending);
+        
+        // Atualizar hora de término baseado na duração total
+        const startTime = document.getElementById('appointmentStartTime').value;
+        if (startTime && totalDuration > 0) {
+            const [hour, minute] = startTime.split(':').map(Number);
+            let totalMinutes = hour * 60 + minute + totalDuration;
+            const endHour = Math.floor(totalMinutes / 60) % 24;
+            const endMinute = totalMinutes % 60;
+            document.getElementById('appointmentEndTime').value = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
+        }
+    }
+    
+    // Eventos dinâmicos
+    function bindServiceEvents() {
+        document.querySelectorAll('.service-collaborator').forEach(select => {
+            select.addEventListener('change', (e) => {
+                const idx = parseInt(e.target.dataset.index);
+                servicesList[idx].collaboratorId = e.target.value;
+                const collab = collaborators.find(c => c.id === e.target.value);
+                servicesList[idx].collaboratorName = collab ? collab.name : '';
+            });
+        });
+        document.querySelectorAll('.service-duration').forEach(input => {
+            input.addEventListener('change', (e) => {
+                const idx = parseInt(e.target.dataset.index);
+                servicesList[idx].duration = parseInt(e.target.value);
+                recalcTotalsAndDuration();
+            });
+        });
+        document.querySelectorAll('.service-price').forEach(input => {
+            input.addEventListener('change', (e) => {
+                const idx = parseInt(e.target.dataset.index);
+                servicesList[idx].price = parseFloat(e.target.value);
+                recalcTotalsAndDuration();
+            });
+        });
+        document.querySelectorAll('.remove-service-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const idx = parseInt(btn.dataset.index);
+                const confirm = await Swal.fire({
+                    title: 'Remover serviço',
+                    text: `Deseja remover "${servicesList[idx].name}"?`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'Sim, remover',
+                    cancelButtonText: 'Cancelar'
+                });
+                if (confirm.isConfirmed) {
+                    servicesList.splice(idx, 1);
+                    renderServicesList();
+                    bindServiceEvents();
+                }
+            });
+        });
+    }
+    
+    // Adicionar novo serviço
+    document.getElementById('addServiceToAppointmentBtn').addEventListener('click', async () => {
+        if (availableServices.length === 0) {
+            showError('Nenhum serviço cadastrado. Cadastre serviços em Perfil da Empresa.');
+            return;
+        }
+        // Selecionar serviço da lista
+        const { value: serviceId } = await Swal.fire({
+            title: 'Adicionar serviço',
+            input: 'select',
+            inputOptions: Object.fromEntries(availableServices.map(s => [s.id, s.name])),
+            inputPlaceholder: 'Selecione um serviço',
+            showCancelButton: true
+        });
+        if (serviceId) {
+            const selected = availableServices.find(s => s.id === serviceId);
+            if (selected) {
+                servicesList.push({
+                    id: selected.id,
+                    name: selected.name,
+                    price: 0,
+                    duration: 30,
+                    collaboratorId: '',
+                    collaboratorName: ''
+                });
+                renderServicesList();
+                bindServiceEvents();
+            }
+        }
+    });
+    
+    // Eventos de cliente
+    document.getElementById('appointmentClientSelect').addEventListener('change', (e) => {
+        const clientId = e.target.value;
+        const client = clients.find(c => c.id === clientId);
+        currentEditingAppointment.clientId = clientId;
+        currentEditingAppointment.clientName = client ? client.name : '';
+        currentEditingAppointment.clientPhone = client ? client.phone : '';
+        // Atualizar avatar
+        const avatarDiv = document.getElementById('appointmentClientAvatar');
+        if (client?.photoUrl) {
+            avatarDiv.innerHTML = `<img src="${client.photoUrl}" width="60" height="60" class="rounded-circle" style="object-fit: cover;">`;
+        } else {
+            avatarDiv.innerHTML = `<div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width: 60px; height: 60px; font-size: 24px;">
+                                        ${client?.name?.charAt(0).toUpperCase() || '?'}
+                                    </div>`;
+        }
+        // Habilitar/desabilitar botões
+        const callBtn = document.getElementById('callClientBtn');
+        const whatsBtn = document.getElementById('whatsappClientBtn');
+        if (client?.phone) {
+            callBtn.disabled = false;
+            whatsBtn.disabled = false;
+        } else {
+            callBtn.disabled = true;
+            whatsBtn.disabled = true;
+        }
+    });
+    
+    document.getElementById('callClientBtn')?.addEventListener('click', () => {
+        const clientId = document.getElementById('appointmentClientSelect').value;
+        const client = clients.find(c => c.id === clientId);
+        if (client?.phone) window.open(`tel:${client.phone}`);
+    });
+    document.getElementById('whatsappClientBtn')?.addEventListener('click', () => {
+        const clientId = document.getElementById('appointmentClientSelect').value;
+        const client = clients.find(c => c.id === clientId);
+        if (client?.phone) window.open(`https://wa.me/${client.phone.replace(/\D/g, '')}`);
+    });
+    document.getElementById('viewClientHistoryBtn')?.addEventListener('click', () => {
+        const clientId = document.getElementById('appointmentClientSelect').value;
+        if (clientId) showClientRecord(clientId);
+        else showError('Selecione um cliente primeiro');
+    });
+    document.getElementById('editClientBtn')?.addEventListener('click', () => {
+        const clientId = document.getElementById('appointmentClientSelect').value;
+        if (clientId) editClientFromTable(clientId);
+        else showError('Selecione um cliente primeiro');
+    });
+    
+    // Eventos de data/hora
+    document.getElementById('appointmentDate').addEventListener('change', validateDateTime);
+    document.getElementById('appointmentStartTime').addEventListener('change', validateDateTime);
+    
+    async function validateDateTime() {
+        const date = document.getElementById('appointmentDate').value;
+        const startTime = document.getElementById('appointmentStartTime').value;
+        const collaboratorId = servicesList[0]?.collaboratorId || currentEditingAppointment.collaboratorId;
+        if (!date || !startTime || !collaboratorId) return;
+        
+        // Verificar conflito (simplificado: checar se existe outro agendamento no mesmo horário)
+        const conflicts = appointments.filter(a => 
+            a.id !== currentEditingAppointment.id &&
+            a.date === date &&
+            a.collaboratorId === collaboratorId &&
+            a.startTime === startTime
+        );
+        if (conflicts.length > 0) {
+            showError('Conflito de horário com outro agendamento!');
+            return false;
+        }
+        recalcTotalsAndDuration();
+        return true;
+    }
+    
+    // Salvar alterações
+    document.getElementById('saveAppointmentChangesBtn').addEventListener('click', async () => {
+        // Validar
+        if (!document.getElementById('appointmentClientSelect').value) {
+            showError('Selecione um cliente');
+            return;
+        }
+        if (servicesList.length === 0) {
+            showError('Adicione pelo menos um serviço');
+            return;
+        }
+        const isValid = await validateDateTime();
+        if (!isValid) return;
+        
+        // Montar objeto atualizado
+        const updatedAppointment = {
+            ...currentEditingAppointment,
+            clientId: document.getElementById('appointmentClientSelect').value,
+            clientName: clients.find(c => c.id === document.getElementById('appointmentClientSelect').value)?.name || '',
+            clientPhone: clients.find(c => c.id === document.getElementById('appointmentClientSelect').value)?.phone || '',
+            date: document.getElementById('appointmentDate').value,
+            startTime: document.getElementById('appointmentStartTime').value,
+            endTime: document.getElementById('appointmentEndTime').value,
+            status: document.getElementById('appointmentStatus').value,
+            recurrence: document.getElementById('appointmentRecurrence').value,
+            services: servicesList,
+            total: parseFloat(document.getElementById('appointmentTotal').innerText.replace('€', '').replace(',', '.').trim()),
+            paid: parseFloat(document.getElementById('appointmentPaid').value) || 0,
+            discount: parseFloat(document.getElementById('appointmentDiscount').value) || 0,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        
+        showLoading('Salvando alterações...');
+        try {
+            await db.collection('appointments').doc(currentEditingAppointment.id).update(updatedAppointment);
+            // Atualizar array local
+            const index = appointments.findIndex(a => a.id === currentEditingAppointment.id);
+            if (index !== -1) appointments[index] = { ...appointments[index], ...updatedAppointment };
+            // Recarregar agenda
+            renderAppointmentsForAll();
+            bootstrap.Modal.getInstance(document.getElementById('appointmentDetailsModal')).hide();
+            showSuccess('Agendamento atualizado com sucesso!');
+        } catch (error) {
+            console.error(error);
+            showError('Erro ao salvar: ' + error.message);
+        }
+    });
+    
+    // Cancelar agendamento
+    document.getElementById('cancelAppointmentBtn').addEventListener('click', async () => {
+        const confirm = await Swal.fire({
+            title: 'Cancelar agendamento',
+            text: 'Tem certeza que deseja cancelar este agendamento?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Sim, cancelar',
+            cancelButtonText: 'Não'
+        });
+        if (confirm.isConfirmed) {
+            showLoading('Cancelando...');
+            try {
+                await db.collection('appointments').doc(currentEditingAppointment.id).update({
+                    status: 'cancelled',
+                    cancelledAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                appointments.find(a => a.id === currentEditingAppointment.id).status = 'cancelled';
+                renderAppointmentsForAll();
+                bootstrap.Modal.getInstance(document.getElementById('appointmentDetailsModal')).hide();
+                showSuccess('Agendamento cancelado');
+            } catch (error) {
+                showError('Erro ao cancelar: ' + error.message);
+            }
+        }
+    });
+    
+    // Registrar pagamento
+    document.getElementById('registerPaymentBtn').addEventListener('click', async () => {
+        const total = parseFloat(document.getElementById('appointmentTotal').innerText.replace('€', '').replace(',', '.').trim());
+        const currentPaid = parseFloat(document.getElementById('appointmentPaid').value) || 0;
+        const remaining = total - currentPaid;
+        if (remaining <= 0) {
+            showError('Agendamento já está totalmente pago');
+            return;
+        }
+        const { value: amount } = await Swal.fire({
+            title: 'Registrar Pagamento',
+            input: 'number',
+            inputLabel: `Valor a pagar (máximo ${formatCurrency(remaining)})`,
+            inputValue: remaining,
+            inputAttributes: { step: '0.01', min: '0.01', max: remaining },
+            showCancelButton: true
+        });
+        if (amount) {
+            const newPaid = currentPaid + parseFloat(amount);
+            document.getElementById('appointmentPaid').value = newPaid;
+            recalcTotalsAndDuration();
+            showSuccess(`Pagamento de ${formatCurrency(amount)} registrado`);
+        }
+    });
+    
+    // Inicializar renderização
+    renderServicesList();
+    bindServiceEvents();
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('appointmentDetailsModal'), { backdrop: 'static', keyboard: true });
+    modal.show();
+}
 
         
     </script>
