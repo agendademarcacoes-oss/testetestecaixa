@@ -12512,16 +12512,17 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
             }
         }
 
-        // Renderizar grid de agendamentos
+                // Renderizar grid de agendamentos (CORRIGIDO: Mostra todos os colaboradores)
         function renderAgendaGrid() {
             const container = document.getElementById('agendaGrid');
             if (!container) return;
             container.innerHTML = '';
             
-            const activeCollaborators = collaborators.filter(c => c.active);
-            const targetCollaborator = activeCollaborators.find(c => c.id === selectedCollaboratorId) || activeCollaborators[0];
+            // Pegar SOMENTE colaboradores ATIVOS
+            const activeCollaborators = collaborators.filter(c => c.active === true);
             
-            if (!targetCollaborator) {
+            // Se não houver colaboradores ativos, mostra mensagem
+            if (activeCollaborators.length === 0) {
                 const noCollabDiv = document.createElement('div');
                 noCollabDiv.className = 'agenda-day-column';
                 noCollabDiv.style.textAlign = 'center';
@@ -12530,41 +12531,116 @@ Equipe ${businessSettings.name || 'Studio DeVitto'}`;
                 container.appendChild(noCollabDiv);
                 return;
             }
-            
-            container.classList.add('single-column');
-            const dayColumn = document.createElement('div');
-            dayColumn.className = 'agenda-day-column';
-            dayColumn.setAttribute('data-date', currentAgendaDate.toISOString().split('T')[0]);
-            dayColumn.setAttribute('data-collaborator-id', targetCollaborator.id);
-            
-            for (let hour = 0; hour < 24; hour++) {
-                for (let quarter = 0; quarter < 4; quarter++) {
-                    const slot = document.createElement('div');
-                    slot.className = 'agenda-slot-quarter';
-                    if (quarter === 0) slot.classList.add('hour-start');
-                    if (quarter === 2) slot.classList.add('half-hour');
-                    const minutes = quarter * 15;
-                    slot.setAttribute('data-hour', hour);
-                    slot.setAttribute('data-quarter', quarter);
-                    slot.setAttribute('data-minutes', minutes);
-                    slot.setAttribute('data-date', currentAgendaDate.toISOString().split('T')[0]);
-                    slot.setAttribute('data-collaborator-id', targetCollaborator.id);
-                    slot.title = `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-                    
-                    slot.addEventListener('mousedown', startTimeSelection);
-                    slot.addEventListener('touchstart', startTimeSelection, { passive: false });
-                    slot.addEventListener('mouseenter', updateTimeSelection);
-                    slot.addEventListener('touchmove', updateTimeSelection, { passive: false });
-                    slot.addEventListener('mouseup', endTimeSelection);
-                    slot.addEventListener('touchend', endTimeSelection);
-                    
-                    dayColumn.appendChild(slot);
-                }
+
+            // Define a classe para o grid baseado na quantidade de colaboradores
+            // Isso ajuda na responsividade
+            container.classList.remove('single-column', 'two-columns', 'three-columns', 'scrollable');
+            if (activeCollaborators.length === 1) {
+                container.classList.add('single-column');
+            } else if (activeCollaborators.length === 2) {
+                container.classList.add('two-columns');
+            } else if (activeCollaborators.length === 3) {
+                container.classList.add('three-columns');
+            } else {
+                container.classList.add('scrollable');
             }
-            container.appendChild(dayColumn);
             
-            renderAppointments();
-            addSelectionOverlay();
+            // Loop para criar UMA COLUNA para CADA colaborador
+            activeCollaborators.forEach(collaborator => {
+                // Cria a coluna do dia para este colaborador
+                const dayColumn = document.createElement('div');
+                dayColumn.className = 'agenda-day-column';
+                // Adiciona um atributo com o ID do colaborador e a data atual
+                dayColumn.setAttribute('data-date', currentAgendaDate.toISOString().split('T')[0]);
+                dayColumn.setAttribute('data-collaborator-id', collaborator.id);
+                
+                // Adiciona o NOME do colaborador no topo da coluna (opcional, mas útil)
+                const collaboratorHeader = document.createElement('div');
+                collaboratorHeader.className = 'agenda-day-header';
+                collaboratorHeader.textContent = collaborator.name;
+                collaboratorHeader.style.cssText = 'padding: 8px; text-align: center; font-weight: bold; background: #f8f9fa; border-bottom: 1px solid #e0e0e0;';
+                dayColumn.appendChild(collaboratorHeader);
+
+                // Cria os slots de horário (cada 15 minutos) para esta coluna
+                for (let hour = 0; hour < 24; hour++) {
+                    for (let quarter = 0; quarter < 4; quarter++) {
+                        const slot = document.createElement('div');
+                        slot.className = 'agenda-slot-quarter';
+                        if (quarter === 0) slot.classList.add('hour-start');
+                        if (quarter === 2) slot.classList.add('half-hour');
+                        const minutes = quarter * 15;
+                        
+                        // Guarda informações importantes nos atributos do slot
+                        slot.setAttribute('data-hour', hour);
+                        slot.setAttribute('data-quarter', quarter);
+                        slot.setAttribute('data-minutes', minutes);
+                        slot.setAttribute('data-date', currentAgendaDate.toISOString().split('T')[0]);
+                        slot.setAttribute('data-collaborator-id', collaborator.id);
+                        slot.title = `${collaborator.name} - ${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+                        
+                        // Adiciona os eventos para selecionar horário (arrastar)
+                        slot.addEventListener('mousedown', startTimeSelection);
+                        slot.addEventListener('touchstart', startTimeSelection, { passive: false });
+                        slot.addEventListener('mouseenter', updateTimeSelection);
+                        slot.addEventListener('touchmove', updateTimeSelection, { passive: false });
+                        slot.addEventListener('mouseup', endTimeSelection);
+                        slot.addEventListener('touchend', endTimeSelection);
+                        
+                        dayColumn.appendChild(slot);
+                    }
+                }
+                container.appendChild(dayColumn);
+            });
+            
+            // Após criar todas as colunas, renderiza os agendamentos em cada uma
+            renderAppointmentsForAll();
+        }
+
+                // Função para renderizar os agendamentos de TODOS os colaboradores
+        function renderAppointmentsForAll() {
+            // Remove todos os agendamentos antigos para recomeçar
+            document.querySelectorAll('.agenda-appointment').forEach(el => el.remove());
+            
+            const currentDateStr = currentAgendaDate.toISOString().split('T')[0];
+            
+            // Para cada agendamento salvo no sistema
+            appointments.forEach(appointment => {
+                // Verifica se o agendamento é para a data atual
+                if (appointment.date !== currentDateStr) return;
+                
+                // Procura a coluna correta que tem o ID do colaborador deste agendamento
+                const dayColumn = document.querySelector(`.agenda-day-column[data-collaborator-id="${appointment.collaboratorId}"]`);
+                if (!dayColumn) return; // Se não achou a coluna, ignora
+                
+                // Calcula a posição vertical (top) baseada no horário de início
+                const startHour = parseInt(appointment.startTime.split(':')[0]);
+                const startMinute = parseInt(appointment.startTime.split(':')[1]);
+                const duration = appointment.duration || 60; // Duração em minutos
+                const totalMinutes = startHour * 60 + startMinute;
+                const topPosition = totalMinutes;
+                const height = duration;
+                
+                // Cria o elemento visual do agendamento
+                const appointmentEl = document.createElement('div');
+                appointmentEl.className = 'agenda-appointment';
+                appointmentEl.style.top = `${topPosition}px`;
+                appointmentEl.style.height = `${Math.max(height, 30)}px`;
+                appointmentEl.style.background = `linear-gradient(135deg, #26196b 0%, #4a3a9c 100%)`;
+                appointmentEl.innerHTML = `
+                    <div class="agenda-appointment-time">${appointment.startTime} - ${appointment.endTime || ''}</div>
+                    <div class="agenda-appointment-client">${appointment.clientName || 'Cliente'}</div>
+                    <div class="agenda-appointment-service">${appointment.serviceName || 'Serviço'}</div>
+                `;
+                
+                // Adiciona evento de clique para ver detalhes
+                appointmentEl.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    showAppointmentDetails(appointment.id);
+                });
+                
+                // Coloca o agendamento dentro da coluna correta
+                dayColumn.appendChild(appointmentEl);
+            });
         }
 
         // Renderizar agendamentos na grade
