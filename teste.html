@@ -4675,7 +4675,7 @@
                                 </div>
                             </div>
 
-                                                        <!-- NOVA SEÇÃO: Gerenciamento de Serviços (COMPLETO) -->
+                            <!-- NOVA SEÇÃO: Gerenciamento de Serviços -->
                             <div class="row mt-4">
                                 <div class="col-md-12">
                                     <div class="card">
@@ -4698,63 +4698,7 @@
                                     </div>
                                 </div>
                             </div>
-
-                            <!-- NOVO MODAL: Adicionar/Editar Serviço (COM VALOR E COLABORADORES) -->
-                            <div class="modal fade" id="serviceAdminModal" tabindex="-1">
-                                <div class="modal-dialog">
-                                    <div class="modal-content">
-                                        <div class="modal-header">
-                                            <h5 class="modal-title" id="serviceAdminModalTitle">Adicionar Serviço</h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                        </div>
-                                        <div class="modal-body">
-                                            <form id="serviceAdminForm">
-                                                <input type="hidden" id="serviceAdminId">
-                                                
-                                                <div class="mb-3">
-                                                    <label for="serviceAdminName" class="form-label">Nome do Serviço *</label>
-                                                    <input type="text" class="form-control" id="serviceAdminName" placeholder="Ex: Brushing, Corte, Coloração" required>
-                                                </div>
-                                                
-                                                <div class="mb-3">
-                                                    <label for="serviceAdminPrice" class="form-label">Valor Padrão (€) *</label>
-                                                    <div class="input-group">
-                                                        <span class="input-group-text">€</span>
-                                                        <input type="number" class="form-control" id="serviceAdminPrice" step="0.01" min="0" placeholder="0.00" required>
-                                                    </div>
-                                                    <small class="text-muted">Valor padrão para este serviço. Pode ser alterado no momento do atendimento.</small>
-                                                </div>
-                                                
-                                                <div class="mb-3">
-                                                    <label for="serviceAdminDuration" class="form-label">Duração Estimada (minutos)</label>
-                                                    <div class="input-group">
-                                                        <input type="number" class="form-control" id="serviceAdminDuration" step="5" min="5" placeholder="30">
-                                                        <span class="input-group-text">min</span>
-                                                    </div>
-                                                    <small class="text-muted">Tempo estimado para este serviço (opcional).</small>
-                                                </div>
-                                                
-                                                <div class="mb-3">
-                                                    <label class="form-label">Colaborador(es) que realizam este serviço *</label>
-                                                    <div id="collaboratorsForServiceList" class="border rounded p-2" style="max-height: 150px; overflow-y: auto;">
-                                                        <p class="text-muted text-center">Carregando colaboradores...</p>
-                                                    </div>
-                                                    <small class="text-muted">Selecione quais colaboradores podem realizar este serviço.</small>
-                                                </div>
-                                                
-                                                <div class="mb-3">
-                                                    <label for="serviceAdminDescription" class="form-label">Descrição (opcional)</label>
-                                                    <textarea class="form-control" id="serviceAdminDescription" rows="2" placeholder="Descrição do serviço..."></textarea>
-                                                </div>
-                                            </form>
-                                        </div>
-                                        <div class="modal-footer">
-                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                                            <button type="button" class="btn btn-primary" id="saveServiceAdminBtn">Salvar Serviço</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                        </div>
 
                         <!-- Relatórios -->
                         <div id="reports" class="section">
@@ -5602,19 +5546,6 @@
             document.getElementById('showRegister').addEventListener('click', showRegisterForm);
             document.getElementById('showLogin').addEventListener('click', showLoginForm);
             
-            // NOVOS EVENTOS: Gerenciamento de Serviços (completo)
-            document.getElementById('addServiceAdminBtn')?.addEventListener('click', showAddServiceAdminModal);
-            document.getElementById('serviceAdminSearch')?.addEventListener('input', filterServicesAdmin);
-            document.getElementById('saveServiceAdminBtn')?.addEventListener('click', saveServiceAdmin);
-            
-            // Evento para filtrar colaboradores baseado no serviço digitado
-            const serviceDescInput = document.getElementById('serviceDescription');
-            if (serviceDescInput) {
-                serviceDescInput.addEventListener('input', function() {
-                    updateCollaboratorSelectByService(this.value);
-                });
-            }
-
             // Registro
             document.getElementById('registerForm').addEventListener('submit', handleRegister);
             
@@ -14938,172 +14869,270 @@ setTimeout(() => {
 
 
 
+
 // ============================================
 // CALENDÁRIO COM MARCADORES - VERSÃO CORRIGIDA
 // CORES ATUALIZADAS: Laranja (#FF6B35) e Verde (#00C853)
-// AGORA COM EDIÇÃO E EXCLUSÃO FUNCIONANDO
 // ============================================
 
 let currentCalendarDate = new Date();
 let salesByDateCache = {};
 
-// --- Funções auxiliares globais (garantia) ---
-function formatDate(date) {
-    if (!date) return '';
-    const d = new Date(date);
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
-    return `${day}/${month}/${year}`;
-}
-
-function formatCurrency(value) {
-    if (value === null || value === undefined) value = 0;
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-}
-
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-// --- Persistência dos dados (ajuste conforme sua realidade) ---
-function saveAllData() {
-    // Salva os arrays globais no localStorage (exemplo)
-    if (typeof allServices !== 'undefined') {
-        localStorage.setItem('allServices', JSON.stringify(allServices));
-    }
-    if (typeof allProductSales !== 'undefined') {
-        localStorage.setItem('allProductSales', JSON.stringify(allProductSales));
-    }
-}
-
-// --- Funções de edição e exclusão ---
-window.editServiceSaleFromCalendar = function(serviceId) {
-    if (!window.allServices) {
-        alert('Erro: lista de serviços não encontrada.');
-        return;
-    }
-    const service = window.allServices.find(s => s.id === serviceId);
-    if (!service) {
-        alert('Serviço não encontrado.');
-        return;
-    }
-
-    // Exemplo simples de edição via prompt
-    const newValue = prompt('Editar valor do serviço:', service.value);
-    if (newValue !== null && !isNaN(parseFloat(newValue))) {
-        service.value = parseFloat(newValue);
-        const newDesc = prompt('Editar descrição (opcional):', service.description || '');
-        if (newDesc !== null) service.description = newDesc;
-        
-        // Se houver função para atualizar na tela principal, chame-a
-        if (typeof updateServiceOnMainScreen === 'function') updateServiceOnMainScreen(service);
-        
-        saveAllData();
-        alert('Serviço atualizado com sucesso!');
-        // Recarregar o calendário e a visualização do dia atual
-        loadSalesDataAndRenderCalendar().then(() => {
-            const selectedDayEl = document.querySelector('#calendarDays .calendar-day.selected');
-            if (selectedDayEl) {
-                const date = selectedDayEl.getAttribute('data-date');
-                if (date) showSalesForDate(date);
-            }
-        });
-    } else if (newValue !== null) {
-        alert('Valor inválido.');
-    }
-};
-
-window.editProductSaleFromCalendar = function(saleId) {
-    if (!window.allProductSales) {
-        alert('Erro: lista de vendas de produtos não encontrada.');
-        return;
-    }
-    const sale = window.allProductSales.find(p => p.id === saleId);
-    if (!sale) {
-        alert('Venda de produto não encontrada.');
-        return;
-    }
-
-    const newQuantity = prompt('Editar quantidade:', sale.quantity || 1);
-    if (newQuantity !== null && !isNaN(parseInt(newQuantity)) && parseInt(newQuantity) > 0) {
-        sale.quantity = parseInt(newQuantity);
-        // Recalcular totalValue baseado no preço do produto
-        if (window.products) {
-            const product = window.products.find(p => p.id === sale.productId);
-            if (product) {
-                sale.totalValue = product.price * sale.quantity;
-            } else {
-                sale.totalValue = sale.unitPrice * sale.quantity;
-            }
-        } else {
-            sale.totalValue = (sale.unitPrice || 0) * sale.quantity;
-        }
-        
-        if (typeof updateProductSaleOnMainScreen === 'function') updateProductSaleOnMainScreen(sale);
-        
-        saveAllData();
-        alert('Venda de produto atualizada com sucesso!');
-        loadSalesDataAndRenderCalendar().then(() => {
-            const selectedDayEl = document.querySelector('#calendarDays .calendar-day.selected');
-            if (selectedDayEl) {
-                const date = selectedDayEl.getAttribute('data-date');
-                if (date) showSalesForDate(date);
-            }
-        });
-    } else if (newQuantity !== null) {
-        alert('Quantidade inválida.');
-    }
-};
-
-window.deleteSaleFromCalendar = function(id, type, date) {
-    if (!confirm(`Tem certeza que deseja excluir este ${type === 'service' ? 'serviço' : 'produto'}?`)) return;
+function showManageSalesModal() {
+    // Criar modal dinamicamente
+    const modalHtml = `
+        <div class="modal fade" id="manageSalesModal" tabindex="-1" data-bs-backdrop="static" style="z-index: 99999;">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title"><i class="fas fa-calendar-alt me-2"></i>Gerenciar Vendas</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <!-- Filtros -->
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-5">
+                                <label class="form-label fw-bold">
+                                    <i class="fas fa-user me-1"></i> Colaborador
+                                </label>
+                                <select class="form-select" id="manageSalesCollaborator">
+                                    <option value="all">Todos os colaboradores</option>
+                                    ${collaborators.filter(c => c.active).map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label fw-bold">
+                                    <i class="fas fa-calendar me-1"></i> Mês/Ano
+                                </label>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-outline-secondary" id="prevMonthBtn">
+                                        <i class="fas fa-chevron-left"></i>
+                                    </button>
+                                    <span id="calendarMonthYear" class="flex-grow-1 text-center fw-bold py-2 bg-light rounded"></span>
+                                    <button class="btn btn-outline-secondary" id="nextMonthBtn">
+                                        <i class="fas fa-chevron-right"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <button class="btn btn-primary w-100" id="todayBtn">
+                                    <i class="fas fa-calendar-day me-1"></i> Hoje
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Calendário -->
+                        <div class="calendar-container mb-4">
+                            <div class="calendar-weekdays" id="calendarWeekdays"></div>
+                            <div class="calendar-days" id="calendarDays"></div>
+                        </div>
+                        
+                        <!-- Legenda com novas cores contrastantes -->
+                        <div class="d-flex justify-content-center gap-4 mb-4 p-2 bg-light rounded">
+                            <div class="d-flex align-items-center">
+                                <div class="me-2" style="width: 14px; height: 14px; background-color: #FF6B35; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.2);"></div>
+                                <small><strong>Serviços</strong> (Laranja)</small>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <div class="me-2" style="width: 14px; height: 14px; background-color: #00C853; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.2);"></div>
+                                <small><strong>Produtos</strong> (Verde)</small>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <div class="me-2" style="width: 14px; height: 14px; background: linear-gradient(135deg, #FF6B35 50%, #00C853 50%); border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.2);"></div>
+                                <small><strong>Ambos</strong> (Laranja + Verde)</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Resumo e Vendas do Dia Selecionado -->
+                        <div id="selectedDayInfo" class="alert alert-info d-none">
+                            <div class="d-flex justify-content-between align-items-center flex-wrap">
+                                <div>
+                                    <i class="fas fa-calendar-day me-2"></i>
+                                    <strong id="selectedDayText">Selecione um dia</strong>
+                                </div>
+                                <div id="selectedDaySummary"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Vendas do Dia -->
+                        <div id="daySalesContainer" style="max-height: 400px; overflow-y: auto;">
+                            <div class="text-center text-muted py-4">
+                                <i class="fas fa-calendar-alt fa-3x mb-3 opacity-50"></i>
+                                <p>Selecione um dia no calendário para ver as vendas</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
     
-    if (type === 'service') {
-        if (!window.allServices) return;
-        const index = window.allServices.findIndex(s => s.id === id);
-        if (index !== -1) {
-            window.allServices.splice(index, 1);
-            if (typeof removeServiceFromMainScreen === 'function') removeServiceFromMainScreen(id);
-            saveAllData();
-            alert('Serviço excluído com sucesso!');
-        } else {
-            alert('Serviço não encontrado.');
-            return;
-        }
-    } else if (type === 'product') {
-        if (!window.allProductSales) return;
-        const index = window.allProductSales.findIndex(p => p.id === id);
-        if (index !== -1) {
-            window.allProductSales.splice(index, 1);
-            if (typeof removeProductSaleFromMainScreen === 'function') removeProductSaleFromMainScreen(id);
-            saveAllData();
-            alert('Venda de produto excluída com sucesso!');
-        } else {
-            alert('Venda não encontrada.');
-            return;
-        }
-    }
+    // Remover modal existente se houver
+    const existingModal = document.getElementById('manageSalesModal');
+    if (existingModal) existingModal.remove();
     
-    // Recarregar o calendário e reexibir o dia se ele ainda estiver selecionado
-    loadSalesDataAndRenderCalendar().then(() => {
-        const selectedDayEl = document.querySelector('#calendarDays .calendar-day.selected');
-        if (selectedDayEl) {
-            const selectedDate = selectedDayEl.getAttribute('data-date');
-            if (selectedDate) showSalesForDate(selectedDate);
+    // Adicionar modal ao body
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Adicionar CSS específico para o calendário com cores atualizadas
+    const style = document.createElement('style');
+    style.textContent = `
+        #manageSalesModal {
+            z-index: 99999 !important;
         }
+        #manageSalesModal .modal {
+            z-index: 100000 !important;
+        }
+        #manageSalesModal .modal-backdrop {
+            z-index: 99990 !important;
+        }
+        .calendar-container {
+            background: white;
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .calendar-weekdays {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .calendar-weekday {
+            font-weight: 600;
+            padding: 10px;
+            color: #6c757d;
+            font-size: 14px;
+        }
+        .calendar-days {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 5px;
+        }
+        .calendar-day {
+            aspect-ratio: 1;
+            padding: 8px;
+            text-align: center;
+            cursor: pointer;
+            border-radius: 50%;
+            transition: all 0.2s;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #f8f9fa;
+            font-weight: 500;
+        }
+        .calendar-day:hover {
+            background: #e9ecef;
+            transform: scale(1.05);
+        }
+        .calendar-day.selected {
+            background: var(--primary-color, #26196b);
+            color: white;
+        }
+        .calendar-day.today {
+            border: 2px solid var(--primary-color, #26196b);
+            font-weight: bold;
+        }
+        .calendar-day.other-month {
+            opacity: 0.4;
+        }
+        .calendar-day .markers {
+            display: flex;
+            gap: 4px;
+            justify-content: center;
+            margin-top: 4px;
+        }
+        .calendar-day .marker {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }
+        .calendar-day .marker.service {
+            background-color: #FF6B35;
+        }
+        .calendar-day .marker.product {
+            background-color: #00C853;
+        }
+        .day-sale-card {
+            background: white;
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-left: 4px solid;
+            transition: all 0.2s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .day-sale-card.service {
+            border-left-color: #FF6B35;
+        }
+        .day-sale-card.product {
+            border-left-color: #00C853;
+        }
+        .day-sale-card:hover {
+            transform: translateX(5px);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        }
+        @media (max-width: 768px) {
+            .calendar-day {
+                font-size: 12px;
+                padding: 4px;
+            }
+            .calendar-day .marker {
+                width: 5px;
+                height: 5px;
+            }
+            .day-sale-card {
+                padding: 8px;
+                font-size: 12px;
+            }
+        }
+    `;
+    document.head.appendChild(style);
+    
+    // Inicializar eventos
+    document.getElementById('manageSalesCollaborator').addEventListener('change', () => {
+        loadSalesDataAndRenderCalendar();
     });
-};
+    
+    document.getElementById('prevMonthBtn').addEventListener('click', () => {
+        currentCalendarDate.setMonth(currentCalendarDate.getMonth() - 1);
+        loadSalesDataAndRenderCalendar();
+    });
+    
+    document.getElementById('nextMonthBtn').addEventListener('click', () => {
+        currentCalendarDate.setMonth(currentCalendarDate.getMonth() + 1);
+        loadSalesDataAndRenderCalendar();
+    });
+    
+    document.getElementById('todayBtn').addEventListener('click', () => {
+        currentCalendarDate = new Date();
+        loadSalesDataAndRenderCalendar();
+    });
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('manageSalesModal'), {
+        backdrop: 'static',
+        keyboard: true
+    });
+    modal.show();
+    
+    // Carregar dados e renderizar calendário
+    loadSalesDataAndRenderCalendar();
+}
 
-// --- Funções principais do calendário (mantidas e ajustadas) ---
 async function loadSalesDataAndRenderCalendar() {
-    const collaboratorId = document.getElementById('manageSalesCollaborator')?.value;
+    const collaboratorId = document.getElementById('manageSalesCollaborator').value;
     const year = currentCalendarDate.getFullYear();
     const month = currentCalendarDate.getMonth();
     
+    // Mostrar loading no calendário
     const calendarDays = document.getElementById('calendarDays');
     if (calendarDays) {
         calendarDays.innerHTML = '<div class="text-center py-5 col-12">Carregando calendário...</div>';
@@ -15122,65 +15151,96 @@ async function loadSalesDataAndRenderCalendar() {
     }
     
     try {
-        // Garantir que os arrays globais existam
-        window.allServices = window.allServices || [];
-        window.allProductSales = window.allProductSales || [];
-        window.clients = window.clients || [];
-        window.collaborators = window.collaborators || [];
-        window.products = window.products || [];
+        console.log('📊 Carregando vendas para:', `${year}/${month + 1}`);
+        console.log('📊 Total de serviços:', allServices?.length || 0);
+        console.log('📊 Total de produtos:', allProductSales?.length || 0);
+        console.log('📊 Colaborador filtro:', collaboratorId);
         
-        let servicesQuery = [...window.allServices];
-        if (collaboratorId && collaboratorId !== 'all') {
+        // Filtrar serviços
+        let servicesQuery = allServices || [];
+        if (collaboratorId !== 'all') {
             servicesQuery = servicesQuery.filter(s => s.collaboratorId === collaboratorId);
         }
         
-        const productsQuery = [...window.allProductSales];
+        // Produtos (não têm colaborador, então sempre inclui todos)
+        let productsQuery = allProductSales || [];
         
+        console.log('📊 Serviços após filtro:', servicesQuery.length);
+        console.log('📊 Produtos:', productsQuery.length);
+        
+        // Agrupar por data
         const salesByDate = {};
+        
         servicesQuery.forEach(service => {
-            if (!service.date) return;
-            if (!salesByDate[service.date]) salesByDate[service.date] = { services: [], products: [] };
-            salesByDate[service.date].services.push(service);
+            const date = service.date;
+            if (!date) return;
+            
+            if (!salesByDate[date]) {
+                salesByDate[date] = { services: [], products: [] };
+            }
+            salesByDate[date].services.push(service);
         });
+        
         productsQuery.forEach(product => {
-            if (!product.date) return;
-            if (!salesByDate[product.date]) salesByDate[product.date] = { services: [], products: [] };
-            salesByDate[product.date].products.push(product);
+            const date = product.date;
+            if (!date) return;
+            
+            if (!salesByDate[date]) {
+                salesByDate[date] = { services: [], products: [] };
+            }
+            salesByDate[date].products.push(product);
         });
         
         salesByDateCache = salesByDate;
+        
+        console.log('📊 Datas com vendas:', Object.keys(salesByDate).length);
+        
+        // Renderizar calendário
         renderCalendar(year, month, salesByDate);
         
     } catch (error) {
         console.error('❌ Erro ao carregar vendas:', error);
-        if (calendarDays) {
-            calendarDays.innerHTML = `<div class="text-center text-danger py-5 col-12">Erro ao carregar dados: ${error.message}</div>`;
+        const calendarDaysEl = document.getElementById('calendarDays');
+        if (calendarDaysEl) {
+            calendarDaysEl.innerHTML = `<div class="text-center text-danger py-5 col-12">Erro ao carregar dados: ${error.message}</div>`;
         }
     }
 }
 
 function renderCalendar(year, month, salesByDate) {
+    // Atualizar título do mês
     const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
     const monthYearEl = document.getElementById('calendarMonthYear');
-    if (monthYearEl) monthYearEl.textContent = `${monthNames[month]} ${year}`;
+    if (monthYearEl) {
+        monthYearEl.textContent = `${monthNames[month]} ${year}`;
+    }
     
+    // Dias da semana
     const weekdaysFull = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
     let weekdaysHtml = '';
-    weekdaysFull.forEach(day => { weekdaysHtml += `<div class="calendar-weekday">${day}</div>`; });
+    weekdaysFull.forEach(day => {
+        weekdaysHtml += `<div class="calendar-weekday">${day}</div>`;
+    });
     const weekdaysEl = document.getElementById('calendarWeekdays');
     if (weekdaysEl) weekdaysEl.innerHTML = weekdaysHtml;
     
+    // Calcular primeiro dia do mês e dias totais
     const firstDayOfMonth = new Date(year, month, 1);
-    const startDayOfWeek = firstDayOfMonth.getDay();
+    const startDayOfWeek = firstDayOfMonth.getDay(); // 0 = Domingo
     const daysInMonth = new Date(year, month + 1, 0).getDate();
+    
+    // Dias do mês anterior para preencher
     const prevMonthDays = new Date(year, month, 0).getDate();
     
     let daysHtml = '';
     let dayCounter = 1;
     let nextMonthCounter = 1;
+    
+    // Hoje para comparação
     const today = new Date();
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     
+    // 42 dias (6 semanas)
     for (let i = 0; i < 42; i++) {
         let isCurrentMonth = true;
         let dayNumber = 0;
@@ -15189,16 +15249,22 @@ function renderCalendar(year, month, salesByDate) {
         let yearIdx = year;
         
         if (i < startDayOfWeek) {
+            // Dias do mês anterior
             isCurrentMonth = false;
             dayNumber = prevMonthDays - (startDayOfWeek - i) + 1;
             monthIdx = month === 0 ? 11 : month - 1;
             yearIdx = month === 0 ? year - 1 : year;
             dateStr = `${yearIdx}-${String(monthIdx + 1).padStart(2, '0')}-${String(dayNumber).padStart(2, '0')}`;
-        } else if (dayCounter <= daysInMonth) {
+        } 
+        else if (dayCounter <= daysInMonth) {
+            // Dias do mês atual
+            isCurrentMonth = true;
             dayNumber = dayCounter;
             dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNumber).padStart(2, '0')}`;
             dayCounter++;
-        } else {
+        } 
+        else {
+            // Dias do próximo mês
             isCurrentMonth = false;
             dayNumber = nextMonthCounter;
             monthIdx = month === 11 ? 0 : month + 1;
@@ -15207,15 +15273,20 @@ function renderCalendar(year, month, salesByDate) {
             nextMonthCounter++;
         }
         
+        // Verificar se tem vendas nesta data
         const daySales = salesByDate[dateStr] || { services: [], products: [] };
         const hasServices = daySales.services.length > 0;
         const hasProducts = daySales.products.length > 0;
+        
+        // Verificar se é hoje
         const isToday = dateStr === todayStr;
         
+        // Classes CSS
         let dayClasses = 'calendar-day';
         if (!isCurrentMonth) dayClasses += ' other-month';
         if (isToday) dayClasses += ' today';
         
+        // Marcadores com novas cores
         let markersHtml = '';
         if (hasServices || hasProducts) {
             markersHtml = '<div class="markers">';
@@ -15233,21 +15304,33 @@ function renderCalendar(year, month, salesByDate) {
     }
     
     const calendarDaysEl = document.getElementById('calendarDays');
-    if (calendarDaysEl) calendarDaysEl.innerHTML = daysHtml;
+    if (calendarDaysEl) {
+        calendarDaysEl.innerHTML = daysHtml;
+    }
     
+    // Adicionar evento de clique nos dias
     document.querySelectorAll('#calendarDays .calendar-day').forEach(dayEl => {
         dayEl.addEventListener('click', (e) => {
             e.stopPropagation();
-            document.querySelectorAll('#calendarDays .calendar-day.selected').forEach(el => el.classList.remove('selected'));
+            // Remover seleção anterior
+            document.querySelectorAll('#calendarDays .calendar-day.selected').forEach(el => {
+                el.classList.remove('selected');
+            });
             dayEl.classList.add('selected');
+            
             const date = dayEl.getAttribute('data-date');
-            if (date) showSalesForDate(date);
+            if (date) {
+                showSalesForDate(date);
+            }
         });
     });
     
+    // Se houver alguma data selecionada, manter a seleção
     const selectedDate = document.querySelector('#calendarDays .calendar-day.selected')?.getAttribute('data-date');
-    if (selectedDate) showSalesForDate(selectedDate);
-    else {
+    if (selectedDate) {
+        showSalesForDate(selectedDate);
+    } else {
+        // Limpar container de vendas
         const daySalesContainer = document.getElementById('daySalesContainer');
         if (daySalesContainer) {
             daySalesContainer.innerHTML = `
@@ -15266,8 +15349,13 @@ function showSalesForDate(date) {
     const sales = salesByDateCache[date] || { services: [], products: [] };
     const formattedDate = formatDate(new Date(date));
     
+    console.log(`📅 Mostrando vendas para ${formattedDate}:`, sales.services.length, 'serviços,', sales.products.length, 'produtos');
+    
+    // Atualizar cabeçalho
     const selectedDayText = document.getElementById('selectedDayText');
-    if (selectedDayText) selectedDayText.innerHTML = `<i class="fas fa-calendar-check me-1"></i>${formattedDate}`;
+    if (selectedDayText) {
+        selectedDayText.innerHTML = `<i class="fas fa-calendar-check me-1"></i>${formattedDate}`;
+    }
     
     const totalServices = sales.services.reduce((sum, s) => sum + (parseFloat(s.value) || 0), 0);
     const totalProducts = sales.products.reduce((sum, p) => sum + (parseFloat(p.totalValue) || 0), 0);
@@ -15286,8 +15374,10 @@ function showSalesForDate(date) {
     const selectedDayInfo = document.getElementById('selectedDayInfo');
     if (selectedDayInfo) selectedDayInfo.classList.remove('d-none');
     
+    // Gerar lista de vendas do dia com cores nas bordas
     let salesHtml = '';
     
+    // Serviços
     if (sales.services.length > 0) {
         salesHtml += `
             <div class="mb-3">
@@ -15295,9 +15385,11 @@ function showSalesForDate(date) {
                     <i class="fas fa-cut me-2"></i>Serviços (${sales.services.length})
                 </h6>
         `;
+        
         sales.services.forEach(service => {
-            const client = (window.clients || []).find(c => c.id === service.clientId) || { name: 'Cliente não encontrado' };
-            const collaborator = (window.collaborators || []).find(c => c.id === service.collaboratorId) || { name: 'Colaborador não encontrado' };
+            const client = clients.find(c => c.id === service.clientId) || { name: 'Cliente não encontrado' };
+            const collaborator = collaborators.find(c => c.id === service.collaboratorId) || { name: 'Colaborador não encontrado' };
+            
             salesHtml += `
                 <div class="day-sale-card service" id="service-card-${service.id}">
                     <div class="d-flex justify-content-between align-items-start flex-wrap">
@@ -15324,9 +15416,11 @@ function showSalesForDate(date) {
                 </div>
             `;
         });
+        
         salesHtml += `</div>`;
     }
     
+    // Produtos
     if (sales.products.length > 0) {
         salesHtml += `
             <div class="mb-3">
@@ -15334,9 +15428,11 @@ function showSalesForDate(date) {
                     <i class="fas fa-box me-2"></i>Produtos (${sales.products.length})
                 </h6>
         `;
+        
         sales.products.forEach(sale => {
-            const product = (window.products || []).find(p => p.id === sale.productId) || { name: 'Produto não encontrado' };
-            const client = sale.clientId ? ((window.clients || []).find(c => c.id === sale.clientId) || { name: 'Cliente não encontrado' }) : { name: 'Venda Avulsa' };
+            const product = products.find(p => p.id === sale.productId) || { name: 'Produto não encontrado' };
+            const client = sale.clientId ? (clients.find(c => c.id === sale.clientId) || { name: 'Cliente não encontrado' }) : { name: 'Venda Avulsa' };
+            
             salesHtml += `
                 <div class="day-sale-card product" id="product-card-${sale.id}">
                     <div class="d-flex justify-content-between align-items-start flex-wrap">
@@ -15359,6 +15455,7 @@ function showSalesForDate(date) {
                 </div>
             `;
         });
+        
         salesHtml += `</div>`;
     }
     
@@ -15373,16 +15470,23 @@ function showSalesForDate(date) {
     }
     
     const daySalesContainer = document.getElementById('daySalesContainer');
-    if (daySalesContainer) daySalesContainer.innerHTML = salesHtml;
+    if (daySalesContainer) {
+        daySalesContainer.innerHTML = salesHtml;
+    }
 }
 
+// Função auxiliar para escapar HTML
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
 
-
-
-
-
-
-
+// Garantir que as funções de edição e exclusão estão acessíveis globalmente
+window.editServiceSaleFromCalendar = editServiceSaleFromCalendar;
+window.editProductSaleFromCalendar = editProductSaleFromCalendar;
+window.deleteSaleFromCalendar = deleteSaleFromCalendar;
 
 // ============================================
 // FUNÇÕES DE EDIÇÃO E EXCLUSÃO (VERSÃO CALENDÁRIO)
@@ -16971,661 +17075,6 @@ document.head.appendChild(styleZIndex);
 
 console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLETO carregado!');
         
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-// ============================================
-// CALENDÁRIO COM MARCADORES - VERSÃO CORRIGIDA
-// CORES ATUALIZADAS: Laranja (#FF6B35) e Verde (#00C853)
-// ============================================
-
-let currentCalendarDate = new Date();
-let salesByDateCache = {};
-
-function showManageSalesModal() {
-    // Criar modal dinamicamente
-    const modalHtml = `
-        <div class="modal fade" id="manageSalesModal" tabindex="-1" data-bs-backdrop="static" style="z-index: 99999;">
-            <div class="modal-dialog modal-xl modal-dialog-scrollable">
-                <div class="modal-content">
-                    <div class="modal-header bg-primary text-white">
-                        <h5 class="modal-title"><i class="fas fa-calendar-alt me-2"></i>Gerenciar Vendas</h5>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <!-- Filtros -->
-                        <div class="row g-3 mb-4">
-                            <div class="col-md-5">
-                                <label class="form-label fw-bold">
-                                    <i class="fas fa-user me-1"></i> Colaborador
-                                </label>
-                                <select class="form-select" id="manageSalesCollaborator">
-                                    <option value="all">Todos os colaboradores</option>
-                                    ${collaborators.filter(c => c.active).map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
-                                </select>
-                            </div>
-                            <div class="col-md-5">
-                                <label class="form-label fw-bold">
-                                    <i class="fas fa-calendar me-1"></i> Mês/Ano
-                                </label>
-                                <div class="d-flex gap-2">
-                                    <button class="btn btn-outline-secondary" id="prevMonthBtn">
-                                        <i class="fas fa-chevron-left"></i>
-                                    </button>
-                                    <span id="calendarMonthYear" class="flex-grow-1 text-center fw-bold py-2 bg-light rounded"></span>
-                                    <button class="btn btn-outline-secondary" id="nextMonthBtn">
-                                        <i class="fas fa-chevron-right"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="col-md-2 d-flex align-items-end">
-                                <button class="btn btn-primary w-100" id="todayBtn">
-                                    <i class="fas fa-calendar-day me-1"></i> Hoje
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <!-- Calendário -->
-                        <div class="calendar-container mb-4">
-                            <div class="calendar-weekdays" id="calendarWeekdays"></div>
-                            <div class="calendar-days" id="calendarDays"></div>
-                        </div>
-                        
-                        <!-- Legenda com novas cores contrastantes -->
-                        <div class="d-flex justify-content-center gap-4 mb-4 p-2 bg-light rounded">
-                            <div class="d-flex align-items-center">
-                                <div class="me-2" style="width: 14px; height: 14px; background-color: #FF6B35; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.2);"></div>
-                                <small><strong>Serviços</strong> (Laranja)</small>
-                            </div>
-                            <div class="d-flex align-items-center">
-                                <div class="me-2" style="width: 14px; height: 14px; background-color: #00C853; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.2);"></div>
-                                <small><strong>Produtos</strong> (Verde)</small>
-                            </div>
-                            <div class="d-flex align-items-center">
-                                <div class="me-2" style="width: 14px; height: 14px; background: linear-gradient(135deg, #FF6B35 50%, #00C853 50%); border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.2);"></div>
-                                <small><strong>Ambos</strong> (Laranja + Verde)</small>
-                            </div>
-                        </div>
-                        
-                        <!-- Resumo e Vendas do Dia Selecionado -->
-                        <div id="selectedDayInfo" class="alert alert-info d-none">
-                            <div class="d-flex justify-content-between align-items-center flex-wrap">
-                                <div>
-                                    <i class="fas fa-calendar-day me-2"></i>
-                                    <strong id="selectedDayText">Selecione um dia</strong>
-                                </div>
-                                <div id="selectedDaySummary"></div>
-                            </div>
-                        </div>
-                        
-                        <!-- Vendas do Dia -->
-                        <div id="daySalesContainer" style="max-height: 400px; overflow-y: auto;">
-                            <div class="text-center text-muted py-4">
-                                <i class="fas fa-calendar-alt fa-3x mb-3 opacity-50"></i>
-                                <p>Selecione um dia no calendário para ver as vendas</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    // Remover modal existente se houver
-    const existingModal = document.getElementById('manageSalesModal');
-    if (existingModal) existingModal.remove();
-    
-    // Adicionar modal ao body
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-    
-    // Adicionar CSS específico para o calendário com cores atualizadas
-    const style = document.createElement('style');
-    style.textContent = `
-        #manageSalesModal {
-            z-index: 99999 !important;
-        }
-        #manageSalesModal .modal {
-            z-index: 100000 !important;
-        }
-        #manageSalesModal .modal-backdrop {
-            z-index: 99990 !important;
-        }
-        .calendar-container {
-            background: white;
-            border-radius: 12px;
-            padding: 15px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        .calendar-weekdays {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            text-align: center;
-            margin-bottom: 10px;
-        }
-        .calendar-weekday {
-            font-weight: 600;
-            padding: 10px;
-            color: #6c757d;
-            font-size: 14px;
-        }
-        .calendar-days {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            gap: 5px;
-        }
-        .calendar-day {
-            aspect-ratio: 1;
-            padding: 8px;
-            text-align: center;
-            cursor: pointer;
-            border-radius: 50%;
-            transition: all 0.2s;
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            background: #f8f9fa;
-            font-weight: 500;
-        }
-        .calendar-day:hover {
-            background: #e9ecef;
-            transform: scale(1.05);
-        }
-        .calendar-day.selected {
-            background: var(--primary-color, #26196b);
-            color: white;
-        }
-        .calendar-day.today {
-            border: 2px solid var(--primary-color, #26196b);
-            font-weight: bold;
-        }
-        .calendar-day.other-month {
-            opacity: 0.4;
-        }
-        .calendar-day .markers {
-            display: flex;
-            gap: 4px;
-            justify-content: center;
-            margin-top: 4px;
-        }
-        .calendar-day .marker {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
-        }
-        .calendar-day .marker.service {
-            background-color: #FF6B35;
-        }
-        .calendar-day .marker.product {
-            background-color: #00C853;
-        }
-        .day-sale-card {
-            background: white;
-            border-radius: 10px;
-            padding: 12px;
-            margin-bottom: 10px;
-            border-left: 4px solid;
-            transition: all 0.2s;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-        .day-sale-card.service {
-            border-left-color: #FF6B35;
-        }
-        .day-sale-card.product {
-            border-left-color: #00C853;
-        }
-        .day-sale-card:hover {
-            transform: translateX(5px);
-            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-        }
-        @media (max-width: 768px) {
-            .calendar-day {
-                font-size: 12px;
-                padding: 4px;
-            }
-            .calendar-day .marker {
-                width: 5px;
-                height: 5px;
-            }
-            .day-sale-card {
-                padding: 8px;
-                font-size: 12px;
-            }
-        }
-    `;
-    document.head.appendChild(style);
-    
-    // Inicializar eventos
-    document.getElementById('manageSalesCollaborator').addEventListener('change', () => {
-        loadSalesDataAndRenderCalendar();
-    });
-    
-    document.getElementById('prevMonthBtn').addEventListener('click', () => {
-        currentCalendarDate.setMonth(currentCalendarDate.getMonth() - 1);
-        loadSalesDataAndRenderCalendar();
-    });
-    
-    document.getElementById('nextMonthBtn').addEventListener('click', () => {
-        currentCalendarDate.setMonth(currentCalendarDate.getMonth() + 1);
-        loadSalesDataAndRenderCalendar();
-    });
-    
-    document.getElementById('todayBtn').addEventListener('click', () => {
-        currentCalendarDate = new Date();
-        loadSalesDataAndRenderCalendar();
-    });
-    
-    // Mostrar modal
-    const modal = new bootstrap.Modal(document.getElementById('manageSalesModal'), {
-        backdrop: 'static',
-        keyboard: true
-    });
-    modal.show();
-    
-    // Carregar dados e renderizar calendário
-    loadSalesDataAndRenderCalendar();
-}
-
-async function loadSalesDataAndRenderCalendar() {
-    const collaboratorId = document.getElementById('manageSalesCollaborator').value;
-    const year = currentCalendarDate.getFullYear();
-    const month = currentCalendarDate.getMonth();
-    
-    // Mostrar loading no calendário
-    const calendarDays = document.getElementById('calendarDays');
-    if (calendarDays) {
-        calendarDays.innerHTML = '<div class="text-center py-5 col-12">Carregando calendário...</div>';
-    }
-    
-    const daySalesContainer = document.getElementById('daySalesContainer');
-    if (daySalesContainer) {
-        daySalesContainer.innerHTML = `
-            <div class="text-center py-5">
-                <div class="spinner-border text-primary mb-3" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-                <p>Carregando vendas...</p>
-            </div>
-        `;
-    }
-    
-    try {
-        console.log('📊 Carregando vendas para:', `${year}/${month + 1}`);
-        console.log('📊 Total de serviços:', allServices?.length || 0);
-        console.log('📊 Total de produtos:', allProductSales?.length || 0);
-        console.log('📊 Colaborador filtro:', collaboratorId);
-        
-        // Filtrar serviços
-        let servicesQuery = allServices || [];
-        if (collaboratorId !== 'all') {
-            servicesQuery = servicesQuery.filter(s => s.collaboratorId === collaboratorId);
-        }
-        
-        // Produtos (não têm colaborador, então sempre inclui todos)
-        let productsQuery = allProductSales || [];
-        
-        console.log('📊 Serviços após filtro:', servicesQuery.length);
-        console.log('📊 Produtos:', productsQuery.length);
-        
-        // Agrupar por data
-        const salesByDate = {};
-        
-        servicesQuery.forEach(service => {
-            const date = service.date;
-            if (!date) return;
-            
-            if (!salesByDate[date]) {
-                salesByDate[date] = { services: [], products: [] };
-            }
-            salesByDate[date].services.push(service);
-        });
-        
-        productsQuery.forEach(product => {
-            const date = product.date;
-            if (!date) return;
-            
-            if (!salesByDate[date]) {
-                salesByDate[date] = { services: [], products: [] };
-            }
-            salesByDate[date].products.push(product);
-        });
-        
-        salesByDateCache = salesByDate;
-        
-        console.log('📊 Datas com vendas:', Object.keys(salesByDate).length);
-        
-        // Renderizar calendário
-        renderCalendar(year, month, salesByDate);
-        
-    } catch (error) {
-        console.error('❌ Erro ao carregar vendas:', error);
-        const calendarDaysEl = document.getElementById('calendarDays');
-        if (calendarDaysEl) {
-            calendarDaysEl.innerHTML = `<div class="text-center text-danger py-5 col-12">Erro ao carregar dados: ${error.message}</div>`;
-        }
-    }
-}
-
-function renderCalendar(year, month, salesByDate) {
-    // Atualizar título do mês
-    const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-    const monthYearEl = document.getElementById('calendarMonthYear');
-    if (monthYearEl) {
-        monthYearEl.textContent = `${monthNames[month]} ${year}`;
-    }
-    
-    // Dias da semana
-    const weekdaysFull = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-    let weekdaysHtml = '';
-    weekdaysFull.forEach(day => {
-        weekdaysHtml += `<div class="calendar-weekday">${day}</div>`;
-    });
-    const weekdaysEl = document.getElementById('calendarWeekdays');
-    if (weekdaysEl) weekdaysEl.innerHTML = weekdaysHtml;
-    
-    // Calcular primeiro dia do mês e dias totais
-    const firstDayOfMonth = new Date(year, month, 1);
-    const startDayOfWeek = firstDayOfMonth.getDay(); // 0 = Domingo
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    
-    // Dias do mês anterior para preencher
-    const prevMonthDays = new Date(year, month, 0).getDate();
-    
-    let daysHtml = '';
-    let dayCounter = 1;
-    let nextMonthCounter = 1;
-    
-    // Hoje para comparação
-    const today = new Date();
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    
-    // 42 dias (6 semanas)
-    for (let i = 0; i < 42; i++) {
-        let isCurrentMonth = true;
-        let dayNumber = 0;
-        let dateStr = '';
-        let monthIdx = month;
-        let yearIdx = year;
-        
-        if (i < startDayOfWeek) {
-            // Dias do mês anterior
-            isCurrentMonth = false;
-            dayNumber = prevMonthDays - (startDayOfWeek - i) + 1;
-            monthIdx = month === 0 ? 11 : month - 1;
-            yearIdx = month === 0 ? year - 1 : year;
-            dateStr = `${yearIdx}-${String(monthIdx + 1).padStart(2, '0')}-${String(dayNumber).padStart(2, '0')}`;
-        } 
-        else if (dayCounter <= daysInMonth) {
-            // Dias do mês atual
-            isCurrentMonth = true;
-            dayNumber = dayCounter;
-            dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNumber).padStart(2, '0')}`;
-            dayCounter++;
-        } 
-        else {
-            // Dias do próximo mês
-            isCurrentMonth = false;
-            dayNumber = nextMonthCounter;
-            monthIdx = month === 11 ? 0 : month + 1;
-            yearIdx = month === 11 ? year + 1 : year;
-            dateStr = `${yearIdx}-${String(monthIdx + 1).padStart(2, '0')}-${String(dayNumber).padStart(2, '0')}`;
-            nextMonthCounter++;
-        }
-        
-        // Verificar se tem vendas nesta data
-        const daySales = salesByDate[dateStr] || { services: [], products: [] };
-        const hasServices = daySales.services.length > 0;
-        const hasProducts = daySales.products.length > 0;
-        
-        // Verificar se é hoje
-        const isToday = dateStr === todayStr;
-        
-        // Classes CSS
-        let dayClasses = 'calendar-day';
-        if (!isCurrentMonth) dayClasses += ' other-month';
-        if (isToday) dayClasses += ' today';
-        
-        // Marcadores com novas cores
-        let markersHtml = '';
-        if (hasServices || hasProducts) {
-            markersHtml = '<div class="markers">';
-            if (hasServices) markersHtml += '<div class="marker service"></div>';
-            if (hasProducts) markersHtml += '<div class="marker product"></div>';
-            markersHtml += '</div>';
-        }
-        
-        daysHtml += `
-            <div class="${dayClasses}" data-date="${dateStr}" data-day="${dayNumber}" data-month="${monthIdx}" data-year="${yearIdx}">
-                <div>${dayNumber}</div>
-                ${markersHtml}
-            </div>
-        `;
-    }
-    
-    const calendarDaysEl = document.getElementById('calendarDays');
-    if (calendarDaysEl) {
-        calendarDaysEl.innerHTML = daysHtml;
-    }
-    
-    // Adicionar evento de clique nos dias
-    document.querySelectorAll('#calendarDays .calendar-day').forEach(dayEl => {
-        dayEl.addEventListener('click', (e) => {
-            e.stopPropagation();
-            // Remover seleção anterior
-            document.querySelectorAll('#calendarDays .calendar-day.selected').forEach(el => {
-                el.classList.remove('selected');
-            });
-            dayEl.classList.add('selected');
-            
-            const date = dayEl.getAttribute('data-date');
-            if (date) {
-                showSalesForDate(date);
-            }
-        });
-    });
-    
-    // Se houver alguma data selecionada, manter a seleção
-    const selectedDate = document.querySelector('#calendarDays .calendar-day.selected')?.getAttribute('data-date');
-    if (selectedDate) {
-        showSalesForDate(selectedDate);
-    } else {
-        // Limpar container de vendas
-        const daySalesContainer = document.getElementById('daySalesContainer');
-        if (daySalesContainer) {
-            daySalesContainer.innerHTML = `
-                <div class="text-center text-muted py-4">
-                    <i class="fas fa-calendar-alt fa-3x mb-3 opacity-50"></i>
-                    <p>Selecione um dia no calendário para ver as vendas</p>
-                </div>
-            `;
-        }
-        const selectedDayInfo = document.getElementById('selectedDayInfo');
-        if (selectedDayInfo) selectedDayInfo.classList.add('d-none');
-    }
-}
-
-function showSalesForDate(date) {
-    const sales = salesByDateCache[date] || { services: [], products: [] };
-    const formattedDate = formatDate(new Date(date));
-    
-    console.log(`📅 Mostrando vendas para ${formattedDate}:`, sales.services.length, 'serviços,', sales.products.length, 'produtos');
-    
-    // Atualizar cabeçalho
-    const selectedDayText = document.getElementById('selectedDayText');
-    if (selectedDayText) {
-        selectedDayText.innerHTML = `<i class="fas fa-calendar-check me-1"></i>${formattedDate}`;
-    }
-    
-    const totalServices = sales.services.reduce((sum, s) => sum + (parseFloat(s.value) || 0), 0);
-    const totalProducts = sales.products.reduce((sum, p) => sum + (parseFloat(p.totalValue) || 0), 0);
-    const totalValue = totalServices + totalProducts;
-    
-    const summaryHtml = `
-        <div class="text-end">
-            <span class="badge" style="background-color: #FF6B35; color: white;">${sales.services.length} serviços | ${formatCurrency(totalServices)}</span>
-            <span class="badge ms-2" style="background-color: #00C853; color: white;">${sales.products.length} produtos | ${formatCurrency(totalProducts)}</span>
-            <span class="badge bg-success fw-bold ms-2">Total: ${formatCurrency(totalValue)}</span>
-        </div>
-    `;
-    const selectedDaySummary = document.getElementById('selectedDaySummary');
-    if (selectedDaySummary) selectedDaySummary.innerHTML = summaryHtml;
-    
-    const selectedDayInfo = document.getElementById('selectedDayInfo');
-    if (selectedDayInfo) selectedDayInfo.classList.remove('d-none');
-    
-    // Gerar lista de vendas do dia com cores nas bordas
-    let salesHtml = '';
-    
-    // Serviços
-    if (sales.services.length > 0) {
-        salesHtml += `
-            <div class="mb-3">
-                <h6 class="fw-bold mb-2" style="color: #FF6B35;">
-                    <i class="fas fa-cut me-2"></i>Serviços (${sales.services.length})
-                </h6>
-        `;
-        
-        sales.services.forEach(service => {
-            const client = clients.find(c => c.id === service.clientId) || { name: 'Cliente não encontrado' };
-            const collaborator = collaborators.find(c => c.id === service.collaboratorId) || { name: 'Colaborador não encontrado' };
-            
-            salesHtml += `
-                <div class="day-sale-card service" id="service-card-${service.id}">
-                    <div class="d-flex justify-content-between align-items-start flex-wrap">
-                        <div class="flex-grow-1">
-                            <div class="fw-bold">${escapeHtml(client.name)}</div>
-                            <small class="text-muted">Colaborador: ${escapeHtml(collaborator.name)}</small>
-                            <div class="mt-1">
-                                <span class="badge bg-light text-dark">${service.type === 'manual' ? 'Manual' : 'Com Produtos'}</span>
-                                <span class="badge bg-light text-dark ms-1">${escapeHtml(service.description || 'Serviço')}</span>
-                            </div>
-                        </div>
-                        <div class="text-end mt-2 mt-sm-0">
-                            <div class="fw-bold text-success fs-5">${formatCurrency(service.value)}</div>
-                            <div>
-                                <button class="btn btn-sm btn-outline-primary me-1" onclick="editServiceSaleFromCalendar('${service.id}')">
-                                    <i class="fas fa-edit"></i> Editar
-                                </button>
-                                <button class="btn btn-sm btn-outline-danger" onclick="deleteSaleFromCalendar('${service.id}', 'service', '${date}')">
-                                    <i class="fas fa-trash-alt"></i> Excluir
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        });
-        
-        salesHtml += `</div>`;
-    }
-    
-    // Produtos
-    if (sales.products.length > 0) {
-        salesHtml += `
-            <div class="mb-3">
-                <h6 class="fw-bold mb-2" style="color: #00C853;">
-                    <i class="fas fa-box me-2"></i>Produtos (${sales.products.length})
-                </h6>
-        `;
-        
-        sales.products.forEach(sale => {
-            const product = products.find(p => p.id === sale.productId) || { name: 'Produto não encontrado' };
-            const client = sale.clientId ? (clients.find(c => c.id === sale.clientId) || { name: 'Cliente não encontrado' }) : { name: 'Venda Avulsa' };
-            
-            salesHtml += `
-                <div class="day-sale-card product" id="product-card-${sale.id}">
-                    <div class="d-flex justify-content-between align-items-start flex-wrap">
-                        <div class="flex-grow-1">
-                            <div class="fw-bold">${escapeHtml(product.name)}</div>
-                            <small class="text-muted">Cliente: ${escapeHtml(client.name)} | Quantidade: ${sale.quantity || 1}</small>
-                        </div>
-                        <div class="text-end mt-2 mt-sm-0">
-                            <div class="fw-bold text-success fs-5">${formatCurrency(sale.totalValue)}</div>
-                            <div>
-                                <button class="btn btn-sm btn-outline-primary me-1" onclick="editProductSaleFromCalendar('${sale.id}')">
-                                    <i class="fas fa-edit"></i> Editar
-                                </button>
-                                <button class="btn btn-sm btn-outline-danger" onclick="deleteSaleFromCalendar('${sale.id}', 'product', '${date}')">
-                                    <i class="fas fa-trash-alt"></i> Excluir
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        });
-        
-        salesHtml += `</div>`;
-    }
-    
-    if (sales.services.length === 0 && sales.products.length === 0) {
-        salesHtml = `
-            <div class="text-center text-muted py-5">
-                <i class="fas fa-calendar-times fa-3x mb-3 opacity-50"></i>
-                <p>Nenhuma venda registrada nesta data.</p>
-                <small class="text-muted">Clique no botão "Registrar Venda Passada" para adicionar vendas retroativas.</small>
-            </div>
-        `;
-    }
-    
-    const daySalesContainer = document.getElementById('daySalesContainer');
-    if (daySalesContainer) {
-        daySalesContainer.innerHTML = salesHtml;
-    }
-}
-
-// Função auxiliar para escapar HTML
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-// Garantir que as funções de edição e exclusão estão acessíveis globalmente
-window.editServiceSaleFromCalendar = editServiceSaleFromCalendar;
-window.editProductSaleFromCalendar = editProductSaleFromCalendar;
-window.deleteSaleFromCalendar = deleteSaleFromCalendar;
-    
-    
-    
-    
-    
-    
     </script>
 
 </body>
