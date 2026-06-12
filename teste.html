@@ -17075,7 +17075,281 @@ document.head.appendChild(styleZIndex);
 
 console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLETO carregado!');
         
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+(function() {
+    console.log('🔧 Aplicando correção do modal escuro...');
+    
+    // Função principal que limpa qualquer modal/overlay fantasma
+    function limparModalsEscuros() {
+        // Remove qualquer overlay escuro (backdrop) que possa ter ficado
+        const backdrops = document.querySelectorAll('.modal-backdrop');
+        backdrops.forEach(backdrop => {
+            backdrop.remove();
+            console.log('🗑️ Removido backdrop fantasma');
+        });
+        
+        // Remove a classe 'modal-open' do body (que impede rolagem)
+        document.body.classList.remove('modal-open');
+        
+        // Remove o estilo inline que o Bootstrap adiciona
+        document.body.style.removeProperty('overflow');
+        document.body.style.removeProperty('padding-right');
+        
+        // Força a remoção de qualquer modal que esteja aberto
+        const modals = document.querySelectorAll('.modal.show');
+        modals.forEach(modal => {
+            // Tenta fechar via Bootstrap
+            if (window.bootstrap && window.bootstrap.Modal) {
+                const bsModal = window.bootstrap.Modal.getInstance(modal);
+                if (bsModal) {
+                    bsModal.hide();
+                }
+            }
+            // Remove a classe 'show' manualmente
+            modal.classList.remove('show');
+            modal.style.display = 'none';
+        });
+        
+        // Remove qualquer div fixa de overlay que possa existir
+        const overlays = document.querySelectorAll('.client-record-overlay.active, .product-popup.active, .photo-modal.active');
+        overlays.forEach(overlay => {
+            overlay.classList.remove('active');
+            overlay.style.display = 'none';
+        });
+        
+        return true;
+    }
+    
+    // === SOLUÇÃO PRINCIPAL: Corrigir o botão "Gerenciar Vendas" ===
+    function corrigirBotaoGerenciarVendas() {
+        // Usamos MutationObserver para esperar o botão ser criado
+        const observer = new MutationObserver(function(mutations) {
+            const btn = document.getElementById('manageSalesBtn');
+            if (btn && !btn.hasAttribute('data-fixed')) {
+                console.log('✅ Botão Gerenciar Vendas encontrado, aplicando correção...');
+                btn.setAttribute('data-fixed', 'true');
+                
+                // Salvar a função original
+                const originalClick = btn.onclick;
+                const showManageSalesModalOriginal = window.showManageSalesModal;
+                
+                // Substituir a função showManageSalesModal
+                if (typeof showManageSalesModalOriginal === 'function') {
+                    window.showManageSalesModal = function() {
+                        // PRIMEIRO: limpar qualquer modal escuro pendente
+                        limparModalsEscuros();
+                        
+                        // SEGUNDO: chamar a função original
+                        console.log('📅 Abrindo Gerenciar Vendas (versão corrigida)...');
+                        return showManageSalesModalOriginal();
+                    };
+                }
+                
+                // Também substituir o evento de clique do botão
+                const newBtn = btn.cloneNode(true);
+                btn.parentNode.replaceChild(newBtn, btn);
+                
+                newBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    // Limpar modals escuros ANTES de abrir
+                    limparModalsEscuros();
+                    
+                    // Abrir o modal
+                    if (typeof window.showManageSalesModal === 'function') {
+                        window.showManageSalesModal();
+                    } else {
+                        console.error('❌ Função showManageSalesModal não encontrada');
+                        alert('Erro: Função de gerenciamento não carregada. Tente recarregar a página.');
+                    }
+                });
+                
+                observer.disconnect();
+            }
+        });
+        
+        observer.observe(document.body, { childList: true, subtree: true });
+    }
+    
+    // CORREÇÃO EXTRA: Garantir que QUALQUER modal feche corretamente
+    function corrigirFechamentoModals() {
+        // Interceptar fechamento de todos os modais
+        document.addEventListener('click', function(e) {
+            // Se clicar no X ou no botão fechar
+            if (e.target.closest('.btn-close') || 
+                (e.target.closest('[data-bs-dismiss="modal"]'))) {
+                setTimeout(limparModalsEscuros, 100);
+            }
+        });
+        
+        // Para o modal específico de Gerenciar Vendas
+        const observerModal = new MutationObserver(function(mutations) {
+            const manageModal = document.getElementById('manageSalesModal');
+            if (manageModal) {
+                // Quando o modal é aberto, garantir que não fique travado
+                const modalObserver = new MutationObserver(function(modalMutations) {
+                    if (!manageModal.classList.contains('show')) {
+                        setTimeout(limparModalsEscuros, 100);
+                    }
+                });
+                modalObserver.observe(manageModal, { attributes: true, attributeFilter: ['class'] });
+                observerModal.disconnect();
+            }
+        });
+        observerModal.observe(document.body, { childList: true, subtree: true });
+    }
+    
+    // Executar correções
+    corrigirBotaoGerenciarVendas();
+    corrigirFechamentoModals();
+    
+    // Expor função global para uso manual (se precisar)
+    window.limparTelaEscura = limparModalsEscuros;
+    
+    console.log('✅ Correção do modal escuro aplicada!');
+})();
+
+
+
+
     </script>
+
+
+<script>
+// CORREÇÃO DEFINITIVA - Substitui apenas a função problemática
+(function() {
+    console.log('🔧 Aplicando correção simples e definitiva...');
+    
+    // Verificar se a função original existe
+    if (typeof window.showManageSalesModal !== 'function') {
+        console.log('⚠️ Função original não encontrada, criando...');
+        
+        // Criar a função do zero se não existir
+        window.showManageSalesModal = function() {
+            console.log('📅 Abrindo Gerenciar Vendas (versão simples)');
+            
+            // Fechar qualquer modal aberto antes
+            if (window.bootstrap && window.bootstrap.Modal) {
+                const modalsAbertos = document.querySelectorAll('.modal.show');
+                modalsAbertos.forEach(modal => {
+                    const instance = bootstrap.Modal.getInstance(modal);
+                    if (instance) instance.hide();
+                });
+            }
+            
+            // Remover backdrops fantasmas
+            document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            
+            // Usar a função original do sistema (se existir no escopo global)
+            if (typeof originalShowManageSalesModal === 'function') {
+                originalShowManageSalesModal();
+            } else {
+                alert('Função de gerenciamento não encontrada. Recarregue a página.');
+            }
+        };
+    }
+    
+    // CORREÇÃO PRINCIPAL: Substituir o evento de clique do botão
+    function fixManageSalesButton() {
+        const button = document.getElementById('manageSalesBtn');
+        if (button && !button.hasAttribute('data-fixed-simple')) {
+            button.setAttribute('data-fixed-simple', 'true');
+            console.log('✅ Botão Gerenciar Vendas fixado');
+            
+            // Salvar o evento original
+            const oldClick = button.onclick;
+            
+            // Criar novo botão sem eventos antigos
+            const newButton = button.cloneNode(true);
+            button.parentNode.replaceChild(newButton, button);
+            
+            // Adicionar novo evento
+            newButton.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                // Limpar tela antes de abrir
+                document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+                document.body.classList.remove('modal-open');
+                document.body.style.overflow = '';
+                
+                // Chamar a função original
+                if (typeof window.showManageSalesModal === 'function') {
+                    window.showManageSalesModal();
+                } else if (typeof window.originalShowManageSalesModal === 'function') {
+                    window.originalShowManageSalesModal();
+                } else {
+                    alert('Erro: Função não encontrada. Recarregue a página (F5)');
+                }
+            });
+        }
+    }
+    
+    // Limpeza automática suave
+    function softCleanup() {
+        // Só limpa se NÃO houver modal aberto
+        const modalAberto = document.querySelector('.modal.show');
+        if (!modalAberto) {
+            document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+        }
+    }
+    
+    // Executar a cada 5 segundos (bem espaçado)
+    setInterval(softCleanup, 5000);
+    
+    // Fixar o botão quando a página carregar
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', fixManageSalesButton);
+    } else {
+        setTimeout(fixManageSalesButton, 1000);
+    }
+    
+    // Observar quando o botão for criado dinamicamente
+    const observer = new MutationObserver(function() {
+        fixManageSalesButton();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    
+    // Função manual de emergência
+    window.unlockScreen = function() {
+        document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+        console.log('🔓 Tela desbloqueada');
+        alert('✅ Tela desbloqueada! Se o problema persistir, recarregue a página (F5)');
+    };
+    
+    console.log('✅ Correção simples aplicada! Se ainda tiver problema, digite: unlockScreen()');
+})();
+</script>
+
+
+
+
 
 </body>
 </html>
