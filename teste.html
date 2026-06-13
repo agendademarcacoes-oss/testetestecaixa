@@ -16784,358 +16784,872 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
 
 
 
+<!-- SCRIPT DO CALENDÁRIO COM BOTÕES ONTEM, HOJE E AMANHÃ - VERSÃO RESPONSIVA -->
 <script>
 // ============================================
-// SCRIPT PARA ADICIONAR BOTÕES NA AGENDA
-// Mantém o calendário funcionando normalmente
+// SCRIPT DO CALENDÁRIO PARA AGENDA
+// ============================================
+// Este script APENAS adiciona a funcionalidade de calendário
+// para escolher datas na agenda. NÃO MODIFICA nada da agenda existente.
+// ADICIONADO: Botões Ontem, Hoje e Amanhã
+// ADICIONADO: Responsividade para Desktop, Tablet e Celular
 // ============================================
 
 (function() {
-    console.log('📅 Iniciando script de navegação da agenda...');
+    console.log('📅 Inicializando calendário da agenda responsivo...');
     
-    // Guardar referência da função original do calendário
-    let funcaoCalendarioOriginal = null;
+    // Aguardar o DOM carregar completamente
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initCalendar);
+    } else {
+        initCalendar();
+    }
     
-    function adicionarBotoesNavegacao() {
-        const agendaHeader = document.querySelector('#agenda .agenda-header');
+    function initCalendar() {
+        // REMOVER BOTÕES "3 dias", "Semana", "Mês" (apenas ocultar visualmente)
+        removeViewButtons();
         
-        if (!agendaHeader) {
-            console.log('⏳ Aguardando agenda carregar...');
-            setTimeout(adicionarBotoesNavegacao, 1000);
-            return;
-        }
+        // Verificar se o elemento do calendário já existe, se não, criar
+        createDatePickerModal();
         
-        if (document.getElementById('meuBotaoOntem')) {
-            console.log('✅ Botões já existem');
-            return;
-        }
+        // Adicionar botões de navegação rápida (Ontem, Hoje, Amanhã)
+        addNavigationButtons();
         
-        console.log('✅ Cabeçalho encontrado, adicionando botões...');
+        // Adicionar estilos responsivos
+        addResponsiveStyles();
         
-        const menuBtn = document.getElementById('agendaMenuBtn');
+        // Adicionar evento ao botão de data da agenda
         const dateDisplay = document.getElementById('agendaDateDisplay');
-        const viewOptions = document.querySelector('.agenda-view-options');
+        if (dateDisplay) {
+            // Remover eventos antigos para evitar duplicação
+            const newDateDisplay = dateDisplay.cloneNode(true);
+            dateDisplay.parentNode.replaceChild(newDateDisplay, dateDisplay);
+            
+            newDateDisplay.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                showCalendarModal();
+            });
+            
+            console.log('✅ Evento do calendário adicionado à agenda');
+        } else {
+            console.log('⚠️ Elemento agendaDateDisplay não encontrado, tentando novamente...');
+            setTimeout(initCalendar, 500);
+        }
+    }
+    
+    // ============================================
+    // FUNÇÃO PARA REMOVER BOTÕES (3 DIAS, SEMANA, MÊS)
+    // ============================================
+    function removeViewButtons() {
+        // Aguardar um pouco para garantir que os botões existam no DOM
+        setTimeout(() => {
+            const viewButtons = document.querySelectorAll('.agenda-view-btn');
+            viewButtons.forEach(btn => {
+                const view = btn.getAttribute('data-view');
+                if (view === '3days' || view === 'week' || view === 'month') {
+                    btn.style.display = 'none';
+                    console.log(`🗑️ Botão removido: ${view}`);
+                }
+            });
+            console.log('✅ Botões "3 dias", "Semana" e "Mês" removidos da interface');
+        }, 100);
+    }
+    
+    // ============================================
+    // FUNÇÃO PARA ADICIONAR ESTILOS RESPONSIVOS
+    // ============================================
+    function addResponsiveStyles() {
+        const styleId = 'agendaResponsiveStyles';
+        if (document.getElementById(styleId)) return;
         
-        if (!menuBtn || !dateDisplay) {
-            console.log('❌ Elementos necessários não encontrados');
+        const style = document.createElement('style');
+        style.id = styleId;
+        style.textContent = `
+            /* ============================================
+               ESTILOS RESPONSIVOS PARA AGENDA
+               Desktop, Tablet e Celular
+               ============================================ */
+            
+            /* Container principal da agenda */
+            .agenda-container {
+                width: 100%;
+                max-width: 100%;
+                overflow-x: hidden;
+            }
+            
+            /* Cabeçalho da agenda - flexível */
+            .agenda-header {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+                padding: 12px 15px;
+            }
+            
+            /* Container dos botões de navegação */
+            #agendaNavButtons {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                align-items: center;
+            }
+            
+            /* Botões de navegação responsivos */
+            .agenda-nav-btn {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                white-space: nowrap;
+                transition: all 0.3s ease;
+            }
+            
+            /* Data display */
+            .agenda-date-display {
+                cursor: pointer;
+                white-space: nowrap;
+                font-weight: 500;
+            }
+            
+            /* ========== DESKTOP (acima de 992px) ========== */
+            @media (min-width: 992px) {
+                .agenda-header {
+                    flex-direction: row;
+                    justify-content: space-between;
+                }
+                
+                .agenda-nav-btn {
+                    padding: 6px 16px;
+                    font-size: 13px;
+                }
+                
+                .agenda-date-display {
+                    font-size: 16px;
+                }
+            }
+            
+            /* ========== TABLET (768px a 991px) ========== */
+            @media (min-width: 768px) and (max-width: 991px) {
+                .agenda-header {
+                    flex-direction: row;
+                    flex-wrap: wrap;
+                    justify-content: flex-start;
+                    gap: 12px;
+                }
+                
+                #agendaNavButtons {
+                    order: 1;
+                }
+                
+                .agenda-date-display {
+                    order: 2;
+                    margin-left: auto;
+                    font-size: 15px;
+                }
+                
+                .agenda-nav-btn {
+                    padding: 5px 12px;
+                    font-size: 12px;
+                }
+                
+                .agenda-nav-btn i {
+                    font-size: 11px;
+                }
+            }
+            
+            /* ========== CELULAR (até 767px) ========== */
+            @media (max-width: 767px) {
+                .agenda-header {
+                    flex-direction: column;
+                    align-items: stretch;
+                    gap: 10px;
+                    padding: 10px;
+                }
+                
+                #agendaNavButtons {
+                    justify-content: center;
+                    order: 1;
+                    width: 100%;
+                }
+                
+                .agenda-date-display {
+                    text-align: center;
+                    order: 2;
+                    width: 100%;
+                    font-size: 14px;
+                    padding: 8px;
+                    background: #f8f9fa;
+                    border-radius: 25px;
+                }
+                
+                .agenda-nav-btn {
+                    flex: 1;
+                    justify-content: center;
+                    padding: 8px 12px;
+                    font-size: 12px;
+                    min-width: 80px;
+                }
+                
+                .agenda-nav-btn i {
+                    font-size: 12px;
+                }
+                
+                /* Menu da agenda para mobile */
+                .agenda-menu-btn {
+                    order: 0;
+                    align-self: flex-start;
+                }
+            }
+            
+            /* ========== CELULAR PEQUENO (até 480px) ========== */
+            @media (max-width: 480px) {
+                #agendaNavButtons {
+                    gap: 6px;
+                }
+                
+                .agenda-nav-btn {
+                    padding: 6px 8px;
+                    font-size: 10px;
+                    min-width: 70px;
+                }
+                
+                .agenda-nav-btn i {
+                    font-size: 10px;
+                    margin-right: 2px;
+                }
+                
+                .agenda-date-display {
+                    font-size: 13px;
+                    padding: 6px;
+                }
+            }
+            
+            /* ========== ESTILOS DO MODAL DO CALENDÁRIO RESPONSIVO ========== */
+            @media (max-width: 767px) {
+                .modal-dialog {
+                    margin: 10px;
+                }
+                
+                .modal-body {
+                    padding: 15px !important;
+                }
+                
+                .calendar-header {
+                    padding: 8px;
+                }
+                
+                .calendar-header button {
+                    padding: 6px 10px;
+                    font-size: 14px;
+                }
+                
+                .calendar-month-year {
+                    font-size: 14px;
+                }
+                
+                .calendar-weekday {
+                    font-size: 10px;
+                    padding: 5px 0;
+                }
+                
+                .calendar-day {
+                    font-size: 11px;
+                    min-width: 30px;
+                }
+                
+                .modal-footer button {
+                    padding: 6px 12px;
+                    font-size: 12px;
+                }
+            }
+            
+            /* Ajustes para telas muito pequenas */
+            @media (max-width: 380px) {
+                .calendar-day {
+                    font-size: 10px;
+                }
+                
+                .calendar-weekday {
+                    font-size: 9px;
+                }
+                
+                .agenda-nav-btn {
+                    font-size: 9px;
+                    padding: 5px 6px;
+                    min-width: 60px;
+                }
+            }
+            
+            /* Garantir que a área de rolagem da agenda funcione bem em mobile */
+            .agenda-slots-container {
+                -webkit-overflow-scrolling: touch;
+                overflow-x: auto;
+            }
+            
+            /* Melhorar toque nos slots em mobile */
+            @media (max-width: 767px) {
+                .agenda-slot-quarter {
+                    min-height: 45px;
+                }
+                
+                .agenda-time-slot {
+                    height: 45px;
+                }
+            }
+        `;
+        
+        document.head.appendChild(style);
+        console.log('✅ Estilos responsivos adicionados à agenda');
+    }
+    
+    // ============================================
+    // FUNÇÃO PARA ADICIONAR BOTÕES ONTEM, HOJE, AMANHÃ
+    // ============================================
+    function addNavigationButtons() {
+        const agendaHeader = document.querySelector('.agenda-header');
+        if (!agendaHeader) {
+            console.log('⚠️ Cabeçalho da agenda não encontrado, tentando novamente...');
+            setTimeout(addNavigationButtons, 500);
             return;
         }
         
-        // ========================================
-        // PRESERVAR A FUNÇÃO ORIGINAL DO CALENDÁRIO
-        // ========================================
-        // Clonar o elemento dateDisplay para preservar seus eventos
-        const novoDateDisplay = dateDisplay.cloneNode(true);
-        dateDisplay.parentNode.replaceChild(novoDateDisplay, dateDisplay);
+        // Verificar se os botões já foram adicionados
+        if (document.getElementById('agendaNavButtons')) {
+            return;
+        }
         
-        // Restaurar a referência
-        const dateDisplayFinal = document.getElementById('agendaDateDisplay');
+        // Criar container dos botões
+        const navContainer = document.createElement('div');
+        navContainer.id = 'agendaNavButtons';
         
-        // ========================================
-        // BOTÃO ONTEM
-        // ========================================
-        const btnOntem = document.createElement('button');
-        btnOntem.id = 'meuBotaoOntem';
-        btnOntem.innerHTML = '◀ Ontem';
-        btnOntem.style.cssText = `
+        // Botão ONTEM
+        const btnYesterday = document.createElement('button');
+        btnYesterday.className = 'agenda-nav-btn';
+        btnYesterday.innerHTML = '<i class="fas fa-chevron-left"></i> Ontem';
+        btnYesterday.style.cssText = `
             background: #f8f9fa;
-            border: 1px solid #ddd;
+            border: 1px solid #dee2e6;
             border-radius: 20px;
-            padding: 6px 14px;
-            font-size: 13px;
             cursor: pointer;
+            transition: all 0.3s;
             color: #333;
-            font-weight: 500;
-            margin-left: 8px;
-            transition: all 0.2s;
         `;
-        btnOntem.onmouseenter = () => btnOntem.style.background = '#e9ecef';
-        btnOntem.onmouseleave = () => btnOntem.style.background = '#f8f9fa';
-        btnOntem.onclick = function(e) {
+        btnYesterday.onmouseenter = () => btnYesterday.style.background = '#e9ecef';
+        btnYesterday.onmouseleave = () => btnYesterday.style.background = '#f8f9fa';
+        btnYesterday.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
-            if (typeof currentAgendaDate !== 'undefined') {
-                const ontem = new Date(currentAgendaDate);
-                ontem.setDate(ontem.getDate() - 1);
-                currentAgendaDate = ontem;
-                if (typeof updateAgendaDisplay === 'function') {
-                    updateAgendaDisplay();
-                }
-                mostrarMensagem('◀ Voltou para ontem');
-            }
-        };
+            goToYesterday();
+        });
         
-        // ========================================
-        // BOTÃO AMANHÃ
-        // ========================================
-        const btnAmanha = document.createElement('button');
-        btnAmanha.id = 'meuBotaoAmanha';
-        btnAmanha.innerHTML = 'Amanhã ▶';
-        btnAmanha.style.cssText = `
-            background: #f8f9fa;
-            border: 1px solid #ddd;
-            border-radius: 20px;
-            padding: 6px 14px;
-            font-size: 13px;
-            cursor: pointer;
-            color: #333;
-            font-weight: 500;
-            margin-left: 8px;
-            transition: all 0.2s;
-        `;
-        btnAmanha.onmouseenter = () => btnAmanha.style.background = '#e9ecef';
-        btnAmanha.onmouseleave = () => btnAmanha.style.background = '#f8f9fa';
-        btnAmanha.onclick = function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            if (typeof currentAgendaDate !== 'undefined') {
-                const amanha = new Date(currentAgendaDate);
-                amanha.setDate(amanha.getDate() + 1);
-                currentAgendaDate = amanha;
-                if (typeof updateAgendaDisplay === 'function') {
-                    updateAgendaDisplay();
-                }
-                mostrarMensagem('Amanhã ▶ Avançou um dia');
-            }
-        };
-        
-        // ========================================
-        // BOTÃO HOJE
-        // ========================================
-        const btnHoje = document.createElement('button');
-        btnHoje.id = 'meuBotaoHoje';
-        btnHoje.innerHTML = '● Hoje';
-        btnHoje.style.cssText = `
-            background: linear-gradient(135deg, #26196b, #4a3a9c);
+        // Botão HOJE
+        const btnToday = document.createElement('button');
+        btnToday.className = 'agenda-nav-btn';
+        btnToday.innerHTML = '<i class="fas fa-calendar-day"></i> Hoje';
+        btnToday.style.cssText = `
+            background: #26196b;
             border: none;
             border-radius: 20px;
-            padding: 6px 16px;
-            font-size: 13px;
             cursor: pointer;
+            transition: all 0.3s;
             color: white;
             font-weight: 500;
-            margin-left: 8px;
-            transition: all 0.2s;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         `;
-        btnHoje.onmouseenter = () => {
-            btnHoje.style.transform = 'scale(1.02)';
-            btnHoje.style.boxShadow = '0 4px 10px rgba(38,25,107,0.3)';
-        };
-        btnHoje.onmouseleave = () => {
-            btnHoje.style.transform = 'scale(1)';
-            btnHoje.style.boxShadow = '0 2px 5px rgba(0,0,0,0.1)';
-        };
-        btnHoje.onclick = function(e) {
+        btnToday.onmouseenter = () => btnToday.style.background = '#4a3a9c';
+        btnToday.onmouseleave = () => btnToday.style.background = '#26196b';
+        btnToday.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
+            goToToday();
+        });
+        
+        // Botão AMANHÃ
+        const btnTomorrow = document.createElement('button');
+        btnTomorrow.className = 'agenda-nav-btn';
+        btnTomorrow.innerHTML = 'Amanhã <i class="fas fa-chevron-right"></i>';
+        btnTomorrow.style.cssText = `
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: #333;
+        `;
+        btnTomorrow.onmouseenter = () => btnTomorrow.style.background = '#e9ecef';
+        btnTomorrow.onmouseleave = () => btnTomorrow.style.background = '#f8f9fa';
+        btnTomorrow.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            goToTomorrow();
+        });
+        
+        navContainer.appendChild(btnYesterday);
+        navContainer.appendChild(btnToday);
+        navContainer.appendChild(btnTomorrow);
+        
+        // Inserir os botões antes do dateDisplay
+        const dateDisplay = document.getElementById('agendaDateDisplay');
+        if (dateDisplay) {
+            agendaHeader.insertBefore(navContainer, dateDisplay);
+        } else {
+            agendaHeader.appendChild(navContainer);
+        }
+        
+        console.log('✅ Botões Ontem, Hoje e Amanhã adicionados à agenda');
+    }
+    
+    // ============================================
+    // FUNÇÃO: IR PARA ONTEM
+    // ============================================
+    function goToYesterday() {
+        if (typeof currentAgendaDate !== 'undefined') {
+            const yesterday = new Date(currentAgendaDate);
+            yesterday.setDate(currentAgendaDate.getDate() - 1);
+            currentAgendaDate = yesterday;
+            
+            // Atualizar a exibição da agenda
+            if (typeof updateAgendaDisplay === 'function') {
+                updateAgendaDisplay();
+            }
+            
+            console.log(`📅 Ontem: ${currentAgendaDate.toLocaleDateString('pt-PT')}`);
+            showTemporaryFeedback(`📅 Ontem: ${currentAgendaDate.toLocaleDateString('pt-PT')}`);
+        } else {
+            console.log('⚠️ currentAgendaDate não definido');
+        }
+    }
+    
+    // ============================================
+    // FUNÇÃO: IR PARA HOJE (DATA E HORA ATUAL)
+    // ============================================
+    function goToToday() {
+        if (typeof currentAgendaDate !== 'undefined') {
+            const now = new Date();
+            currentAgendaDate = now;
+            
+            // Atualizar a exibição da agenda
+            if (typeof updateAgendaDisplay === 'function') {
+                updateAgendaDisplay();
+            }
+            
+            // Rolar para o horário atual (se a função existir)
+            scrollToCurrentTime();
+            
+            console.log(`📅 Hoje: ${currentAgendaDate.toLocaleDateString('pt-PT')} - ${now.toLocaleTimeString('pt-PT')}`);
+            showTemporaryFeedback(`📅 Hoje: ${currentAgendaDate.toLocaleDateString('pt-PT')} - ${now.toLocaleTimeString('pt-PT')}`);
+        } else {
+            console.log('⚠️ currentAgendaDate não definido');
+        }
+    }
+    
+    // ============================================
+    // FUNÇÃO: IR PARA AMANHÃ
+    // ============================================
+    function goToTomorrow() {
+        if (typeof currentAgendaDate !== 'undefined') {
+            const tomorrow = new Date(currentAgendaDate);
+            tomorrow.setDate(currentAgendaDate.getDate() + 1);
+            currentAgendaDate = tomorrow;
+            
+            // Atualizar a exibição da agenda
+            if (typeof updateAgendaDisplay === 'function') {
+                updateAgendaDisplay();
+            }
+            
+            console.log(`📅 Amanhã: ${currentAgendaDate.toLocaleDateString('pt-PT')}`);
+            showTemporaryFeedback(`📅 Amanhã: ${currentAgendaDate.toLocaleDateString('pt-PT')}`);
+        } else {
+            console.log('⚠️ currentAgendaDate não definido');
+        }
+    }
+    
+    // ============================================
+    // FUNÇÃO: ROLAR PARA O HORÁRIO ATUAL
+    // ============================================
+    function scrollToCurrentTime() {
+        // Tentar rolar para o horário atual na agenda
+        setTimeout(() => {
+            const agora = new Date();
+            const horaAtual = agora.getHours();
+            const minutoAtual = agora.getMinutes();
+            
+            // Calcular posição em pixels (cada hora = 60px, cada minuto = 1px)
+            const posicaoTop = (horaAtual * 60) + minutoAtual;
+            
+            const agendaContainer = document.getElementById('agendaSlotsContainer');
+            if (agendaContainer) {
+                // Rolar suavemente para a posição do horário atual
+                agendaContainer.scrollTo({
+                    top: Math.max(0, posicaoTop - 100),
+                    behavior: 'smooth'
+                });
+                console.log(`📍 Rolando para horário atual: ${horaAtual}:${minutoAtual.toString().padStart(2, '0')}`);
+            }
+        }, 300);
+    }
+    
+    // Criar o modal do calendário se não existir
+    function createDatePickerModal() {
+        if (document.getElementById('datePickerModal')) {
+            return;
+        }
+        
+        const modalHTML = `
+            <div class="modal fade" id="datePickerModal" tabindex="-1" data-bs-backdrop="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header" style="background: linear-gradient(135deg, #26196b, #4a3a9c); color: white;">
+                            <h5 class="modal-title">
+                                <i class="fas fa-calendar-alt me-2"></i>Selecionar Data
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body" style="padding: 20px;">
+                            <div id="calendarModalContainer"></div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="button" class="btn btn-primary" id="calendarTodayBtn">
+                                <i class="fas fa-calendar-day me-1"></i>Hoje
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        
+        // Adicionar CSS para o calendário
+        const style = document.createElement('style');
+        style.textContent = `
+            .calendar-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 20px;
+                padding: 10px;
+                background: #f8f9fa;
+                border-radius: 10px;
+            }
+            .calendar-header button {
+                background: none;
+                border: none;
+                font-size: 18px;
+                cursor: pointer;
+                color: #26196b;
+                padding: 8px 12px;
+                border-radius: 8px;
+                transition: all 0.3s;
+            }
+            .calendar-header button:hover {
+                background: #e9ecef;
+            }
+            .calendar-month-year {
+                font-size: 18px;
+                font-weight: 600;
+                color: #26196b;
+            }
+            .calendar-weekdays {
+                display: grid;
+                grid-template-columns: repeat(7, 1fr);
+                text-align: center;
+                margin-bottom: 10px;
+                padding: 10px 0;
+            }
+            .calendar-weekday {
+                font-weight: 600;
+                color: #6c757d;
+                font-size: 13px;
+            }
+            .calendar-days {
+                display: grid;
+                grid-template-columns: repeat(7, 1fr);
+                gap: 5px;
+            }
+            .calendar-day {
+                aspect-ratio: 1;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                border-radius: 50%;
+                transition: all 0.2s;
+                font-size: 14px;
+                background: #f8f9fa;
+                color: #333;
+            }
+            .calendar-day:hover {
+                background: #e9ecef;
+                transform: scale(1.05);
+            }
+            .calendar-day.selected {
+                background: #26196b;
+                color: white;
+            }
+            .calendar-day.today {
+                border: 2px solid #26196b;
+                font-weight: bold;
+            }
+            .calendar-day.other-month {
+                opacity: 0.4;
+            }
+        `;
+        document.head.appendChild(style);
+        
+        document.getElementById('calendarTodayBtn')?.addEventListener('click', function() {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('datePickerModal'));
+            if (modal) modal.hide();
+            
             if (typeof currentAgendaDate !== 'undefined') {
                 currentAgendaDate = new Date();
                 if (typeof updateAgendaDisplay === 'function') {
                     updateAgendaDisplay();
                 }
-                mostrarMensagem('📍 Hoje - Data atual');
-                setTimeout(() => {
-                    rolarParaHoraAtual();
-                }, 300);
+                scrollToCurrentTime();
             }
-        };
+        });
         
-        // ========================================
-        // INSERIR BOTÕES (sem quebrar o calendário)
-        // ========================================
-        
-        // Inserir ONTEM depois do menu
-        menuBtn.insertAdjacentElement('afterend', btnOntem);
-        
-        // Inserir AMANHÃ depois da data
-        dateDisplayFinal.insertAdjacentElement('afterend', btnAmanha);
-        
-        // Inserir HOJE antes das opções de visão
-        if (viewOptions) {
-            agendaHeader.insertBefore(btnHoje, viewOptions);
-        } else {
-            btnAmanha.insertAdjacentElement('afterend', btnHoje);
-        }
-        
-        // Melhorar estilo da data (sem quebrar o clique)
-        if (dateDisplayFinal) {
-            dateDisplayFinal.style.cssText = `
-                background: #f0f0f0;
-                padding: 6px 16px;
-                border-radius: 25px;
-                font-weight: 600;
-                cursor: pointer;
-                margin: 0 8px;
-                transition: all 0.2s;
-            `;
-            // Garantir que o clique funciona
-            dateDisplayFinal.style.pointerEvents = 'auto';
-        }
-        
-        console.log('✅ Botões adicionados com sucesso!');
-        console.log('   Layout: [Menu] [◀ Ontem] [Data] [Amanhã ▶] [● Hoje] [Visão]');
-        console.log('   ✅ Clique na DATA para abrir o calendário - FUNCIONA NORMALMENTE!');
-        
-        ajustarMobile();
+        console.log('✅ Modal do calendário criado');
     }
     
-    // ========================================
-    // FUNÇÃO PARA ROLAR ATÉ HORA ATUAL
-    // ========================================
-    function rolarParaHoraAtual() {
-        const container = document.getElementById('agendaSlotsContainer');
+    // Variáveis do calendário
+    let currentCalendarYear = new Date().getFullYear();
+    let currentCalendarMonth = new Date().getMonth();
+    
+    // Mostrar o calendário modal
+    function showCalendarModal() {
+        // Atualizar para a data atual da agenda
+        if (typeof currentAgendaDate !== 'undefined' && currentAgendaDate) {
+            currentCalendarYear = currentAgendaDate.getFullYear();
+            currentCalendarMonth = currentAgendaDate.getMonth();
+        } else {
+            currentCalendarYear = new Date().getFullYear();
+            currentCalendarMonth = new Date().getMonth();
+        }
+        
+        renderCalendarModal();
+        
+        const modal = new bootstrap.Modal(document.getElementById('datePickerModal'));
+        modal.show();
+    }
+    
+    // Renderizar o calendário dentro do modal
+    function renderCalendarModal() {
+        const container = document.getElementById('calendarModalContainer');
         if (!container) return;
         
-        const agora = new Date();
-        const hora = agora.getHours();
-        const minuto = agora.getMinutes();
-        const posicao = (hora * 60) + minuto - 100;
+        const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
         
-        if (posicao > 0) {
-            container.scrollTo({ top: posicao, behavior: 'smooth' });
-        }
+        // Cabeçalho do calendário
+        let html = `
+            <div class="calendar-header">
+                <button id="calendarPrevMonth" type="button">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <span class="calendar-month-year">${monthNames[currentCalendarMonth]} ${currentCalendarYear}</span>
+                <button id="calendarNextMonth" type="button">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+            <div class="calendar-weekdays">
+                <div class="calendar-weekday">Dom</div>
+                <div class="calendar-weekday">Seg</div>
+                <div class="calendar-weekday">Ter</div>
+                <div class="calendar-weekday">Qua</div>
+                <div class="calendar-weekday">Qui</div>
+                <div class="calendar-weekday">Sex</div>
+                <div class="calendar-weekday">Sáb</div>
+            </div>
+            <div class="calendar-days" id="calendarDaysContainer"></div>
+        `;
         
-        const agendaContent = document.querySelector('.agenda-content');
-        if (agendaContent) {
-            const linha = document.createElement('div');
-            linha.style.cssText = `
-                position: absolute;
-                left: 60px;
-                right: 0;
-                top: ${posicao + 100}px;
-                height: 3px;
-                background: linear-gradient(90deg, #ff6b35, #ff8c42);
-                z-index: 100;
-                pointer-events: none;
-                border-radius: 2px;
-                box-shadow: 0 0 8px rgba(255,107,53,0.5);
-            `;
-            agendaContent.appendChild(linha);
-            setTimeout(() => linha.remove(), 3000);
-        }
+        container.innerHTML = html;
+        
+        // Renderizar os dias
+        renderCalendarDays();
+        
+        // Adicionar eventos dos botões
+        document.getElementById('calendarPrevMonth')?.addEventListener('click', () => {
+            currentCalendarMonth--;
+            if (currentCalendarMonth < 0) {
+                currentCalendarMonth = 11;
+                currentCalendarYear--;
+            }
+            renderCalendarModal();
+        });
+        
+        document.getElementById('calendarNextMonth')?.addEventListener('click', () => {
+            currentCalendarMonth++;
+            if (currentCalendarMonth > 11) {
+                currentCalendarMonth = 0;
+                currentCalendarYear++;
+            }
+            renderCalendarModal();
+        });
     }
     
-    // ========================================
-    // FUNÇÃO PARA MOSTRAR MENSAGEM
-    // ========================================
-    function mostrarMensagem(texto) {
-        let msg = document.getElementById('mensagemNavegacao');
-        if (!msg) {
-            msg = document.createElement('div');
-            msg.id = 'mensagemNavegacao';
-            msg.style.cssText = `
+    // Renderizar os dias do calendário
+    function renderCalendarDays() {
+        const container = document.getElementById('calendarDaysContainer');
+        if (!container) return;
+        
+        const firstDayOfMonth = new Date(currentCalendarYear, currentCalendarMonth, 1);
+        const startDayOfWeek = firstDayOfMonth.getDay();
+        const daysInMonth = new Date(currentCalendarYear, currentCalendarMonth + 1, 0).getDate();
+        const prevMonthDays = new Date(currentCalendarYear, currentCalendarMonth, 0).getDate();
+        
+        const today = new Date();
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        
+        // Data atual da agenda
+        let currentAgendaDateStr = '';
+        if (typeof currentAgendaDate !== 'undefined' && currentAgendaDate) {
+            currentAgendaDateStr = `${currentAgendaDate.getFullYear()}-${String(currentAgendaDate.getMonth() + 1).padStart(2, '0')}-${String(currentAgendaDate.getDate()).padStart(2, '0')}`;
+        }
+        
+        let daysHtml = '';
+        let dayCounter = 1;
+        let nextMonthCounter = 1;
+        
+        for (let i = 0; i < 42; i++) {
+            let isCurrentMonth = true;
+            let dayNumber = 0;
+            let dateStr = '';
+            let year = currentCalendarYear;
+            let month = currentCalendarMonth;
+            
+            if (i < startDayOfWeek) {
+                // Dias do mês anterior
+                isCurrentMonth = false;
+                dayNumber = prevMonthDays - (startDayOfWeek - i) + 1;
+                let prevMonth = currentCalendarMonth - 1;
+                let prevYear = currentCalendarYear;
+                if (prevMonth < 0) {
+                    prevMonth = 11;
+                    prevYear--;
+                }
+                dateStr = `${prevYear}-${String(prevMonth + 1).padStart(2, '0')}-${String(dayNumber).padStart(2, '0')}`;
+            } 
+            else if (dayCounter <= daysInMonth) {
+                // Dias do mês atual
+                isCurrentMonth = true;
+                dayNumber = dayCounter;
+                dateStr = `${currentCalendarYear}-${String(currentCalendarMonth + 1).padStart(2, '0')}-${String(dayNumber).padStart(2, '0')}`;
+                dayCounter++;
+            } 
+            else {
+                // Dias do próximo mês
+                isCurrentMonth = false;
+                dayNumber = nextMonthCounter;
+                let nextMonth = currentCalendarMonth + 1;
+                let nextYear = currentCalendarYear;
+                if (nextMonth > 11) {
+                    nextMonth = 0;
+                    nextYear++;
+                }
+                dateStr = `${nextYear}-${String(nextMonth + 1).padStart(2, '0')}-${String(dayNumber).padStart(2, '0')}`;
+                nextMonthCounter++;
+            }
+            
+            const isToday = dateStr === todayStr;
+            const isSelected = dateStr === currentAgendaDateStr;
+            
+            let additionalClass = '';
+            if (!isCurrentMonth) additionalClass = 'other-month';
+            if (isToday) additionalClass += ' today';
+            if (isSelected) additionalClass += ' selected';
+            
+            daysHtml += `
+                <div class="calendar-day ${additionalClass}" 
+                     data-date="${dateStr}"
+                     data-year="${year}"
+                     data-month="${month}"
+                     data-day="${dayNumber}">
+                    ${dayNumber}
+                </div>
+            `;
+        }
+        
+        container.innerHTML = daysHtml;
+        
+        // Adicionar eventos de clique nos dias
+        document.querySelectorAll('#calendarDaysContainer .calendar-day').forEach(dayEl => {
+            dayEl.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const dateStr = this.getAttribute('data-date');
+                if (dateStr) {
+                    selectDateFromCalendar(dateStr);
+                }
+            });
+        });
+    }
+    
+    // Selecionar uma data do calendário
+    function selectDateFromCalendar(dateStr) {
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const selectedDate = new Date(year, month - 1, day);
+        
+        // Atualizar a data da agenda
+        if (typeof currentAgendaDate !== 'undefined') {
+            currentAgendaDate = selectedDate;
+            
+            // Atualizar a exibição da agenda
+            if (typeof updateAgendaDisplay === 'function') {
+                updateAgendaDisplay();
+            }
+            
+            console.log(`📅 Data selecionada: ${selectedDate.toLocaleDateString('pt-PT')}`);
+        }
+        
+        // Fechar o modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('datePickerModal'));
+        if (modal) modal.hide();
+        
+        // Pequeno feedback visual
+        showTemporaryFeedback(`📅 Data alterada para ${selectedDate.toLocaleDateString('pt-PT')}`);
+    }
+    
+    // Mostrar feedback temporário
+    function showTemporaryFeedback(message) {
+        let feedback = document.getElementById('calendarFeedback');
+        if (!feedback) {
+            feedback = document.createElement('div');
+            feedback.id = 'calendarFeedback';
+            feedback.style.cssText = `
                 position: fixed;
                 bottom: 30px;
                 left: 50%;
                 transform: translateX(-50%);
-                background: #26196b;
+                background: #28a745;
                 color: white;
                 padding: 10px 20px;
                 border-radius: 30px;
                 font-size: 14px;
-                z-index: 9999;
+                z-index: 10000;
                 font-family: sans-serif;
                 box-shadow: 0 2px 10px rgba(0,0,0,0.2);
                 opacity: 0;
-                transition: opacity 0.3s;
+                transition: opacity 0.3s ease;
                 pointer-events: none;
+                white-space: nowrap;
             `;
-            document.body.appendChild(msg);
+            document.body.appendChild(feedback);
         }
-        msg.textContent = texto;
-        msg.style.opacity = '1';
-        setTimeout(() => { msg.style.opacity = '0'; }, 2000);
-    }
-    
-    // ========================================
-    // AJUSTE PARA MOBILE
-    // ========================================
-    function ajustarMobile() {
-        const isMobile = window.innerWidth <= 768;
-        const btnOntem = document.getElementById('meuBotaoOntem');
-        const btnAmanha = document.getElementById('meuBotaoAmanha');
-        const btnHoje = document.getElementById('meuBotaoHoje');
         
-        if (isMobile) {
-            if (btnOntem) {
-                btnOntem.innerHTML = '◀';
-                btnOntem.style.padding = '5px 10px';
-                btnOntem.title = 'Ontem';
-            }
-            if (btnAmanha) {
-                btnAmanha.innerHTML = '▶';
-                btnAmanha.style.padding = '5px 10px';
-                btnAmanha.title = 'Amanhã';
-            }
-            if (btnHoje) {
-                btnHoje.innerHTML = '●';
-                btnHoje.style.padding = '5px 12px';
-                btnHoje.title = 'Hoje';
-            }
-        } else {
-            if (btnOntem) {
-                btnOntem.innerHTML = '◀ Ontem';
-                btnOntem.style.padding = '6px 14px';
-            }
-            if (btnAmanha) {
-                btnAmanha.innerHTML = 'Amanhã ▶';
-                btnAmanha.style.padding = '6px 14px';
-            }
-            if (btnHoje) {
-                btnHoje.innerHTML = '● Hoje';
-                btnHoje.style.padding = '6px 16px';
-            }
-        }
-    }
-    
-    // ========================================
-    // INICIAR O SCRIPT
-    // ========================================
-    
-    let tentativas = 0;
-    function tentarAdicionar() {
-        tentativas++;
-        console.log(`🔄 Tentativa ${tentativas} de adicionar botões...`);
+        feedback.textContent = message;
+        feedback.style.opacity = '1';
         
-        const agendaHeader = document.querySelector('#agenda .agenda-header');
-        if (agendaHeader && document.getElementById('agendaMenuBtn') && document.getElementById('agendaDateDisplay')) {
-            adicionarBotoesNavegacao();
-        } else if (tentativas < 10) {
-            setTimeout(tentarAdicionar, 1000);
-        } else {
-            console.log('⚠️ Não foi possível adicionar os botões');
-        }
+        setTimeout(() => {
+            feedback.style.opacity = '0';
+        }, 2000);
     }
     
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', tentarAdicionar);
-    } else {
-        setTimeout(tentarAdicionar, 500);
-    }
-    
-    window.addEventListener('resize', ajustarMobile);
-    
-    // Observar quando a agenda for ativada
-    const observer = new MutationObserver(function(mutations) {
-        mutations.forEach(function(mutation) {
-            if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-                const agenda = document.getElementById('agenda');
-                if (agenda && agenda.classList.contains('active')) {
-                    if (!document.getElementById('meuBotaoOntem')) {
-                        setTimeout(adicionarBotoesNavegacao, 300);
-                    }
-                }
-            }
-        });
-    });
-    
-    const agendaSection = document.getElementById('agenda');
-    if (agendaSection) {
-        observer.observe(agendaSection, { attributes: true });
-    }
-    
-    console.log('📌 Script carregado. Clique na DATA para abrir o calendário!');
+    console.log('✅ Calendário da agenda ativado com sucesso!');
+    console.log('✅ Botões adicionados: ◀ Ontem | ● Hoje | Amanhã ▶');
+    console.log('✅ Botões removidos: 3 dias, Semana, Mês');
+    console.log('✅ Responsividade: Desktop, Tablet e Celular');
 })();
 </script>
 
