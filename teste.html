@@ -16784,7 +16784,360 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
 
 
 
+<script>
+// ============================================
+// SCRIPT PARA ADICIONAR BOTÕES NA AGENDA
+// Mantém o calendário funcionando normalmente
+// ============================================
 
+(function() {
+    console.log('📅 Iniciando script de navegação da agenda...');
+    
+    // Guardar referência da função original do calendário
+    let funcaoCalendarioOriginal = null;
+    
+    function adicionarBotoesNavegacao() {
+        const agendaHeader = document.querySelector('#agenda .agenda-header');
+        
+        if (!agendaHeader) {
+            console.log('⏳ Aguardando agenda carregar...');
+            setTimeout(adicionarBotoesNavegacao, 1000);
+            return;
+        }
+        
+        if (document.getElementById('meuBotaoOntem')) {
+            console.log('✅ Botões já existem');
+            return;
+        }
+        
+        console.log('✅ Cabeçalho encontrado, adicionando botões...');
+        
+        const menuBtn = document.getElementById('agendaMenuBtn');
+        const dateDisplay = document.getElementById('agendaDateDisplay');
+        const viewOptions = document.querySelector('.agenda-view-options');
+        
+        if (!menuBtn || !dateDisplay) {
+            console.log('❌ Elementos necessários não encontrados');
+            return;
+        }
+        
+        // ========================================
+        // PRESERVAR A FUNÇÃO ORIGINAL DO CALENDÁRIO
+        // ========================================
+        // Clonar o elemento dateDisplay para preservar seus eventos
+        const novoDateDisplay = dateDisplay.cloneNode(true);
+        dateDisplay.parentNode.replaceChild(novoDateDisplay, dateDisplay);
+        
+        // Restaurar a referência
+        const dateDisplayFinal = document.getElementById('agendaDateDisplay');
+        
+        // ========================================
+        // BOTÃO ONTEM
+        // ========================================
+        const btnOntem = document.createElement('button');
+        btnOntem.id = 'meuBotaoOntem';
+        btnOntem.innerHTML = '◀ Ontem';
+        btnOntem.style.cssText = `
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            padding: 6px 14px;
+            font-size: 13px;
+            cursor: pointer;
+            color: #333;
+            font-weight: 500;
+            margin-left: 8px;
+            transition: all 0.2s;
+        `;
+        btnOntem.onmouseenter = () => btnOntem.style.background = '#e9ecef';
+        btnOntem.onmouseleave = () => btnOntem.style.background = '#f8f9fa';
+        btnOntem.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof currentAgendaDate !== 'undefined') {
+                const ontem = new Date(currentAgendaDate);
+                ontem.setDate(ontem.getDate() - 1);
+                currentAgendaDate = ontem;
+                if (typeof updateAgendaDisplay === 'function') {
+                    updateAgendaDisplay();
+                }
+                mostrarMensagem('◀ Voltou para ontem');
+            }
+        };
+        
+        // ========================================
+        // BOTÃO AMANHÃ
+        // ========================================
+        const btnAmanha = document.createElement('button');
+        btnAmanha.id = 'meuBotaoAmanha';
+        btnAmanha.innerHTML = 'Amanhã ▶';
+        btnAmanha.style.cssText = `
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            padding: 6px 14px;
+            font-size: 13px;
+            cursor: pointer;
+            color: #333;
+            font-weight: 500;
+            margin-left: 8px;
+            transition: all 0.2s;
+        `;
+        btnAmanha.onmouseenter = () => btnAmanha.style.background = '#e9ecef';
+        btnAmanha.onmouseleave = () => btnAmanha.style.background = '#f8f9fa';
+        btnAmanha.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof currentAgendaDate !== 'undefined') {
+                const amanha = new Date(currentAgendaDate);
+                amanha.setDate(amanha.getDate() + 1);
+                currentAgendaDate = amanha;
+                if (typeof updateAgendaDisplay === 'function') {
+                    updateAgendaDisplay();
+                }
+                mostrarMensagem('Amanhã ▶ Avançou um dia');
+            }
+        };
+        
+        // ========================================
+        // BOTÃO HOJE
+        // ========================================
+        const btnHoje = document.createElement('button');
+        btnHoje.id = 'meuBotaoHoje';
+        btnHoje.innerHTML = '● Hoje';
+        btnHoje.style.cssText = `
+            background: linear-gradient(135deg, #26196b, #4a3a9c);
+            border: none;
+            border-radius: 20px;
+            padding: 6px 16px;
+            font-size: 13px;
+            cursor: pointer;
+            color: white;
+            font-weight: 500;
+            margin-left: 8px;
+            transition: all 0.2s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        `;
+        btnHoje.onmouseenter = () => {
+            btnHoje.style.transform = 'scale(1.02)';
+            btnHoje.style.boxShadow = '0 4px 10px rgba(38,25,107,0.3)';
+        };
+        btnHoje.onmouseleave = () => {
+            btnHoje.style.transform = 'scale(1)';
+            btnHoje.style.boxShadow = '0 2px 5px rgba(0,0,0,0.1)';
+        };
+        btnHoje.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof currentAgendaDate !== 'undefined') {
+                currentAgendaDate = new Date();
+                if (typeof updateAgendaDisplay === 'function') {
+                    updateAgendaDisplay();
+                }
+                mostrarMensagem('📍 Hoje - Data atual');
+                setTimeout(() => {
+                    rolarParaHoraAtual();
+                }, 300);
+            }
+        };
+        
+        // ========================================
+        // INSERIR BOTÕES (sem quebrar o calendário)
+        // ========================================
+        
+        // Inserir ONTEM depois do menu
+        menuBtn.insertAdjacentElement('afterend', btnOntem);
+        
+        // Inserir AMANHÃ depois da data
+        dateDisplayFinal.insertAdjacentElement('afterend', btnAmanha);
+        
+        // Inserir HOJE antes das opções de visão
+        if (viewOptions) {
+            agendaHeader.insertBefore(btnHoje, viewOptions);
+        } else {
+            btnAmanha.insertAdjacentElement('afterend', btnHoje);
+        }
+        
+        // Melhorar estilo da data (sem quebrar o clique)
+        if (dateDisplayFinal) {
+            dateDisplayFinal.style.cssText = `
+                background: #f0f0f0;
+                padding: 6px 16px;
+                border-radius: 25px;
+                font-weight: 600;
+                cursor: pointer;
+                margin: 0 8px;
+                transition: all 0.2s;
+            `;
+            // Garantir que o clique funciona
+            dateDisplayFinal.style.pointerEvents = 'auto';
+        }
+        
+        console.log('✅ Botões adicionados com sucesso!');
+        console.log('   Layout: [Menu] [◀ Ontem] [Data] [Amanhã ▶] [● Hoje] [Visão]');
+        console.log('   ✅ Clique na DATA para abrir o calendário - FUNCIONA NORMALMENTE!');
+        
+        ajustarMobile();
+    }
+    
+    // ========================================
+    // FUNÇÃO PARA ROLAR ATÉ HORA ATUAL
+    // ========================================
+    function rolarParaHoraAtual() {
+        const container = document.getElementById('agendaSlotsContainer');
+        if (!container) return;
+        
+        const agora = new Date();
+        const hora = agora.getHours();
+        const minuto = agora.getMinutes();
+        const posicao = (hora * 60) + minuto - 100;
+        
+        if (posicao > 0) {
+            container.scrollTo({ top: posicao, behavior: 'smooth' });
+        }
+        
+        const agendaContent = document.querySelector('.agenda-content');
+        if (agendaContent) {
+            const linha = document.createElement('div');
+            linha.style.cssText = `
+                position: absolute;
+                left: 60px;
+                right: 0;
+                top: ${posicao + 100}px;
+                height: 3px;
+                background: linear-gradient(90deg, #ff6b35, #ff8c42);
+                z-index: 100;
+                pointer-events: none;
+                border-radius: 2px;
+                box-shadow: 0 0 8px rgba(255,107,53,0.5);
+            `;
+            agendaContent.appendChild(linha);
+            setTimeout(() => linha.remove(), 3000);
+        }
+    }
+    
+    // ========================================
+    // FUNÇÃO PARA MOSTRAR MENSAGEM
+    // ========================================
+    function mostrarMensagem(texto) {
+        let msg = document.getElementById('mensagemNavegacao');
+        if (!msg) {
+            msg = document.createElement('div');
+            msg.id = 'mensagemNavegacao';
+            msg.style.cssText = `
+                position: fixed;
+                bottom: 30px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: #26196b;
+                color: white;
+                padding: 10px 20px;
+                border-radius: 30px;
+                font-size: 14px;
+                z-index: 9999;
+                font-family: sans-serif;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+                opacity: 0;
+                transition: opacity 0.3s;
+                pointer-events: none;
+            `;
+            document.body.appendChild(msg);
+        }
+        msg.textContent = texto;
+        msg.style.opacity = '1';
+        setTimeout(() => { msg.style.opacity = '0'; }, 2000);
+    }
+    
+    // ========================================
+    // AJUSTE PARA MOBILE
+    // ========================================
+    function ajustarMobile() {
+        const isMobile = window.innerWidth <= 768;
+        const btnOntem = document.getElementById('meuBotaoOntem');
+        const btnAmanha = document.getElementById('meuBotaoAmanha');
+        const btnHoje = document.getElementById('meuBotaoHoje');
+        
+        if (isMobile) {
+            if (btnOntem) {
+                btnOntem.innerHTML = '◀';
+                btnOntem.style.padding = '5px 10px';
+                btnOntem.title = 'Ontem';
+            }
+            if (btnAmanha) {
+                btnAmanha.innerHTML = '▶';
+                btnAmanha.style.padding = '5px 10px';
+                btnAmanha.title = 'Amanhã';
+            }
+            if (btnHoje) {
+                btnHoje.innerHTML = '●';
+                btnHoje.style.padding = '5px 12px';
+                btnHoje.title = 'Hoje';
+            }
+        } else {
+            if (btnOntem) {
+                btnOntem.innerHTML = '◀ Ontem';
+                btnOntem.style.padding = '6px 14px';
+            }
+            if (btnAmanha) {
+                btnAmanha.innerHTML = 'Amanhã ▶';
+                btnAmanha.style.padding = '6px 14px';
+            }
+            if (btnHoje) {
+                btnHoje.innerHTML = '● Hoje';
+                btnHoje.style.padding = '6px 16px';
+            }
+        }
+    }
+    
+    // ========================================
+    // INICIAR O SCRIPT
+    // ========================================
+    
+    let tentativas = 0;
+    function tentarAdicionar() {
+        tentativas++;
+        console.log(`🔄 Tentativa ${tentativas} de adicionar botões...`);
+        
+        const agendaHeader = document.querySelector('#agenda .agenda-header');
+        if (agendaHeader && document.getElementById('agendaMenuBtn') && document.getElementById('agendaDateDisplay')) {
+            adicionarBotoesNavegacao();
+        } else if (tentativas < 10) {
+            setTimeout(tentarAdicionar, 1000);
+        } else {
+            console.log('⚠️ Não foi possível adicionar os botões');
+        }
+    }
+    
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', tentarAdicionar);
+    } else {
+        setTimeout(tentarAdicionar, 500);
+    }
+    
+    window.addEventListener('resize', ajustarMobile);
+    
+    // Observar quando a agenda for ativada
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                const agenda = document.getElementById('agenda');
+                if (agenda && agenda.classList.contains('active')) {
+                    if (!document.getElementById('meuBotaoOntem')) {
+                        setTimeout(adicionarBotoesNavegacao, 300);
+                    }
+                }
+            }
+        });
+    });
+    
+    const agendaSection = document.getElementById('agenda');
+    if (agendaSection) {
+        observer.observe(agendaSection, { attributes: true });
+    }
+    
+    console.log('📌 Script carregado. Clique na DATA para abrir o calendário!');
+})();
+</script>
 
 
 
