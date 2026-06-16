@@ -18368,5 +18368,210 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
 </script>
 
 
+    <!-- ============================================================ -->
+<!-- SCRIPT - POPUP DE CONFIRMAÇÃO COM ENVIO (WHATSAPP, SMS, EMAIL) -->
+<!-- ============================================================ -->
+<script>
+(function() {
+    console.log('🔄 Adicionando popup de confirmação com envio...');
+
+    // ============================================================
+    // FUNÇÃO: Enviar mensagem de confirmação
+    // ============================================================
+    function enviarConfirmacao(cliente, data, hora, servicos, metodo) {
+        // Montar mensagem SEM valor
+        const mensagem = 
+            `Olá ${cliente}! 👋\n\n` +
+            `Seu agendamento foi CONFIRMADO:\n` +
+            `📅 Data: ${data}\n` +
+            `🕐 Hora: ${hora}\n` +
+            `✂️ Serviço(s): ${servicos}\n\n` +
+            `Aguardamos você! 😊\n` +
+            `${businessSettings?.name || 'Studio DeVitto'}`;
+
+        let url = '';
+        const phone = selectedClient?.phone || '';
+        const email = selectedClient?.email || '';
+
+        switch(metodo) {
+            case 'whatsapp':
+                if (!phone) { showError('Cliente não possui telefone para WhatsApp.'); return false; }
+                url = `https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(mensagem)}`;
+                break;
+            case 'sms':
+                if (!phone) { showError('Cliente não possui telefone para SMS.'); return false; }
+                url = `sms:${phone.replace(/\D/g, '')}?body=${encodeURIComponent(mensagem)}`;
+                break;
+            case 'email':
+                if (!email) { showError('Cliente não possui e-mail cadastrado.'); return false; }
+                const assunto = encodeURIComponent('Confirmação de Agendamento');
+                url = `mailto:${email}?subject=${assunto}&body=${encodeURIComponent(mensagem)}`;
+                break;
+            default:
+                return false;
+        }
+
+        if (url) {
+            window.open(url, '_blank');
+            showSuccess(`Mensagem enviada via ${metodo.toUpperCase()}!`);
+            return true;
+        }
+        return false;
+    }
+
+    // ============================================================
+    // INTERCEPTAR: Botão "Salvar Agendamento"
+    // ============================================================
+    // Salvar a função original ANTES de modificá-la
+    const originalSaveAppointment = window.saveAppointment;
+
+    if (originalSaveAppointment) {
+        // Substituir a função original por uma que adiciona o popup
+        window.saveAppointment = async function() {
+            // VALIDAÇÕES (mantidas da função original)
+            if (!selectedClient) { showError('Por favor, selecione um cliente.'); return; }
+            if (selectedServices.length === 0) { showError('Por favor, selecione pelo menos um serviço.'); return; }
+            if (!selectedDate) { showError('Por favor, selecione uma data.'); return; }
+            if (!selectedTime) { showError('Por favor, selecione um horário.'); return; }
+
+            // ===== PREPARAR DADOS PARA O POPUP =====
+            const clientName = selectedClient.name;
+            const clientPhone = selectedClient.phone || '';
+            const clientEmail = selectedClient.email || '';
+            
+            const dataStr = new Date(selectedDate).toLocaleDateString('pt-PT', { 
+                weekday: 'long', 
+                day: 'numeric', 
+                month: 'long', 
+                year: 'numeric' 
+            });
+            
+            const horaStr = `${String(selectedTime.hour).padStart(2, '0')}:${String(selectedTime.minute).padStart(2, '0')}`;
+            const servicosStr = selectedServices.map(s => s.name).join(', ');
+
+            // ===== POPUP DE CONFIRMAÇÃO =====
+            const result = await Swal.fire({
+                title: '📋 Confirmar Agendamento',
+                html: `
+                    <div style="text-align:left; max-height:400px; overflow-y:auto;">
+                        <div style="background:#f8f9fa; padding:15px; border-radius:10px; font-size:14px; line-height:1.8;">
+                            <p><strong>👤 Cliente:</strong> ${clientName}</p>
+                            <p><strong>📅 Data:</strong> ${dataStr}</p>
+                            <p><strong>🕐 Hora:</strong> ${horaStr}</p>
+                            <p><strong>✂️ Serviço(s):</strong> ${servicosStr}</p>
+                        </div>
+                        <hr>
+                        <div style="text-align:center;">
+                            <p style="font-size:13px; color:#6c757d; margin-bottom:12px;">
+                                <i class="fas fa-envelope me-1"></i>
+                                Enviar confirmação ao cliente?
+                            </p>
+                            <div class="d-flex flex-wrap justify-content-center gap-2">
+                                <button id="swalSendWhatsApp" class="btn btn-success" style="border-radius:20px; padding:8px 18px;">
+                                    <i class="fab fa-whatsapp me-1"></i> WhatsApp
+                                </button>
+                                <button id="swalSendSMS" class="btn btn-info" style="border-radius:20px; padding:8px 18px; color:white;">
+                                    <i class="fas fa-sms me-1"></i> SMS
+                                </button>
+                                <button id="swalSendEmail" class="btn btn-secondary" style="border-radius:20px; padding:8px 18px;">
+                                    <i class="fas fa-envelope me-1"></i> E-mail
+                                </button>
+                                <button id="swalSendNone" class="btn btn-outline-secondary" style="border-radius:20px; padding:8px 18px;">
+                                    <i class="fas fa-times me-1"></i> Não enviar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `,
+                showConfirmButton: false,
+                showCancelButton: true,
+                cancelButtonText: '❌ Cancelar',
+                cancelButtonColor: '#dc3545',
+                width: '540px',
+                didOpen: () => {
+                    // Botão WhatsApp
+                    document.getElementById('swalSendWhatsApp')?.addEventListener('click', () => {
+                        Swal.close();
+                        // Salvar primeiro, depois enviar
+                        salvarAgendamento(function() {
+                            enviarConfirmacao(clientName, dataStr, horaStr, servicosStr, 'whatsapp');
+                        });
+                    });
+                    // Botão SMS
+                    document.getElementById('swalSendSMS')?.addEventListener('click', () => {
+                        Swal.close();
+                        salvarAgendamento(function() {
+                            enviarConfirmacao(clientName, dataStr, horaStr, servicosStr, 'sms');
+                        });
+                    });
+                    // Botão E-mail
+                    document.getElementById('swalSendEmail')?.addEventListener('click', () => {
+                        Swal.close();
+                        salvarAgendamento(function() {
+                            enviarConfirmacao(clientName, dataStr, horaStr, servicosStr, 'email');
+                        });
+                    });
+                    // Botão Não enviar
+                    document.getElementById('swalSendNone')?.addEventListener('click', () => {
+                        Swal.close();
+                        salvarAgendamento(null);
+                    });
+                }
+            });
+
+            if (result.isDismissed && result.dismiss === Swal.DismissReason.cancel) {
+                // Cancelou
+                return;
+            }
+        };
+
+        // ===== FUNÇÃO AUXILIAR: Salvar agendamento =====
+        async function salvarAgendamento(callback) {
+            showLoading('Salvando agendamento...');
+            
+            try {
+                // Chamar a função ORIGINAL de salvar
+                // Usamos a referência guardada para não perder a lógica original
+                await originalSaveAppointment.call(window);
+                
+                // Se chegou aqui, salvou com sucesso
+                Swal.close();
+                
+                // Executar callback se existir (enviar mensagem)
+                if (typeof callback === 'function') {
+                    setTimeout(callback, 500);
+                }
+                
+            } catch (error) {
+                console.error('Erro ao salvar agendamento:', error);
+                Swal.close();
+                showError('Erro ao salvar agendamento: ' + error.message);
+            }
+        }
+
+        console.log('✅ Popup de confirmação com envio adicionado ao botão Salvar Agendamento');
+
+    } else {
+        console.warn('⚠️ Função saveAppointment não encontrada. Aguardando...');
+        // Tentar novamente após 1 segundo
+        setTimeout(function() {
+            if (window.saveAppointment) {
+                console.log('🔄 Função saveAppointment encontrada, aplicando...');
+                // Re-executar o script
+                location.reload(); // Recarregar para aplicar
+            }
+        }, 1000);
+    }
+
+    console.log('📌 Resumo:');
+    console.log('   ✅ Popup com confirmação de agendamento');
+    console.log('   ✅ Opções: WhatsApp, SMS, Email, Não enviar');
+    console.log('   ✅ Mensagem contém: Nome, Data, Hora, Serviços (SEM VALOR)');
+    console.log('   ✅ Nenhuma outra função foi modificada');
+
+})();
+</script>
+
+
 
 </html>
