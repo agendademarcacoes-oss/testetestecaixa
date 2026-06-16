@@ -18574,4 +18574,346 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
 
 
 
+
+
+
+
+
+
+
+    <!-- ============================================================ -->
+<!-- SCRIPT - MÚLTIPLOS CARDS DE SERVIÇOS NA AGENDA              -->
+<!-- ============================================================ -->
+<script>
+(function() {
+    console.log('🔄 Adicionando múltiplos cards de serviços na agenda...');
+
+    // ============================================================
+    // FUNÇÃO: Renderizar agendamentos com múltiplos cards
+    // ============================================================
+    
+    // Sobrescrever APENAS a função de renderização de agendamentos
+    const originalRenderAppointmentsForAll = window.renderAppointmentsForAll;
+    
+    if (originalRenderAppointmentsForAll) {
+        window.renderAppointmentsForAll = function() {
+            // Remover agendamentos antigos
+            document.querySelectorAll('.agenda-appointment').forEach(el => el.remove());
+            
+            const currentDateStr = currentAgendaDate.toISOString().split('T')[0];
+            
+            // Para cada agendamento
+            appointments.forEach(appointment => {
+                if (appointment.date !== currentDateStr) return;
+                
+                const dayColumn = document.querySelector(`.agenda-day-column[data-collaborator-id="${appointment.collaboratorId}"]`);
+                if (!dayColumn) return;
+                
+                // ===== VERIFICAR SE TEM MÚLTIPLOS SERVIÇOS =====
+                const services = appointment.services || [];
+                
+                if (services.length > 1) {
+                    // ===== MÚLTIPLOS SERVIÇOS - CADA UM COM SEU CARD =====
+                    let currentStartMinutes = parseInt(appointment.startTime.split(':')[0]) * 60 + parseInt(appointment.startTime.split(':')[1]);
+                    
+                    services.forEach((service, index) => {
+                        const duration = service.duration || 30;
+                        const topPosition = currentStartMinutes;
+                        const height = duration;
+                        
+                        // Cor diferente para cada serviço
+                        const colors = [
+                            'linear-gradient(135deg, #26196b 0%, #4a3a9c 100%)',
+                            'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)',
+                            'linear-gradient(135deg, #27ae60 0%, #1e8449 100%)',
+                            'linear-gradient(135deg, #f39c12 0%, #d68910 100%)',
+                            'linear-gradient(135deg, #2980b9 0%, #1a5276 100%)',
+                            'linear-gradient(135deg, #8e44ad 0%, #6c3483 100%)',
+                            'linear-gradient(135deg, #1abc9c 0%, #148f77 100%)',
+                            'linear-gradient(135deg, #e67e22 0%, #ca6f1e 100%)',
+                            'linear-gradient(135deg, #2c3e50 0%, #1a252f 100%)'
+                        ];
+                        
+                        const colorIndex = index % colors.length;
+                        const bgColor = colors[colorIndex];
+                        
+                        // Calcular horário de início e fim para este serviço
+                        const startHour = Math.floor(currentStartMinutes / 60);
+                        const startMinute = currentStartMinutes % 60;
+                        const endMinutes = currentStartMinutes + duration;
+                        const endHour = Math.floor(endMinutes / 60) % 24;
+                        const endMinute = endMinutes % 60;
+                        
+                        const serviceStartTime = `${startHour.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}`;
+                        const serviceEndTime = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
+                        
+                        // Criar card para este serviço
+                        const serviceEl = document.createElement('div');
+                        serviceEl.className = 'agenda-appointment';
+                        serviceEl.setAttribute('data-appointment-id', appointment.id);
+                        serviceEl.setAttribute('data-service-index', index);
+                        serviceEl.style.top = `${topPosition}px`;
+                        serviceEl.style.height = `${Math.max(height, 30)}px`;
+                        serviceEl.style.background = bgColor;
+                        serviceEl.style.borderLeft = '3px solid rgba(255,255,255,0.3)';
+                        serviceEl.style.borderRadius = '6px';
+                        serviceEl.style.padding = '4px 8px';
+                        serviceEl.style.fontSize = '11px';
+                        serviceEl.style.overflow = 'hidden';
+                        serviceEl.style.cursor = 'pointer';
+                        serviceEl.style.zIndex = '2';
+                        serviceEl.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
+                        serviceEl.style.transition = 'transform 0.2s, box-shadow 0.2s';
+                        
+                        // Aplicar opacidade se cancelado ou concluído
+                        if (appointment.status === 'completed' || appointment.status === 'cancelled') {
+                            serviceEl.style.opacity = '0.7';
+                        }
+                        
+                        // Nome do serviço + horário
+                        const serviceName = service.name || 'Serviço';
+                        serviceEl.innerHTML = `
+                            <div style="font-size: 9px; opacity: 0.8; margin-bottom: 2px;">
+                                ${serviceStartTime} - ${serviceEndTime}
+                            </div>
+                            <div style="font-weight: 600; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                ${serviceName}
+                            </div>
+                            <div style="font-size: 9px; opacity: 0.7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                ${appointment.clientName || 'Cliente'}
+                            </div>
+                        `;
+                        
+                        // Evento de clique mostra detalhes do agendamento
+                        serviceEl.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            if (typeof showAppointmentDetails === 'function') {
+                                showAppointmentDetails(appointment.id);
+                            }
+                        });
+                        
+                        // Hover effect
+                        serviceEl.addEventListener('mouseenter', () => {
+                            serviceEl.style.transform = 'scale(1.02)';
+                            serviceEl.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+                            serviceEl.style.zIndex = '10';
+                        });
+                        serviceEl.addEventListener('mouseleave', () => {
+                            serviceEl.style.transform = 'scale(1)';
+                            serviceEl.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
+                            serviceEl.style.zIndex = '2';
+                        });
+                        
+                        dayColumn.appendChild(serviceEl);
+                        
+                        // Atualizar posição para o próximo serviço
+                        currentStartMinutes += duration;
+                    });
+                    
+                    // ===== LINHA DE CONEXÃO ENTRE SERVIÇOS =====
+                    // Adicionar uma pequena linha entre os cards para mostrar continuidade
+                    const serviceCards = dayColumn.querySelectorAll('.agenda-appointment');
+                    const totalServices = serviceCards.length;
+                    
+                    if (totalServices > 1) {
+                        for (let i = 0; i < totalServices - 1; i++) {
+                            const card1 = serviceCards[i];
+                            const card2 = serviceCards[i + 1];
+                            
+                            if (card1 && card2) {
+                                const rect1 = card1.getBoundingClientRect();
+                                const rect2 = card2.getBoundingClientRect();
+                                
+                                const connector = document.createElement('div');
+                                connector.style.cssText = `
+                                    position: absolute;
+                                    left: 50%;
+                                    width: 2px;
+                                    background: rgba(255,255,255,0.4);
+                                    z-index: 1;
+                                    pointer-events: none;
+                                `;
+                                
+                                const top1 = parseInt(card1.style.top);
+                                const height1 = parseInt(card1.style.height);
+                                connector.style.top = `${top1 + height1}px`;
+                                connector.style.height = `${parseInt(card2.style.top) - (top1 + height1)}px`;
+                                
+                                dayColumn.appendChild(connector);
+                            }
+                        }
+                    }
+                    
+                } else {
+                    // ===== APENAS UM SERVIÇO - COMPORTAMENTO PADRÃO =====
+                    const startHour = parseInt(appointment.startTime.split(':')[0]);
+                    const startMinute = parseInt(appointment.startTime.split(':')[1]);
+                    const duration = appointment.duration || 60;
+                    const totalMinutes = startHour * 60 + startMinute;
+                    const topPosition = totalMinutes;
+                    const height = duration;
+                    
+                    const serviceName = services.length > 0 ? services[0].name : (appointment.serviceName || 'Serviço');
+                    
+                    const appointmentEl = document.createElement('div');
+                    appointmentEl.className = 'agenda-appointment';
+                    appointmentEl.setAttribute('data-appointment-id', appointment.id);
+                    appointmentEl.style.top = `${topPosition}px`;
+                    appointmentEl.style.height = `${Math.max(height, 30)}px`;
+                    
+                    // Cor baseada no status
+                    let bgColor = 'linear-gradient(135deg, #26196b 0%, #4a3a9c 100%)';
+                    if (appointment.status === 'completed' || appointment.status === 'cancelled') {
+                        bgColor = 'linear-gradient(135deg, #6c757d, #495057)';
+                        appointmentEl.style.opacity = '0.7';
+                    } else if (appointment.status === 'in_progress') {
+                        bgColor = 'linear-gradient(135deg, #28a745, #20c997)';
+                    } else if (appointment.status === 'confirmed') {
+                        bgColor = 'linear-gradient(135deg, #17a2b8, #0d6efd)';
+                    }
+                    
+                    appointmentEl.style.background = bgColor;
+                    appointmentEl.style.borderRadius = '6px';
+                    appointmentEl.style.padding = '4px 8px';
+                    appointmentEl.style.fontSize = '11px';
+                    appointmentEl.style.overflow = 'hidden';
+                    appointmentEl.style.cursor = 'pointer';
+                    appointmentEl.style.zIndex = '2';
+                    appointmentEl.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
+                    appointmentEl.style.transition = 'transform 0.2s, box-shadow 0.2s';
+                    
+                    appointmentEl.innerHTML = `
+                        <div style="font-size: 9px; opacity: 0.8; margin-bottom: 2px;">${appointment.startTime} - ${appointment.endTime || ''}</div>
+                        <div style="font-weight: 600; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${serviceName}</div>
+                        <div style="font-size: 9px; opacity: 0.7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${appointment.clientName || 'Cliente'}</div>
+                    `;
+                    
+                    appointmentEl.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        if (typeof showAppointmentDetails === 'function') {
+                            showAppointmentDetails(appointment.id);
+                        }
+                    });
+                    
+                    appointmentEl.addEventListener('mouseenter', () => {
+                        appointmentEl.style.transform = 'scale(1.02)';
+                        appointmentEl.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+                        appointmentEl.style.zIndex = '10';
+                    });
+                    appointmentEl.addEventListener('mouseleave', () => {
+                        appointmentEl.style.transform = 'scale(1)';
+                        appointmentEl.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
+                        appointmentEl.style.zIndex = '2';
+                    });
+                    
+                    dayColumn.appendChild(appointmentEl);
+                }
+            });
+            
+            console.log('✅ Agenda atualizada com múltiplos cards de serviços');
+        };
+        
+        console.log('✅ Múltiplos cards de serviços ativados na agenda');
+    } else {
+        console.warn('⚠️ Função renderAppointmentsForAll não encontrada. Aguardando...');
+        setTimeout(function() {
+            if (window.renderAppointmentsForAll) {
+                console.log('🔄 Função renderAppointmentsForAll encontrada, aplicando...');
+                // Re-executar o script
+                location.reload();
+            }
+        }, 1000);
+    }
+
+    // ============================================================
+    // FUNÇÃO AUXILIAR: Atualizar a exibição de serviços no modal
+    // ============================================================
+    // Melhorar a lista de serviços selecionados com duração
+    const originalUpdateSelectedServicesList = window.updateSelectedServicesList;
+    
+    if (originalUpdateSelectedServicesList) {
+        window.updateSelectedServicesList = function() {
+            const container = document.getElementById('selectedServicesList');
+            if (!container) return;
+            
+            container.innerHTML = '';
+            
+            if (!selectedServices || selectedServices.length === 0) {
+                container.innerHTML = '<div class="text-center text-muted py-3">Nenhum serviço selecionado</div>';
+                return;
+            }
+            
+            // Calcular horários para cada serviço
+            let currentMinutes = selectedTime ? (selectedTime.hour * 60 + selectedTime.minute) : 0;
+            
+            selectedServices.forEach((service, index) => {
+                const duration = service.duration || 30;
+                const startHour = Math.floor(currentMinutes / 60);
+                const startMinute = currentMinutes % 60;
+                const endMinutes = currentMinutes + duration;
+                const endHour = Math.floor(endMinutes / 60) % 24;
+                const endMinute = endMinutes % 60;
+                
+                const startTimeStr = `${startHour.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}`;
+                const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
+                
+                // Cores para cards
+                const colors = ['#26196b', '#e74c3c', '#27ae60', '#f39c12', '#2980b9', '#8e44ad', '#1abc9c', '#e67e22'];
+                const color = colors[index % colors.length];
+                
+                const item = document.createElement('div');
+                item.className = 'selected-service-item';
+                item.style.borderLeft = `4px solid ${color}`;
+                item.style.paddingLeft = '12px';
+                item.style.marginBottom = '8px';
+                item.style.background = '#f8f9fa';
+                item.style.borderRadius = '6px';
+                item.style.padding = '10px';
+                
+                item.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                        <div>
+                            <div style="font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                                <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: ${color};"></span>
+                                ${service.name}
+                            </div>
+                            <div style="font-size: 12px; color: #6c757d;">
+                                ⏱ ${duration} min (${startTimeStr} - ${endTimeStr})
+                            </div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="font-weight: 600; color: var(--primary-color);">${formatCurrency(service.price)}</span>
+                            <button class="btn btn-sm btn-danger" onclick="window.removeServiceFromSelection(${index})">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+                container.appendChild(item);
+                
+                // Atualizar minutos para o próximo serviço
+                currentMinutes += duration;
+            });
+            
+            // Atualizar total
+            if (typeof updateAppointmentTotal === 'function') {
+                updateAppointmentTotal();
+            }
+        };
+        
+        console.log('✅ Lista de serviços melhorada com horários individuais');
+    }
+
+    console.log('📌 Resumo:');
+    console.log('   ✅ Cada serviço tem seu próprio CARD na agenda');
+    console.log('   ✅ Cada card mostra: Nome do serviço, horário e cliente');
+    console.log('   ✅ Cores diferentes para cada serviço');
+    console.log('   ✅ Conexão visual entre cards do mesmo agendamento');
+    console.log('   ✅ Nenhuma outra função foi modificada');
+
+})();
+</script>
+
+
 </html>
