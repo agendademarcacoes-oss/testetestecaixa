@@ -16780,6 +16780,271 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
         
     </script>
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    // ============================================================
+// SCRIPT: CORREÇÃO DA LINHA VERMELHA NA AGENDA
+// ============================================================
+// PROBLEMAS CORRIGIDOS:
+// 1. Linha vermelha se estendendo até o final de TODAS as colunas
+// 2. Indicador de hora/minuto movido 5px para a direita
+// ============================================================
+
+(function() {
+    console.log('🟥 Aplicando correção da linha vermelha na agenda...');
+
+    // ============================================================
+    // 1. CORRIGIR A LINHA VERMELHA - ESTENDER ATÉ O FINAL
+    // ============================================================
+
+    // Sobrescrever a função que cria a linha vermelha
+    const originalRenderTimeColumn = window.renderTimeColumn;
+    
+    if (originalRenderTimeColumn) {
+        window.renderTimeColumn = function() {
+            // Chamar a função original primeiro
+            originalRenderTimeColumn();
+            
+            // AGORA CORRIGIR A LINHA VERMELHA
+            setTimeout(() => {
+                corrigirLinhaVermelha();
+            }, 50);
+        };
+    }
+
+    // Função principal para corrigir a linha vermelha
+    function corrigirLinhaVermelha() {
+        const agendaContent = document.querySelector('.agenda-content');
+        const timeColumn = document.getElementById('agendaTimeColumn');
+        
+        if (!agendaContent || !timeColumn) {
+            console.log('⚠️ Elementos da agenda não encontrados, tentando novamente...');
+            setTimeout(corrigirLinhaVermelha, 500);
+            return;
+        }
+
+        // REMOVER linhas vermelhas existentes (para evitar duplicação)
+        document.querySelectorAll('.current-time-line-global, .current-time-indicator').forEach(el => el.remove());
+
+        // CALCULAR POSIÇÃO DA HORA ATUAL
+        const now = new Date();
+        const currentHour = now.getHours();
+        const currentMinute = now.getMinutes();
+        const currentTimeStr = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`;
+        
+        // Posição em pixels (cada hora = 60px, cada minuto = 1px)
+        const topPosition = (currentHour * 60) + currentMinute;
+
+        // ===== 1. CRIAR A LINHA VERMELHA (se estendendo até o final) =====
+        const globalLine = document.createElement('div');
+        globalLine.className = 'current-time-line-global';
+        
+        // Calcular a largura correta: 100% da área de agendamentos
+        // A linha deve começar APÓS a coluna de horas e ir até o fim
+        const agendaSlots = document.getElementById('agendaSlotsContainer');
+        const timeColumnWidth = timeColumn.offsetWidth || 60;
+        
+        globalLine.style.cssText = `
+            position: absolute !important;
+            left: ${timeColumnWidth}px !important;
+            right: 0 !important;
+            top: ${topPosition}px !important;
+            height: 2px !important;
+            background: #dc3545 !important;
+            z-index: 100 !important;
+            pointer-events: none !important;
+            width: auto !important;
+            min-width: calc(100% - ${timeColumnWidth}px) !important;
+        `;
+
+        // ===== 2. CRIAR O INDICADOR (com deslocamento de 5px para a direita) =====
+        const timeIndicator = document.createElement('div');
+        timeIndicator.className = 'current-time-indicator';
+        
+        // MOVER 5PX PARA A DIREITA (left: 5px ao invés de 0)
+        timeIndicator.style.cssText = `
+            position: absolute !important;
+            left: ${timeColumnWidth + 5}px !important;  /* +5px para mover para a direita */
+            top: ${topPosition}px !important;
+            background: #dc3545 !important;
+            color: white !important;
+            padding: 2px 10px !important;
+            border-radius: 12px !important;
+            font-size: 10px !important;
+            font-weight: bold !important;
+            transform: translateY(-50%) !important;
+            z-index: 101 !important;
+            white-space: nowrap !important;
+            box-shadow: 0 2px 8px rgba(220, 53, 69, 0.4) !important;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+        `;
+        timeIndicator.textContent = `🕐 ${currentTimeStr}`;
+
+        // ===== 3. BOLINHA NA LINHA (também movida 5px para a direita) =====
+        const dot = document.createElement('div');
+        dot.style.cssText = `
+            position: absolute !important;
+            left: ${timeColumnWidth + 5 - 5}px !important;  /* Alinhada com o indicador */
+            top: -4px !important;
+            width: 10px !important;
+            height: 10px !important;
+            background: #dc3545 !important;
+            border-radius: 50% !important;
+            box-shadow: 0 0 10px rgba(220, 53, 69, 0.6) !important;
+            z-index: 102 !important;
+        `;
+        globalLine.appendChild(dot);
+
+        // ===== 4. ADICIONAR AO DOM =====
+        agendaContent.appendChild(globalLine);
+        
+        // Adicionar o indicador separadamente (fora da linha, para não ser afetado pelo right:0)
+        agendaContent.appendChild(timeIndicator);
+
+        console.log(`✅ Linha vermelha corrigida: ${currentTimeStr} | Posição: ${topPosition}px | Indicador movido +5px para a direita`);
+        console.log(`   📏 Largura da linha: 100% - ${timeColumnWidth}px (coluna de horas)`);
+    }
+
+    // ============================================================
+    // 2. OBSERVAR MUDANÇAS NA AGENDA PARA RECRIAR A LINHA
+    // ============================================================
+
+    // Observar quando a agenda for atualizada
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                const agenda = document.getElementById('agenda');
+                if (agenda && agenda.classList.contains('active')) {
+                    setTimeout(corrigirLinhaVermelha, 300);
+                }
+            }
+            // Se algum elemento da agenda mudar
+            if (mutation.target.id === 'agendaSlotsContainer' || 
+                mutation.target.id === 'agendaGrid' ||
+                mutation.target.closest('.agenda-day-column')) {
+                setTimeout(corrigirLinhaVermelha, 200);
+            }
+        });
+    });
+
+    // Iniciar observação quando o DOM estiver pronto
+    document.addEventListener('DOMContentLoaded', function() {
+        const agenda = document.getElementById('agenda');
+        if (agenda) {
+            observer.observe(agenda, { attributes: true, attributeFilter: ['class'] });
+            observer.observe(document.body, { 
+                childList: true, 
+                subtree: true,
+                attributes: true,
+                attributeFilter: ['style', 'class']
+            });
+        }
+    });
+
+    // ============================================================
+    // 3. CORRIGIR TAMBÉM QUANDO O BOTÃO "HOJE" FOR CLICADO
+    // ============================================================
+
+    // Salvar função original de ir para hoje
+    const originalGoToToday = window.goToToday;
+    if (originalGoToToday) {
+        window.goToToday = function() {
+            // Chamar função original
+            if (typeof originalGoToToday === 'function') {
+                originalGoToToday();
+            }
+            // Corrigir a linha vermelha após o scroll
+            setTimeout(corrigirLinhaVermelha, 500);
+        };
+    }
+
+    // ============================================================
+    // 4. CORRIGIR TAMBÉM QUANDO A DATA FOR ALTERADA
+    // ============================================================
+
+    const originalUpdateAgendaDisplay = window.updateAgendaDisplay;
+    if (originalUpdateAgendaDisplay) {
+        window.updateAgendaDisplay = function() {
+            if (typeof originalUpdateAgendaDisplay === 'function') {
+                originalUpdateAgendaDisplay();
+            }
+            setTimeout(corrigirLinhaVermelha, 300);
+        };
+    }
+
+    // ============================================================
+    // 5. EXECUTAR A CORREÇÃO PERIODICAMENTE (A CADA 5 SEGUNDOS)
+    // ============================================================
+    // Mantém a linha vermelha atualizada mesmo se outros scripts a removarem
+
+    setInterval(function() {
+        // Verificar se a agenda está visível
+        const agenda = document.getElementById('agenda');
+        if (agenda && agenda.classList.contains('active')) {
+            corrigirLinhaVermelha();
+        }
+    }, 5000);
+
+    // ============================================================
+    // 6. CORRIGIR AO REDIMENSIONAR A TELA
+    // ============================================================
+
+    window.addEventListener('resize', function() {
+        const agenda = document.getElementById('agenda');
+        if (agenda && agenda.classList.contains('active')) {
+            setTimeout(corrigirLinhaVermelha, 300);
+        }
+    });
+
+    // ============================================================
+    // 7. EXECUTAR A CORREÇÃO IMEDIATAMENTE (SE A AGENDA ESTIVER ATIVA)
+    // ============================================================
+
+    setTimeout(function() {
+        const agenda = document.getElementById('agenda');
+        if (agenda && agenda.classList.contains('active')) {
+            corrigirLinhaVermelha();
+        }
+    }, 1000);
+
+    // ============================================================
+    // 8. EXPOR FUNÇÃO PARA USO EXTERNO
+    // ============================================================
+
+    window.corrigirLinhaVermelha = corrigirLinhaVermelha;
+
+    console.log('✅ CORREÇÃO DA LINHA VERMELHA APLICADA:');
+    console.log('   ✅ Linha se estende até o final de TODAS as colunas');
+    console.log('   ✅ Indicador de hora/minuto movido 5px para a direita');
+    console.log('   ✅ Atualização automática a cada 5 segundos');
+    console.log('   ✅ Corrige ao redimensionar a tela');
+    console.log('   ✅ Corrige ao clicar em "Hoje"');
+    console.log('   ✅ Corrige ao mudar a data');
+
+})();
+
 </body>
 
 
@@ -18928,246 +19193,7 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
 
 
 
-    // ============================================================
-// SCRIPT: CORREÇÃO DA LINHA VERMELHA NA AGENDA
-// ============================================================
-// PROBLEMAS CORRIGIDOS:
-// 1. Linha vermelha se estendendo até o final de TODAS as colunas
-// 2. Indicador de hora/minuto movido 5px para a direita
-// ============================================================
-
-(function() {
-    console.log('🟥 Aplicando correção da linha vermelha na agenda...');
-
-    // ============================================================
-    // 1. CORRIGIR A LINHA VERMELHA - ESTENDER ATÉ O FINAL
-    // ============================================================
-
-    // Sobrescrever a função que cria a linha vermelha
-    const originalRenderTimeColumn = window.renderTimeColumn;
-    
-    if (originalRenderTimeColumn) {
-        window.renderTimeColumn = function() {
-            // Chamar a função original primeiro
-            originalRenderTimeColumn();
-            
-            // AGORA CORRIGIR A LINHA VERMELHA
-            setTimeout(() => {
-                corrigirLinhaVermelha();
-            }, 50);
-        };
-    }
-
-    // Função principal para corrigir a linha vermelha
-    function corrigirLinhaVermelha() {
-        const agendaContent = document.querySelector('.agenda-content');
-        const timeColumn = document.getElementById('agendaTimeColumn');
-        
-        if (!agendaContent || !timeColumn) {
-            console.log('⚠️ Elementos da agenda não encontrados, tentando novamente...');
-            setTimeout(corrigirLinhaVermelha, 500);
-            return;
-        }
-
-        // REMOVER linhas vermelhas existentes (para evitar duplicação)
-        document.querySelectorAll('.current-time-line-global, .current-time-indicator').forEach(el => el.remove());
-
-        // CALCULAR POSIÇÃO DA HORA ATUAL
-        const now = new Date();
-        const currentHour = now.getHours();
-        const currentMinute = now.getMinutes();
-        const currentTimeStr = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`;
-        
-        // Posição em pixels (cada hora = 60px, cada minuto = 1px)
-        const topPosition = (currentHour * 60) + currentMinute;
-
-        // ===== 1. CRIAR A LINHA VERMELHA (se estendendo até o final) =====
-        const globalLine = document.createElement('div');
-        globalLine.className = 'current-time-line-global';
-        
-        // Calcular a largura correta: 100% da área de agendamentos
-        // A linha deve começar APÓS a coluna de horas e ir até o fim
-        const agendaSlots = document.getElementById('agendaSlotsContainer');
-        const timeColumnWidth = timeColumn.offsetWidth || 60;
-        
-        globalLine.style.cssText = `
-            position: absolute !important;
-            left: ${timeColumnWidth}px !important;
-            right: 0 !important;
-            top: ${topPosition}px !important;
-            height: 2px !important;
-            background: #dc3545 !important;
-            z-index: 100 !important;
-            pointer-events: none !important;
-            width: auto !important;
-            min-width: calc(100% - ${timeColumnWidth}px) !important;
-        `;
-
-        // ===== 2. CRIAR O INDICADOR (com deslocamento de 5px para a direita) =====
-        const timeIndicator = document.createElement('div');
-        timeIndicator.className = 'current-time-indicator';
-        
-        // MOVER 5PX PARA A DIREITA (left: 5px ao invés de 0)
-        timeIndicator.style.cssText = `
-            position: absolute !important;
-            left: ${timeColumnWidth + 5}px !important;  /* +5px para mover para a direita */
-            top: ${topPosition}px !important;
-            background: #dc3545 !important;
-            color: white !important;
-            padding: 2px 10px !important;
-            border-radius: 12px !important;
-            font-size: 10px !important;
-            font-weight: bold !important;
-            transform: translateY(-50%) !important;
-            z-index: 101 !important;
-            white-space: nowrap !important;
-            box-shadow: 0 2px 8px rgba(220, 53, 69, 0.4) !important;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
-        `;
-        timeIndicator.textContent = `🕐 ${currentTimeStr}`;
-
-        // ===== 3. BOLINHA NA LINHA (também movida 5px para a direita) =====
-        const dot = document.createElement('div');
-        dot.style.cssText = `
-            position: absolute !important;
-            left: ${timeColumnWidth + 5 - 5}px !important;  /* Alinhada com o indicador */
-            top: -4px !important;
-            width: 10px !important;
-            height: 10px !important;
-            background: #dc3545 !important;
-            border-radius: 50% !important;
-            box-shadow: 0 0 10px rgba(220, 53, 69, 0.6) !important;
-            z-index: 102 !important;
-        `;
-        globalLine.appendChild(dot);
-
-        // ===== 4. ADICIONAR AO DOM =====
-        agendaContent.appendChild(globalLine);
-        
-        // Adicionar o indicador separadamente (fora da linha, para não ser afetado pelo right:0)
-        agendaContent.appendChild(timeIndicator);
-
-        console.log(`✅ Linha vermelha corrigida: ${currentTimeStr} | Posição: ${topPosition}px | Indicador movido +5px para a direita`);
-        console.log(`   📏 Largura da linha: 100% - ${timeColumnWidth}px (coluna de horas)`);
-    }
-
-    // ============================================================
-    // 2. OBSERVAR MUDANÇAS NA AGENDA PARA RECRIAR A LINHA
-    // ============================================================
-
-    // Observar quando a agenda for atualizada
-    const observer = new MutationObserver(function(mutations) {
-        mutations.forEach(function(mutation) {
-            if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-                const agenda = document.getElementById('agenda');
-                if (agenda && agenda.classList.contains('active')) {
-                    setTimeout(corrigirLinhaVermelha, 300);
-                }
-            }
-            // Se algum elemento da agenda mudar
-            if (mutation.target.id === 'agendaSlotsContainer' || 
-                mutation.target.id === 'agendaGrid' ||
-                mutation.target.closest('.agenda-day-column')) {
-                setTimeout(corrigirLinhaVermelha, 200);
-            }
-        });
-    });
-
-    // Iniciar observação quando o DOM estiver pronto
-    document.addEventListener('DOMContentLoaded', function() {
-        const agenda = document.getElementById('agenda');
-        if (agenda) {
-            observer.observe(agenda, { attributes: true, attributeFilter: ['class'] });
-            observer.observe(document.body, { 
-                childList: true, 
-                subtree: true,
-                attributes: true,
-                attributeFilter: ['style', 'class']
-            });
-        }
-    });
-
-    // ============================================================
-    // 3. CORRIGIR TAMBÉM QUANDO O BOTÃO "HOJE" FOR CLICADO
-    // ============================================================
-
-    // Salvar função original de ir para hoje
-    const originalGoToToday = window.goToToday;
-    if (originalGoToToday) {
-        window.goToToday = function() {
-            // Chamar função original
-            if (typeof originalGoToToday === 'function') {
-                originalGoToToday();
-            }
-            // Corrigir a linha vermelha após o scroll
-            setTimeout(corrigirLinhaVermelha, 500);
-        };
-    }
-
-    // ============================================================
-    // 4. CORRIGIR TAMBÉM QUANDO A DATA FOR ALTERADA
-    // ============================================================
-
-    const originalUpdateAgendaDisplay = window.updateAgendaDisplay;
-    if (originalUpdateAgendaDisplay) {
-        window.updateAgendaDisplay = function() {
-            if (typeof originalUpdateAgendaDisplay === 'function') {
-                originalUpdateAgendaDisplay();
-            }
-            setTimeout(corrigirLinhaVermelha, 300);
-        };
-    }
-
-    // ============================================================
-    // 5. EXECUTAR A CORREÇÃO PERIODICAMENTE (A CADA 5 SEGUNDOS)
-    // ============================================================
-    // Mantém a linha vermelha atualizada mesmo se outros scripts a removarem
-
-    setInterval(function() {
-        // Verificar se a agenda está visível
-        const agenda = document.getElementById('agenda');
-        if (agenda && agenda.classList.contains('active')) {
-            corrigirLinhaVermelha();
-        }
-    }, 5000);
-
-    // ============================================================
-    // 6. CORRIGIR AO REDIMENSIONAR A TELA
-    // ============================================================
-
-    window.addEventListener('resize', function() {
-        const agenda = document.getElementById('agenda');
-        if (agenda && agenda.classList.contains('active')) {
-            setTimeout(corrigirLinhaVermelha, 300);
-        }
-    });
-
-    // ============================================================
-    // 7. EXECUTAR A CORREÇÃO IMEDIATAMENTE (SE A AGENDA ESTIVER ATIVA)
-    // ============================================================
-
-    setTimeout(function() {
-        const agenda = document.getElementById('agenda');
-        if (agenda && agenda.classList.contains('active')) {
-            corrigirLinhaVermelha();
-        }
-    }, 1000);
-
-    // ============================================================
-    // 8. EXPOR FUNÇÃO PARA USO EXTERNO
-    // ============================================================
-
-    window.corrigirLinhaVermelha = corrigirLinhaVermelha;
-
-    console.log('✅ CORREÇÃO DA LINHA VERMELHA APLICADA:');
-    console.log('   ✅ Linha se estende até o final de TODAS as colunas');
-    console.log('   ✅ Indicador de hora/minuto movido 5px para a direita');
-    console.log('   ✅ Atualização automática a cada 5 segundos');
-    console.log('   ✅ Corrige ao redimensionar a tela');
-    console.log('   ✅ Corrige ao clicar em "Hoje"');
-    console.log('   ✅ Corrige ao mudar a data');
-
-})();
+ 
 
 
 </html>
