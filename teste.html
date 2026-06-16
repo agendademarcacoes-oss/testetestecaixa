@@ -18084,7 +18084,589 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
 
 
 
+<!-- ============================================================ -->
+<!-- SCRIPT CORRETIVO - AGENDA, CLIENTES, SERVIÇOS E CONFIRMAÇÃO  -->
+<!-- ============================================================ -->
+<script>
+(function() {
+    console.log('🔄 Aplicando correções e novas funcionalidades...');
 
+    // ============================================================
+    // 1. CORREÇÃO: Editar data/hora no modal "Salvar Agendamento"
+    // ============================================================
+
+    // Função para abrir o seletor de data/hora diretamente do modal de agendamento
+    function abrirSeletorDataHoraModal() {
+        const modalSave = document.getElementById('appointmentSaveModal');
+        if (!modalSave || !modalSave.classList.contains('active')) {
+            console.warn('Modal de salvar agendamento não está ativo');
+            return;
+        }
+
+        // Se já existe um seletor, remove
+        const seletorExistente = document.getElementById('seletorDataHoraInline');
+        if (seletorExistente) seletorExistente.remove();
+
+        // Cria o seletor inline dentro do modal
+        const previewContainer = document.querySelector('.calendar-preview');
+        if (!previewContainer) {
+            console.warn('Container .calendar-preview não encontrado');
+            return;
+        }
+
+        // Pega a data e hora atuais
+        let dataAtual = selectedDate || new Date().toISOString().split('T')[0];
+        let horaAtual = selectedTime ? 
+            `${String(selectedTime.hour).padStart(2, '0')}:${String(selectedTime.minute).padStart(2, '0')}` : 
+            '09:00';
+
+        if (dataAtual && typeof dataAtual === 'object') {
+            dataAtual = dataAtual.toISOString().split('T')[0];
+        }
+
+        const html = `
+            <div id="seletorDataHoraInline" style="width:100%; padding:15px; background:#f8f9fa; border-radius:12px; margin-top:10px;">
+                <div class="row g-3 align-items-center">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold small">Data</label>
+                        <input type="date" id="inlineDatePicker" class="form-control" value="${dataAtual}">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold small">Hora</label>
+                        <input type="time" id="inlineTimePicker" class="form-control" value="${horaAtual}">
+                    </div>
+                    <div class="col-12 mt-2">
+                        <button id="inlineConfirmDateTime" class="btn btn-primary w-100">
+                            <i class="fas fa-check me-2"></i>Confirmar Data/Hora
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        previewContainer.insertAdjacentHTML('afterend', html);
+
+        // Evento do botão confirmar
+        document.getElementById('inlineConfirmDateTime')?.addEventListener('click', function() {
+            const novaData = document.getElementById('inlineDatePicker').value;
+            const novaHora = document.getElementById('inlineTimePicker').value;
+
+            if (!novaData || !novaHora) {
+                showError('Preencha data e hora corretamente.');
+                return;
+            }
+
+            // Atualizar variáveis globais
+            const dataParts = novaData.split('-');
+            selectedDate = new Date(parseInt(dataParts[0]), parseInt(dataParts[1]) - 1, parseInt(dataParts[2]));
+            
+            const horaParts = novaHora.split(':');
+            selectedTime = {
+                hour: parseInt(horaParts[0]),
+                minute: parseInt(horaParts[1])
+            };
+
+            // Atualizar a visualização
+            updateAppointmentPreview();
+            updateAppointmentDateTime();
+            
+            // Remover o seletor
+            document.getElementById('seletorDataHoraInline')?.remove();
+
+            showSuccess('Data e hora atualizadas!');
+        });
+    }
+
+    // Adicionar evento ao clique na data/hora no modal
+    document.addEventListener('click', function(e) {
+        const target = e.target.closest('#appointmentDateTimeDisplay, .selected-date-display, .selected-time-display');
+        if (target) {
+            // Verificar se está no modal de salvar agendamento
+            const modal = document.getElementById('appointmentSaveModal');
+            if (modal && modal.classList.contains('active')) {
+                e.preventDefault();
+                e.stopPropagation();
+                abrirSeletorDataHoraModal();
+            }
+        }
+    });
+
+    console.log('✅ Correção: Editar data/hora no modal de salvar agendamento ativada');
+
+    // ============================================================
+    // 2. CORREÇÃO: Adicionar serviço sem perder dados anteriores
+    // ============================================================
+
+    // Sobrescrever a função addAnotherServiceToAppointment
+    window.addAnotherServiceToAppointment = function() {
+        // Salvar o estado atual ANTES de abrir a seleção de serviços
+        const estadoAtual = {
+            client: selectedClient ? { ...selectedClient } : null,
+            date: selectedDate,
+            time: selectedTime ? { ...selectedTime } : null,
+            services: selectedServices ? [...selectedServices] : []
+        };
+
+        // Fechar o modal de salvar
+        const modal = document.getElementById('appointmentSaveModal');
+        if (modal) modal.classList.remove('active');
+
+        // Abrir a seleção de serviços
+        showServiceSelection();
+
+        // Após selecionar, restaurar o estado
+        const observer = new MutationObserver(function(mutations) {
+            const serviceModal = document.getElementById('serviceSelectionModal');
+            if (!serviceModal || !serviceModal.classList.contains('active')) {
+                // Modal de serviços foi fechado
+                observer.disconnect();
+                
+                // Restaurar o estado, exceto os serviços (que foram atualizados)
+                if (estadoAtual.client) {
+                    selectedClient = estadoAtual.client;
+                }
+                if (estadoAtual.date) {
+                    selectedDate = estadoAtual.date;
+                }
+                if (estadoAtual.time) {
+                    selectedTime = estadoAtual.time;
+                }
+                
+                // Reabrir o modal de salvar
+                showAppointmentSave();
+            }
+        });
+
+        observer.observe(document.body, {
+            attributes: true,
+            attributeFilter: ['class'],
+            subtree: true
+        });
+    };
+
+    // Também corrigir o comportamento do botão de adicionar serviço no modal
+    document.addEventListener('click', function(e) {
+        const addBtn = e.target.closest('#addServiceBtnModal');
+        if (addBtn) {
+            e.preventDefault();
+            window.addAnotherServiceToAppointment();
+        }
+    });
+
+    console.log('✅ Correção: Adicionar serviço sem perder dados anteriores ativada');
+
+    // ============================================================
+    // 3. CORREÇÃO: Selecionar cliente sem perder dados
+    // ============================================================
+
+    // Sobrescrever a função de seleção de cliente
+    const originalShowClientSelection = window.showClientSelection;
+    if (originalShowClientSelection) {
+        window.showClientSelection = function() {
+            // Salvar estado atual
+            const estadoAtual = {
+                date: selectedDate,
+                time: selectedTime ? { ...selectedTime } : null,
+                services: selectedServices ? [...selectedServices] : []
+            };
+
+            // Chamar a função original
+            originalShowClientSelection();
+
+            // Quando o cliente for selecionado, restaurar data/hora e serviços
+            const observer = new MutationObserver(function(mutations) {
+                const clientModal = document.getElementById('clientSelectionModal');
+                if (!clientModal || !clientModal.classList.contains('active')) {
+                    observer.disconnect();
+                    
+                    // Restaurar data e hora
+                    if (estadoAtual.date) selectedDate = estadoAtual.date;
+                    if (estadoAtual.time) selectedTime = estadoAtual.time;
+                    
+                    // Se serviços foram perdidos, restaurar
+                    if (estadoAtual.services.length > 0 && selectedServices.length === 0) {
+                        selectedServices = [...estadoAtual.services];
+                    }
+                }
+            });
+
+            observer.observe(document.body, {
+                attributes: true,
+                attributeFilter: ['class'],
+                subtree: true
+            });
+        };
+    }
+
+    console.log('✅ Correção: Selecionar cliente sem perder dados ativada');
+
+    // ============================================================
+    // 4. BOTÕES: Enviar SMS, WhatsApp e Email no modal de salvar
+    // ============================================================
+
+    function adicionarBotoesComunicacao() {
+        const footer = document.querySelector('#appointmentSaveModal .footer-actions');
+        if (!footer) {
+            setTimeout(adicionarBotoesComunicacao, 500);
+            return;
+        }
+
+        // Verificar se já foram adicionados
+        if (document.getElementById('btnWhatsAppAppointment')) return;
+
+        const btnContainer = document.createElement('div');
+        btnContainer.className = 'd-flex gap-2 flex-wrap';
+        btnContainer.style.cssText = 'margin-top: 10px; width: 100%; justify-content: center;';
+
+        // Botão WhatsApp
+        const btnWhatsApp = document.createElement('button');
+        btnWhatsApp.id = 'btnWhatsAppAppointment';
+        btnWhatsApp.className = 'btn btn-success btn-sm';
+        btnWhatsApp.innerHTML = '<i class="fab fa-whatsapp me-1"></i> WhatsApp';
+        btnWhatsApp.style.borderRadius = '20px';
+        btnWhatsApp.addEventListener('click', function() {
+            enviarMensagem('whatsapp');
+        });
+
+        // Botão SMS
+        const btnSMS = document.createElement('button');
+        btnSMS.id = 'btnSMSAppointment';
+        btnSMS.className = 'btn btn-info btn-sm';
+        btnSMS.innerHTML = '<i class="fas fa-sms me-1"></i> SMS';
+        btnSMS.style.borderRadius = '20px';
+        btnSMS.style.color = 'white';
+        btnSMS.addEventListener('click', function() {
+            enviarMensagem('sms');
+        });
+
+        // Botão Email
+        const btnEmail = document.createElement('button');
+        btnEmail.id = 'btnEmailAppointment';
+        btnEmail.className = 'btn btn-secondary btn-sm';
+        btnEmail.innerHTML = '<i class="fas fa-envelope me-1"></i> E-mail';
+        btnEmail.style.borderRadius = '20px';
+        btnEmail.addEventListener('click', function() {
+            enviarMensagem('email');
+        });
+
+        btnContainer.appendChild(btnWhatsApp);
+        btnContainer.appendChild(btnSMS);
+        btnContainer.appendChild(btnEmail);
+
+        // Adicionar antes do botão "Salvar agendamento"
+        const saveBtn = footer.querySelector('#saveAppointmentBtn');
+        if (saveBtn) {
+            saveBtn.parentNode.insertBefore(btnContainer, saveBtn);
+        } else {
+            footer.appendChild(btnContainer);
+        }
+
+        console.log('✅ Botões de comunicação adicionados ao modal de agendamento');
+    }
+
+    // Função para enviar mensagem
+    function enviarMensagem(tipo) {
+        const client = selectedClient;
+        if (!client || !client.phone) {
+            showError('Cliente não possui telefone cadastrado.');
+            return;
+        }
+
+        const servicos = selectedServices.map(s => s.name).join(', ') || 'Serviço não especificado';
+        const dataStr = selectedDate ? new Date(selectedDate).toLocaleDateString('pt-PT') : 'data não definida';
+        const horaStr = selectedTime ? 
+            `${String(selectedTime.hour).padStart(2, '0')}:${String(selectedTime.minute).padStart(2, '0')}` : 
+            'horário não definido';
+
+        const mensagem = `Olá ${client.name}! 👋\n\n` +
+            `Seu agendamento foi confirmado:\n` +
+            `📅 Data: ${dataStr}\n` +
+            `🕐 Hora: ${horaStr}\n` +
+            `✂️ Serviço(s): ${servicos}\n\n` +
+            `Aguardamos você! 😊\n` +
+            `${businessSettings?.name || 'Studio DeVitto'}`;
+
+        let url = '';
+        const phone = client.phone.replace(/\D/g, '');
+
+        switch(tipo) {
+            case 'whatsapp':
+                url = `https://wa.me/${phone}?text=${encodeURIComponent(mensagem)}`;
+                break;
+            case 'sms':
+                // Para SMS, usamos o protocolo sms:
+                url = `sms:${phone}?body=${encodeURIComponent(mensagem)}`;
+                break;
+            case 'email':
+                const email = client.email || '';
+                if (!email) {
+                    showError('Cliente não possui e-mail cadastrado.');
+                    return;
+                }
+                const assunto = encodeURIComponent('Confirmação de Agendamento');
+                const corpo = encodeURIComponent(mensagem);
+                url = `mailto:${email}?subject=${assunto}&body=${corpo}`;
+                break;
+            default:
+                showError('Tipo de mensagem inválido.');
+                return;
+        }
+
+        if (url) {
+            window.open(url, '_blank');
+            showSuccess(`Mensagem enviada via ${tipo.toUpperCase()}!`);
+        }
+    }
+
+    // Adicionar botões quando o modal for aberto
+    document.addEventListener('click', function(e) {
+        const saveBtn = e.target.closest('#saveAppointmentBtn, #appointmentSaveBack, #appointmentSaveClose');
+        if (saveBtn) {
+            setTimeout(adicionarBotoesComunicacao, 300);
+        }
+    });
+
+    // Também adicionar quando showAppointmentSave for chamado
+    const originalShowAppointmentSave = window.showAppointmentSave;
+    if (originalShowAppointmentSave) {
+        window.showAppointmentSave = function() {
+            originalShowAppointmentSave();
+            setTimeout(adicionarBotoesComunicacao, 400);
+        };
+    }
+
+    console.log('✅ Botões de WhatsApp, SMS e Email adicionados');
+
+    // ============================================================
+    // 5. CONFIRMAÇÃO DE AGENDAMENTO COM MENSAGEM PERSONALIZADA
+    // ============================================================
+
+    // Sobrescrever a função saveAppointment para mostrar a confirmação
+    const originalSaveAppointment = window.saveAppointment;
+    if (originalSaveAppointment) {
+        window.saveAppointment = async function() {
+            // Validar campos
+            if (!selectedClient) { showError('Por favor, selecione um cliente.'); return; }
+            if (selectedServices.length === 0) { showError('Por favor, selecione pelo menos um serviço.'); return; }
+            if (!selectedDate) { showError('Por favor, selecione uma data.'); return; }
+            if (!selectedTime) { showError('Por favor, selecione um horário.'); return; }
+
+            const totalDuration = selectedServices.reduce((sum, s) => sum + (s.duration || 30), 0);
+            const startMinutes = selectedTime.hour * 60 + selectedTime.minute;
+            const endMinutes = startMinutes + totalDuration;
+            const endHour = Math.floor(endMinutes / 60) % 24;
+            const endMinute = endMinutes % 60;
+
+            const appointmentData = {
+                clientId: selectedClient.id || null,
+                clientName: selectedClient.name,
+                clientPhone: selectedClient.phone || '',
+                date: selectedDate.toISOString().split('T')[0],
+                startTime: `${String(selectedTime.hour).padStart(2, '0')}:${String(selectedTime.minute).padStart(2, '0')}`,
+                endTime: `${String(endHour).padStart(2, '0')}:${String(endMinute).padStart(2, '0')}`,
+                duration: totalDuration,
+                services: selectedServices.map(s => ({ id: s.id || null, name: s.name, price: s.price, duration: s.duration || 30 })),
+                serviceName: selectedServices.map(s => s.name).join(', '),
+                total: selectedServices.reduce((sum, s) => sum + (parseFloat(s.price) || 0), 0),
+                userId: currentUser.uid,
+                collaboratorId: selectedCollaboratorId || collaborators.filter(c => c.active)[0]?.id,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                status: 'scheduled',
+                reminder24h: true,
+                color: '#26196b'
+            };
+
+            // ===== MOSTRAR CONFIRMAÇÃO ANTES DE SALVAR =====
+            const dataStr = new Date(selectedDate).toLocaleDateString('pt-PT', { 
+                weekday: 'long', 
+                day: 'numeric', 
+                month: 'long', 
+                year: 'numeric' 
+            });
+            
+            const servicosStr = selectedServices.map(s => `• ${s.name}`).join('\n');
+            const mensagemConfirmacao = 
+                `📋 **CONFIRMAÇÃO DE AGENDAMENTO**\n\n` +
+                `👤 Cliente: ${selectedClient.name}\n` +
+                `📅 Data: ${dataStr}\n` +
+                `🕐 Hora: ${appointmentData.startTime}\n\n` +
+                `✂️ Serviços:\n${servicosStr}\n\n` +
+                `💰 Total: ${formatCurrency(appointmentData.total)}`;
+
+            // Mostrar popup de confirmação
+            const result = await Swal.fire({
+                title: '📋 Confirmar Agendamento',
+                html: `
+                    <div style="text-align:left; max-height:400px; overflow-y:auto;">
+                        <div style="background:#f8f9fa; padding:15px; border-radius:10px; white-space:pre-wrap; font-size:14px; line-height:1.6;">
+                            ${mensagemConfirmacao}
+                        </div>
+                        <hr>
+                        <p style="font-size:13px; color:#6c757d; text-align:center;">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Deseja enviar esta confirmação ao cliente?
+                        </p>
+                    </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: '✅ Sim, salvar e enviar',
+                cancelButtonText: '💾 Salvar apenas',
+                denyButtonText: '❌ Cancelar',
+                showDenyButton: true,
+                confirmButtonColor: '#28a745',
+                cancelButtonColor: '#26196b',
+                denyButtonColor: '#dc3545',
+                width: '520px'
+            });
+
+            if (result.isDenied) {
+                // Cancelou
+                return;
+            }
+
+            // ===== SALVAR NO BANCO =====
+            showLoading('Salvando agendamento...');
+            try {
+                const docRef = await db.collection('appointments').add(appointmentData);
+                const newAppointment = { id: docRef.id, ...appointmentData, createdAt: new Date() };
+                appointments.push(newAppointment);
+
+                // Fechar modal
+                closeAppointmentSave();
+
+                // Limpar seleção
+                selectedClient = null;
+                selectedServices = [];
+                selectedDate = null;
+                selectedTime = null;
+
+                // Atualizar agenda
+                if (typeof renderAppointmentsForAll === 'function') {
+                    renderAppointmentsForAll();
+                }
+
+                Swal.close();
+
+                // ===== ENVIAR MENSAGEM SE CONFIRMADO =====
+                if (result.isConfirmed) {
+                    const phone = selectedClient.phone || '';
+                    if (phone) {
+                        const msg = 
+                            `Olá ${selectedClient.name}! 👋\n\n` +
+                            `Seu agendamento foi CONFIRMADO:\n` +
+                            `📅 ${dataStr}\n` +
+                            `🕐 ${appointmentData.startTime}\n` +
+                            `✂️ ${appointmentData.serviceName}\n\n` +
+                            `Aguardamos você! 😊\n` +
+                            `${businessSettings?.name || 'Studio DeVitto'}`;
+
+                        const whatsappUrl = `https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`;
+                        window.open(whatsappUrl, '_blank');
+                    }
+                }
+
+                showSuccess('Agendamento salvo com sucesso!');
+
+                // Atualizar dashboard
+                if (typeof updateDashboard === 'function') updateDashboard();
+                if (typeof updateFinancialSummary === 'function') updateFinancialSummary();
+
+            } catch (error) {
+                console.error('Erro ao salvar agendamento:', error);
+                Swal.close();
+                showError('Erro ao salvar agendamento: ' + error.message);
+            }
+        };
+    }
+
+    console.log('✅ Confirmação de agendamento com popup personalizado ativada');
+
+    // ============================================================
+    // 6. CORREÇÃO: Serviços não substituem, são adicionados
+    // ============================================================
+
+    // Corrigir a função selectService para adicionar em vez de substituir
+    const originalSelectService = window.selectService;
+    if (originalSelectService) {
+        window.selectService = function(service) {
+            // Verificar se o serviço já foi selecionado
+            const exists = selectedServices.some(s => s.id === service.id);
+            if (!exists) {
+                // Adicionar com valores padrão
+                const serviceToAdd = {
+                    id: service.id,
+                    name: service.name,
+                    price: service.price || 0,
+                    duration: service.duration || 30
+                };
+                selectedServices.push(serviceToAdd);
+                console.log(`✅ Serviço adicionado: ${service.name}`);
+            } else {
+                showWarning(`Serviço "${service.name}" já foi adicionado.`);
+            }
+            
+            // Atualizar a interface
+            if (typeof showAppointmentSave === 'function') {
+                // Fechar seleção e mostrar o modal de salvar
+                const serviceModal = document.getElementById('serviceSelectionModal');
+                if (serviceModal) serviceModal.classList.remove('active');
+                showAppointmentSave();
+            }
+        };
+    }
+
+    console.log('✅ Correção: Serviços são adicionados, não substituídos');
+
+    // ============================================================
+    // 7. RECARREGAR DADOS AO ABRIR CLIENTES
+    // ============================================================
+
+    function recarregarDadosAoAbrirClientes() {
+        const clientModal = document.getElementById('clientSelectionModal');
+        if (clientModal) {
+            const observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                        if (clientModal.classList.contains('active')) {
+                            // Recarregar clientes quando o modal abrir
+                            if (typeof loadClients === 'function') {
+                                loadClients().then(() => {
+                                    if (typeof loadClientsForSelection === 'function') {
+                                        loadClientsForSelection();
+                                    }
+                                });
+                            }
+                        }
+                    }
+                });
+            });
+            observer.observe(clientModal, { attributes: true });
+        }
+    }
+
+    setTimeout(recarregarDadosAoAbrirClientes, 1000);
+    console.log('✅ Clientes recarregados ao abrir modal');
+
+    // ============================================================
+    // 8. FUNÇÃO showWarning (se não existir)
+    // ============================================================
+
+    if (typeof window.showWarning === 'undefined') {
+        window.showWarning = function(message) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Aviso',
+                text: message,
+                timer: 2500,
+                showConfirmButton: false
+            });
+        };
+    }
+
+    console.log('✅ Todas as correções e funcionalidades aplicadas com sucesso!');
+    
+})();
+</script>
 
 
 
