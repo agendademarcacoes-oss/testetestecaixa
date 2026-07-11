@@ -1,3 +1,5 @@
+
+
 <!doctype html>
 <html lang="pt-BR">
 <head>
@@ -17069,6 +17071,34 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
    
 </body>
 
@@ -19203,6 +19233,2331 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
     console.log('   ✅ Nenhuma outra função foi modificada');
 
 })();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- ============================================================ -->
+<!-- SCRIPT COMPLETO: FICHA DE LAMINESSIA - COM CARD E MENU      -->
+<!-- ============================================================ -->
+<!-- COLE ESTE CÓDIGO ANTES DO </body>                            -->
+<!-- ============================================================ -->
+
+
+(function() {
+    console.log('🔄 INICIANDO FICHA DE LAMINESSIA...');
+
+    // ============================================================
+    // VARIÁVEIS GLOBAIS
+    // ============================================================
+    let laminessiaClientId = null;
+    let laminessiaPhotos = [];
+    let laminessiaHistory = [];
+    let laminessiaData = {};
+    let signaturePad = null;
+    let signatureProfessionalPad = null;
+    let isEditing = false;
+
+    // ============================================================
+    // FUNÇÕES PARA OBTER DADOS DO SISTEMA
+    // ============================================================
+    function getClientsList() {
+        try {
+            if (typeof window.clients !== 'undefined' && Array.isArray(window.clients)) {
+                return window.clients;
+            }
+            if (typeof clients !== 'undefined' && Array.isArray(clients)) {
+                return clients;
+            }
+            const saved = localStorage.getItem('copia_completa_sistema');
+            if (saved) {
+                const data = JSON.parse(saved);
+                if (data.clientes && Array.isArray(data.clientes)) {
+                    return data.clientes;
+                }
+            }
+        } catch(e) {}
+        return [];
+    }
+
+    function getServicesList() {
+        try {
+            if (typeof window.allServices !== 'undefined' && Array.isArray(window.allServices)) {
+                return window.allServices;
+            }
+            if (typeof allServices !== 'undefined' && Array.isArray(allServices)) {
+                return allServices;
+            }
+        } catch(e) {}
+        return [];
+    }
+
+    function getCurrentUser() {
+        try {
+            if (typeof window.currentUser !== 'undefined') return window.currentUser;
+            if (typeof currentUser !== 'undefined') return currentUser;
+            return null;
+        } catch(e) { return null; }
+    }
+
+    function getFirestore() {
+        try {
+            if (typeof firebase !== 'undefined' && firebase.firestore) {
+                return firebase.firestore();
+            }
+            if (typeof db !== 'undefined') {
+                return db;
+            }
+            return null;
+        } catch(e) { return null; }
+    }
+
+    // ============================================================
+    // ADICIONAR CARD NA TELA MOBILE
+    // ============================================================
+    function addLaminessiaCard() {
+        const mobileCards = document.querySelector('#mobileCards .row');
+        if (!mobileCards) {
+            setTimeout(addLaminessiaCard, 500);
+            return;
+        }
+        if (document.querySelector('.mobile-card[data-section="laminessia"]')) return;
+
+        mobileCards.insertAdjacentHTML('beforeend', `
+            <div class="col-6">
+                <div class="mobile-card" data-section="laminessia" onclick="showSection('laminessia')">
+                    <i class="fas fa-file-medical-alt"></i>
+                    <h5>Ficha Laminessia</h5>
+                    <p>Avaliação estética</p>
+                </div>
+            </div>
+        `);
+        console.log('✅ Card Laminessia adicionado no mobile');
+    }
+
+    // ============================================================
+    // ADICIONAR ITEM NO MENU DESKTOP
+    // ============================================================
+    function addLaminessiaMenuDesktop() {
+        const desktopMenu = document.getElementById('desktopMenu');
+        if (!desktopMenu) {
+            setTimeout(addLaminessiaMenuDesktop, 500);
+            return;
+        }
+        
+        // Verificar se já existe
+        if (document.querySelector('#desktopMenu a[data-section="laminessia"]')) return;
+
+        // Encontrar o ponto onde inserir (antes do Perfil da Empresa ou no final)
+        const menuItems = desktopMenu.querySelectorAll('.nav-link');
+        let insertBefore = null;
+        
+        for (let i = 0; i < menuItems.length; i++) {
+            if (menuItems[i].getAttribute('data-section') === 'business-profile') {
+                insertBefore = menuItems[i];
+                break;
+            }
+        }
+
+        const menuHtml = `
+            <a class="nav-link" href="#" data-section="laminessia">
+                <i class="fas fa-file-medical-alt"></i> Ficha Laminessia
+            </a>
+        `;
+
+        if (insertBefore) {
+            insertBefore.insertAdjacentHTML('beforebegin', menuHtml);
+        } else {
+            desktopMenu.insertAdjacentHTML('beforeend', menuHtml);
+        }
+
+        // Adicionar evento de clique
+        const newLink = desktopMenu.querySelector('a[data-section="laminessia"]');
+        if (newLink) {
+            newLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                document.querySelectorAll('.sidebar .nav-link').forEach(item => {
+                    item.classList.remove('active');
+                });
+                this.classList.add('active');
+                showSection('laminessia');
+            });
+        }
+
+        console.log('✅ Menu Laminessia adicionado no desktop');
+    }
+
+    // ============================================================
+    // CRIAR SEÇÃO LAMINESSIA
+    // ============================================================
+    function createLaminessiaSection() {
+        if (document.getElementById('laminessia')) return;
+
+        const sectionContainer = document.querySelector('.section-container');
+        if (!sectionContainer) {
+            setTimeout(createLaminessiaSection, 500);
+            return;
+        }
+
+        sectionContainer.insertAdjacentHTML('beforeend', `
+            <div id="laminessia" class="section">
+                <div class="card">
+                    <div class="card-header" style="background: #26196b; color: white;">
+                        <h5 class="mb-0"><i class="fas fa-file-medical-alt me-2"></i>Ficha de Laminessia</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-4">
+                            <div class="input-group">
+                                <span class="input-group-text bg-white border-end-0">
+                                    <i class="fas fa-search text-primary"></i>
+                                </span>
+                                <input type="text" class="form-control border-start-0" id="laminessiaSearch" 
+                                       placeholder="Buscar por nome ou telefone..." autocomplete="off">
+                            </div>
+                            <div id="laminessiaClientResults" class="mt-3" style="max-height: 400px; overflow-y: auto;">
+                                <div class="text-center text-muted py-4">
+                                    <i class="fas fa-users fa-3x mb-3 opacity-50"></i>
+                                    <p>Digite o nome ou telefone do cliente para buscar</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `);
+
+        document.getElementById('laminessiaSearch').addEventListener('input', function() {
+            searchLaminessiaClients(this.value);
+        });
+        console.log('✅ Seção Laminessia criada');
+    }
+
+    // ============================================================
+    // CRIAR MODAIS
+    // ============================================================
+    function createLaminessiaModals() {
+        // Modal Principal
+        if (!document.getElementById('laminessiaModal')) {
+            document.body.insertAdjacentHTML('beforeend', `
+                <div class="modal fade" id="laminessiaModal" tabindex="-1" data-bs-backdrop="static">
+                    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                        <div class="modal-content">
+                            <div class="modal-header" style="background: #26196b; color: white;">
+                                <h5 class="modal-title" id="laminessiaModalTitle">
+                                    <i class="fas fa-file-medical-alt me-2"></i>Ficha de Laminessia
+                                </h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body" id="laminessiaModalBody">
+                                <div class="text-center text-muted py-5">
+                                    <div class="spinner-border text-primary mb-3" role="status"></div>
+                                    <p>Carregando ficha do cliente...</p>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                    <i class="fas fa-times me-1"></i>Fechar
+                                </button>
+                                <button type="button" class="btn btn-success" id="laminessiaSaveBtn">
+                                    <i class="fas fa-save me-1"></i>Salvar Ficha
+                                </button>
+                                <button type="button" class="btn btn-danger" id="laminessiaDeleteBtn" style="display:none;">
+                                    <i class="fas fa-trash me-1"></i>Excluir Ficha
+                                </button>
+                                <button type="button" class="btn btn-primary" id="laminessiaPDFBtn" style="display:none;">
+                                    <i class="fas fa-file-pdf me-1"></i>PDF
+                                </button>
+                                <button type="button" class="btn btn-success" id="laminessiaWhatsAppBtn" style="display:none;">
+                                    <i class="fab fa-whatsapp me-1"></i>WhatsApp
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `);
+        }
+
+        // Modal de Assinatura
+        if (!document.getElementById('laminessiaSignatureModal')) {
+            document.body.insertAdjacentHTML('beforeend', `
+                <div class="modal fade" id="laminessiaSignatureModal" tabindex="-1" data-bs-backdrop="static">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header" style="background: #26196b; color: white;">
+                                <h5 class="modal-title"><i class="fas fa-pen-square me-2"></i>Assinatura Digital</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="consentimento-texto mb-4" style="background:#f8f9fa;padding:15px;border-radius:8px;max-height:200px;overflow-y:auto;font-size:13px;line-height:1.6;border-left:4px solid #26196b;">
+                                    <p><strong>TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO</strong></p>
+                                    <p>Eu, abaixo assinado(a), autorizo a realização do procedimento estético descrito na ficha de Laminessia, bem como o armazenamento dos meus dados clínicos e estéticos para fins de acompanhamento e histórico.</p>
+                                    <p>Declaro que fui informado(a) sobre os benefícios, riscos e alternativas do procedimento, e que tive a oportunidade de esclarecer todas as minhas dúvidas.</p>
+                                    <p>Autorizo o uso das minhas fotografias para:</p>
+                                    <ul>
+                                        <li>✅ Acompanhamento clínico e evolução do tratamento</li>
+                                        <li>✅ Material didático e científico (sem identificação pessoal)</li>
+                                    </ul>
+                                    <p><strong>Não autorizo</strong> o uso das minhas imagens para fins publicitários ou em redes sociais.</p>
+                                    <p>Estou ciente de que posso revogar esta autorização a qualquer momento.</p>
+                                    <p>Data: <span id="consentimentoData"></span></p>
+                                </div>
+                                <div class="form-check mb-4">
+                                    <input class="form-check-input" type="checkbox" id="consentimentoCheck">
+                                    <label class="form-check-label" for="consentimentoCheck">☑ Li e concordo com todos os termos acima.</label>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Assinatura da Cliente</label>
+                                    <div id="signaturePadContainer" style="border:2px solid #26196b;border-radius:8px;background:white;touch-action:none;">
+                                        <canvas id="signatureCanvas" width="600" height="200" style="width:100%;height:200px;touch-action:none;"></canvas>
+                                    </div>
+                                    <div class="mt-2">
+                                        <button class="btn btn-sm btn-outline-danger" id="clearSignatureBtn"><i class="fas fa-eraser me-1"></i>Limpar</button>
+                                        <span class="text-muted ms-3 small">Assine com o dedo ou caneta touch</span>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Assinatura da Profissional</label>
+                                    <div id="signaturePadProfessionalContainer" style="border:2px solid #26196b;border-radius:8px;background:white;touch-action:none;">
+                                        <canvas id="signatureProfessionalCanvas" width="600" height="200" style="width:100%;height:200px;touch-action:none;"></canvas>
+                                    </div>
+                                    <div class="mt-2">
+                                        <button class="btn btn-sm btn-outline-danger" id="clearProfessionalSignatureBtn"><i class="fas fa-eraser me-1"></i>Limpar</button>
+                                        <span class="text-muted ms-3 small">Assine com o dedo ou caneta touch</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                <button type="button" class="btn btn-primary" id="confirmSignatureBtn" disabled>Confirmar Assinaturas</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `);
+        }
+
+        // Modal de Fotos
+        if (!document.getElementById('laminessiaPhotoModal')) {
+            document.body.insertAdjacentHTML('beforeend', `
+                <div class="modal fade" id="laminessiaPhotoModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header" style="background:#26196b;color:white;">
+                                <h5 class="modal-title"><i class="fas fa-image me-2"></i>Foto</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body text-center">
+                                <img id="laminessiaPhotoView" src="" alt="Foto ampliada" style="max-width:100%;max-height:70vh;border-radius:8px;">
+                                <div class="mt-3"><p class="text-muted" id="laminessiaPhotoCaption">Sem legenda</p></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `);
+        }
+
+        // Modal de Legenda
+        if (!document.getElementById('laminessiaCaptionModal')) {
+            document.body.insertAdjacentHTML('beforeend', `
+                <div class="modal fade" id="laminessiaCaptionModal" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header" style="background:#26196b;color:white;">
+                                <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Adicionar Legenda</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <input type="hidden" id="captionPhotoIndex">
+                                <div class="mb-3">
+                                    <label for="photoCaptionInput" class="form-label">Legenda da Foto</label>
+                                    <input type="text" class="form-control" id="photoCaptionInput" placeholder="Ex: Antes do procedimento">
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                <button type="button" class="btn btn-primary" id="saveCaptionBtn">Salvar Legenda</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `);
+        }
+
+        // Modal de Duplicar
+        if (!document.getElementById('laminessiaDuplicateModal')) {
+            document.body.insertAdjacentHTML('beforeend', `
+                <div class="modal fade" id="laminessiaDuplicateModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header" style="background:#26196b;color:white;">
+                                <h5 class="modal-title"><i class="fas fa-copy me-2"></i>Duplicar Atendimento</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p class="text-muted">Selecione um atendimento anterior para duplicar seus dados:</p>
+                                <div id="laminessiaDuplicateList" style="max-height:400px;overflow-y:auto;"></div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `);
+        }
+
+        // Configurar eventos dos modais
+        document.getElementById('consentimentoCheck')?.addEventListener('change', function() {
+            document.getElementById('confirmSignatureBtn').disabled = !this.checked;
+        });
+
+        document.getElementById('clearSignatureBtn')?.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (signaturePad) signaturePad.clear();
+        });
+
+        document.getElementById('clearProfessionalSignatureBtn')?.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (signatureProfessionalPad) signatureProfessionalPad.clear();
+        });
+
+        document.getElementById('confirmSignatureBtn')?.addEventListener('click', confirmSignatures);
+        document.getElementById('saveCaptionBtn')?.addEventListener('click', savePhotoCaption);
+        document.getElementById('laminessiaSaveBtn')?.addEventListener('click', saveLaminessiaFicha);
+        document.getElementById('laminessiaDeleteBtn')?.addEventListener('click', deleteLaminessiaFicha);
+        document.getElementById('laminessiaPDFBtn')?.addEventListener('click', generateLaminessiaPDF);
+        document.getElementById('laminessiaWhatsAppBtn')?.addEventListener('click', sendLaminessiaWhatsApp);
+
+        console.log('✅ Todos os modais criados');
+    }
+
+    // ============================================================
+    // BUSCAR CLIENTES (POR NOME E TELEFONE)
+    // ============================================================
+    function searchLaminessiaClients(searchTerm) {
+        const resultsContainer = document.getElementById('laminessiaClientResults');
+        if (!resultsContainer) return;
+
+        const clientsList = getClientsList();
+
+        if (!searchTerm || searchTerm.length < 2) {
+            resultsContainer.innerHTML = `
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-users fa-3x mb-3 opacity-50"></i>
+                    <p>Digite pelo menos 2 caracteres para buscar</p>
+                </div>
+            `;
+            return;
+        }
+
+        if (!clientsList || clientsList.length === 0) {
+            resultsContainer.innerHTML = `
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-exclamation-triangle fa-3x mb-3 opacity-50"></i>
+                    <p>Nenhum cliente cadastrado no sistema.</p>
+                </div>
+            `;
+            return;
+        }
+
+        const searchLower = searchTerm.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+        const searchNumbers = searchTerm.replace(/\D/g, '');
+
+        const filtered = clientsList.filter(client => {
+            if (!client) return false;
+            
+            if (client.name) {
+                const nomeNormalizado = client.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+                if (nomeNormalizado.includes(searchLower)) return true;
+            }
+            
+            if (client.phone) {
+                const phoneClean = client.phone.replace(/\D/g, '');
+                if (searchNumbers.length > 0 && phoneClean.includes(searchNumbers)) return true;
+                if (client.phone.toLowerCase().includes(searchLower)) return true;
+            }
+            
+            if (client.email && client.email.toLowerCase().includes(searchLower)) return true;
+            
+            return false;
+        });
+
+        if (filtered.length === 0) {
+            resultsContainer.innerHTML = `
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-search fa-3x mb-3 opacity-50"></i>
+                    <p>Nenhum cliente encontrado</p>
+                </div>
+            `;
+            return;
+        }
+
+        let html = '';
+        filtered.forEach(client => {
+            const photoHtml = client.photoUrl ? 
+                `<img src="${client.photoUrl}" class="rounded-circle" style="width:50px;height:50px;object-fit:cover;" onerror="this.style.display='none'">` :
+                `<div class="rounded-circle d-flex align-items-center justify-content-center" style="width:50px;height:50px;background:#26196b;color:white;font-size:20px;font-weight:bold;">${(client.name || '?').charAt(0).toUpperCase()}</div>`;
+
+            const ultimoAtendimento = getUltimoAtendimento(client.id);
+
+            html += `
+                <div class="client-result-card mb-3 p-3 bg-white rounded shadow-sm" 
+                     style="cursor:pointer;border-left:4px solid #26196b;transition:transform 0.2s;"
+                     onclick="openLaminessiaFicha('${client.id}')"
+                     onmouseenter="this.style.transform='translateX(5px)'"
+                     onmouseleave="this.style.transform='translateX(0)'">
+                    <div class="d-flex align-items-center">
+                        <div class="me-3">${photoHtml}</div>
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1">${client.name || 'Sem nome'}</h6>
+                            <p class="mb-0 small text-muted"><i class="fas fa-phone me-1"></i>${client.phone || 'Sem telefone'}</p>
+                            <p class="mb-0 small text-muted"><i class="fas fa-clock me-1"></i>Último atendimento: ${ultimoAtendimento}</p>
+                        </div>
+                        <div class="text-end">
+                            <button class="btn btn-sm btn-primary"><i class="fas fa-eye me-1"></i>Visualizar</button>
+                            <br><small class="text-${verificarFichaExistente(client.id) ? 'success' : 'warning'}">
+                                <i class="fas fa-${verificarFichaExistente(client.id) ? 'check-circle' : 'exclamation-circle'}"></i>
+                                ${verificarFichaExistente(client.id) ? 'Ficha criada ✓' : 'Ficha não criada'}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        resultsContainer.innerHTML = html;
+    }
+
+    // ============================================================
+    // VERIFICAR SE CLIENTE TEM FICHA
+    // ============================================================
+    function verificarFichaExistente(clientId) {
+        try {
+            if (laminessiaHistory && laminessiaHistory.length > 0) {
+                return laminessiaHistory.some(f => f.clienteId === clientId);
+            }
+            return false;
+        } catch(e) { return false; }
+    }
+
+    // ============================================================
+    // OBTER ÚLTIMO ATENDIMENTO
+    // ============================================================
+    function getUltimoAtendimento(clientId) {
+        try {
+            const servicesList = getServicesList();
+            if (!servicesList || servicesList.length === 0) return 'Nunca';
+            const clientServices = servicesList.filter(s => s && s.clientId === clientId);
+            if (clientServices.length === 0) return 'Nunca';
+            const sorted = clientServices.sort((a, b) => {
+                const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.date || 0);
+                const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.date || 0);
+                return dateB - dateA;
+            });
+            const last = sorted[0];
+            const date = last.timestamp?.toDate ? last.timestamp.toDate() : new Date(last.date || last.timestamp);
+            return date.toLocaleDateString('pt-PT');
+        } catch(e) { return 'Nunca'; }
+    }
+
+    // ============================================================
+    // ABRIR FICHA
+    // ============================================================
+    window.openLaminessiaFicha = async function(clientId) {
+        laminessiaClientId = clientId;
+        isEditing = false;
+        
+        const clientsList = getClientsList();
+        const client = clientsList.find(c => c && c.id === clientId);
+        if (!client) {
+            showToast('Cliente não encontrado.', 'error');
+            return;
+        }
+
+        await loadLaminessiaHistory(clientId);
+
+        laminessiaData = {
+            clienteId: clientId,
+            nome: client.name || '',
+            dataNascimento: client.birthdate || '',
+            telefone: client.phone || '',
+            email: client.email || '',
+            endereco: client.address || '',
+            criadoPor: getCurrentUser()?.email || 'Sistema',
+            profissao: '',
+            contatoEmergenciaNome: '',
+            contatoEmergenciaTelefone: '',
+            contatoEmergenciaParentesco: '',
+            procedimentosDesejados: '',
+            objetivos: '',
+            historicoEstetico: '',
+            tratamentosAnteriores: '',
+            cirurgiasPlasticas: false,
+            preenchimentos: false,
+            toxinaBotulinica: false,
+            historicoMedico: '',
+            doencasPreexistentes: '',
+            hipertensao: false,
+            diabetes: false,
+            problemasCardiacos: false,
+            doencasAutoimunes: false,
+            estaGravida: false,
+            amamentando: false,
+            mesesGestacao: '',
+            medicamentos: '',
+            usaAnticoagulantes: false,
+            usaCorticoides: false,
+            usaAnticoncepcionais: false,
+            alergias: '',
+            alergiaMedicamentos: false,
+            alergiaCosmeticos: false,
+            alergiaAlimentar: false,
+            tipoPele: '',
+            sensibilidade: '',
+            fototipo: '',
+            oleosidade: '',
+            desidratacao: '',
+            acne: false,
+            rosacea: false,
+            melasma: false,
+            fuma: false,
+            consumoAlcool: '',
+            exposicaoSol: '',
+            protetorSolar: false,
+            atividadeFisica: '',
+            alimentacao: '',
+            contraindicacoes: '',
+            avaliacaoProfissional: '',
+            diagnosticoEstetico: '',
+            planoTratamento: '',
+            procedimentoRealizado: '',
+            dataProcedimento: '',
+            profissionalResponsavel: '',
+            observacoesProcedimento: '',
+            evolucao: '',
+            recomendacoes: '',
+            cuidadosPosProcedimento: '',
+            retornoAgendado: '',
+            consentimentoAssinado: false,
+            dataConsentimento: '',
+            assinaturaCliente: '',
+            assinaturaProfissional: '',
+            consentimentoDados: false,
+            consentimentoFotos: false,
+            consentimentoMarketing: false,
+            consentimentoComunicacao: false,
+            dataConsentimentoRGPD: ''
+        };
+
+        if (laminessiaHistory.length > 0) {
+            const ficha = laminessiaHistory[0];
+            laminessiaData = { ...laminessiaData, ...ficha };
+            laminessiaPhotos = ficha.fotos || [];
+            isEditing = true;
+        } else {
+            laminessiaPhotos = [];
+        }
+
+        renderLaminessiaModal(client);
+        const modal = new bootstrap.Modal(document.getElementById('laminessiaModal'));
+        modal.show();
+    };
+
+    // ============================================================
+    // CARREGAR HISTÓRICO - CORRIGIDO (sem índice composto)
+    // ============================================================
+    async function loadLaminessiaHistory(clientId) {
+        laminessiaHistory = [];
+        try {
+            const db = getFirestore();
+            if (!db) return;
+            
+            // Buscar todas as fichas do cliente e ordenar localmente
+            const snapshot = await db.collection('laminessiaFichas')
+                .where('clienteId', '==', clientId)
+                .get();
+            
+            snapshot.forEach(doc => {
+                laminessiaHistory.push({ id: doc.id, ...doc.data() });
+            });
+            
+            // Ordenar localmente por data de criação (mais recente primeiro)
+            laminessiaHistory.sort((a, b) => {
+                const dateA = new Date(a.criadoEm || 0);
+                const dateB = new Date(b.criadoEm || 0);
+                return dateB - dateA;
+            });
+            
+        } catch(e) { 
+            console.log('Erro ao carregar histórico:', e); 
+        }
+    }
+
+    // ============================================================
+    // RENDERIZAR MODAL
+    // ============================================================
+    function renderLaminessiaModal(client) {
+        const modalTitle = document.getElementById('laminessiaModalTitle');
+        const modalBody = document.getElementById('laminessiaModalBody');
+        const deleteBtn = document.getElementById('laminessiaDeleteBtn');
+        const pdfBtn = document.getElementById('laminessiaPDFBtn');
+        const whatsBtn = document.getElementById('laminessiaWhatsAppBtn');
+
+        const hasFicha = laminessiaHistory.length > 0;
+
+        modalTitle.innerHTML = `
+            <i class="fas fa-file-medical-alt me-2"></i>
+            Ficha de Laminessia - ${client.name || 'Cliente'}
+            ${hasFicha ? '<span class="badge bg-success ms-2">Ficha existente</span>' : '<span class="badge bg-warning ms-2">Nova ficha</span>'}
+        `;
+
+        deleteBtn.style.display = hasFicha ? 'inline-block' : 'none';
+        pdfBtn.style.display = hasFicha ? 'inline-block' : 'none';
+        whatsBtn.style.display = hasFicha ? 'inline-block' : 'none';
+
+        // Formulário simplificado
+        let html = `
+            <div id="laminessiaFichaContent">
+                <div class="d-flex flex-wrap gap-2 mb-4">
+                    ${hasFicha ? `
+                        <button class="btn btn-outline-primary btn-sm" onclick="duplicateLaminessiaFicha()">
+                            <i class="fas fa-copy me-1"></i>Duplicar Atendimento
+                        </button>
+                        <button class="btn btn-outline-info btn-sm" onclick="openLaminessiaSignature()">
+                            <i class="fas fa-pen-square me-1"></i>Assinaturas
+                        </button>
+                    ` : `
+                        <button class="btn btn-primary btn-sm" onclick="openLaminessiaSignature()">
+                            <i class="fas fa-pen-square me-1"></i>Criar Ficha
+                        </button>
+                    `}
+                </div>
+
+                ${laminessiaHistory.length > 0 ? `
+                    <div class="card mb-4">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0"><i class="fas fa-history me-2"></i>Histórico (${laminessiaHistory.length})</h6>
+                        </div>
+                        <div class="card-body" style="max-height:120px;overflow-y:auto;">
+                            ${laminessiaHistory.map((ficha, index) => `
+                                <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+                                     style="cursor:pointer;${index === 0 ? 'background:#26196b;color:white;' : ''}"
+                                     onclick="loadLaminessiaHistoryItem(${index})">
+                                    <div>
+                                        <small>${new Date(ficha.criadoEm).toLocaleDateString('pt-PT')}</small>
+                                        <span class="badge ${ficha.consentimentoAssinado ? 'bg-success' : 'bg-warning'} ms-2">
+                                            ${ficha.consentimentoAssinado ? 'Assinado' : 'Pendente'}
+                                        </span>
+                                    </div>
+                                    <i class="fas fa-chevron-right"></i>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                ` : `<div class="alert alert-info mb-4">Nenhum atendimento anterior.</div>`}
+
+                <form id="laminessiaForm">
+                    <!-- DADOS PESSOAIS -->
+                    <div class="card mb-3">
+                        <div class="card-header" style="background:#f8f9fa;">
+                            <h6 class="mb-0"><i class="fas fa-user me-2"></i>1. DADOS PESSOAIS</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Nome Completo</label>
+                                    <input type="text" class="form-control" id="f_nome" value="${laminessiaData.nome || ''}" readonly>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Data de Nascimento</label>
+                                    <input type="date" class="form-control" id="f_dataNascimento" value="${laminessiaData.dataNascimento || ''}" readonly>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Telefone / WhatsApp</label>
+                                    <input type="text" class="form-control" id="f_telefone" value="${laminessiaData.telefone || ''}" readonly>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">E-mail</label>
+                                    <input type="email" class="form-control" id="f_email" value="${laminessiaData.email || ''}" readonly>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Endereço</label>
+                                    <input type="text" class="form-control" id="f_endereco" value="${laminessiaData.endereco || ''}">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Profissão</label>
+                                    <input type="text" class="form-control" id="f_profissao" value="${laminessiaData.profissao || ''}">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CONTATO DE EMERGÊNCIA -->
+                    <div class="card mb-3">
+                        <div class="card-header" style="background:#f8f9fa;">
+                            <h6 class="mb-0"><i class="fas fa-phone-alt me-2"></i>2. CONTATO DE EMERGÊNCIA</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label fw-bold">Nome do Contato</label>
+                                    <input type="text" class="form-control" id="f_contatoNome" value="${laminessiaData.contatoEmergenciaNome || ''}">
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label fw-bold">Telefone</label>
+                                    <input type="text" class="form-control" id="f_contatoTelefone" value="${laminessiaData.contatoEmergenciaTelefone || ''}">
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label fw-bold">Parentesco</label>
+                                    <input type="text" class="form-control" id="f_contatoParentesco" value="${laminessiaData.contatoEmergenciaParentesco || ''}">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- FOTOGRAFIAS -->
+                    <div class="card mb-3">
+                        <div class="card-header" style="background:#f8f9fa;">
+                            <h6 class="mb-0"><i class="fas fa-camera me-2"></i>3. FOTOGRAFIAS (máximo 6)</h6>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted small">Adicione fotos para documentar o procedimento. Toque na foto para ampliar.</p>
+                            <div id="laminessiaPhotoGrid" class="row g-2"></div>
+                            ${laminessiaPhotos.length < 6 ? `
+                                <div class="mt-3">
+                                    <button class="btn btn-sm btn-outline-primary" id="uploadLaminessiaPhotoBtn">
+                                        <i class="fas fa-upload me-1"></i>Adicionar Foto
+                                    </button>
+                                    <span class="text-muted ms-2 small">${laminessiaPhotos.length}/6 fotos</span>
+                                </div>
+                            ` : `
+                                <div class="alert alert-warning mt-2 mb-0">Limite máximo de 6 fotos.</div>
+                            `}
+                        </div>
+                    </div>
+
+                    <!-- PROCEDIMENTOS DESEJADOS -->
+                    <div class="card mb-3">
+                        <div class="card-header" style="background:#f8f9fa;">
+                            <h6 class="mb-0"><i class="fas fa-list me-2"></i>4. PROCEDIMENTOS DESEJADOS</h6>
+                        </div>
+                        <div class="card-body">
+                            <label class="form-label fw-bold">Quais procedimentos a cliente deseja realizar?</label>
+                            <textarea class="form-control" id="f_procedimentos" rows="2">${laminessiaData.procedimentosDesejados || ''}</textarea>
+                        </div>
+                    </div>
+
+                    <!-- OBJETIVOS -->
+                    <div class="card mb-3">
+                        <div class="card-header" style="background:#f8f9fa;">
+                            <h6 class="mb-0"><i class="fas fa-bullseye me-2"></i>5. OBJETIVOS</h6>
+                        </div>
+                        <div class="card-body">
+                            <label class="form-label fw-bold">Quais os objetivos da cliente com o tratamento?</label>
+                            <textarea class="form-control" id="f_objetivos" rows="2">${laminessiaData.objetivos || ''}</textarea>
+                        </div>
+                    </div>
+
+                    <!-- HISTÓRICO ESTÉTICO -->
+                    <div class="card mb-3">
+                        <div class="card-header" style="background:#f8f9fa;">
+                            <h6 class="mb-0"><i class="fas fa-spa me-2"></i>6. HISTÓRICO ESTÉTICO</h6>
+                        </div>
+                        <div class="card-body">
+                            <label class="form-label fw-bold">Já realizou algum procedimento estético anteriormente?</label>
+                            <textarea class="form-control" id="f_historicoEstetico" rows="2">${laminessiaData.historicoEstetico || ''}</textarea>
+                            <div class="row mt-3">
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="f_cirurgias" ${laminessiaData.cirurgiasPlasticas ? 'checked' : ''}>
+                                        <label class="form-check-label" for="f_cirurgias">Cirurgias Plásticas</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="f_preenchimentos" ${laminessiaData.preenchimentos ? 'checked' : ''}>
+                                        <label class="form-check-label" for="f_preenchimentos">Preenchimentos</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="f_toxina" ${laminessiaData.toxinaBotulinica ? 'checked' : ''}>
+                                        <label class="form-check-label" for="f_toxina">Toxina Botulínica</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- HISTÓRICO MÉDICO -->
+                    <div class="card mb-3">
+                        <div class="card-header" style="background:#f8f9fa;">
+                            <h6 class="mb-0"><i class="fas fa-heartbeat me-2"></i>7. HISTÓRICO MÉDICO</h6>
+                        </div>
+                        <div class="card-body">
+                            <label class="form-label fw-bold">Possui alguma condição médica relevante?</label>
+                            <textarea class="form-control" id="f_historicoMedico" rows="2">${laminessiaData.historicoMedico || ''}</textarea>
+                            <div class="row mt-3">
+                                <div class="col-md-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="f_hipertensao" ${laminessiaData.hipertensao ? 'checked' : ''}>
+                                        <label class="form-check-label" for="f_hipertensao">Hipertensão</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="f_diabetes" ${laminessiaData.diabetes ? 'checked' : ''}>
+                                        <label class="form-check-label" for="f_diabetes">Diabetes</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="f_cardiacos" ${laminessiaData.problemasCardiacos ? 'checked' : ''}>
+                                        <label class="form-check-label" for="f_cardiacos">Problemas Cardíacos</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="f_autoimunes" ${laminessiaData.doencasAutoimunes ? 'checked' : ''}>
+                                        <label class="form-check-label" for="f_autoimunes">Doenças Autoimunes</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row mt-2">
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="f_gravida" ${laminessiaData.estaGravida ? 'checked' : ''}>
+                                        <label class="form-check-label" for="f_gravida">Está grávida?</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="f_amamentando" ${laminessiaData.amamentando ? 'checked' : ''}>
+                                        <label class="form-check-label" for="f_amamentando">Está amamentando?</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold">Meses de Gestação</label>
+                                    <input type="number" class="form-control" id="f_mesesGestacao" value="${laminessiaData.mesesGestacao || ''}" min="0" max="9">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MEDICAMENTOS -->
+                    <div class="card mb-3">
+                        <div class="card-header" style="background:#f8f9fa;">
+                            <h6 class="mb-0"><i class="fas fa-pills me-2"></i>8. MEDICAMENTOS EM USO</h6>
+                        </div>
+                        <div class="card-body">
+                            <label class="form-label fw-bold">Quais medicamentos a cliente utiliza atualmente?</label>
+                            <textarea class="form-control" id="f_medicamentos" rows="2">${laminessiaData.medicamentos || ''}</textarea>
+                            <div class="row mt-3">
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="f_anticoagulantes" ${laminessiaData.usaAnticoagulantes ? 'checked' : ''}>
+                                        <label class="form-check-label" for="f_anticoagulantes">Anticoagulantes</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="f_corticoides" ${laminessiaData.usaCorticoides ? 'checked' : ''}>
+                                        <label class="form-check-label" for="f_corticoides">Corticóides</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="f_anticoncepcionais" ${laminessiaData.usaAnticoncepcionais ? 'checked' : ''}>
+                                        <label class="form-check-label" for="f_anticoncepcionais">Anticoncepcionais</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ALERGIAS -->
+                    <div class="card mb-3">
+                        <div class="card-header" style="background:#f8f9fa;">
+                            <h6 class="mb-0"><i class="fas fa-allergies me-2"></i>9. ALERGIAS</h6>
+                        </div>
+                        <div class="card-body">
+                            <label class="form-label fw-bold">A cliente possui alguma alergia?</label>
+                            <textarea class="form-control" id="f_alergias" rows="2">${laminessiaData.alergias || ''}</textarea>
+                            <div class="row mt-3">
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="f_alergiaMedicamentos" ${laminessiaData.alergiaMedicamentos ? 'checked' : ''}>
+                                        <label class="form-check-label" for="f_alergiaMedicamentos">Alergia a Medicamentos</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="f_alergiaCosmeticos" ${laminessiaData.alergiaCosmeticos ? 'checked' : ''}>
+                                        <label class="form-check-label" for="f_alergiaCosmeticos">Alergia a Cosméticos</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="f_alergiaAlimentar" ${laminessiaData.alergiaAlimentar ? 'checked' : ''}>
+                                        <label class="form-check-label" for="f_alergiaAlimentar">Alergia Alimentar</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- PELE -->
+                    <div class="card mb-3">
+                        <div class="card-header" style="background:#f8f9fa;">
+                            <h6 class="mb-0"><i class="fas fa-hand-sparkles me-2"></i>10. AVALIAÇÃO DA PELE</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Tipo de Pele</label>
+                                    <select class="form-select" id="f_tipoPele">
+                                        <option value="">Selecione...</option>
+                                        <option value="normal" ${laminessiaData.tipoPele === 'normal' ? 'selected' : ''}>Normal</option>
+                                        <option value="oleosa" ${laminessiaData.tipoPele === 'oleosa' ? 'selected' : ''}>Oleosa</option>
+                                        <option value="seca" ${laminessiaData.tipoPele === 'seca' ? 'selected' : ''}>Seca</option>
+                                        <option value="mista" ${laminessiaData.tipoPele === 'mista' ? 'selected' : ''}>Mista</option>
+                                        <option value="sensivel" ${laminessiaData.tipoPele === 'sensivel' ? 'selected' : ''}>Sensível</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Sensibilidade</label>
+                                    <select class="form-select" id="f_sensibilidade">
+                                        <option value="">Selecione...</option>
+                                        <option value="baixa" ${laminessiaData.sensibilidade === 'baixa' ? 'selected' : ''}>Baixa</option>
+                                        <option value="media" ${laminessiaData.sensibilidade === 'media' ? 'selected' : ''}>Média</option>
+                                        <option value="alta" ${laminessiaData.sensibilidade === 'alta' ? 'selected' : ''}>Alta</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row mt-2">
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="f_acne" ${laminessiaData.acne ? 'checked' : ''}>
+                                        <label class="form-check-label" for="f_acne">Acne</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="f_rosacea" ${laminessiaData.rosacea ? 'checked' : ''}>
+                                        <label class="form-check-label" for="f_rosacea">Rosácea</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="f_melasma" ${laminessiaData.melasma ? 'checked' : ''}>
+                                        <label class="form-check-label" for="f_melasma">Melasma</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- HÁBITOS -->
+                    <div class="card mb-3">
+                        <div class="card-header" style="background:#f8f9fa;">
+                            <h6 class="mb-0"><i class="fas fa-smoking me-2"></i>11. HÁBITOS DE VIDA</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="f_fuma" ${laminessiaData.fuma ? 'checked' : ''}>
+                                        <label class="form-check-label" for="f_fuma">Fumante?</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Consumo de Álcool</label>
+                                    <select class="form-select" id="f_consumoAlcool">
+                                        <option value="">Selecione...</option>
+                                        <option value="nao" ${laminessiaData.consumoAlcool === 'nao' ? 'selected' : ''}>Não consome</option>
+                                        <option value="social" ${laminessiaData.consumoAlcool === 'social' ? 'selected' : ''}>Social</option>
+                                        <option value="moderado" ${laminessiaData.consumoAlcool === 'moderado' ? 'selected' : ''}>Moderado</option>
+                                        <option value="frequente" ${laminessiaData.consumoAlcool === 'frequente' ? 'selected' : ''}>Frequente</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CONTRAINDICAÇÕES -->
+                    <div class="card mb-3">
+                        <div class="card-header" style="background:#f8f9fa;">
+                            <h6 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>12. CONTRAINDICAÇÕES</h6>
+                        </div>
+                        <div class="card-body">
+                            <label class="form-label fw-bold">Existe alguma contraindicação para o procedimento?</label>
+                            <textarea class="form-control" id="f_contraindicacoes" rows="2">${laminessiaData.contraindicacoes || ''}</textarea>
+                        </div>
+                    </div>
+
+                    <!-- AVALIAÇÃO PROFISSIONAL -->
+                    <div class="card mb-3">
+                        <div class="card-header" style="background:#f8f9fa;">
+                            <h6 class="mb-0"><i class="fas fa-stethoscope me-2"></i>13. AVALIAÇÃO PROFISSIONAL</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Avaliação da Profissional</label>
+                                <textarea class="form-control" id="f_avaliacao" rows="2">${laminessiaData.avaliacaoProfissional || ''}</textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Diagnóstico Estético</label>
+                                <textarea class="form-control" id="f_diagnostico" rows="2">${laminessiaData.diagnosticoEstetico || ''}</textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Plano de Tratamento</label>
+                                <textarea class="form-control" id="f_plano" rows="2">${laminessiaData.planoTratamento || ''}</textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- PROCEDIMENTO REALIZADO -->
+                    <div class="card mb-3">
+                        <div class="card-header" style="background:#f8f9fa;">
+                            <h6 class="mb-0"><i class="fas fa-syringe me-2"></i>14. PROCEDIMENTO REALIZADO</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Procedimento Realizado</label>
+                                <textarea class="form-control" id="f_procedimentoRealizado" rows="2">${laminessiaData.procedimentoRealizado || ''}</textarea>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Data do Procedimento</label>
+                                    <input type="date" class="form-control" id="f_dataProcedimento" value="${laminessiaData.dataProcedimento || ''}">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Profissional Responsável</label>
+                                    <input type="text" class="form-control" id="f_profissional" value="${laminessiaData.profissionalResponsavel || ''}">
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Observações</label>
+                                <textarea class="form-control" id="f_observacoes" rows="2">${laminessiaData.observacoesProcedimento || ''}</textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- EVOLUÇÃO -->
+                    <div class="card mb-3">
+                        <div class="card-header" style="background:#f8f9fa;">
+                            <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>15. EVOLUÇÃO</h6>
+                        </div>
+                        <div class="card-body">
+                            <label class="form-label fw-bold">Como está a evolução do tratamento?</label>
+                            <textarea class="form-control" id="f_evolucao" rows="2">${laminessiaData.evolucao || ''}</textarea>
+                        </div>
+                    </div>
+
+                    <!-- RECOMENDAÇÕES -->
+                    <div class="card mb-3">
+                        <div class="card-header" style="background:#f8f9fa;">
+                            <h6 class="mb-0"><i class="fas fa-clipboard-list me-2"></i>16. RECOMENDAÇÕES</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Recomendações para a Cliente</label>
+                                <textarea class="form-control" id="f_recomendacoes" rows="2">${laminessiaData.recomendacoes || ''}</textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Cuidados Pós-Procedimento</label>
+                                <textarea class="form-control" id="f_cuidados" rows="2">${laminessiaData.cuidadosPosProcedimento || ''}</textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Retorno Agendado</label>
+                                <input type="date" class="form-control" id="f_retorno" value="${laminessiaData.retornoAgendado || ''}">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CONSENTIMENTO -->
+                    <div class="card mb-3">
+                        <div class="card-header" style="background:#f8f9fa;">
+                            <h6 class="mb-0"><i class="fas fa-shield-alt me-2"></i>17. CONSENTIMENTO E RGPD</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6 class="fw-bold">Consentimento</h6>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="f_consentimento" ${laminessiaData.consentimentoAssinado ? 'checked' : ''}>
+                                        <label class="form-check-label" for="f_consentimento">Termo de Consentimento Assinado</label>
+                                    </div>
+                                    <div class="mt-2">
+                                        <label class="form-label fw-bold">Data do Consentimento</label>
+                                        <input type="datetime-local" class="form-control" id="f_dataConsentimento" value="${laminessiaData.dataConsentimento || ''}">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6 class="fw-bold">RGPD - Autorizações</h6>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="f_rgpdDados" ${laminessiaData.consentimentoDados ? 'checked' : ''}>
+                                        <label class="form-check-label" for="f_rgpdDados">Armazenamento de dados clínicos</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="f_rgpdFotos" ${laminessiaData.consentimentoFotos ? 'checked' : ''}>
+                                        <label class="form-check-label" for="f_rgpdFotos">Uso de fotos para acompanhamento clínico</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="f_rgpdMarketing" ${laminessiaData.consentimentoMarketing ? 'checked' : ''}>
+                                        <label class="form-check-label" for="f_rgpdMarketing">Uso de fotos para marketing</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="f_rgpdComunicacao" ${laminessiaData.consentimentoComunicacao ? 'checked' : ''}>
+                                        <label class="form-check-label" for="f_rgpdComunicacao">Recebimento de comunicações</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        `;
+
+        modalBody.innerHTML = html;
+        renderLaminessiaPhotos();
+        
+        const uploadBtn = document.getElementById('uploadLaminessiaPhotoBtn');
+        if (uploadBtn) {
+            uploadBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                uploadLaminessiaPhoto();
+            });
+        }
+        
+        setupAutoSave();
+    }
+
+    // ============================================================
+    // RENDERIZAR FOTOS
+    // ============================================================
+    function renderLaminessiaPhotos() {
+        const grid = document.getElementById('laminessiaPhotoGrid');
+        if (!grid) return;
+
+        if (laminessiaPhotos.length === 0) {
+            grid.innerHTML = `
+                <div class="col-12 text-center text-muted py-3">
+                    <i class="fas fa-camera fa-2x mb-2 opacity-50"></i>
+                    <p class="mb-0 small">Nenhuma foto adicionada</p>
+                </div>
+            `;
+            return;
+        }
+
+        let html = '';
+        laminessiaPhotos.forEach((photo, index) => {
+            html += `
+                <div class="col-6 col-md-4 col-lg-3" id="laminessiaPhoto_${index}">
+                    <div class="card h-100 shadow-sm" style="border-radius:8px;overflow:hidden;">
+                        <div style="position:relative;padding-top:100%;background:#f8f9fa;cursor:pointer;" 
+                             onclick="viewLaminessiaPhoto(${index})">
+                            <img src="${photo.url}" class="img-fluid" 
+                                 style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;"
+                                 alt="Foto ${index + 1}"
+                                 onerror="this.style.display='none'">
+                            ${photo.dataHora ? `
+                                <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.6);color:white;padding:4px 8px;font-size:10px;">
+                                    <i class="far fa-clock me-1"></i>${photo.dataHora}
+                                </div>
+                            ` : ''}
+                        </div>
+                        <div class="card-footer p-1 d-flex justify-content-between align-items-center" style="background:white;border-top:1px solid #eee;">
+                            <small class="text-muted text-truncate" style="max-width:80px;">${photo.legenda || 'Sem legenda'}</small>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-secondary" onclick="addLaminessiaPhotoCaption(${index})" title="Legenda">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-outline-danger" onclick="removeLaminessiaPhoto(${index})" title="Excluir">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        grid.innerHTML = html;
+    }
+
+    // ============================================================
+    // UPLOAD DE FOTO
+    // ============================================================
+    function uploadLaminessiaPhoto() {
+        if (laminessiaPhotos.length >= 6) {
+            showToast('Limite máximo de 6 fotos.', 'error');
+            return;
+        }
+
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.multiple = false;
+        input.style.display = 'none';
+        document.body.appendChild(input);
+
+        input.addEventListener('change', async function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const file = this.files[0];
+            if (!file) {
+                document.body.removeChild(this);
+                return;
+            }
+
+            if (!file.type.match(/^image\/(jpeg|png|webp|jpg)$/)) {
+                showToast('Formato inválido. Use JPG, PNG, WEBP.', 'error');
+                document.body.removeChild(this);
+                return;
+            }
+
+            if (file.size > 5 * 1024 * 1024) {
+                showToast('Máximo 5MB.', 'error');
+                document.body.removeChild(this);
+                return;
+            }
+
+            try {
+                showToast('Fazendo upload...', 'info');
+                const compressedFile = await compressImage(file, 800, 800, 0.8);
+                const url = await uploadToCloudinary(compressedFile);
+
+                laminessiaPhotos.push({
+                    url: url,
+                    legenda: '',
+                    dataHora: new Date().toLocaleString('pt-PT'),
+                    profissional: getCurrentUser()?.email || 'Sistema'
+                });
+
+                renderLaminessiaPhotos();
+                showToast('Foto adicionada!', 'success');
+            } catch (error) {
+                console.error('Erro:', error);
+                showToast('Erro ao fazer upload.', 'error');
+            }
+
+            document.body.removeChild(this);
+        });
+
+        input.click();
+    }
+
+    // ============================================================
+    // COMPRIMIR IMAGEM
+    // ============================================================
+    function compressImage(file, maxWidth, maxHeight, quality) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = function(e) {
+                const img = new Image();
+                img.src = e.target.result;
+                img.onload = function() {
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > maxWidth) {
+                        height = (height * maxWidth) / width;
+                        width = maxWidth;
+                    }
+                    if (height > maxHeight) {
+                        width = (width * maxHeight) / height;
+                        height = maxHeight;
+                    }
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    const mimeType = file.type || 'image/jpeg';
+                    canvas.toBlob(function(blob) {
+                        if (blob) {
+                            resolve(new File([blob], file.name, { type: mimeType }));
+                        } else {
+                            reject('Erro ao comprimir');
+                        }
+                    }, mimeType, quality);
+                };
+                img.onerror = function() { reject('Erro ao carregar imagem'); };
+            };
+            reader.onerror = function() { reject('Erro ao ler arquivo'); };
+        });
+    }
+
+    // ============================================================
+    // UPLOAD PARA CLOUDINARY
+    // ============================================================
+    function uploadToCloudinary(file) {
+        return new Promise((resolve, reject) => {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('upload_preset', 'STUDIODEVITTO_PRESET');
+
+            fetch('https://api.cloudinary.com/v1_1/daurmyabq/image/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.secure_url) {
+                    resolve(data.secure_url);
+                } else {
+                    reject('Erro no Cloudinary: ' + JSON.stringify(data));
+                }
+            })
+            .catch(error => reject(error));
+        });
+    }
+
+    // ============================================================
+    // FUNÇÕES DE FOTOS
+    // ============================================================
+    window.viewLaminessiaPhoto = function(index) {
+        const photo = laminessiaPhotos[index];
+        if (!photo) return;
+        document.getElementById('laminessiaPhotoView').src = photo.url;
+        document.getElementById('laminessiaPhotoCaption').textContent = photo.legenda || 'Sem legenda';
+        new bootstrap.Modal(document.getElementById('laminessiaPhotoModal')).show();
+    };
+
+    window.addLaminessiaPhotoCaption = function(index) {
+        const photo = laminessiaPhotos[index];
+        if (!photo) return;
+        document.getElementById('captionPhotoIndex').value = index;
+        document.getElementById('photoCaptionInput').value = photo.legenda || '';
+        new bootstrap.Modal(document.getElementById('laminessiaCaptionModal')).show();
+    };
+
+    function savePhotoCaption() {
+        const index = parseInt(document.getElementById('captionPhotoIndex').value);
+        const caption = document.getElementById('photoCaptionInput').value;
+        if (laminessiaPhotos[index]) {
+            laminessiaPhotos[index].legenda = caption;
+            renderLaminessiaPhotos();
+            showToast('Legenda atualizada!', 'success');
+        }
+        bootstrap.Modal.getInstance(document.getElementById('laminessiaCaptionModal')).hide();
+    }
+
+    window.removeLaminessiaPhoto = function(index) {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                title: 'Tem certeza?',
+                text: 'Esta foto será removida.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Sim, excluir!',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    laminessiaPhotos.splice(index, 1);
+                    renderLaminessiaPhotos();
+                    showToast('Foto removida!', 'success');
+                }
+            });
+        } else {
+            if (confirm('Remover esta foto?')) {
+                laminessiaPhotos.splice(index, 1);
+                renderLaminessiaPhotos();
+                showToast('Foto removida!', 'success');
+            }
+        }
+    };
+
+    // ============================================================
+    // ASSINATURA DIGITAL
+    // ============================================================
+    window.openLaminessiaSignature = function() {
+        document.getElementById('consentimentoData').textContent = new Date().toLocaleString('pt-PT');
+        document.getElementById('consentimentoCheck').checked = false;
+        document.getElementById('confirmSignatureBtn').disabled = true;
+
+        setTimeout(() => initSignaturePads(), 200);
+        new bootstrap.Modal(document.getElementById('laminessiaSignatureModal')).show();
+    };
+
+    function initSignaturePads() {
+        const canvas = document.getElementById('signatureCanvas');
+        if (!canvas) return;
+        if (signaturePad) { signaturePad.clear(); signaturePad = null; }
+
+        const rect = canvas.parentElement.getBoundingClientRect();
+        const width = rect.width || 600;
+        const ratio = Math.max(window.devicePixelRatio || 1, 1);
+
+        canvas.width = width * ratio;
+        canvas.height = 200 * ratio;
+        canvas.style.width = '100%';
+        canvas.style.height = '200px';
+
+        const ctx = canvas.getContext('2d');
+        ctx.scale(ratio, ratio);
+
+        if (typeof SignaturePad !== 'undefined') {
+            signaturePad = new SignaturePad(canvas, {
+                backgroundColor: 'white',
+                penColor: '#26196b',
+                minWidth: 2,
+                maxWidth: 4
+            });
+        } else {
+            let isDrawing = false, lastX = 0, lastY = 0;
+            ctx.strokeStyle = '#26196b';
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            const getPos = (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const x = (e.clientX || e.touches?.[0]?.clientX || 0) - rect.left;
+                const y = (e.clientY || e.touches?.[0]?.clientY || 0) - rect.top;
+                return { x, y };
+            };
+
+            const startDraw = (e) => { e.preventDefault(); isDrawing = true; const pos = getPos(e); lastX = pos.x; lastY = pos.y; };
+            const draw = (e) => { e.preventDefault(); if (!isDrawing) return; const pos = getPos(e); ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(pos.x, pos.y); ctx.stroke(); lastX = pos.x; lastY = pos.y; };
+            const endDraw = (e) => { e.preventDefault(); isDrawing = false; };
+
+            canvas.addEventListener('mousedown', startDraw);
+            canvas.addEventListener('mousemove', draw);
+            canvas.addEventListener('mouseup', endDraw);
+            canvas.addEventListener('mouseleave', endDraw);
+            canvas.addEventListener('touchstart', startDraw);
+            canvas.addEventListener('touchmove', draw);
+            canvas.addEventListener('touchend', endDraw);
+
+            signaturePad = {
+                clear: function() { ctx.clearRect(0, 0, canvas.width, canvas.height); },
+                isEmpty: function() { return false; },
+                toDataURL: function() { return canvas.toDataURL('image/png'); }
+            };
+        }
+
+        // Assinatura Profissional
+        const canvasProf = document.getElementById('signatureProfessionalCanvas');
+        if (!canvasProf) return;
+        if (signatureProfessionalPad) { signatureProfessionalPad.clear(); signatureProfessionalPad = null; }
+
+        canvasProf.width = width * ratio;
+        canvasProf.height = 200 * ratio;
+        canvasProf.style.width = '100%';
+        canvasProf.style.height = '200px';
+
+        const ctxProf = canvasProf.getContext('2d');
+        ctxProf.scale(ratio, ratio);
+
+        if (typeof SignaturePad !== 'undefined') {
+            signatureProfessionalPad = new SignaturePad(canvasProf, {
+                backgroundColor: 'white',
+                penColor: '#26196b',
+                minWidth: 2,
+                maxWidth: 4
+            });
+        } else {
+            let isDrawing = false, lastX = 0, lastY = 0;
+            ctxProf.strokeStyle = '#26196b';
+            ctxProf.lineWidth = 3;
+            ctxProf.lineCap = 'round';
+            ctxProf.lineJoin = 'round';
+
+            const getPos = (e) => {
+                const rect = canvasProf.getBoundingClientRect();
+                const x = (e.clientX || e.touches?.[0]?.clientX || 0) - rect.left;
+                const y = (e.clientY || e.touches?.[0]?.clientY || 0) - rect.top;
+                return { x, y };
+            };
+
+            const startDraw = (e) => { e.preventDefault(); isDrawing = true; const pos = getPos(e); lastX = pos.x; lastY = pos.y; };
+            const draw = (e) => { e.preventDefault(); if (!isDrawing) return; const pos = getPos(e); ctxProf.beginPath(); ctxProf.moveTo(lastX, lastY); ctxProf.lineTo(pos.x, pos.y); ctxProf.stroke(); lastX = pos.x; lastY = pos.y; };
+            const endDraw = (e) => { e.preventDefault(); isDrawing = false; };
+
+            canvasProf.addEventListener('mousedown', startDraw);
+            canvasProf.addEventListener('mousemove', draw);
+            canvasProf.addEventListener('mouseup', endDraw);
+            canvasProf.addEventListener('mouseleave', endDraw);
+            canvasProf.addEventListener('touchstart', startDraw);
+            canvasProf.addEventListener('touchmove', draw);
+            canvasProf.addEventListener('touchend', endDraw);
+
+            signatureProfessionalPad = {
+                clear: function() { ctxProf.clearRect(0, 0, canvasProf.width, canvasProf.height); },
+                isEmpty: function() { return false; },
+                toDataURL: function() { return canvasProf.toDataURL('image/png'); }
+            };
+        }
+    }
+
+    function confirmSignatures() {
+        if (!signaturePad || signaturePad.isEmpty()) {
+            showToast('A cliente deve assinar.', 'error');
+            return;
+        }
+
+        if (!signatureProfessionalPad || signatureProfessionalPad.isEmpty()) {
+            showToast('A profissional deve assinar.', 'error');
+            return;
+        }
+
+        laminessiaData.assinaturaCliente = signaturePad.toDataURL('image/png');
+        laminessiaData.assinaturaProfissional = signatureProfessionalPad.toDataURL('image/png');
+        laminessiaData.consentimentoAssinado = true;
+        laminessiaData.dataConsentimento = new Date().toISOString();
+
+        document.getElementById('f_consentimento').checked = true;
+        document.getElementById('f_dataConsentimento').value = new Date().toISOString().slice(0, 16);
+
+        bootstrap.Modal.getInstance(document.getElementById('laminessiaSignatureModal')).hide();
+        showToast('Assinaturas registradas!', 'success');
+    }
+
+    // ============================================================
+    // SALVAR FICHA - CORRIGIDO (sem índice composto)
+    // ============================================================
+    async function saveLaminessiaFicha() {
+        collectFormData();
+
+        if (!laminessiaClientId) {
+            showToast('Cliente não selecionado.', 'error');
+            return;
+        }
+
+        showToast('Salvando ficha...', 'info');
+
+        try {
+            const db = getFirestore();
+            if (!db) {
+                showToast('Firebase não disponível.', 'error');
+                return;
+            }
+
+            const user = getCurrentUser();
+            const dadosParaSalvar = {
+                ...laminessiaData,
+                clienteId: laminessiaClientId,
+                fotos: laminessiaPhotos,
+                atualizadoEm: new Date().toISOString(),
+                criadoPor: user?.email || 'Sistema',
+                profissionalResponsavelId: user?.uid || ''
+            };
+
+            // Verificar se já existe uma ficha para este cliente
+            const snapshot = await db.collection('laminessiaFichas')
+                .where('clienteId', '==', laminessiaClientId)
+                .get();
+
+            if (snapshot.empty) {
+                dadosParaSalvar.criadoEm = new Date().toISOString();
+                await db.collection('laminessiaFichas').add(dadosParaSalvar);
+                isEditing = false;
+            } else {
+                const docId = snapshot.docs[0].id;
+                await db.collection('laminessiaFichas').doc(docId).update(dadosParaSalvar);
+                laminessiaData.id = docId;
+                isEditing = true;
+            }
+
+            // Recarregar histórico
+            await loadLaminessiaHistory(laminessiaClientId);
+            showToast('Ficha salva com sucesso!', 'success');
+
+            document.getElementById('laminessiaDeleteBtn').style.display = 'inline-block';
+            document.getElementById('laminessiaPDFBtn').style.display = 'inline-block';
+            document.getElementById('laminessiaWhatsAppBtn').style.display = 'inline-block';
+
+            const client = getClientsList().find(c => c.id === laminessiaClientId);
+            if (client) {
+                document.getElementById('laminessiaModalTitle').innerHTML = `
+                    <i class="fas fa-file-medical-alt me-2"></i>
+                    Ficha de Laminessia - ${client.name}
+                    <span class="badge bg-success ms-2">Salva</span>
+                `;
+            }
+
+        } catch (error) {
+            console.error('Erro ao salvar:', error);
+            showToast('Erro ao salvar: ' + error.message, 'error');
+        }
+    }
+
+    // ============================================================
+    // COLETAR DADOS DO FORMULÁRIO
+    // ============================================================
+    function collectFormData() {
+        const fields = {
+            endereco: 'f_endereco',
+            profissao: 'f_profissao',
+            contatoEmergenciaNome: 'f_contatoNome',
+            contatoEmergenciaTelefone: 'f_contatoTelefone',
+            contatoEmergenciaParentesco: 'f_contatoParentesco',
+            procedimentosDesejados: 'f_procedimentos',
+            objetivos: 'f_objetivos',
+            historicoEstetico: 'f_historicoEstetico',
+            historicoMedico: 'f_historicoMedico',
+            mesesGestacao: 'f_mesesGestacao',
+            medicamentos: 'f_medicamentos',
+            alergias: 'f_alergias',
+            tipoPele: 'f_tipoPele',
+            sensibilidade: 'f_sensibilidade',
+            consumoAlcool: 'f_consumoAlcool',
+            contraindicacoes: 'f_contraindicacoes',
+            avaliacaoProfissional: 'f_avaliacao',
+            diagnosticoEstetico: 'f_diagnostico',
+            planoTratamento: 'f_plano',
+            procedimentoRealizado: 'f_procedimentoRealizado',
+            dataProcedimento: 'f_dataProcedimento',
+            profissionalResponsavel: 'f_profissional',
+            observacoesProcedimento: 'f_observacoes',
+            evolucao: 'f_evolucao',
+            recomendacoes: 'f_recomendacoes',
+            cuidadosPosProcedimento: 'f_cuidados',
+            retornoAgendado: 'f_retorno',
+            dataConsentimento: 'f_dataConsentimento'
+        };
+
+        for (const [key, id] of Object.entries(fields)) {
+            const element = document.getElementById(id);
+            if (element) {
+                laminessiaData[key] = element.value;
+            }
+        }
+
+        const checkboxes = {
+            cirurgiasPlasticas: 'f_cirurgias',
+            preenchimentos: 'f_preenchimentos',
+            toxinaBotulinica: 'f_toxina',
+            hipertensao: 'f_hipertensao',
+            diabetes: 'f_diabetes',
+            problemasCardiacos: 'f_cardiacos',
+            doencasAutoimunes: 'f_autoimunes',
+            estaGravida: 'f_gravida',
+            amamentando: 'f_amamentando',
+            usaAnticoagulantes: 'f_anticoagulantes',
+            usaCorticoides: 'f_corticoides',
+            usaAnticoncepcionais: 'f_anticoncepcionais',
+            alergiaMedicamentos: 'f_alergiaMedicamentos',
+            alergiaCosmeticos: 'f_alergiaCosmeticos',
+            alergiaAlimentar: 'f_alergiaAlimentar',
+            acne: 'f_acne',
+            rosacea: 'f_rosacea',
+            melasma: 'f_melasma',
+            fuma: 'f_fuma',
+            consentimentoAssinado: 'f_consentimento',
+            consentimentoDados: 'f_rgpdDados',
+            consentimentoFotos: 'f_rgpdFotos',
+            consentimentoMarketing: 'f_rgpdMarketing',
+            consentimentoComunicacao: 'f_rgpdComunicacao'
+        };
+
+        for (const [key, id] of Object.entries(checkboxes)) {
+            const element = document.getElementById(id);
+            if (element) {
+                laminessiaData[key] = element.checked;
+            }
+        }
+
+        laminessiaData.fotos = laminessiaPhotos;
+        return laminessiaData;
+    }
+
+    // ============================================================
+    // EXCLUIR FICHA
+    // ============================================================
+    function deleteLaminessiaFicha() {
+        if (!laminessiaData.id) {
+            showToast('Nenhuma ficha para excluir.', 'error');
+            return;
+        }
+
+        const confirmar = typeof Swal !== 'undefined' ? 
+            Swal.fire({
+                title: 'Tem certeza?',
+                text: 'Esta ação não pode ser desfeita.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Sim, excluir!',
+                cancelButtonText: 'Cancelar'
+            }) :
+            Promise.resolve({ isConfirmed: confirm('Excluir esta ficha?') });
+
+        confirmar.then(async (result) => {
+            if (result.isConfirmed) {
+                try {
+                    const db = getFirestore();
+                    if (!db) {
+                        showToast('Firebase não disponível.', 'error');
+                        return;
+                    }
+
+                    await db.collection('laminessiaFichas').doc(laminessiaData.id).delete();
+                    laminessiaData.id = null;
+                    laminessiaHistory = laminessiaHistory.filter(f => f.id !== laminessiaData.id);
+
+                    showToast('Ficha excluída!', 'success');
+                    bootstrap.Modal.getInstance(document.getElementById('laminessiaModal')).hide();
+
+                } catch (error) {
+                    showToast('Erro ao excluir: ' + error.message, 'error');
+                }
+            }
+        });
+    }
+
+    // ============================================================
+    // CARREGAR ITEM DO HISTÓRICO
+    // ============================================================
+    window.loadLaminessiaHistoryItem = function(index) {
+        if (index < 0 || index >= laminessiaHistory.length) return;
+        const ficha = laminessiaHistory[index];
+        if (!ficha) return;
+
+        laminessiaData = { ...laminessiaData, ...ficha };
+        laminessiaPhotos = ficha.fotos || [];
+
+        const client = { name: laminessiaData.nome, id: laminessiaData.clienteId };
+        renderLaminessiaModal(client);
+        showToast('Ficha carregada!', 'success');
+    };
+
+    // ============================================================
+    // DUPLICAR ATENDIMENTO
+    // ============================================================
+    window.duplicateLaminessiaFicha = function() {
+        if (laminessiaHistory.length <= 1) {
+            showToast('Não há atendimentos anteriores.', 'error');
+            return;
+        }
+
+        const container = document.getElementById('laminessiaDuplicateList');
+        if (!container) return;
+
+        let html = '';
+        laminessiaHistory.slice(1).forEach((ficha, index) => {
+            const data = new Date(ficha.criadoEm).toLocaleDateString('pt-PT');
+            html += `
+                <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+                     style="cursor:pointer;"
+                     onclick="selectLaminessiaDuplicate(${index + 1})">
+                    <div>
+                        <strong>Atendimento de ${data}</strong>
+                        <br>
+                        <small class="text-muted">${ficha.procedimentoRealizado || 'Não informado'}</small>
+                    </div>
+                    <i class="fas fa-chevron-right"></i>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html || '<p class="text-muted">Nenhum atendimento anterior.</p>';
+        new bootstrap.Modal(document.getElementById('laminessiaDuplicateModal')).show();
+    };
+
+    window.selectLaminessiaDuplicate = function(index) {
+        if (index < 0 || index >= laminessiaHistory.length) return;
+        const ficha = laminessiaHistory[index];
+        if (!ficha) return;
+
+        const dadosDuplicados = { ...ficha };
+        dadosDuplicados.fotos = laminessiaPhotos;
+        dadosDuplicados.criadoEm = new Date().toISOString();
+        dadosDuplicados.id = null;
+        dadosDuplicados.consentimentoAssinado = false;
+        dadosDuplicados.assinaturaCliente = '';
+        dadosDuplicados.assinaturaProfissional = '';
+
+        laminessiaData = { ...laminessiaData, ...dadosDuplicados };
+        laminessiaPhotos = dadosDuplicados.fotos || [];
+
+        const client = { name: laminessiaData.nome, id: laminessiaData.clienteId };
+        bootstrap.Modal.getInstance(document.getElementById('laminessiaDuplicateModal')).hide();
+        renderLaminessiaModal(client);
+        showToast('Atendimento duplicado!', 'success');
+    };
+
+    // ============================================================
+    // GERAR PDF - COM FOTOS INCLUÍDAS
+    // ============================================================
+    window.generateLaminessiaPDF = function() {
+        if (!laminessiaData || !laminessiaData.clienteId) {
+            showToast('Nenhuma ficha para gerar PDF.', 'error');
+            return;
+        }
+
+        showToast('Gerando PDF com fotos...', 'info');
+
+        try {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'mm', 'a4');
+
+            doc.setFontSize(18);
+            doc.setTextColor(38, 25, 107);
+            doc.text('FICHA DE LAMINESSIA', 105, 20, { align: 'center' });
+
+            doc.setFontSize(10);
+            doc.setTextColor(100, 100, 100);
+            doc.text(`Data: ${new Date().toLocaleDateString('pt-PT')}`, 105, 27, { align: 'center' });
+
+            let y = 40;
+
+            // Dados Pessoais
+            doc.setFontSize(12);
+            doc.setTextColor(0, 0, 0);
+            doc.setFont('helvetica', 'bold');
+            doc.text('1. DADOS PESSOAIS', 15, y);
+            y += 7;
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(10);
+            doc.text(`Nome: ${laminessiaData.nome || ''}`, 15, y);
+            y += 5;
+            doc.text(`Telefone: ${laminessiaData.telefone || ''}`, 15, y);
+            y += 5;
+            doc.text(`E-mail: ${laminessiaData.email || ''}`, 15, y);
+            y += 10;
+
+            // Procedimentos
+            doc.setFont('helvetica', 'bold');
+            doc.text('4. PROCEDIMENTOS DESEJADOS', 15, y);
+            y += 7;
+            doc.setFont('helvetica', 'normal');
+            const procText = doc.splitTextToSize(laminessiaData.procedimentosDesejados || 'Não informado', 180);
+            procText.forEach(line => { doc.text(line, 15, y); y += 5; });
+            y += 10;
+
+            // Avaliação
+            doc.setFont('helvetica', 'bold');
+            doc.text('13. AVALIAÇÃO PROFISSIONAL', 15, y);
+            y += 7;
+            doc.setFont('helvetica', 'normal');
+            const avalText = doc.splitTextToSize(laminessiaData.avaliacaoProfissional || 'Não informado', 180);
+            avalText.forEach(line => { doc.text(line, 15, y); y += 5; });
+            y += 10;
+
+            // Procedimento Realizado
+            doc.setFont('helvetica', 'bold');
+            doc.text('14. PROCEDIMENTO REALIZADO', 15, y);
+            y += 7;
+            doc.setFont('helvetica', 'normal');
+            const procRealText = doc.splitTextToSize(laminessiaData.procedimentoRealizado || 'Não informado', 180);
+            procRealText.forEach(line => { doc.text(line, 15, y); y += 5; });
+            y += 5;
+            doc.text(`Data: ${laminessiaData.dataProcedimento || 'Não informado'}`, 15, y);
+            y += 5;
+            doc.text(`Profissional: ${laminessiaData.profissionalResponsavel || 'Não informado'}`, 15, y);
+            y += 10;
+
+            // Assinaturas
+            doc.setFont('helvetica', 'bold');
+            doc.text('ASSINATURAS', 15, y);
+            y += 10;
+
+            if (laminessiaData.assinaturaCliente) {
+                try {
+                    doc.addImage(laminessiaData.assinaturaCliente, 'PNG', 15, y, 80, 30);
+                    y += 35;
+                    doc.text('Assinatura da Cliente', 15, y);
+                } catch(e) {
+                    doc.text('Assinatura da Cliente: [imagem]', 15, y + 15);
+                    y += 20;
+                }
+            } else {
+                doc.text('Assinatura da Cliente: Não assinado', 15, y);
+                y += 10;
+            }
+            y += 10;
+
+            if (laminessiaData.assinaturaProfissional) {
+                try {
+                    doc.addImage(laminessiaData.assinaturaProfissional, 'PNG', 15, y, 80, 30);
+                    y += 35;
+                    doc.text('Assinatura da Profissional', 15, y);
+                } catch(e) {
+                    doc.text('Assinatura da Profissional: [imagem]', 15, y + 15);
+                    y += 20;
+                }
+            } else {
+                doc.text('Assinatura da Profissional: Não assinado', 15, y);
+                y += 10;
+            }
+
+            // ============================================================
+            // ADICIONAR FOTOS NO PDF
+            // ============================================================
+            if (laminessiaPhotos && laminessiaPhotos.length > 0) {
+                doc.addPage();
+                y = 20;
+                doc.setFontSize(14);
+                doc.setTextColor(38, 25, 107);
+                doc.setFont('helvetica', 'bold');
+                doc.text('FOTOS DO PROCEDIMENTO', 105, y, { align: 'center' });
+                y += 15;
+
+                const photosPerRow = 2;
+                const photoWidth = 85;
+                const photoHeight = 85;
+                const spacing = 10;
+                let currentY = y;
+
+                laminessiaPhotos.forEach((photo, index) => {
+                    const col = index % photosPerRow;
+                    const row = Math.floor(index / photosPerRow);
+                    const x = 15 + (col * (photoWidth + spacing));
+                    const yPos = currentY + (row * (photoHeight + spacing + 15));
+
+                    if (yPos + photoHeight > 280) {
+                        doc.addPage();
+                        currentY = 20;
+                        const newRow = Math.floor(index / photosPerRow);
+                        const newCol = index % photosPerRow;
+                        const newX = 15 + (newCol * (photoWidth + spacing));
+                        const newY = currentY + ((newRow - row) * (photoHeight + spacing + 15));
+                        
+                        try {
+                            doc.addImage(photo.url, 'JPEG', newX, newY, photoWidth, photoHeight);
+                            if (photo.legenda) {
+                                doc.setFontSize(8);
+                                doc.setTextColor(100, 100, 100);
+                                doc.text(photo.legenda, newX + photoWidth/2, newY + photoHeight + 5, { align: 'center' });
+                            }
+                            if (photo.dataHora) {
+                                doc.setFontSize(7);
+                                doc.setTextColor(150, 150, 150);
+                                doc.text(photo.dataHora, newX + photoWidth/2, newY + photoHeight + 12, { align: 'center' });
+                            }
+                        } catch(e) {
+                            doc.setDrawColor(200, 200, 200);
+                            doc.rect(newX, newY, photoWidth, photoHeight);
+                            doc.setFontSize(8);
+                            doc.setTextColor(150, 150, 150);
+                            doc.text('Foto ' + (index + 1), newX + photoWidth/2, newY + photoHeight/2, { align: 'center' });
+                        }
+                        continue;
+                    }
+
+                    try {
+                        doc.addImage(photo.url, 'JPEG', x, yPos, photoWidth, photoHeight);
+                        if (photo.legenda) {
+                            doc.setFontSize(8);
+                            doc.setTextColor(100, 100, 100);
+                            doc.text(photo.legenda, x + photoWidth/2, yPos + photoHeight + 5, { align: 'center' });
+                        }
+                        if (photo.dataHora) {
+                            doc.setFontSize(7);
+                            doc.setTextColor(150, 150, 150);
+                            doc.text(photo.dataHora, x + photoWidth/2, yPos + photoHeight + 12, { align: 'center' });
+                        }
+                    } catch(e) {
+                        doc.setDrawColor(200, 200, 200);
+                        doc.rect(x, yPos, photoWidth, photoHeight);
+                        doc.setFontSize(8);
+                        doc.setTextColor(150, 150, 150);
+                        doc.text('Foto ' + (index + 1), x + photoWidth/2, yPos + photoHeight/2, { align: 'center' });
+                    }
+                });
+            }
+
+            // Rodapé
+            const pageCount = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.setFontSize(8);
+                doc.setTextColor(150, 150, 150);
+                doc.text(`Ficha Laminessia - ${laminessiaData.nome || 'Cliente'} - Página ${i} de ${pageCount}`, 105, 285, { align: 'center' });
+            }
+
+            const nomeCliente = (laminessiaData.nome || 'cliente').replace(/\s+/g, '_');
+            doc.save(`Ficha_Laminessia_${nomeCliente}_${new Date().toISOString().slice(0, 10)}.pdf`);
+            showToast('PDF gerado com sucesso!', 'success');
+
+        } catch (error) {
+            console.error('Erro PDF:', error);
+            showToast('Erro ao gerar PDF: ' + error.message, 'error');
+        }
+    };
+
+    // ============================================================
+    // ENVIAR POR WHATSAPP
+    // ============================================================
+    window.sendLaminessiaWhatsApp = function() {
+        if (!laminessiaData || !laminessiaData.clienteId) {
+            showToast('Nenhuma ficha para enviar.', 'error');
+            return;
+        }
+
+        const client = getClientsList().find(c => c.id === laminessiaClientId);
+        if (!client || !client.phone) {
+            showToast('Cliente não tem telefone cadastrado.', 'error');
+            return;
+        }
+
+        showToast('Gerando PDF e abrindo WhatsApp...', 'info');
+
+        try {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'mm', 'a4');
+
+            doc.setFontSize(16);
+            doc.setTextColor(38, 25, 107);
+            doc.text('FICHA DE LAMINESSIA', 105, 20, { align: 'center' });
+
+            doc.setFontSize(10);
+            doc.setTextColor(100, 100, 100);
+            doc.text(`Data: ${new Date().toLocaleDateString('pt-PT')}`, 105, 27, { align: 'center' });
+
+            let y = 40;
+            doc.setFontSize(11);
+            doc.setTextColor(0, 0, 0);
+            doc.setFont('helvetica', 'bold');
+            doc.text('DADOS PESSOAIS', 15, y);
+            y += 7;
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(10);
+            doc.text(`Nome: ${laminessiaData.nome || ''}`, 15, y);
+            y += 5;
+            doc.text(`Telefone: ${laminessiaData.telefone || ''}`, 15, y);
+            y += 10;
+
+            doc.setFont('helvetica', 'bold');
+            doc.text('PROCEDIMENTOS DESEJADOS', 15, y);
+            y += 7;
+            doc.setFont('helvetica', 'normal');
+            const procText = doc.splitTextToSize(laminessiaData.procedimentosDesejados || 'Não informado', 180);
+            procText.forEach(line => { doc.text(line, 15, y); y += 5; });
+            y += 10;
+
+            if (laminessiaData.assinaturaCliente) {
+                try {
+                    doc.addImage(laminessiaData.assinaturaCliente, 'PNG', 15, y, 60, 20);
+                    y += 25;
+                    doc.text('Assinatura da Cliente', 15, y);
+                } catch(e) {
+                    y += 10;
+                }
+            }
+            y += 10;
+
+            if (laminessiaData.assinaturaProfissional) {
+                try {
+                    doc.addImage(laminessiaData.assinaturaProfissional, 'PNG', 15, y, 60, 20);
+                    y += 25;
+                    doc.text('Assinatura da Profissional', 15, y);
+                } catch(e) {
+                    y += 10;
+                }
+            }
+
+            // Miniaturas das fotos no WhatsApp
+            if (laminessiaPhotos && laminessiaPhotos.length > 0) {
+                y += 15;
+                doc.setFontSize(10);
+                doc.setTextColor(38, 25, 107);
+                doc.text('FOTOS: ' + laminessiaPhotos.length + ' foto(s) disponíveis', 15, y);
+                y += 10;
+                
+                const maxPhotos = Math.min(laminessiaPhotos.length, 4);
+                const photoSize = 40;
+                let photoX = 15;
+                for (let i = 0; i < maxPhotos; i++) {
+                    try {
+                        doc.addImage(laminessiaPhotos[i].url, 'JPEG', photoX, y, photoSize, photoSize);
+                        photoX += photoSize + 5;
+                    } catch(e) {
+                        // Ignorar erro na miniatura
+                    }
+                }
+            }
+
+            doc.setFontSize(8);
+            doc.setTextColor(150, 150, 150);
+            doc.text(`Ficha Laminessia - ${laminessiaData.nome || 'Cliente'}`, 105, 285, { align: 'center' });
+
+            const pdfBlob = doc.output('blob');
+            const pdfUrl = URL.createObjectURL(pdfBlob);
+
+            const nomeCliente = laminessiaData.nome || 'Cliente';
+            const mensagem = `Olá ${nomeCliente}! 👋\n\nSegue em anexo a sua Ficha de Laminessia.\n\nQualquer dúvida, estamos à disposição! 💙\n\n${businessSettings?.name || 'Studio DeVitto'}`;
+
+            const phone = client.phone.replace(/\D/g, '');
+            const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(mensagem)}`;
+
+            const link = document.createElement('a');
+            link.href = pdfUrl;
+            link.download = `Ficha_Laminessia_${nomeCliente.replace(/\s+/g, '_')}.pdf`;
+            link.click();
+
+            setTimeout(() => {
+                window.open(whatsappUrl, '_blank');
+                showToast('PDF baixado e WhatsApp aberto!', 'success');
+            }, 1000);
+
+        } catch (error) {
+            console.error('Erro WhatsApp:', error);
+            showToast('Erro: ' + error.message, 'error');
+        }
+    };
+
+    // ============================================================
+    // AUTO-SAVE
+    // ============================================================
+    let autoSaveTimeout = null;
+
+    function setupAutoSave() {
+        const form = document.getElementById('laminessiaForm');
+        if (!form) return;
+
+        form.querySelectorAll('input, textarea, select').forEach(input => {
+            input.addEventListener('change', triggerAutoSave);
+            input.addEventListener('input', debounce(triggerAutoSave, 1000));
+        });
+
+        form.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            cb.addEventListener('change', triggerAutoSave);
+        });
+    }
+
+    function triggerAutoSave() {
+        if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
+        autoSaveTimeout = setTimeout(async () => {
+            if (!laminessiaClientId) return;
+            collectFormData();
+            try {
+                const db = getFirestore();
+                if (!db) return;
+                const dados = { ...laminessiaData, fotos: laminessiaPhotos, isRascunho: true, atualizadoEm: new Date().toISOString() };
+                
+                // Buscar rascunho existente
+                const snapshot = await db.collection('laminessiaFichas')
+                    .where('clienteId', '==', laminessiaClientId)
+                    .where('isRascunho', '==', true)
+                    .get();
+                    
+                if (snapshot.empty) {
+                    dados.criadoEm = new Date().toISOString();
+                    await db.collection('laminessiaFichas').add(dados);
+                } else {
+                    await db.collection('laminessiaFichas').doc(snapshot.docs[0].id).update(dados);
+                }
+                console.log('💾 Auto-save realizado');
+            } catch(e) { console.log('Erro auto-save:', e); }
+        }, 3000);
+    }
+
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+
+    // ============================================================
+    // REMOVER SERVICE WORKER PROBLEMÁTICO
+    // ============================================================
+    function removeProblematicServiceWorker() {
+        try {
+            if (navigator.serviceWorker) {
+                navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                    for (let registration of registrations) {
+                        registration.unregister();
+                        console.log('✅ Service Worker desregistrado');
+                    }
+                }).catch(function(err) {
+                    console.log('Erro ao desregistrar Service Worker:', err);
+                });
+            }
+        } catch(e) {
+            console.log('Erro ao remover Service Worker:', e);
+        }
+    }
+
+    // ============================================================
+    // TOAST
+    // ============================================================
+    function showToast(message, type = 'info') {
+        if (typeof Swal !== 'undefined') {
+            const icons = { 'success': 'success', 'error': 'error', 'warning': 'warning', 'info': 'info' };
+            Swal.fire({ icon: icons[type] || 'info', title: message, timer: 3000, showConfirmButton: false });
+        } else {
+            alert(message);
+        }
+    }
+
+    // ============================================================
+    // INICIALIZAÇÃO
+    // ============================================================
+    function initLaminessia() {
+        console.log('🚀 Inicializando Ficha de Laminessia...');
+        removeProblematicServiceWorker();
+        addLaminessiaCard();
+        addLaminessiaMenuDesktop();
+        createLaminessiaSection();
+        createLaminessiaModals();
+        console.log('✅ Ficha de Laminessia inicializada!');
+    }
+
+    function waitForBootstrap() {
+        if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+            initLaminessia();
+            return;
+        }
+        console.log('⏳ Aguardando Bootstrap...');
+        const checkInterval = setInterval(() => {
+            if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                clearInterval(checkInterval);
+                initLaminessia();
+            }
+        }, 500);
+        setTimeout(() => {
+            clearInterval(checkInterval);
+            if (typeof bootstrap === 'undefined') {
+                console.warn('⚠️ Bootstrap não encontrado');
+                initLaminessia();
+            }
+        }, 10000);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', waitForBootstrap);
+    } else {
+        waitForBootstrap();
+    }
+
+    console.log('✅ Script da Ficha de Laminessia carregado!');
+
+})();
+
+
+
+
+
+
+
+
+
+
+
+
 </script>
 
 
