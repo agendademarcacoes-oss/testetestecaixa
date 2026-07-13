@@ -19255,6 +19255,7 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
 
 
 
+
 <!-- ============================================================ -->
 <!-- SCRIPT COMPLETO: FICHA DE LAMINESSIA - CORRIGIDO             -->
 <!-- ============================================================ -->
@@ -21212,7 +21213,7 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
     };
 
     // ============================================================
-    // ENVIAR POR WHATSAPP
+    // ENVIAR POR WHATSAPP - CORRIGIDO
     // ============================================================
     window.sendLaminessiaWhatsApp = function() {
         if (!laminessiaData || !laminessiaData.clienteId) {
@@ -21232,6 +21233,7 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF('p', 'mm', 'a4');
 
+            // Cabeçalho
             doc.setFontSize(16);
             doc.setTextColor(38, 25, 107);
             doc.text('FICHA DE LAMINESSIA', 105, 20, { align: 'center' });
@@ -21241,6 +21243,8 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
             doc.text(`Data: ${new Date().toLocaleDateString('pt-PT')}`, 105, 27, { align: 'center' });
 
             let y = 40;
+
+            // Dados Pessoais
             doc.setFontSize(11);
             doc.setTextColor(0, 0, 0);
             doc.setFont('helvetica', 'bold');
@@ -21251,14 +21255,35 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
             doc.text(`Nome: ${laminessiaData.nome || ''}`, 15, y);
             y += 5;
             doc.text(`Telefone: ${laminessiaData.telefone || ''}`, 15, y);
+            y += 5;
+            doc.text(`E-mail: ${laminessiaData.email || ''}`, 15, y);
             y += 10;
 
+            // Procedimentos Desejados
             doc.setFont('helvetica', 'bold');
             doc.text('PROCEDIMENTOS DESEJADOS', 15, y);
             y += 7;
             doc.setFont('helvetica', 'normal');
             const procText = doc.splitTextToSize(laminessiaData.procedimentosDesejados || 'Não informado', 180);
             procText.forEach(line => { doc.text(line, 15, y); y += 5; });
+            y += 10;
+
+            // Procedimento Realizado
+            doc.setFont('helvetica', 'bold');
+            doc.text('PROCEDIMENTO REALIZADO', 15, y);
+            y += 7;
+            doc.setFont('helvetica', 'normal');
+            const procRealText = doc.splitTextToSize(laminessiaData.procedimentoRealizado || 'Não informado', 180);
+            procRealText.forEach(line => { doc.text(line, 15, y); y += 5; });
+            y += 5;
+            doc.text(`Data: ${laminessiaData.dataProcedimento || 'Não informado'}`, 15, y);
+            y += 5;
+            doc.text(`Profissional: ${laminessiaData.profissionalResponsavel || 'Não informado'}`, 15, y);
+            y += 10;
+
+            // Assinaturas
+            doc.setFont('helvetica', 'bold');
+            doc.text('ASSINATURAS', 15, y);
             y += 10;
 
             if (laminessiaData.assinaturaCliente) {
@@ -21269,8 +21294,9 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
                 } catch(e) {
                     y += 10;
                 }
+            } else {
+                y += 10;
             }
-            y += 10;
 
             if (laminessiaData.assinaturaProfissional) {
                 try {
@@ -21282,28 +21308,60 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
                 }
             }
 
+            // Fotos (miniaturas)
+            if (laminessiaPhotos && laminessiaPhotos.length > 0) {
+                y += 15;
+                doc.setFontSize(10);
+                doc.setTextColor(38, 25, 107);
+                doc.text('FOTOS: ' + laminessiaPhotos.length + ' foto(s) disponíveis', 15, y);
+                y += 10;
+                
+                const maxPhotos = Math.min(laminessiaPhotos.length, 4);
+                const photoSize = 40;
+                let photoX = 15;
+                for (let i = 0; i < maxPhotos; i++) {
+                    try {
+                        doc.addImage(laminessiaPhotos[i].url, 'JPEG', photoX, y, photoSize, photoSize);
+                        photoX += photoSize + 5;
+                    } catch(e) {
+                        // Ignorar erro na miniatura
+                    }
+                }
+            }
+
+            // Rodapé
             doc.setFontSize(8);
             doc.setTextColor(150, 150, 150);
             doc.text(`Ficha Laminessia - ${laminessiaData.nome || 'Cliente'}`, 105, 285, { align: 'center' });
 
+            // Gerar PDF
             const pdfBlob = doc.output('blob');
             const pdfUrl = URL.createObjectURL(pdfBlob);
 
+            // Nome do cliente e telefone
             const nomeCliente = laminessiaData.nome || 'Cliente';
-            const mensagem = `Olá ${nomeCliente}! 👋\n\nSegue em anexo a sua Ficha de Laminessia.\n\nQualquer dúvida, estamos à disposição! 💙\n\n${businessSettings?.name || 'Studio DeVitto'}`;
-
             const phone = client.phone.replace(/\D/g, '');
+
+            // Mensagem personalizada
+            const mensagem = `Olá ${nomeCliente}! 👋\n\n` +
+                `Segue em anexo a sua Ficha de Laminessia com todos os detalhes do seu atendimento.\n\n` +
+                `Qualquer dúvida, estamos à disposição! 💙\n\n` +
+                `${businessSettings?.name || 'Studio DeVitto'}`;
+
+            // URL do WhatsApp com a mensagem
             const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(mensagem)}`;
 
+            // Baixar o PDF automaticamente
             const link = document.createElement('a');
             link.href = pdfUrl;
             link.download = `Ficha_Laminessia_${nomeCliente.replace(/\s+/g, '_')}.pdf`;
             link.click();
 
-            setTimeout(() => {
+            // Abrir WhatsApp em uma nova aba
+            setTimeout(function() {
                 window.open(whatsappUrl, '_blank');
                 showToast('PDF baixado e WhatsApp aberto!', 'success');
-            }, 1000);
+            }, 1500);
 
         } catch (error) {
             console.error('Erro WhatsApp:', error);
@@ -21440,7 +21498,6 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
     console.log('✅ Script da Ficha de Laminessia carregado!');
 
 })();
-
 
 
 
