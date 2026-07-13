@@ -19263,7 +19263,6 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
 <!-- COLE ESTE CÓDIGO ANTES DO </body>                            -->
 <!-- ============================================================ -->
 
-
 (function() {
     console.log('🔄 INICIANDO FICHA DE LAMINESSIA...');
 
@@ -19455,7 +19454,9 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
         });
         
         // Carregar todas as fichas ao criar a seção
-        loadAllLaminessiaFichas();
+        setTimeout(function() {
+            loadAllLaminessiaFichas();
+        }, 500);
         
         console.log('✅ Seção Laminessia criada com lista de fichas');
     }
@@ -19477,33 +19478,13 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
                 return;
             }
 
-            const snapshot = await db.collection('laminessiaFichas')
-                .where('userId', '==', user.uid)
-                .orderBy('criadoEm', 'desc')
-                .get();
+            console.log('🔍 Buscando fichas para o usuário:', user.uid);
 
-            todasFichasLaminessia = [];
-            snapshot.forEach(doc => {
-                todasFichasLaminessia.push({
-                    id: doc.id,
-                    ...doc.data()
-                });
-            });
-
-            console.log('📋 Total de fichas carregadas:', todasFichasLaminessia.length);
-            renderLaminessiaFichasList();
-
-        } catch (error) {
-            console.error('Erro ao carregar fichas:', error);
-            // Tentar carregar sem ordenação se houver erro de índice
+            // Tentar buscar com ordenação
             try {
-                const db = getFirestore();
-                if (!db) return;
-                const user = getCurrentUser();
-                if (!user) return;
-
                 const snapshot = await db.collection('laminessiaFichas')
                     .where('userId', '==', user.uid)
+                    .orderBy('criadoEm', 'desc')
                     .get();
 
                 todasFichasLaminessia = [];
@@ -19514,17 +19495,50 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
                     });
                 });
 
-                // Ordenar localmente
-                todasFichasLaminessia.sort((a, b) => {
-                    const dateA = new Date(a.criadoEm || 0);
-                    const dateB = new Date(b.criadoEm || 0);
-                    return dateB - dateA;
-                });
-
-                console.log('📋 Total de fichas carregadas (sem ordem):', todasFichasLaminessia.length);
+                console.log('📋 Total de fichas carregadas (com ordem):', todasFichasLaminessia.length);
                 renderLaminessiaFichasList();
-            } catch (e2) {
-                console.error('Erro ao carregar fichas (fallback):', e2);
+                return;
+            } catch (orderError) {
+                console.log('⚠️ Erro ao ordenar, tentando sem ordenação:', orderError.message);
+            }
+
+            // Fallback: buscar sem ordenação
+            const snapshot = await db.collection('laminessiaFichas')
+                .where('userId', '==', user.uid)
+                .get();
+
+            todasFichasLaminessia = [];
+            snapshot.forEach(doc => {
+                todasFichasLaminessia.push({
+                    id: doc.id,
+                    ...doc.data()
+                });
+            });
+
+            // Ordenar localmente
+            todasFichasLaminessia.sort((a, b) => {
+                const dateA = new Date(a.criadoEm || 0);
+                const dateB = new Date(b.criadoEm || 0);
+                return dateB - dateA;
+            });
+
+            console.log('📋 Total de fichas carregadas (sem ordem):', todasFichasLaminessia.length);
+            renderLaminessiaFichasList();
+
+        } catch (error) {
+            console.error('❌ Erro ao carregar fichas:', error);
+            // Mostrar mensagem de erro na lista
+            const container = document.getElementById('laminessiaFichasList');
+            if (container) {
+                container.innerHTML = `
+                    <div class="text-center text-danger py-4">
+                        <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
+                        <p>Erro ao carregar fichas: ${error.message}</p>
+                        <button class="btn btn-sm btn-primary mt-2" onclick="loadAllLaminessiaFichas()">
+                            <i class="fas fa-sync-alt me-1"></i>Tentar novamente
+                        </button>
+                    </div>
+                `;
             }
         }
     }
@@ -20022,6 +20036,7 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
             email: client.email || '',
             endereco: client.address || '',
             criadoPor: getCurrentUser()?.email || 'Sistema',
+            userId: getCurrentUser()?.uid || '', // ADICIONADO userId
             profissao: '',
             contatoEmergenciaNome: '',
             contatoEmergenciaTelefone: '',
@@ -21059,7 +21074,7 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
     }
 
     // ============================================================
-    // SALVAR FICHA - CORRIGIDO (sem índice composto)
+    // SALVAR FICHA - CORRIGIDO (com userId)
     // ============================================================
     async function saveLaminessiaFicha() {
         collectFormData();
@@ -21083,6 +21098,7 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
                 ...laminessiaData,
                 clienteId: laminessiaClientId,
                 fotos: laminessiaPhotos,
+                userId: user?.uid || '', // GARANTIR QUE userId ESTÁ SENDO SALVO
                 atualizadoEm: new Date().toISOString(),
                 criadoPor: user?.email || 'Sistema',
                 profissionalResponsavelId: user?.uid || ''
@@ -21736,7 +21752,6 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
     console.log('✅ Script da Ficha de Laminessia carregado!');
 
 })();
-
 
 
 
