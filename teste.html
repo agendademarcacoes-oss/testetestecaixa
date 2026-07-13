@@ -21757,6 +21757,628 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- SCRIPT DE AUTORIDADE, PERMISSÕES E CONVITE DE COLABORADORES -->
+
+(function() {
+    console.log('🛡️ Iniciando sistema de autoridade e permissões...');
+
+    // ============================================================
+    // VARIÁVEIS GLOBAIS
+    // ============================================================
+    let currentUserLevel = 'media'; // Padrão: 'alta', 'media', 'baixa'
+    let userPermissions = {}; // { colaboradorId: { cardName: true/false } }
+    let logs = [];
+
+    // ============================================================
+    // FUNÇÕES DE AUTORIDADE
+    // ============================================================
+
+    // Definir o nível de acesso do usuário atual
+    window.setUserLevel = function(level) {
+        if (!['alta', 'media', 'baixa'].includes(level)) {
+            console.error('Nível inválido. Use: alta, media, baixa');
+            return;
+        }
+        currentUserLevel = level;
+        localStorage.setItem('userLevel', level);
+        applyPermissions();
+        console.log(`✅ Nível de acesso definido para: ${level}`);
+    };
+
+    // Obter o nível de acesso do usuário atual
+    window.getUserLevel = function() {
+        return currentUserLevel;
+    };
+
+    // Aplicar permissões baseadas no nível de acesso
+    function applyPermissions() {
+        const cards = {
+            'dashboard': ['alta', 'media'],
+            'agenda': ['alta', 'media', 'baixa'],
+            'store': ['alta', 'media'],
+            'cashier': ['alta'],
+            'inventory': ['alta'],
+            'clients': ['alta'],
+            'client-records': ['alta'],
+            'collaborators': ['alta'],
+            'packages': ['alta'],
+            'financial-control': ['alta'],
+            'business-profile': ['alta'],
+            'reports': ['alta'],
+            'birthdays': ['alta', 'media'],
+            'inactive-clients': ['alta']
+        };
+
+        // Esconder/Mostrar cards no menu desktop
+        document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+            const section = link.getAttribute('data-section');
+            if (section && cards[section]) {
+                if (cards[section].includes(currentUserLevel)) {
+                    link.style.display = '';
+                } else {
+                    link.style.display = 'none';
+                }
+            }
+        });
+
+        // Esconder/Mostrar cards no menu mobile
+        document.querySelectorAll('.mobile-card').forEach(card => {
+            const section = card.getAttribute('data-section');
+            if (section && cards[section]) {
+                if (cards[section].includes(currentUserLevel)) {
+                    card.style.display = '';
+                } else {
+                    card.style.display = 'none';
+                }
+            }
+        });
+
+        // Se o nível for 'baixa', garantir que apenas a agenda seja visível
+        if (currentUserLevel === 'baixa') {
+            document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+                if (link.getAttribute('data-section') !== 'agenda') {
+                    link.style.display = 'none';
+                }
+            });
+            document.querySelectorAll('.mobile-card').forEach(card => {
+                if (card.getAttribute('data-section') !== 'agenda') {
+                    card.style.display = 'none';
+                }
+            });
+        }
+
+        // Se o nível for 'media', esconder cards específicos
+        if (currentUserLevel === 'media') {
+            const restrictedCards = ['dashboard', 'cashier', 'inventory', 'clients', 'client-records', 'collaborators', 'packages', 'financial-control', 'business-profile', 'reports', 'inactive-clients'];
+            document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+                const section = link.getAttribute('data-section');
+                if (restrictedCards.includes(section)) {
+                    link.style.display = 'none';
+                }
+            });
+            document.querySelectorAll('.mobile-card').forEach(card => {
+                const section = card.getAttribute('data-section');
+                if (restrictedCards.includes(section)) {
+                    card.style.display = 'none';
+                }
+            });
+        }
+
+        console.log('🔒 Permissões aplicadas com base no nível:', currentUserLevel);
+    }
+
+    // ============================================================
+    // GERENCIAR PERMISSÕES PERSONALIZADAS (Cards por Colaborador)
+    // ============================================================
+
+    // Carregar permissões salvas
+    function loadPermissions() {
+        const saved = localStorage.getItem('userPermissions');
+        if (saved) {
+            try {
+                userPermissions = JSON.parse(saved);
+                console.log('📋 Permissões carregadas:', userPermissions);
+            } catch(e) {
+                console.error('Erro ao carregar permissões:', e);
+            }
+        }
+        renderPermissionsUI();
+    }
+
+    // Salvar permissões
+    function savePermissions() {
+        localStorage.setItem('userPermissions', JSON.stringify(userPermissions));
+        console.log('💾 Permissões salvas:', userPermissions);
+    }
+
+    // Atualizar permissão de um colaborador para um card específico
+    window.updateCollaboratorPermission = function(collaboratorId, cardName, enabled) {
+        if (!userPermissions[collaboratorId]) {
+            userPermissions[collaboratorId] = {};
+        }
+        userPermissions[collaboratorId][cardName] = enabled;
+        savePermissions();
+        renderPermissionsUI();
+        console.log(`✅ Permissão para ${collaboratorId} - ${cardName}: ${enabled}`);
+    };
+
+    // Verificar se um colaborador tem permissão para um card
+    window.hasPermission = function(collaboratorId, cardName) {
+        if (!collaboratorId) return true; // Usuário atual não tem restrições
+        if (userPermissions[collaboratorId] && userPermissions[collaboratorId][cardName] === false) {
+            return false;
+        }
+        return true;
+    };
+
+    // Renderizar a UI de permissões na seção "Empresa"
+    function renderPermissionsUI() {
+        const container = document.getElementById('collaboratorPermissionsContainer');
+        if (!container) return;
+
+        const collaborators = window.collaborators || [];
+        if (collaborators.length === 0) {
+            container.innerHTML = '<p class="text-muted">Nenhum colaborador cadastrado para gerenciar permissões.</p>';
+            return;
+        }
+
+        // Cards disponíveis para permissão
+        const allCards = [
+            'dashboard', 'agenda', 'store', 'cashier', 'inventory',
+            'clients', 'client-records', 'collaborators', 'packages',
+            'financial-control', 'business-profile', 'reports',
+            'birthdays', 'inactive-clients'
+        ];
+
+        let html = `
+            <div class="card mt-4">
+                <div class="card-header" style="background: #26196b; color: white;">
+                    <h6 class="mb-0"><i class="fas fa-user-shield me-2"></i>Permissões por Colaborador</h6>
+                </div>
+                <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+        `;
+
+        collaborators.forEach(collab => {
+            html += `
+                <div class="border-bottom py-2">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap">
+                        <div>
+                            <strong>${collab.name}</strong>
+                            <span class="badge ${collab.active ? 'bg-success' : 'bg-secondary'} ms-2">
+                                ${collab.active ? 'Ativo' : 'Inativo'}
+                            </span>
+                        </div>
+                        <div class="d-flex flex-wrap gap-1 mt-1">
+            `;
+
+            allCards.forEach(card => {
+                const isChecked = userPermissions[collab.id]?.[card] !== false;
+                html += `
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input permission-checkbox" 
+                               type="checkbox" 
+                               id="perm_${collab.id}_${card}" 
+                               ${isChecked ? 'checked' : ''}
+                               data-collab="${collab.id}" 
+                               data-card="${card}"
+                               style="accent-color: #26196b;">
+                        <label class="form-check-label small" for="perm_${collab.id}_${card}">${card}</label>
+                    </div>
+                `;
+            });
+
+            html += `
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        html += `
+                </div>
+            </div>
+        `;
+
+        container.innerHTML = html;
+
+        // Adicionar eventos aos checkboxes
+        document.querySelectorAll('.permission-checkbox').forEach(cb => {
+            cb.addEventListener('change', function() {
+                const collabId = this.getAttribute('data-collab');
+                const cardName = this.getAttribute('data-card');
+                const enabled = this.checked;
+                window.updateCollaboratorPermission(collabId, cardName, enabled);
+            });
+        });
+    }
+
+    // ============================================================
+    // CONVIDAR COLABORADOR
+    // ============================================================
+
+    window.inviteCollaborator = function(email, name) {
+        if (!email) {
+            showError('Por favor, insira um e-mail válido.');
+            return;
+        }
+
+        // Verificar se o colaborador já existe
+        const collaborators = window.collaborators || [];
+        const existing = collaborators.find(c => c.email === email);
+        if (existing) {
+            showError('Este colaborador já está cadastrado.');
+            return;
+        }
+
+        // Gerar um link de convite (simulado - na prática, seria um link com token)
+        const inviteLink = `${window.location.origin}/invite?email=${encodeURIComponent(email)}&nome=${encodeURIComponent(name || 'Colaborador')}`;
+
+        // Enviar convite por e-mail (simulado)
+        console.log(`📧 Enviando convite para ${email} (${name || 'Colaborador'})`);
+        console.log(`🔗 Link de convite: ${inviteLink}`);
+
+        // Registrar no banco de dados (simulado)
+        const inviteData = {
+            email: email,
+            name: name || 'Colaborador',
+            invitedBy: currentUser?.email || 'Sistema',
+            invitedAt: new Date().toISOString(),
+            status: 'pending',
+            link: inviteLink
+        };
+
+        // Salvar no localStorage (simulação)
+        const invites = JSON.parse(localStorage.getItem('collaboratorInvites') || '[]');
+        invites.push(inviteData);
+        localStorage.setItem('collaboratorInvites', JSON.stringify(invites));
+
+        // Mostrar sucesso
+        showSuccess(`Convite enviado para ${email}! O link de acesso foi gerado.`);
+
+        // Exibir link na tela para o administrador
+        Swal.fire({
+            title: '📨 Convite Enviado!',
+            html: `
+                <p>Convite enviado para: <strong>${email}</strong></p>
+                <p>Link de convite (copie e cole para testar):</p>
+                <div class="bg-light p-2 rounded" style="word-break: break-all; font-size: 12px;">
+                    ${inviteLink}
+                </div>
+                <p class="mt-2 text-muted small">Em um ambiente real, este link seria enviado por e-mail automaticamente.</p>
+            `,
+            icon: 'success',
+            confirmButtonText: 'OK'
+        });
+    };
+
+    // ============================================================
+    // REGISTRO DE LOGS
+    // ============================================================
+
+    // Registrar uma ação no log
+    window.logAction = function(action, details = '') {
+        const logEntry = {
+            timestamp: new Date().toISOString(),
+            user: currentUser?.email || 'Sistema',
+            action: action,
+            details: details,
+            level: currentUserLevel
+        };
+        logs.push(logEntry);
+        localStorage.setItem('systemLogs', JSON.stringify(logs));
+        console.log('📝 Log:', logEntry);
+    };
+
+    // Visualizar logs
+    window.viewLogs = function() {
+        const logs = JSON.parse(localStorage.getItem('systemLogs') || '[]');
+        if (logs.length === 0) {
+            showInfo('Nenhum log registrado ainda.');
+            return;
+        }
+
+        let html = `
+            <div style="max-height: 400px; overflow-y: auto; font-size: 13px;">
+                <table class="table table-striped table-hover table-sm">
+                    <thead>
+                        <tr>
+                            <th>Data/Hora</th>
+                            <th>Usuário</th>
+                            <th>Ação</th>
+                            <th>Detalhes</th>
+                            <th>Nível</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        logs.slice().reverse().forEach(log => {
+            html += `
+                <tr>
+                    <td>${new Date(log.timestamp).toLocaleString('pt-PT')}</td>
+                    <td>${log.user}</td>
+                    <td>${log.action}</td>
+                    <td>${log.details || '-'}</td>
+                    <td><span class="badge bg-${log.level === 'alta' ? 'danger' : log.level === 'media' ? 'warning' : 'secondary'}">${log.level}</span></td>
+                </tr>
+            `;
+        });
+
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        Swal.fire({
+            title: '📋 Logs do Sistema',
+            html: html,
+            width: '800px',
+            confirmButtonText: 'Fechar'
+        });
+    };
+
+    // ============================================================
+    // INTERCEPTAR NAVEGAÇÃO PARA REGISTRAR LOGS
+    // ============================================================
+
+    // Interceptar a função showSection para registrar logs
+    const originalShowSection = window.showSection;
+    if (originalShowSection) {
+        window.showSection = function(section) {
+            // Registrar log
+            const user = window.currentUser;
+            if (user) {
+                const userEmail = user.email || 'Sistema';
+                const level = window.getUserLevel ? window.getUserLevel() : 'desconhecido';
+                logAction(`Acessou: ${section}`, `Usuário: ${userEmail} | Nível: ${level}`);
+            }
+            // Chamar a função original
+            originalShowSection(section);
+        };
+    }
+
+    // Interceptar login e logout para registrar logs
+    const originalHandleLogin = window.handleLogin;
+    if (originalHandleLogin) {
+        window.handleLogin = function(e) {
+            e.preventDefault();
+            const email = document.getElementById('loginEmail').value;
+            // Chamar a função original
+            originalHandleLogin(e);
+            // Registrar log após login bem-sucedido (será chamado pelo callback do Firebase)
+            setTimeout(() => {
+                if (window.currentUser) {
+                    logAction('Login', `Usuário: ${email}`);
+                }
+            }, 1000);
+        };
+    }
+
+    // ============================================================
+    // ADICIONAR UI NA SEÇÃO "EMPRESA"
+    // ============================================================
+
+    function addPermissionsUI() {
+        // Aguardar a seção "Empresa" ser criada
+        const interval = setInterval(() => {
+            const businessProfile = document.getElementById('business-profile');
+            if (!businessProfile) return;
+
+            // Verificar se já foi adicionado
+            if (document.getElementById('permissionsSection')) return;
+
+            // Encontrar o local para inserir a seção de permissões
+            const targetRow = businessProfile.querySelector('.row:last-child');
+            if (!targetRow) return;
+
+            // Adicionar a seção de permissões
+            targetRow.insertAdjacentHTML('afterend', `
+                <div id="permissionsSection" class="row mt-4">
+                    <div class="col-md-12">
+                        <!-- Controle de Nível de Acesso -->
+                        <div class="card mb-4">
+                            <div class="card-header" style="background: #26196b; color: white;">
+                                <h5 class="mb-0"><i class="fas fa-user-lock me-2"></i>Gerenciar Acesso</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold">Nível de Acesso do Usuário Atual</label>
+                                        <div class="d-flex gap-2">
+                                            <button class="btn btn-outline-danger btn-sm level-btn" data-level="alta" onclick="setUserLevel('alta')">
+                                                <i class="fas fa-crown me-1"></i>Alta
+                                            </button>
+                                            <button class="btn btn-outline-warning btn-sm level-btn" data-level="media" onclick="setUserLevel('media')">
+                                                <i class="fas fa-user me-1"></i>Média
+                                            </button>
+                                            <button class="btn btn-outline-secondary btn-sm level-btn" data-level="baixa" onclick="setUserLevel('baixa')">
+                                                <i class="fas fa-user me-1"></i>Baixa
+                                            </button>
+                                        </div>
+                                        <div class="mt-2">
+                                            <span class="badge bg-${currentUserLevel === 'alta' ? 'danger' : currentUserLevel === 'media' ? 'warning' : 'secondary'}">
+                                                Nível atual: ${currentUserLevel.toUpperCase()}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 text-end">
+                                        <button class="btn btn-primary" onclick="viewLogs()">
+                                            <i class="fas fa-history me-1"></i>Ver Logs de Acesso
+                                        </button>
+                                        <button class="btn btn-success" onclick="showInviteModal()">
+                                            <i class="fas fa-user-plus me-1"></i>Convidar Colaborador
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Permissões por Colaborador -->
+                        <div id="collaboratorPermissionsContainer">
+                            <div class="text-center text-muted py-3">
+                                <i class="fas fa-spinner fa-spin me-2"></i>Carregando permissões...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `);
+
+            // Destacar o botão do nível atual
+            document.querySelectorAll('.level-btn').forEach(btn => {
+                if (btn.getAttribute('data-level') === currentUserLevel) {
+                    btn.classList.remove('btn-outline-danger', 'btn-outline-warning', 'btn-outline-secondary');
+                    btn.classList.add('btn-primary', 'fw-bold');
+                }
+            });
+
+            // Renderizar permissões
+            renderPermissionsUI();
+
+            clearInterval(interval);
+            console.log('✅ UI de permissões adicionada à seção Empresa');
+        }, 500);
+    }
+
+    // ============================================================
+    // MODAL DE CONVITE
+    // ============================================================
+
+    window.showInviteModal = function() {
+        Swal.fire({
+            title: '📧 Convidar Colaborador',
+            html: `
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Nome do Colaborador</label>
+                    <input type="text" id="inviteName" class="form-control" placeholder="Nome completo">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">E-mail</label>
+                    <input type="email" id="inviteEmail" class="form-control" placeholder="colaborador@email.com">
+                </div>
+                <div class="text-muted small">
+                    <i class="fas fa-info-circle me-1"></i>
+                    O colaborador receberá um link para criar sua conta e acessar o sistema.
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Enviar Convite',
+            cancelButtonText: 'Cancelar',
+            preConfirm: () => {
+                const name = document.getElementById('inviteName').value;
+                const email = document.getElementById('inviteEmail').value;
+                if (!email) {
+                    Swal.showValidationMessage('Por favor, insira um e-mail.');
+                }
+                return { name, email };
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.inviteCollaborator(result.value.email, result.value.name);
+                // Registrar log
+                logAction('Convidou colaborador', `E-mail: ${result.value.email} | Nome: ${result.value.name || 'Não informado'}`);
+            }
+        });
+    };
+
+    // ============================================================
+    // INICIALIZAÇÃO
+    // ============================================================
+
+    function init() {
+        // Carregar nível salvo
+        const savedLevel = localStorage.getItem('userLevel');
+        if (savedLevel && ['alta', 'media', 'baixa'].includes(savedLevel)) {
+            currentUserLevel = savedLevel;
+        }
+
+        // Carregar permissões
+        loadPermissions();
+
+        // Aplicar permissões
+        applyPermissions();
+
+        // Adicionar UI na seção Empresa
+        setTimeout(addPermissionsUI, 1500);
+
+        // Registrar logs de inicialização
+        logAction('Sistema inicializado', 'Sistema de autoridade e permissões ativado');
+
+        console.log('🛡️ Sistema de autoridade e permissões inicializado!');
+        console.log(`📊 Nível atual: ${currentUserLevel}`);
+        console.log('📋 Permissões carregadas:', userPermissions);
+    }
+
+    // Iniciar quando o DOM estiver pronto
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+
+    // ============================================================
+    // FUNÇÕES AUXILIARES
+    // ============================================================
+
+    function showError(message) {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({ icon: 'error', title: 'Erro', text: message, timer: 3000 });
+        } else {
+            alert('❌ ' + message);
+        }
+    }
+
+    function showSuccess(message) {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({ icon: 'success', title: 'Sucesso', text: message, timer: 3000 });
+        } else {
+            alert('✅ ' + message);
+        }
+    }
+
+    function showInfo(message) {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({ icon: 'info', title: 'Informação', text: message, confirmButtonText: 'OK' });
+        } else {
+            alert('ℹ️ ' + message);
+        }
+    }
+
+    console.log('✅ Script de autoridade, permissões e convite carregado com sucesso!');
+})();
+
+<!-- FIM DO SCRIPT DE AUTORIDADE, PERMISSÕES E CONVITE DE COLABORADORES -->
+
+
+
+
 </script>
 
 
