@@ -19258,7 +19258,7 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
 
 
 <!-- ============================================================ -->
-<!-- SCRIPT COMPLETO: FICHA DE LAMINESSIA - CORRIGIDO             -->
+<!-- SCRIPT COMPLETO: FICHA DE LAMINESSIA - COM LISTA DE FICHAS  -->
 <!-- ============================================================ -->
 <!-- COLE ESTE CÓDIGO ANTES DO </body>                            -->
 <!-- ============================================================ -->
@@ -19277,6 +19277,7 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
     let signaturePad = null;
     let signatureProfessionalPad = null;
     let isEditing = false;
+    let todasFichasLaminessia = []; // NOVA VARIÁVEL PARA ARMAZENAR TODAS AS FICHAS
 
     // ============================================================
     // FUNÇÕES PARA OBTER DADOS DO SISTEMA
@@ -19395,7 +19396,7 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
     }
 
     // ============================================================
-    // CRIAR SEÇÃO LAMINESSIA
+    // CRIAR SEÇÃO LAMINESSIA - MODIFICADA COM LISTA DE FICHAS
     // ============================================================
     function createLaminessiaSection() {
         if (document.getElementById('laminessia')) return;
@@ -19428,6 +19429,22 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
                                 </div>
                             </div>
                         </div>
+
+                        <!-- ============================================================
+                        NOVA SEÇÃO: LISTA DE FICHAS CRIADAS
+                        ============================================================ -->
+                        <div class="mt-4">
+                            <div class="card-header" style="background: #26196b; color: #ffffff; border-radius: 8px 8px 0 0; padding: 10px 15px;">
+                                <h6 class="mb-0"><i class="fas fa-list me-2"></i>Fichas Criadas</h6>
+                            </div>
+                            <div id="laminessiaFichasList" class="mt-2" style="max-height: 300px; overflow-y: auto;">
+                                <div class="text-center text-muted py-4">
+                                    <i class="fas fa-file-medical-alt fa-3x mb-3 opacity-50"></i>
+                                    <p>Nenhuma ficha criada ainda.</p>
+                                    <small>As fichas aparecerão aqui após serem salvas.</small>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -19436,8 +19453,222 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
         document.getElementById('laminessiaSearch').addEventListener('input', function() {
             searchLaminessiaClients(this.value);
         });
-        console.log('✅ Seção Laminessia criada');
+        
+        // Carregar todas as fichas ao criar a seção
+        loadAllLaminessiaFichas();
+        
+        console.log('✅ Seção Laminessia criada com lista de fichas');
     }
+
+    // ============================================================
+    // NOVA FUNÇÃO: CARREGAR TODAS AS FICHAS LAMINESSIA
+    // ============================================================
+    async function loadAllLaminessiaFichas() {
+        try {
+            const db = getFirestore();
+            if (!db) {
+                console.log('Firestore não disponível');
+                return;
+            }
+
+            const user = getCurrentUser();
+            if (!user) {
+                console.log('Usuário não logado');
+                return;
+            }
+
+            const snapshot = await db.collection('laminessiaFichas')
+                .where('userId', '==', user.uid)
+                .orderBy('criadoEm', 'desc')
+                .get();
+
+            todasFichasLaminessia = [];
+            snapshot.forEach(doc => {
+                todasFichasLaminessia.push({
+                    id: doc.id,
+                    ...doc.data()
+                });
+            });
+
+            console.log('📋 Total de fichas carregadas:', todasFichasLaminessia.length);
+            renderLaminessiaFichasList();
+
+        } catch (error) {
+            console.error('Erro ao carregar fichas:', error);
+            // Tentar carregar sem ordenação se houver erro de índice
+            try {
+                const db = getFirestore();
+                if (!db) return;
+                const user = getCurrentUser();
+                if (!user) return;
+
+                const snapshot = await db.collection('laminessiaFichas')
+                    .where('userId', '==', user.uid)
+                    .get();
+
+                todasFichasLaminessia = [];
+                snapshot.forEach(doc => {
+                    todasFichasLaminessia.push({
+                        id: doc.id,
+                        ...doc.data()
+                    });
+                });
+
+                // Ordenar localmente
+                todasFichasLaminessia.sort((a, b) => {
+                    const dateA = new Date(a.criadoEm || 0);
+                    const dateB = new Date(b.criadoEm || 0);
+                    return dateB - dateA;
+                });
+
+                console.log('📋 Total de fichas carregadas (sem ordem):', todasFichasLaminessia.length);
+                renderLaminessiaFichasList();
+            } catch (e2) {
+                console.error('Erro ao carregar fichas (fallback):', e2);
+            }
+        }
+    }
+
+    // ============================================================
+    // NOVA FUNÇÃO: RENDERIZAR LISTA DE FICHAS
+    // ============================================================
+    function renderLaminessiaFichasList() {
+        const container = document.getElementById('laminessiaFichasList');
+        if (!container) return;
+
+        if (todasFichasLaminessia.length === 0) {
+            container.innerHTML = `
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-file-medical-alt fa-3x mb-3 opacity-50"></i>
+                    <p>Nenhuma ficha criada ainda.</p>
+                    <small>As fichas aparecerão aqui após serem salvas.</small>
+                </div>
+            `;
+            return;
+        }
+
+        // Buscar nomes dos clientes
+        const clientsList = getClientsList();
+
+        let html = '';
+        todasFichasLaminessia.forEach((ficha, index) => {
+            const client = clientsList.find(c => c.id === ficha.clienteId);
+            const clientName = client ? client.name : 'Cliente não encontrado';
+            const clientPhone = client ? client.phone : '---';
+            
+            const dataCriacao = ficha.criadoEm ? new Date(ficha.criadoEm).toLocaleDateString('pt-PT') : 'Data não informada';
+            const temAssinatura = ficha.consentimentoAssinado ? '✅' : '⏳';
+            const statusAssinatura = ficha.consentimentoAssinado ? 'Assinado' : 'Pendente';
+            const statusClass = ficha.consentimentoAssinado ? 'success' : 'warning';
+            
+            // Foto do cliente
+            const photoHtml = client && client.photoUrl ? 
+                `<img src="${client.photoUrl}" class="rounded-circle" style="width: 35px; height: 35px; object-fit: cover; margin-right: 10px;" onerror="this.style.display='none'">` :
+                `<div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 35px; height: 35px; background: #26196b; color: white; font-size: 14px; font-weight: bold; margin-right: 10px; flex-shrink: 0;">${(clientName || '?').charAt(0).toUpperCase()}</div>`;
+
+            html += `
+                <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center mb-2 rounded shadow-sm" 
+                     style="cursor: pointer; border-left: 4px solid #26196b; padding: 12px; background: white; transition: transform 0.2s;"
+                     onclick="abrirFichaExistente('${ficha.id}')"
+                     onmouseenter="this.style.transform='translateX(3px)'"
+                     onmouseleave="this.style.transform='translateX(0)'">
+                    <div class="d-flex align-items-center" style="flex: 1; min-width: 0;">
+                        ${photoHtml}
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${clientName}</div>
+                            <div style="font-size: 12px; color: #6c757d;">
+                                <i class="fas fa-phone me-1"></i>${clientPhone}
+                                <span class="ms-2"><i class="fas fa-calendar me-1"></i>${dataCriacao}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-end" style="flex-shrink: 0; margin-left: 10px;">
+                        <span class="badge bg-${statusClass}">${temAssinatura} ${statusAssinatura}</span>
+                        <button class="btn btn-sm btn-outline-primary ms-2" onclick="event.stopPropagation(); abrirFichaExistente('${ficha.id}')" title="Ver ficha">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger ms-1" onclick="event.stopPropagation(); excluirFichaDaLista('${ficha.id}')" title="Excluir ficha">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = `
+            <div class="mb-2">
+                <small class="text-muted">Total: ${todasFichasLaminessia.length} ficha(s)</small>
+            </div>
+            ${html}
+        `;
+    }
+
+    // ============================================================
+    // NOVA FUNÇÃO: ABRIR FICHA EXISTENTE PELO ID
+    // ============================================================
+    window.abrirFichaExistente = async function(fichaId) {
+        const ficha = todasFichasLaminessia.find(f => f.id === fichaId);
+        if (!ficha) {
+            showToast('Ficha não encontrada.', 'error');
+            return;
+        }
+
+        const client = getClientsList().find(c => c.id === ficha.clienteId);
+        if (!client) {
+            showToast('Cliente não encontrado.', 'error');
+            return;
+        }
+
+        // Carregar dados da ficha
+        laminessiaClientId = client.id;
+        laminessiaData = { ...laminessiaData, ...ficha };
+        laminessiaPhotos = ficha.fotos || [];
+        
+        // Carregar histórico do cliente
+        await loadLaminessiaHistory(client.id);
+        
+        // Abrir o modal com a ficha
+        renderLaminessiaModal(client);
+        const modal = new bootstrap.Modal(document.getElementById('laminessiaModal'));
+        modal.show();
+    };
+
+    // ============================================================
+    // NOVA FUNÇÃO: EXCLUIR FICHA DA LISTA
+    // ============================================================
+    window.excluirFichaDaLista = function(fichaId) {
+        Swal.fire({
+            title: 'Tem certeza?',
+            text: 'Esta ação não pode ser desfeita. A ficha será excluída permanentemente.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Sim, excluir!',
+            cancelButtonText: 'Cancelar'
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                try {
+                    const db = getFirestore();
+                    if (!db) {
+                        showToast('Firebase não disponível.', 'error');
+                        return;
+                    }
+
+                    await db.collection('laminessiaFichas').doc(fichaId).delete();
+                    
+                    // Remover da lista local
+                    todasFichasLaminessia = todasFichasLaminessia.filter(f => f.id !== fichaId);
+                    renderLaminessiaFichasList();
+                    
+                    showToast('Ficha excluída com sucesso!', 'success');
+                } catch (error) {
+                    console.error('Erro ao excluir ficha:', error);
+                    showToast('Erro ao excluir ficha: ' + error.message, 'error');
+                }
+            }
+        });
+    };
 
     // ============================================================
     // CRIAR MODAIS
@@ -20890,6 +21121,9 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
                 `;
             }
 
+            // Recarregar a lista de fichas
+            await loadAllLaminessiaFichas();
+
         } catch (error) {
             console.error('Erro ao salvar:', error);
             showToast('Erro ao salvar: ' + error.message, 'error');
@@ -21011,6 +21245,9 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
 
                     showToast('Ficha excluída!', 'success');
                     bootstrap.Modal.getInstance(document.getElementById('laminessiaModal')).hide();
+                    
+                    // Recarregar a lista de fichas
+                    await loadAllLaminessiaFichas();
 
                 } catch (error) {
                     showToast('Erro ao excluir: ' + error.message, 'error');
@@ -21214,7 +21451,7 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
     };
 
     // ============================================================
-    // ENVIAR POR WHATSAPP - CORRIGIDO
+    // ENVIAR POR WHATSAPP
     // ============================================================
     window.sendLaminessiaWhatsApp = function() {
         if (!laminessiaData || !laminessiaData.clienteId) {
