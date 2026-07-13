@@ -21214,7 +21214,7 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
     };
 
     // ============================================================
-    // ENVIAR POR WHATSAPP - CORRIGIDO PARA MOBILE
+    // ENVIAR POR WHATSAPP - CORRIGIDO (gera PDF e abre WhatsApp)
     // ============================================================
     window.sendLaminessiaWhatsApp = function() {
         if (!laminessiaData || !laminessiaData.clienteId) {
@@ -21234,7 +21234,7 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF('p', 'mm', 'a4');
 
-            // Cabeçalho
+            // Versão resumida para WhatsApp
             doc.setFontSize(16);
             doc.setTextColor(38, 25, 107);
             doc.text('FICHA DE LAMINESSIA', 105, 20, { align: 'center' });
@@ -21244,8 +21244,6 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
             doc.text(`Data: ${new Date().toLocaleDateString('pt-PT')}`, 105, 27, { align: 'center' });
 
             let y = 40;
-
-            // Dados Pessoais
             doc.setFontSize(11);
             doc.setTextColor(0, 0, 0);
             doc.setFont('helvetica', 'bold');
@@ -21260,7 +21258,6 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
             doc.text(`E-mail: ${laminessiaData.email || ''}`, 15, y);
             y += 10;
 
-            // Procedimentos Desejados
             doc.setFont('helvetica', 'bold');
             doc.text('PROCEDIMENTOS DESEJADOS', 15, y);
             y += 7;
@@ -21269,7 +21266,7 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
             procText.forEach(line => { doc.text(line, 15, y); y += 5; });
             y += 10;
 
-            // Procedimento Realizado
+            // Procedimento Realizado (resumido)
             doc.setFont('helvetica', 'bold');
             doc.text('PROCEDIMENTO REALIZADO', 15, y);
             y += 7;
@@ -21293,11 +21290,14 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
                     y += 25;
                     doc.text('Assinatura da Cliente', 15, y);
                 } catch(e) {
+                    doc.text('Assinatura da Cliente: [imagem]', 15, y + 10);
                     y += 10;
                 }
             } else {
+                doc.text('Assinatura da Cliente: Não assinado', 15, y);
                 y += 10;
             }
+            y += 10;
 
             if (laminessiaData.assinaturaProfissional) {
                 try {
@@ -21305,29 +21305,12 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
                     y += 25;
                     doc.text('Assinatura da Profissional', 15, y);
                 } catch(e) {
+                    doc.text('Assinatura da Profissional: [imagem]', 15, y + 10);
                     y += 10;
                 }
-            }
-
-            // Fotos (miniaturas)
-            if (laminessiaPhotos && laminessiaPhotos.length > 0) {
-                y += 15;
-                doc.setFontSize(10);
-                doc.setTextColor(38, 25, 107);
-                doc.text('FOTOS: ' + laminessiaPhotos.length + ' foto(s) disponíveis', 15, y);
+            } else {
+                doc.text('Assinatura da Profissional: Não assinado', 15, y);
                 y += 10;
-                
-                const maxPhotos = Math.min(laminessiaPhotos.length, 4);
-                const photoSize = 40;
-                let photoX = 15;
-                for (let i = 0; i < maxPhotos; i++) {
-                    try {
-                        doc.addImage(laminessiaPhotos[i].url, 'JPEG', photoX, y, photoSize, photoSize);
-                        photoX += photoSize + 5;
-                    } catch(e) {
-                        // Ignorar erro na miniatura
-                    }
-                }
             }
 
             // Rodapé
@@ -21335,11 +21318,10 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
             doc.setTextColor(150, 150, 150);
             doc.text(`Ficha Laminessia - ${laminessiaData.nome || 'Cliente'}`, 105, 285, { align: 'center' });
 
-            // Gerar PDF
+            // Gerar o PDF como blob
             const pdfBlob = doc.output('blob');
             const pdfUrl = URL.createObjectURL(pdfBlob);
 
-            // Nome do cliente e telefone
             const nomeCliente = laminessiaData.nome || 'Cliente';
             const phone = client.phone.replace(/\D/g, '');
 
@@ -21352,31 +21334,33 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
             // URL do WhatsApp com a mensagem
             const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(mensagem)}`;
 
-            // ============================================================
-            // CORREÇÃO PARA MOBILE - DETECTAR DISPOSITIVO
-            // ============================================================
-            const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|Opera Mini|IEMobile|WPDesktop/i.test(navigator.userAgent) || window.innerWidth < 768;
+            // CRIAR UM LINK PARA BAIXAR O PDF
+            const link = document.createElement('a');
+            link.href = pdfUrl;
+            link.download = `Ficha_Laminessia_${nomeCliente.replace(/\s+/g, '_')}.pdf`;
             
-            if (isMobile) {
-                // EM DISPOSITIVOS MÓVEIS: Abrir WhatsApp diretamente com o link
-                // O PDF já foi baixado, agora abrir o WhatsApp
+            // ABAIXO: AÇÕES EM SEQUÊNCIA
+            // 1. Baixar o PDF (usuário terá o arquivo)
+            link.click();
+            
+            // 2. Abrir WhatsApp em nova aba/janela
+            setTimeout(function() {
+                // Tentar abrir WhatsApp Web ou App
+                window.open(whatsappUrl, '_blank');
+                showToast('PDF baixado! Abrindo WhatsApp...', 'success');
+                
+                // Mensagem adicional para orientar o usuário
                 setTimeout(function() {
-                    // Usar window.location.href para mobile (funciona melhor)
-                    window.location.href = whatsappUrl;
-                    showToast('PDF baixado! Abrindo WhatsApp...', 'success');
-                }, 1000);
-            } else {
-                // EM DESKTOP: Baixar o PDF e abrir WhatsApp em nova aba
-                const link = document.createElement('a');
-                link.href = pdfUrl;
-                link.download = `Ficha_Laminessia_${nomeCliente.replace(/\s+/g, '_')}.pdf`;
-                link.click();
-
-                setTimeout(function() {
-                    window.open(whatsappUrl, '_blank');
-                    showToast('PDF baixado e WhatsApp aberto!', 'success');
-                }, 1500);
-            }
+                    Swal.fire({
+                        icon: 'info',
+                        title: '📌 Como enviar o PDF',
+                        html: 'O PDF foi baixado. No WhatsApp, clique no ícone de clipe 📎, selecione "Documento" e escolha o arquivo baixado.',
+                        timer: 8000,
+                        showConfirmButton: true,
+                        confirmButtonText: 'Entendi'
+                    });
+                }, 2500);
+            }, 1500);
 
         } catch (error) {
             console.error('Erro WhatsApp:', error);
