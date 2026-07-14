@@ -18938,492 +18938,607 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
 
 
 // ============================================================
-// SCRIPT CORRIGIDO PARA IMPORTAR TODOS OS SERVIÇOS DO PREÇÁRIO
+// SCRIPT - PREÇÁRIO COM DADOS EMBUTIDOS (SEM IMPORTAÇÃO)
 // ============================================================
 
-window.importarPrecarioCompleto = async function() {
-    console.log('🚀 INICIANDO IMPORTAÇÃO DO PREÇÁRIO COMPLETO...');
+(function() {
+    console.log('🚀 INICIANDO PREÇÁRIO COM DADOS EMBUTIDOS...');
     
     // ============================================================
-    // 1. VERIFICAR USUÁRIO LOGADO
+    // 1. DADOS COMPLETOS DO PREÇÁRIO (EMBUTIDOS NO CÓDIGO)
     // ============================================================
-    const user = getCurrentUser();
-    if (!user) {
-        showToast('❌ Faça login primeiro.', 'error');
-        return;
-    }
-    console.log('✅ Usuário logado:', user.uid);
-
-    // ============================================================
-    // 2. VERIFICAR FIREBASE
-    // ============================================================
-    const db = getFirestore();
-    if (!db) {
-        showToast('❌ Firebase não disponível.', 'error');
-        return;
-    }
-    console.log('✅ Firebase disponível');
-
-    showToast('⏳ Importando serviços do Preçário...', 'info');
-
-    // ============================================================
-    // 3. LISTA COMPLETA DE CATEGORIAS
-    // ============================================================
-    const categoriasPrecario = [
-        { id: 'cabelo', nome: 'Cabelo', cor: '#26196b', icone: 'fa-cut' },
-        { id: 'brushing', nome: 'Brushing', cor: '#D4AF37', icone: 'fa-wind' },
-        { id: 'madeixas', nome: 'Madeixas', cor: '#8B4513', icone: 'fa-paint-brush' },
-        { id: 'coloracao', nome: 'Coloração Capilar', cor: '#C71585', icone: 'fa-palette' },
-        { id: 'alisamentos', nome: 'Alisamentos', cor: '#2E8B57', icone: 'fa-magic' },
-        { id: 'tratamentos', nome: 'Tratamentos Capilares', cor: '#6A5ACD', icone: 'fa-hand-holding-heart' },
-        { id: 'mega_hair', nome: 'Mega Hair', cor: '#FF4500', icone: 'fa-user-plus' },
-        { id: 'manicure', nome: 'Manicure e Pedicure', cor: '#FF69B4', icone: 'fa-hand-sparkles' },
-        { id: 'unhas_gel', nome: 'Unhas em Gel', cor: '#BA55D3', icone: 'fa-paint-roller' },
-        { id: 'depilacao_feminina', nome: 'Depilação Feminina', cor: '#FF1493', icone: 'fa-female' },
-        { id: 'depilacao_masculina', nome: 'Depilação Masculina', cor: '#1E90FF', icone: 'fa-male' },
-        { id: 'faciais', nome: 'Procedimentos Faciais', cor: '#FFD700', icone: 'fa-face-smile' },
-        { id: 'corporais', nome: 'Procedimentos Corporais', cor: '#32CD32', icone: 'fa-people-arrows' },
-        { id: 'sobrancelhas', nome: 'Sobrancelhas, Cílios e Maquiagem', cor: '#8B008B', icone: 'fa-eye' },
-        { id: 'podologia', nome: 'Podologia e Outros', cor: '#CD853F', icone: 'fa-foot' }
-    ];
-
-    // ============================================================
-    // 4. LISTA COMPLETA DE SERVIÇOS (TODOS DO PREÇÁRIO)
-    // ============================================================
-    const servicosPrecario = [
-        // ===== CABELO - Corte =====
-        { nome: 'Corte Feminino', preco: 20.00, tempo: 60, categoriaId: 'cabelo', categoriaNome: 'Cabelo', descricao: '' },
-        { nome: 'Corte Masculino', preco: 12.00, tempo: 30, categoriaId: 'cabelo', categoriaNome: 'Cabelo', descricao: '' },
-        { nome: 'Corte Masculino Máquina', preco: 10.00, tempo: 20, categoriaId: 'cabelo', categoriaNome: 'Cabelo', descricao: '' },
-        { nome: 'Pack Corte + Brushing', preco: 33.00, tempo: 90, categoriaId: 'cabelo', categoriaNome: 'Cabelo', descricao: '' },
-        
-        // ===== CABELO - Brushing =====
-        { nome: 'Brushing Curto', preco: 14.00, tempo: 40, categoriaId: 'brushing', categoriaNome: 'Brushing', descricao: '' },
-        { nome: 'Brushing Médio', preco: 16.00, tempo: 50, categoriaId: 'brushing', categoriaNome: 'Brushing', descricao: '' },
-        { nome: 'Brushing Longo', preco: 19.00, tempo: 60, categoriaId: 'brushing', categoriaNome: 'Brushing', descricao: '' },
-        { nome: 'Prancha', preco: 4.00, tempo: 20, categoriaId: 'brushing', categoriaNome: 'Brushing', descricao: 'Acrescenta +4,00€ ao brushing.' },
-        
-        // ===== CABELO - Madeixas =====
-        { nome: 'Madeixas Cabelo Curto', preco: 105.00, tempo: 180, categoriaId: 'madeixas', categoriaNome: 'Madeixas', descricao: '' },
-        { nome: 'Madeixas Cabelo Médio', preco: 120.00, tempo: 210, categoriaId: 'madeixas', categoriaNome: 'Madeixas', descricao: '' },
-        { nome: 'Madeixas Cabelo Longo', preco: 140.00, tempo: 240, categoriaId: 'madeixas', categoriaNome: 'Madeixas', descricao: '' },
-        { nome: 'Madeixas Cabelo Extra Longo', preco: 165.00, tempo: 270, categoriaId: 'madeixas', categoriaNome: 'Madeixas', descricao: '' },
-        
-        // ===== CABELO - Coloração =====
-        { nome: 'Coloração Raiz', preco: 30.00, tempo: 90, categoriaId: 'coloracao', categoriaNome: 'Coloração Capilar', descricao: '' },
-        { nome: 'Coloração Raiz (Sem Amônia)', preco: 34.00, tempo: 90, categoriaId: 'coloracao', categoriaNome: 'Coloração Capilar', descricao: '' },
-        { nome: 'Coloração Total', preco: 40.00, tempo: 120, categoriaId: 'coloracao', categoriaNome: 'Coloração Capilar', descricao: 'Preço a partir de 40,00€' },
-        { nome: 'Coloração Raiz + Brushing', preco: 42.50, tempo: 120, categoriaId: 'coloracao', categoriaNome: 'Coloração Capilar', descricao: '' },
-        { nome: 'Coloração Raiz (Amônia) + Brushing', preco: 46.50, tempo: 120, categoriaId: 'coloracao', categoriaNome: 'Coloração Capilar', descricao: '' },
-        
-        // ===== CABELO - Alisamentos =====
-        { nome: 'Botox Capilar', preco: 55.00, tempo: 180, categoriaId: 'alisamentos', categoriaNome: 'Alisamentos', descricao: '' },
-        { nome: 'Progressiva Capilar', preco: 70.00, tempo: 240, categoriaId: 'alisamentos', categoriaNome: 'Alisamentos', descricao: '' },
-        
-        // ===== CABELO - Tratamentos =====
-        { nome: 'Hidratação', preco: 24.00, tempo: 60, categoriaId: 'tratamentos', categoriaNome: 'Tratamentos Capilares', descricao: '' },
-        { nome: 'Nutrição', preco: 29.00, tempo: 60, categoriaId: 'tratamentos', categoriaNome: 'Tratamentos Capilares', descricao: '' },
-        { nome: 'Reconstrução', preco: 34.00, tempo: 70, categoriaId: 'tratamentos', categoriaNome: 'Tratamentos Capilares', descricao: '' },
-        
-        // ===== CABELO - Mega Hair =====
-        { nome: 'Manutenção Mega Hair', preco: 18.00, tempo: 60, categoriaId: 'mega_hair', categoriaNome: 'Mega Hair', descricao: '' },
-        
-        // ===== MANICURE E PEDICURE =====
-        { nome: 'Apenas Cor (Mãos)', preco: 5.00, tempo: 20, categoriaId: 'manicure', categoriaNome: 'Manicure e Pedicure', descricao: '' },
-        { nome: 'Apenas Cor (Pés)', preco: 7.00, tempo: 20, categoriaId: 'manicure', categoriaNome: 'Manicure e Pedicure', descricao: '' },
-        { nome: 'Francesinha', preco: 3.00, tempo: 15, categoriaId: 'manicure', categoriaNome: 'Manicure e Pedicure', descricao: 'Acresce +3,00€ ao serviço.' },
-        { nome: 'Gelinho Mãos', preco: 16.00, tempo: 60, categoriaId: 'manicure', categoriaNome: 'Manicure e Pedicure', descricao: '' },
-        { nome: 'Gelinho Pés', preco: 27.00, tempo: 70, categoriaId: 'manicure', categoriaNome: 'Manicure e Pedicure', descricao: '' },
-        { nome: 'Laser Terapia Contra Fungos', preco: 38.00, tempo: 60, categoriaId: 'manicure', categoriaNome: 'Manicure e Pedicure', descricao: '' },
-        { nome: 'Manicure', preco: 10.00, tempo: 40, categoriaId: 'manicure', categoriaNome: 'Manicure e Pedicure', descricao: '' },
-        { nome: 'Pedicure', preco: 20.00, tempo: 50, categoriaId: 'manicure', categoriaNome: 'Manicure e Pedicure', descricao: '' },
-        { nome: 'Pedicure + Calosidade', preco: 22.00, tempo: 60, categoriaId: 'manicure', categoriaNome: 'Manicure e Pedicure', descricao: '' },
-        { nome: 'Remoção Gelinho', preco: 5.00, tempo: 20, categoriaId: 'manicure', categoriaNome: 'Manicure e Pedicure', descricao: '' },
-        { nome: 'Spa dos Pés', preco: 38.00, tempo: 80, categoriaId: 'manicure', categoriaNome: 'Manicure e Pedicure', descricao: '' },
-        
-        // ===== UNHAS EM GEL =====
-        { nome: '1ª Aplicação Unha em Gel', preco: 25.00, tempo: 90, categoriaId: 'unhas_gel', categoriaNome: 'Unhas em Gel', descricao: '' },
-        { nome: 'Aplicação + Extensão', preco: 25.00, tempo: 120, categoriaId: 'unhas_gel', categoriaNome: 'Unhas em Gel', descricao: '' },
-        { nome: 'Manutenção Simples', preco: 20.00, tempo: 75, categoriaId: 'unhas_gel', categoriaNome: 'Unhas em Gel', descricao: '' },
-        { nome: 'Mudança de Cor', preco: 5.00, tempo: 20, categoriaId: 'unhas_gel', categoriaNome: 'Unhas em Gel', descricao: '' },
-        { nome: 'Remoção de Gel', preco: 6.00, tempo: 30, categoriaId: 'unhas_gel', categoriaNome: 'Unhas em Gel', descricao: '' },
-        { nome: 'Reparação Unha Partida', preco: 2.50, tempo: 15, categoriaId: 'unhas_gel', categoriaNome: 'Unhas em Gel', descricao: '' },
-        { nome: 'Unhas com Decoração', preco: 1.00, tempo: 10, categoriaId: 'unhas_gel', categoriaNome: 'Unhas em Gel', descricao: 'Por unidade' },
-        
-        // ===== DEPILAÇÃO FEMININA =====
-        { nome: 'Axila (Feminino)', preco: 8.00, tempo: 20, categoriaId: 'depilacao_feminina', categoriaNome: 'Depilação Feminina', descricao: '' },
-        { nome: 'Braço Inteiro (Feminino)', preco: 25.00, tempo: 40, categoriaId: 'depilacao_feminina', categoriaNome: 'Depilação Feminina', descricao: '' },
-        { nome: 'Buço', preco: 8.00, tempo: 20, categoriaId: 'depilacao_feminina', categoriaNome: 'Depilação Feminina', descricao: '' },
-        { nome: 'Glúteos (Feminino)', preco: 10.00, tempo: 30, categoriaId: 'depilacao_feminina', categoriaNome: 'Depilação Feminina', descricao: '' },
-        { nome: 'Higiênica Completa (Feminino)', preco: 20.00, tempo: 40, categoriaId: 'depilacao_feminina', categoriaNome: 'Depilação Feminina', descricao: '' },
-        { nome: 'Higiênica Completa + Perianal (Feminino)', preco: 28.00, tempo: 50, categoriaId: 'depilacao_feminina', categoriaNome: 'Depilação Feminina', descricao: '' },
-        { nome: 'Interior de Coxa (Feminino)', preco: 10.00, tempo: 25, categoriaId: 'depilacao_feminina', categoriaNome: 'Depilação Feminina', descricao: '' },
-        { nome: 'Mãos (Feminino)', preco: 6.00, tempo: 15, categoriaId: 'depilacao_feminina', categoriaNome: 'Depilação Feminina', descricao: '' },
-        { nome: 'Meio Braço (Feminino)', preco: 15.00, tempo: 30, categoriaId: 'depilacao_feminina', categoriaNome: 'Depilação Feminina', descricao: '' },
-        { nome: 'Meia Perna (Feminino)', preco: 15.00, tempo: 30, categoriaId: 'depilacao_feminina', categoriaNome: 'Depilação Feminina', descricao: '' },
-        { nome: 'Nariz (Feminino)', preco: 7.00, tempo: 15, categoriaId: 'depilacao_feminina', categoriaNome: 'Depilação Feminina', descricao: '' },
-        { nome: 'Orelha (Feminino)', preco: 7.00, tempo: 15, categoriaId: 'depilacao_feminina', categoriaNome: 'Depilação Feminina', descricao: '' },
-        { nome: 'Orelha e Nariz (Feminino)', preco: 12.00, tempo: 15, categoriaId: 'depilacao_feminina', categoriaNome: 'Depilação Feminina', descricao: '' },
-        { nome: 'Perianal (Feminino)', preco: 15.00, tempo: 20, categoriaId: 'depilacao_feminina', categoriaNome: 'Depilação Feminina', descricao: '' },
-        { nome: 'Perna Inteira (Feminino)', preco: 25.00, tempo: 40, categoriaId: 'depilacao_feminina', categoriaNome: 'Depilação Feminina', descricao: '' },
-        { nome: 'Pés (Feminino)', preco: 6.00, tempo: 15, categoriaId: 'depilacao_feminina', categoriaNome: 'Depilação Feminina', descricao: '' },
-        { nome: 'Posterior de Coxa (Feminino)', preco: 10.00, tempo: 25, categoriaId: 'depilacao_feminina', categoriaNome: 'Depilação Feminina', descricao: '' },
-        { nome: 'Queixo', preco: 8.00, tempo: 20, categoriaId: 'depilacao_feminina', categoriaNome: 'Depilação Feminina', descricao: '' },
-        { nome: 'Rosto Inteiro (Feminino)', preco: 25.00, tempo: 40, categoriaId: 'depilacao_feminina', categoriaNome: 'Depilação Feminina', descricao: '' },
-        { nome: 'Virilha Cavada (Feminino)', preco: 18.00, tempo: 30, categoriaId: 'depilacao_feminina', categoriaNome: 'Depilação Feminina', descricao: '' },
-        { nome: 'Virilha Simples (Feminino)', preco: 15.00, tempo: 30, categoriaId: 'depilacao_feminina', categoriaNome: 'Depilação Feminina', descricao: '' },
-        
-        // ===== DEPILAÇÃO MASCULINA =====
-        { nome: 'Abdômen (Masculino)', preco: 12.50, tempo: 30, categoriaId: 'depilacao_masculina', categoriaNome: 'Depilação Masculina', descricao: '' },
-        { nome: 'Axila (Masculino)', preco: 10.00, tempo: 20, categoriaId: 'depilacao_masculina', categoriaNome: 'Depilação Masculina', descricao: '' },
-        { nome: 'Barba Inteira', preco: 45.00, tempo: 60, categoriaId: 'depilacao_masculina', categoriaNome: 'Depilação Masculina', descricao: '' },
-        { nome: 'Braço Inteiro (Masculino)', preco: 30.00, tempo: 40, categoriaId: 'depilacao_masculina', categoriaNome: 'Depilação Masculina', descricao: '' },
-        { nome: 'Costas', preco: 25.00, tempo: 30, categoriaId: 'depilacao_masculina', categoriaNome: 'Depilação Masculina', descricao: '' },
-        { nome: 'Glúteos (Masculino)', preco: 15.00, tempo: 20, categoriaId: 'depilacao_masculina', categoriaNome: 'Depilação Masculina', descricao: '' },
-        { nome: 'Higiênica Completa (Masculino)', preco: 50.00, tempo: 60, categoriaId: 'depilacao_masculina', categoriaNome: 'Depilação Masculina', descricao: '' },
-        { nome: 'Higiênica Completa + Perianal (Masculino)', preco: 65.00, tempo: 60, categoriaId: 'depilacao_masculina', categoriaNome: 'Depilação Masculina', descricao: '' },
-        { nome: 'Interior de Coxa (Masculino)', preco: 15.00, tempo: 20, categoriaId: 'depilacao_masculina', categoriaNome: 'Depilação Masculina', descricao: '' },
-        { nome: 'Mãos (Masculino)', preco: 8.00, tempo: 15, categoriaId: 'depilacao_masculina', categoriaNome: 'Depilação Masculina', descricao: '' },
-        { nome: 'Meio Braço (Masculino)', preco: 20.00, tempo: 30, categoriaId: 'depilacao_masculina', categoriaNome: 'Depilação Masculina', descricao: '' },
-        { nome: 'Meia Barba', preco: 25.00, tempo: 30, categoriaId: 'depilacao_masculina', categoriaNome: 'Depilação Masculina', descricao: '' },
-        { nome: 'Meia Perna (Masculino)', preco: 20.00, tempo: 30, categoriaId: 'depilacao_masculina', categoriaNome: 'Depilação Masculina', descricao: '' },
-        { nome: 'Nariz (Masculino)', preco: 8.00, tempo: 10, categoriaId: 'depilacao_masculina', categoriaNome: 'Depilação Masculina', descricao: '' },
-        { nome: 'Ombro', preco: 15.00, tempo: 20, categoriaId: 'depilacao_masculina', categoriaNome: 'Depilação Masculina', descricao: '' },
-        { nome: 'Orelha (Masculino)', preco: 8.00, tempo: 10, categoriaId: 'depilacao_masculina', categoriaNome: 'Depilação Masculina', descricao: '' },
-        { nome: 'Pezinho (Masculino)', preco: 12.00, tempo: 20, categoriaId: 'depilacao_masculina', categoriaNome: 'Depilação Masculina', descricao: '' },
-        { nome: 'Perianal (Masculino)', preco: 25.00, tempo: 30, categoriaId: 'depilacao_masculina', categoriaNome: 'Depilação Masculina', descricao: '' },
-        { nome: 'Perna Inteira (Masculino)', preco: 35.00, tempo: 40, categoriaId: 'depilacao_masculina', categoriaNome: 'Depilação Masculina', descricao: '' },
-        { nome: 'Pescoço', preco: 12.00, tempo: 20, categoriaId: 'depilacao_masculina', categoriaNome: 'Depilação Masculina', descricao: '' },
-        { nome: 'Pés (Masculino)', preco: 7.00, tempo: 15, categoriaId: 'depilacao_masculina', categoriaNome: 'Depilação Masculina', descricao: '' },
-        { nome: 'Posterior de Coxa (Masculino)', preco: 15.00, tempo: 20, categoriaId: 'depilacao_masculina', categoriaNome: 'Depilação Masculina', descricao: '' },
-        { nome: 'Sobrancelhas (Masculino)', preco: 10.00, tempo: 20, categoriaId: 'depilacao_masculina', categoriaNome: 'Depilação Masculina', descricao: '' },
-        { nome: 'Tórax', preco: 25.00, tempo: 30, categoriaId: 'depilacao_masculina', categoriaNome: 'Depilação Masculina', descricao: '' },
-        { nome: 'Virilha Simples (Masculino)', preco: 25.00, tempo: 30, categoriaId: 'depilacao_masculina', categoriaNome: 'Depilação Masculina', descricao: '' },
-        
-        // ===== PROCEDIMENTOS FACIAIS =====
-        { nome: 'BB Glow', preco: 50.00, tempo: 80, categoriaId: 'faciais', categoriaNome: 'Procedimentos Faciais', descricao: 'Desde 50,00€' },
-        { nome: 'Dermoabrasão', preco: 30.00, tempo: 40, categoriaId: 'faciais', categoriaNome: 'Procedimentos Faciais', descricao: '' },
-        { nome: 'Dermaplaning', preco: 30.00, tempo: 40, categoriaId: 'faciais', categoriaNome: 'Procedimentos Faciais', descricao: '' },
-        { nome: 'Endermo (Região)', preco: 25.00, tempo: 30, categoriaId: 'faciais', categoriaNome: 'Procedimentos Faciais', descricao: '' },
-        { nome: 'Eletrolifting', preco: 30.00, tempo: 30, categoriaId: 'faciais', categoriaNome: 'Procedimentos Faciais', descricao: '' },
-        { nome: 'Galvanizada', preco: 25.00, tempo: 30, categoriaId: 'faciais', categoriaNome: 'Procedimentos Faciais', descricao: '' },
-        { nome: 'Limpeza de Pele Completa', preco: 45.00, tempo: 80, categoriaId: 'faciais', categoriaNome: 'Procedimentos Faciais', descricao: '' },
-        { nome: 'Limpeza de Pele Express (sem extração)', preco: 30.00, tempo: 30, categoriaId: 'faciais', categoriaNome: 'Procedimentos Faciais', descricao: '' },
-        { nome: 'Limpeza de Pele Premium', preco: 70.00, tempo: 90, categoriaId: 'faciais', categoriaNome: 'Procedimentos Faciais', descricao: '' },
-        { nome: 'Limpeza de Pele Ultrassônica', preco: 40.00, tempo: 60, categoriaId: 'faciais', categoriaNome: 'Procedimentos Faciais', descricao: '' },
-        { nome: 'Massagem Facial', preco: 20.00, tempo: 25, categoriaId: 'faciais', categoriaNome: 'Procedimentos Faciais', descricao: '' },
-        { nome: 'Microagulhamento', preco: 80.00, tempo: 60, categoriaId: 'faciais', categoriaNome: 'Procedimentos Faciais', descricao: '' },
-        { nome: 'Rádio Frequência', preco: 45.00, tempo: 30, categoriaId: 'faciais', categoriaNome: 'Procedimentos Faciais', descricao: '' },
-        { nome: 'Ultrassom', preco: 30.00, tempo: 30, categoriaId: 'faciais', categoriaNome: 'Procedimentos Faciais', descricao: '' },
-        
-        // ===== PROCEDIMENTOS CORPORAIS =====
-        { nome: 'Bambuterapia', preco: 40.00, tempo: 60, categoriaId: 'corporais', categoriaNome: 'Procedimentos Corporais', descricao: '' },
-        { nome: 'Drenagem Linfática', preco: 70.00, tempo: 60, categoriaId: 'corporais', categoriaNome: 'Procedimentos Corporais', descricao: '' },
-        { nome: 'Endermo (Região)', preco: 25.00, tempo: 40, categoriaId: 'corporais', categoriaNome: 'Procedimentos Corporais', descricao: '' },
-        { nome: 'Eletrolifting', preco: 30.00, tempo: 40, categoriaId: 'corporais', categoriaNome: 'Procedimentos Corporais', descricao: '' },
-        { nome: 'Galvanizada', preco: 30.00, tempo: 40, categoriaId: 'corporais', categoriaNome: 'Procedimentos Corporais', descricao: '' },
-        { nome: 'Massagem Desportiva', preco: 50.00, tempo: 60, categoriaId: 'corporais', categoriaNome: 'Procedimentos Corporais', descricao: '' },
-        { nome: 'Massagem Modeladora Completa', preco: 60.00, tempo: 60, categoriaId: 'corporais', categoriaNome: 'Procedimentos Corporais', descricao: '' },
-        { nome: 'Massagem Modeladora (Região)', preco: 30.00, tempo: 40, categoriaId: 'corporais', categoriaNome: 'Procedimentos Corporais', descricao: '' },
-        { nome: 'Massagem Pós-operatório', preco: 90.00, tempo: 60, categoriaId: 'corporais', categoriaNome: 'Procedimentos Corporais', descricao: '' },
-        { nome: 'Massagem Relaxante', preco: 40.00, tempo: 60, categoriaId: 'corporais', categoriaNome: 'Procedimentos Corporais', descricao: '' },
-        { nome: 'Massagem Relaxante (30 min)', preco: 25.00, tempo: 30, categoriaId: 'corporais', categoriaNome: 'Procedimentos Corporais', descricao: '' },
-        { nome: 'Massagem Relaxante com Pedras', preco: 50.00, tempo: 60, categoriaId: 'corporais', categoriaNome: 'Procedimentos Corporais', descricao: '' },
-        { nome: 'Massagem Relaxante com Pedras (30 min)', preco: 30.00, tempo: 30, categoriaId: 'corporais', categoriaNome: 'Procedimentos Corporais', descricao: '' },
-        { nome: 'Pump', preco: 20.00, tempo: 30, categoriaId: 'corporais', categoriaNome: 'Procedimentos Corporais', descricao: '' },
-        { nome: 'Rádio Frequência', preco: 45.00, tempo: 40, categoriaId: 'corporais', categoriaNome: 'Procedimentos Corporais', descricao: '' },
-        { nome: 'Terapêutica (Região)', preco: 30.00, tempo: 40, categoriaId: 'corporais', categoriaNome: 'Procedimentos Corporais', descricao: '' },
-        { nome: 'Ultrassom', preco: 30.00, tempo: 40, categoriaId: 'corporais', categoriaNome: 'Procedimentos Corporais', descricao: '' },
-        { nome: 'Ventosaterapia', preco: 40.00, tempo: 60, categoriaId: 'corporais', categoriaNome: 'Procedimentos Corporais', descricao: '' },
-        
-        // ===== SOBRANCELHAS, CÍLIOS E MAQUIAGEM =====
-        { nome: 'Brow Lamination', preco: 20.00, tempo: 30, categoriaId: 'sobrancelhas', categoriaNome: 'Sobrancelhas, Cílios e Maquiagem', descricao: '' },
-        { nome: 'Brow Lamination + Designer', preco: 30.00, tempo: 60, categoriaId: 'sobrancelhas', categoriaNome: 'Sobrancelhas, Cílios e Maquiagem', descricao: '' },
-        { nome: 'Lash Lifting', preco: 30.00, tempo: 60, categoriaId: 'sobrancelhas', categoriaNome: 'Sobrancelhas, Cílios e Maquiagem', descricao: '' },
-        { nome: 'Make', preco: 25.00, tempo: 50, categoriaId: 'sobrancelhas', categoriaNome: 'Sobrancelhas, Cílios e Maquiagem', descricao: 'Desde 25,00€' },
-        { nome: 'Micropigmentação', preco: 120.00, tempo: 120, categoriaId: 'sobrancelhas', categoriaNome: 'Sobrancelhas, Cílios e Maquiagem', descricao: 'Desde 120,00€' },
-        { nome: 'Sobrancelha Designer', preco: 12.00, tempo: 30, categoriaId: 'sobrancelhas', categoriaNome: 'Sobrancelhas, Cílios e Maquiagem', descricao: '' },
-        { nome: 'Sobrancelha Designer c/ Henna ou Cor', preco: 14.00, tempo: 40, categoriaId: 'sobrancelhas', categoriaNome: 'Sobrancelhas, Cílios e Maquiagem', descricao: '' },
-        { nome: 'Sobrancelha Simples', preco: 10.00, tempo: 20, categoriaId: 'sobrancelhas', categoriaNome: 'Sobrancelhas, Cílios e Maquiagem', descricao: '' },
-        
-        // ===== PODOLOGIA E OUTROS =====
-        { nome: 'Cone Hindu', preco: 20.00, tempo: 30, categoriaId: 'podologia', categoriaNome: 'Podologia e Outros', descricao: '' },
-        { nome: 'Manicure Convencional', preco: 13.00, tempo: 50, categoriaId: 'podologia', categoriaNome: 'Podologia e Outros', descricao: '' },
-        { nome: 'Manicure + Gelinho', preco: 18.00, tempo: 70, categoriaId: 'podologia', categoriaNome: 'Podologia e Outros', descricao: '' },
-        { nome: 'Pedicure Convencional', preco: 25.00, tempo: 50, categoriaId: 'podologia', categoriaNome: 'Podologia e Outros', descricao: '' },
-        { nome: 'Pedicure com Gelinho', preco: 30.00, tempo: 70, categoriaId: 'podologia', categoriaNome: 'Podologia e Outros', descricao: '' },
-        { nome: 'Plástica dos Pés', preco: 35.00, tempo: 40, categoriaId: 'podologia', categoriaNome: 'Podologia e Outros', descricao: '' },
-        { nome: 'Plástica dos Pés + Pedicure', preco: 40.00, tempo: 90, categoriaId: 'podologia', categoriaNome: 'Podologia e Outros', descricao: '' },
-        { nome: 'Podologia', preco: 50.00, tempo: 75, categoriaId: 'podologia', categoriaNome: 'Podologia e Outros', descricao: '50,00€ a 80,00€ (valor médio 50)' },
-        { nome: 'Retirada de Verrugas', preco: 50.00, tempo: 30, categoriaId: 'podologia', categoriaNome: 'Podologia e Outros', descricao: 'Desde 50,00€' },
-        { nome: 'Spa dos Pés Completo (Podal + Reflexologia)', preco: 60.00, tempo: 120, categoriaId: 'podologia', categoriaNome: 'Podologia e Outros', descricao: '' }
-    ];
-
-    // ============================================================
-    // 5. FUNÇÃO PARA GERAR ID ÚNICO
-    // ============================================================
-    function gerarIdUnico(nome) {
-        return nome.toLowerCase()
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .replace(/[^a-z0-9]/g, '_')
-            .replace(/_+/g, '_')
-            .replace(/^_|_$/g, '')
-            .substring(0, 50);
-    }
-
-    // ============================================================
-    // 6. IMPORTAÇÃO
-    // ============================================================
-    try {
-        let categoriasImportadas = 0;
-        let categoriasExistentes = 0;
-
-        // 6.1 Importar categorias
-        console.log('📁 Importando categorias...');
-        for (const cat of categoriasPrecario) {
-            const docRef = db.collection('categorias').doc(cat.id);
-            const doc = await docRef.get();
+    const dadosPrecario = {
+        categorias: [
+            { id: 'cabelo', nome: 'Cabelo', cor: '#26196b' },
+            { id: 'brushing', nome: 'Brushing', cor: '#D4AF37' },
+            { id: 'madeixas', nome: 'Madeixas', cor: '#8B4513' },
+            { id: 'coloracao', nome: 'Coloração', cor: '#C71585' },
+            { id: 'alisamentos', nome: 'Alisamentos', cor: '#2E8B57' },
+            { id: 'tratamentos', nome: 'Tratamentos Capilares', cor: '#6A5ACD' },
+            { id: 'mega_hair', nome: 'Mega Hair', cor: '#FF4500' },
+            { id: 'manicure', nome: 'Manicure e Pedicure', cor: '#FF69B4' },
+            { id: 'unhas_gel', nome: 'Unhas em Gel', cor: '#BA55D3' },
+            { id: 'depilacao_feminina', nome: 'Depilação Feminina', cor: '#FF1493' },
+            { id: 'depilacao_masculina', nome: 'Depilação Masculina', cor: '#1E90FF' },
+            { id: 'faciais', nome: 'Procedimentos Faciais', cor: '#FFD700' },
+            { id: 'corporais', nome: 'Procedimentos Corporais', cor: '#32CD32' },
+            { id: 'sobrancelhas', nome: 'Sobrancelhas e Cílios', cor: '#8B008B' },
+            { id: 'podologia', nome: 'Podologia e Outros', cor: '#CD853F' }
+        ],
+        servicos: [
+            // ===== CABELO - CORTE =====
+            { nome: 'Corte Feminino', preco: 20.00, tempo: 60, categoriaId: 'cabelo' },
+            { nome: 'Corte Masculino', preco: 12.00, tempo: 30, categoriaId: 'cabelo' },
+            { nome: 'Corte Masculino Máquina', preco: 10.00, tempo: 20, categoriaId: 'cabelo' },
+            { nome: 'Pack Corte + Brushing', preco: 33.00, tempo: 90, categoriaId: 'cabelo' },
             
-            if (!doc.exists) {
-                await docRef.set({
-                    nome: cat.nome,
-                    cor: cat.cor,
-                    icone: cat.icone,
-                    userId: user.uid,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
-                categoriasImportadas++;
-                console.log(`  ✅ Categoria criada: ${cat.nome}`);
-            } else {
-                categoriasExistentes++;
-                console.log(`  ⏩ Categoria já existe: ${cat.nome}`);
-            }
+            // ===== CABELO - BRUSHING =====
+            { nome: 'Brushing Curto', preco: 14.00, tempo: 40, categoriaId: 'brushing' },
+            { nome: 'Brushing Médio', preco: 16.00, tempo: 50, categoriaId: 'brushing' },
+            { nome: 'Brushing Longo', preco: 19.00, tempo: 60, categoriaId: 'brushing' },
+            { nome: 'Prancha', preco: 4.00, tempo: 20, categoriaId: 'brushing' },
+            
+            // ===== CABELO - MADRIXAS =====
+            { nome: 'Madeixas Cabelo Curto', preco: 105.00, tempo: 180, categoriaId: 'madeixas' },
+            { nome: 'Madeixas Cabelo Médio', preco: 120.00, tempo: 210, categoriaId: 'madeixas' },
+            { nome: 'Madeixas Cabelo Longo', preco: 140.00, tempo: 240, categoriaId: 'madeixas' },
+            { nome: 'Madeixas Cabelo Extra Longo', preco: 165.00, tempo: 270, categoriaId: 'madeixas' },
+            
+            // ===== CABELO - COLORAÇÃO =====
+            { nome: 'Coloração Raiz', preco: 30.00, tempo: 90, categoriaId: 'coloracao' },
+            { nome: 'Coloração Raiz (Sem Amônia)', preco: 34.00, tempo: 90, categoriaId: 'coloracao' },
+            { nome: 'Coloração Total', preco: 40.00, tempo: 120, categoriaId: 'coloracao' },
+            { nome: 'Coloração Raiz + Brushing', preco: 42.50, tempo: 120, categoriaId: 'coloracao' },
+            
+            // ===== CABELO - ALISAMENTOS =====
+            { nome: 'Botox Capilar', preco: 55.00, tempo: 180, categoriaId: 'alisamentos' },
+            { nome: 'Progressiva Capilar', preco: 70.00, tempo: 240, categoriaId: 'alisamentos' },
+            
+            // ===== CABELO - TRATAMENTOS =====
+            { nome: 'Hidratação', preco: 24.00, tempo: 60, categoriaId: 'tratamentos' },
+            { nome: 'Nutrição', preco: 29.00, tempo: 60, categoriaId: 'tratamentos' },
+            { nome: 'Reconstrução', preco: 34.00, tempo: 70, categoriaId: 'tratamentos' },
+            
+            // ===== MEGA HAIR =====
+            { nome: 'Manutenção Mega Hair', preco: 18.00, tempo: 60, categoriaId: 'mega_hair' },
+            
+            // ===== MANICURE E PEDICURE =====
+            { nome: 'Manicure', preco: 10.00, tempo: 40, categoriaId: 'manicure' },
+            { nome: 'Pedicure', preco: 20.00, tempo: 50, categoriaId: 'manicure' },
+            { nome: 'Gelinho Mãos', preco: 16.00, tempo: 60, categoriaId: 'manicure' },
+            { nome: 'Gelinho Pés', preco: 27.00, tempo: 70, categoriaId: 'manicure' },
+            { nome: 'Spa dos Pés', preco: 38.00, tempo: 80, categoriaId: 'manicure' },
+            { nome: 'Pedicure + Calosidade', preco: 22.00, tempo: 60, categoriaId: 'manicure' },
+            { nome: 'Remoção Gelinho', preco: 5.00, tempo: 20, categoriaId: 'manicure' },
+            { nome: 'Apenas Cor (Mãos)', preco: 5.00, tempo: 20, categoriaId: 'manicure' },
+            { nome: 'Apenas Cor (Pés)', preco: 7.00, tempo: 20, categoriaId: 'manicure' },
+            { nome: 'Francesinha', preco: 3.00, tempo: 15, categoriaId: 'manicure' },
+            
+            // ===== UNHAS EM GEL =====
+            { nome: '1ª Aplicação Unha em Gel', preco: 25.00, tempo: 90, categoriaId: 'unhas_gel' },
+            { nome: 'Aplicação + Extensão', preco: 25.00, tempo: 120, categoriaId: 'unhas_gel' },
+            { nome: 'Manutenção Simples', preco: 20.00, tempo: 75, categoriaId: 'unhas_gel' },
+            { nome: 'Mudança de Cor', preco: 5.00, tempo: 20, categoriaId: 'unhas_gel' },
+            { nome: 'Remoção de Gel', preco: 6.00, tempo: 30, categoriaId: 'unhas_gel' },
+            { nome: 'Reparação Unha Partida', preco: 2.50, tempo: 15, categoriaId: 'unhas_gel' },
+            { nome: 'Unhas com Decoração', preco: 1.00, tempo: 10, categoriaId: 'unhas_gel' },
+            
+            // ===== DEPILAÇÃO FEMININA =====
+            { nome: 'Axila (Feminino)', preco: 8.00, tempo: 20, categoriaId: 'depilacao_feminina' },
+            { nome: 'Buço', preco: 8.00, tempo: 20, categoriaId: 'depilacao_feminina' },
+            { nome: 'Higiênica Completa', preco: 20.00, tempo: 40, categoriaId: 'depilacao_feminina' },
+            { nome: 'Perna Inteira', preco: 25.00, tempo: 40, categoriaId: 'depilacao_feminina' },
+            { nome: 'Virilha Simples', preco: 15.00, tempo: 30, categoriaId: 'depilacao_feminina' },
+            { nome: 'Virilha Cavada', preco: 18.00, tempo: 30, categoriaId: 'depilacao_feminina' },
+            { nome: 'Meia Perna', preco: 15.00, tempo: 30, categoriaId: 'depilacao_feminina' },
+            { nome: 'Braço Inteiro', preco: 25.00, tempo: 40, categoriaId: 'depilacao_feminina' },
+            { nome: 'Glúteos', preco: 10.00, tempo: 30, categoriaId: 'depilacao_feminina' },
+            
+            // ===== DEPILAÇÃO MASCULINA =====
+            { nome: 'Barba Inteira', preco: 45.00, tempo: 60, categoriaId: 'depilacao_masculina' },
+            { nome: 'Costas', preco: 25.00, tempo: 30, categoriaId: 'depilacao_masculina' },
+            { nome: 'Higiênica Completa', preco: 50.00, tempo: 60, categoriaId: 'depilacao_masculina' },
+            { nome: 'Tórax', preco: 25.00, tempo: 30, categoriaId: 'depilacao_masculina' },
+            { nome: 'Perna Inteira', preco: 35.00, tempo: 40, categoriaId: 'depilacao_masculina' },
+            { nome: 'Axila (Masculino)', preco: 10.00, tempo: 20, categoriaId: 'depilacao_masculina' },
+            { nome: 'Abdômen', preco: 12.50, tempo: 30, categoriaId: 'depilacao_masculina' },
+            { nome: 'Ombro', preco: 15.00, tempo: 20, categoriaId: 'depilacao_masculina' },
+            
+            // ===== PROCEDIMENTOS FACIAIS =====
+            { nome: 'Limpeza de Pele Completa', preco: 45.00, tempo: 80, categoriaId: 'faciais' },
+            { nome: 'Limpeza de Pele Premium', preco: 70.00, tempo: 90, categoriaId: 'faciais' },
+            { nome: 'Microagulhamento', preco: 80.00, tempo: 60, categoriaId: 'faciais' },
+            { nome: 'BB Glow', preco: 50.00, tempo: 80, categoriaId: 'faciais' },
+            { nome: 'Dermoabrasão', preco: 30.00, tempo: 40, categoriaId: 'faciais' },
+            { nome: 'Dermaplaning', preco: 30.00, tempo: 40, categoriaId: 'faciais' },
+            { nome: 'Rádio Frequência', preco: 45.00, tempo: 30, categoriaId: 'faciais' },
+            { nome: 'Massagem Facial', preco: 20.00, tempo: 25, categoriaId: 'faciais' },
+            { nome: 'Ultrassom Facial', preco: 30.00, tempo: 30, categoriaId: 'faciais' },
+            
+            // ===== PROCEDIMENTOS CORPORAIS =====
+            { nome: 'Drenagem Linfática', preco: 70.00, tempo: 60, categoriaId: 'corporais' },
+            { nome: 'Massagem Relaxante', preco: 40.00, tempo: 60, categoriaId: 'corporais' },
+            { nome: 'Massagem Modeladora Completa', preco: 60.00, tempo: 60, categoriaId: 'corporais' },
+            { nome: 'Bambuterapia', preco: 40.00, tempo: 60, categoriaId: 'corporais' },
+            { nome: 'Massagem Pós-operatório', preco: 90.00, tempo: 60, categoriaId: 'corporais' },
+            { nome: 'Ventosaterapia', preco: 40.00, tempo: 60, categoriaId: 'corporais' },
+            { nome: 'Massagem Relaxante (30min)', preco: 25.00, tempo: 30, categoriaId: 'corporais' },
+            { nome: 'Massagem com Pedras', preco: 50.00, tempo: 60, categoriaId: 'corporais' },
+            
+            // ===== SOBRANCELHAS =====
+            { nome: 'Brow Lamination', preco: 20.00, tempo: 30, categoriaId: 'sobrancelhas' },
+            { nome: 'Brow Lamination + Designer', preco: 30.00, tempo: 60, categoriaId: 'sobrancelhas' },
+            { nome: 'Lash Lifting', preco: 30.00, tempo: 60, categoriaId: 'sobrancelhas' },
+            { nome: 'Make', preco: 25.00, tempo: 50, categoriaId: 'sobrancelhas' },
+            { nome: 'Sobrancelha Designer', preco: 12.00, tempo: 30, categoriaId: 'sobrancelhas' },
+            { nome: 'Sobrancelha Simples', preco: 10.00, tempo: 20, categoriaId: 'sobrancelhas' },
+            { nome: 'Micropigmentação', preco: 120.00, tempo: 120, categoriaId: 'sobrancelhas' },
+            { nome: 'Sobrancelha com Henna', preco: 14.00, tempo: 40, categoriaId: 'sobrancelhas' },
+            
+            // ===== PODOLOGIA =====
+            { nome: 'Podologia', preco: 50.00, tempo: 75, categoriaId: 'podologia' },
+            { nome: 'Plástica dos Pés', preco: 35.00, tempo: 40, categoriaId: 'podologia' },
+            { nome: 'Cone Hindu', preco: 20.00, tempo: 30, categoriaId: 'podologia' },
+            { nome: 'Manicure Convencional', preco: 13.00, tempo: 50, categoriaId: 'podologia' },
+            { nome: 'Pedicure Convencional', preco: 25.00, tempo: 50, categoriaId: 'podologia' },
+            { nome: 'Retirada de Verrugas', preco: 50.00, tempo: 30, categoriaId: 'podologia' },
+            { nome: 'Spa dos Pés Completo', preco: 60.00, tempo: 120, categoriaId: 'podologia' }
+        ]
+    };
+    
+    // ============================================================
+    // 2. CORES PARA OS CARDS (15 CORES DIFERENTES)
+    // ============================================================
+    const coresCards = [
+        '#26196b', '#D4AF37', '#8B4513', '#C71585', '#2E8B57',
+        '#6A5ACD', '#FF4500', '#FF69B4', '#BA55D3', '#FF1493',
+        '#1E90FF', '#FFD700', '#32CD32', '#8B008B', '#CD853F',
+        '#00CED1', '#FF6347', '#7B68EE', '#3CB371', '#FF6B6B',
+        '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#FF9FF3'
+    ];
+    
+    // ============================================================
+    // 3. RENDERIZAR CARDS DIRETAMENTE
+    // ============================================================
+    function renderizarPrecarioDireto() {
+        const container = document.getElementById('precarioCardContainer');
+        if (!container) {
+            console.log('⏳ Aguardando container...');
+            setTimeout(renderizarPrecarioDireto, 500);
+            return;
         }
-        console.log(`📁 Categorias: ${categoriasImportadas} criadas, ${categoriasExistentes} existentes`);
-
-        // 6.2 Importar serviços
-        console.log('📦 Importando serviços...');
-        let servicosImportados = 0;
-        let servicosAtualizados = 0;
-        let servicosIgnorados = 0;
-        let servicosErro = 0;
-
-        for (const servico of servicosPrecario) {
-            try {
-                const idBase = gerarIdUnico(servico.nome);
-                const docRef = db.collection('servicos').doc(idBase);
-                const doc = await docRef.get();
-
-                if (!doc.exists) {
-                    // Criar novo serviço
-                    await docRef.set({
-                        nome: servico.nome,
-                        preco: servico.preco,
-                        tempo: servico.tempo,
-                        categoriaId: servico.categoriaId,
-                        categoriaNome: servico.categoriaNome,
-                        descricao: servico.descricao || '',
-                        userId: user.uid,
-                        ativo: true,
-                        colaboradoresIds: [],
-                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                    });
-                    servicosImportados++;
-                    if (servicosImportados % 20 === 0) {
-                        console.log(`  📦 ${servicosImportados} serviços importados...`);
-                    }
-                } else {
-                    // Verificar se precisa atualizar
-                    const data = doc.data();
-                    const precisaAtualizar = 
-                        data.preco !== servico.preco || 
-                        data.tempo !== servico.tempo ||
-                        data.categoriaNome !== servico.categoriaNome;
-
-                    if (precisaAtualizar) {
-                        await docRef.update({
-                            preco: servico.preco,
-                            tempo: servico.tempo,
-                            categoriaNome: servico.categoriaNome,
-                            descricao: servico.descricao || '',
-                            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                        });
-                        servicosAtualizados++;
-                    } else {
-                        servicosIgnorados++;
-                    }
-                }
-            } catch (error) {
-                servicosErro++;
-                console.error(`  ❌ Erro ao importar "${servico.nome}":`, error.message);
-            }
-        }
-
-        console.log(`📦 Serviços: ${servicosImportados} importados, ${servicosAtualizados} atualizados, ${servicosIgnorados} ignorados, ${servicosErro} com erro`);
-
-        // ============================================================
-        // 7. MENSAGEM FINAL
-        // ============================================================
-        const total = servicosImportados + servicosAtualizados;
         
-        Swal.fire({
-            title: '✅ Importação concluída!',
-            html: `
-                <div style="text-align:left; max-width:400px; margin:0 auto;">
-                    <p><strong>${total}</strong> serviços processados</p>
-                    <ul style="list-style:none; padding:0;">
-                        <li>📦 <strong>${servicosImportados}</strong> novos serviços</li>
-                        <li>🔄 <strong>${servicosAtualizados}</strong> serviços atualizados</li>
-                        <li>⏩ <strong>${servicosIgnorados}</strong> serviços já estavam corretos</li>
-                        ${servicosErro > 0 ? `<li>❌ <strong>${servicosErro}</strong> serviços com erro</li>` : ''}
-                    </ul>
-                    <hr>
-                    <p><strong>📁 Categorias:</strong> ${categoriasImportadas} criadas, ${categoriasExistentes} existentes</p>
-                    <hr>
-                    <p style="font-size:13px; color:#6c757d;">
-                        <i class="fas fa-link me-1"></i>
-                        Página pública disponível em:<br>
-                        <strong style="font-size:14px; word-break:break-all;">
-                            ${window.location.origin}/precario-publico.html
-                        </strong>
-                    </p>
-                </div>
-            `,
-            icon: 'success',
-            confirmButtonText: 'OK'
+        console.log('🎨 Renderizando cards do Preçário...');
+        
+        // Agrupar serviços por categoria
+        const grupos = {};
+        dadosPrecario.servicos.forEach(servico => {
+            const catId = servico.categoriaId;
+            if (!grupos[catId]) {
+                const cat = dadosPrecario.categorias.find(c => c.id === catId);
+                grupos[catId] = {
+                    id: catId,
+                    nome: cat ? cat.nome : 'Outros',
+                    cor: cat ? cat.cor : '#666',
+                    servicos: []
+                };
+            }
+            grupos[catId].servicos.push(servico);
         });
-
-        // ============================================================
-        // 8. RECARREGAR DADOS
-        // ============================================================
-        if (typeof loadPrecarioData === 'function') {
-            await loadPrecarioData();
+        
+        // Ordenar categorias
+        const gruposOrdenados = Object.values(grupos).sort((a, b) => a.nome.localeCompare(b.nome));
+        
+        let html = '';
+        let corIndex = 0;
+        
+        gruposOrdenados.forEach(grupo => {
+            const cor = grupo.cor || coresCards[corIndex % coresCards.length];
+            corIndex++;
+            
+            // Cabeçalho da categoria
+            html += `
+                <div class="col-12 mb-3">
+                    <div class="d-flex align-items-center gap-2" style="border-bottom: 3px solid ${cor}; padding-bottom: 8px;">
+                        <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${cor};"></span>
+                        <h5 class="mb-0 fw-bold" style="color:${cor};">${grupo.nome}</h5>
+                        <span class="badge bg-secondary ms-2">${grupo.servicos.length}</span>
+                    </div>
+                </div>
+            `;
+            
+            // Cards da categoria
+            grupo.servicos.forEach((servico, idx) => {
+                const corCard = coresCards[(corIndex + idx) % coresCards.length];
+                
+                html += `
+                    <div class="col-md-4 col-lg-3 col-6 mb-3">
+                        <div class="precario-card" style="border-left: 4px solid ${corCard}; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); height: 100%; display: flex; flex-direction: column; overflow: hidden; transition: all 0.3s;">
+                            <div class="card-body" style="padding: 14px; flex: 1; display: flex; flex-direction: column;">
+                                <span class="categoria-badge" style="background: ${corCard}; color: white; font-size: 10px; font-weight: 600; padding: 3px 10px; border-radius: 20px; text-transform: uppercase; align-self: flex-start; margin-bottom: 8px;">
+                                    ${grupo.nome}
+                                </span>
+                                <div class="servico-nome" style="font-size: 14px; font-weight: 600; color: #333; margin-bottom: 4px; line-height: 1.3;">
+                                    ${servico.nome}
+                                </div>
+                                <div class="servico-preco" style="font-size: 18px; font-weight: 700; color: #28a745; margin: 4px 0;">
+                                    € ${servico.preco.toFixed(2)}
+                                </div>
+                                <div class="servico-tempo" style="font-size: 13px; color: #6c757d; margin-bottom: 6px;">
+                                    <i class="far fa-clock me-1"></i>${servico.tempo} min
+                                </div>
+                                <div class="servico-descricao" style="font-size: 13px; color: #6c757d; margin-bottom: 10px; flex: 1; min-height: 20px;">
+                                    ${servico.descricao || ''}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        });
+        
+        container.innerHTML = html;
+        console.log('✅ Cards renderizados com sucesso!');
+        
+        // Atualizar contador
+        const totalServicos = dadosPrecario.servicos.length;
+        const totalCategorias = dadosPrecario.categorias.length;
+        document.getElementById('totalServicos').textContent = totalServicos;
+        
+        console.log(`📊 ${totalServicos} serviços em ${totalCategorias} categorias`);
+    }
+    
+    // ============================================================
+    // 4. CRIAR A SEÇÃO PREÇÁRIO SE NÃO EXISTIR
+    // ============================================================
+    function criarSecaoPrecario() {
+        if (document.getElementById('precario')) {
+            console.log('✅ Seção Preçário já existe');
+            setTimeout(renderizarPrecarioDireto, 300);
+            return;
         }
-
-        console.log('✅ Importação do Preçário concluída com sucesso!');
-
-    } catch (error) {
-        console.error('❌ Erro na importação:', error);
-        Swal.fire({
-            title: '❌ Erro na importação',
-            text: error.message,
-            icon: 'error',
-            confirmButtonText: 'OK'
-        });
-    }
-};
-
-// ============================================================
-// BOTÃO PARA IMPORTAR O PREÇÁRIO
-// ============================================================
-function addBotaoImportarPrecario() {
-    // Tentar encontrar o container do cabeçalho do Preçário
-    let container = document.querySelector('#precario .d-flex.justify-content-between.align-items-center');
-    
-    if (!container) {
-        // Tentar outra abordagem
-        container = document.querySelector('#precario .card-header .d-flex');
-    }
-    
-    if (!container) {
-        console.log('⏳ Aguardando container do Preçário...');
-        setTimeout(addBotaoImportarPrecario, 1000);
-        return;
-    }
-
-    // Verificar se já existe
-    if (document.getElementById('importarPrecarioBtn')) {
-        console.log('✅ Botão já existe');
-        return;
-    }
-
-    const btn = document.createElement('button');
-    btn.id = 'importarPrecarioBtn';
-    btn.className = 'btn btn-warning btn-sm ms-2';
-    btn.innerHTML = '<i class="fas fa-file-import me-1"></i>Importar Preçário';
-    btn.title = 'Importar todos os serviços do Preçário completo (150+ serviços)';
-    btn.style.background = '#D4AF37';
-    btn.style.borderColor = '#D4AF37';
-    btn.style.color = '#000';
-    
-    btn.addEventListener('click', function() {
-        Swal.fire({
-            title: '⚠️ Importar Preçário Completo',
-            html: `
-                <div style="text-align:left;">
-                    <p>Esta ação irá importar <strong>todos os serviços</strong> do Preçário completo.</p>
-                    <ul style="list-style:none; padding:0; margin:10px 0;">
-                        <li>📦 <strong>150+</strong> serviços</li>
-                        <li>📁 <strong>15</strong> categorias</li>
-                        <li>🔄 Serviços existentes serão <strong>atualizados</strong></li>
-                    </ul>
-                    <p style="color:#6c757d; font-size:13px;">
-                        <i class="fas fa-info-circle me-1"></i>
-                        A importação pode levar alguns segundos.
-                    </p>
+        
+        const sectionContainer = document.querySelector('.section-container');
+        if (!sectionContainer) {
+            console.log('⏳ Aguardando container...');
+            setTimeout(criarSecaoPrecario, 500);
+            return;
+        }
+        
+        sectionContainer.insertAdjacentHTML('beforeend', `
+            <div id="precario" class="section">
+                <div class="d-flex justify-content-between align-items-center flex-wrap mb-3">
+                    <h4><i class="fas fa-list-ul me-2" style="color: #26196b;"></i>Preçário - Studio DeVitto</h4>
+                    <div>
+                        <button class="btn btn-outline-secondary btn-sm" id="refreshPrecarioBtn">
+                            <i class="fas fa-sync-alt me-1"></i>Atualizar
+                        </button>
+                    </div>
                 </div>
-            `,
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonText: '✅ Sim, importar tudo!',
-            cancelButtonText: '❌ Cancelar',
-            confirmButtonColor: '#D4AF37'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                if (typeof window.importarPrecarioCompleto === 'function') {
-                    window.importarPrecarioCompleto();
-                } else {
-                    showToast('❌ Função de importação não encontrada.', 'error');
+
+                <!-- Filtros -->
+                <div class="row g-2 mb-3">
+                    <div class="col-md-4">
+                        <div class="input-group">
+                            <span class="input-group-text bg-white border-end-0">
+                                <i class="fas fa-search text-primary"></i>
+                            </span>
+                            <input type="text" class="form-control border-start-0" id="precarioSearch" 
+                                   placeholder="Buscar serviço..." style="border-left: none;">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <select class="form-select" id="precarioFiltroCategoria">
+                            <option value="">Todas as categorias</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <select class="form-select" id="precarioOrdenacao">
+                            <option value="nome">Ordenar por Nome</option>
+                            <option value="preco">Ordenar por Preço</option>
+                            <option value="tempo">Ordenar por Tempo</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Cards -->
+                <div id="precarioCardContainer" class="row g-3">
+                    <div class="col-12 text-center text-muted py-5">
+                        <div class="spinner-border text-primary mb-3" role="status"></div>
+                        <p>Carregando serviços...</p>
+                    </div>
+                </div>
+            </div>
+        `);
+        
+        // Adicionar estilos
+        adicionarEstilosPrecario();
+        
+        // Configurar filtros
+        document.getElementById('precarioSearch')?.addEventListener('input', filtrarPrecario);
+        document.getElementById('precarioFiltroCategoria')?.addEventListener('change', filtrarPrecario);
+        document.getElementById('precarioOrdenacao')?.addEventListener('change', filtrarPrecario);
+        document.getElementById('refreshPrecarioBtn')?.addEventListener('click', renderizarPrecarioDireto);
+        
+        // Popular filtro de categorias
+        const selectCategoria = document.getElementById('precarioFiltroCategoria');
+        if (selectCategoria) {
+            selectCategoria.innerHTML = '<option value="">Todas as categorias</option>';
+            dadosPrecario.categorias.forEach(cat => {
+                selectCategoria.innerHTML += `<option value="${cat.id}">${cat.nome}</option>`;
+            });
+        }
+        
+        console.log('✅ Seção Preçário criada');
+        setTimeout(renderizarPrecarioDireto, 500);
+    }
+    
+    // ============================================================
+    // 5. FILTRAR PREÇÁRIO
+    // ============================================================
+    function filtrarPrecario() {
+        const search = document.getElementById('precarioSearch')?.value.toLowerCase() || '';
+        const categoriaId = document.getElementById('precarioFiltroCategoria')?.value || '';
+        const ordenacao = document.getElementById('precarioOrdenacao')?.value || 'nome';
+        
+        let servicosFiltrados = [...dadosPrecario.servicos];
+        
+        // Filtro por busca
+        if (search) {
+            servicosFiltrados = servicosFiltrados.filter(s => 
+                s.nome.toLowerCase().includes(search) ||
+                (dadosPrecario.categorias.find(c => c.id === s.categoriaId)?.nome || '').toLowerCase().includes(search)
+            );
+        }
+        
+        // Filtro por categoria
+        if (categoriaId) {
+            servicosFiltrados = servicosFiltrados.filter(s => s.categoriaId === categoriaId);
+        }
+        
+        // Ordenação
+        if (ordenacao === 'nome') {
+            servicosFiltrados.sort((a, b) => a.nome.localeCompare(b.nome));
+        } else if (ordenacao === 'preco') {
+            servicosFiltrados.sort((a, b) => a.preco - b.preco);
+        } else if (ordenacao === 'tempo') {
+            servicosFiltrados.sort((a, b) => a.tempo - b.tempo);
+        }
+        
+        // Renderizar filtrados
+        renderizarPrecarioFiltrado(servicosFiltrados);
+    }
+    
+    // ============================================================
+    // 6. RENDERIZAR FILTRADO
+    // ============================================================
+    function renderizarPrecarioFiltrado(servicos) {
+        const container = document.getElementById('precarioCardContainer');
+        if (!container) return;
+        
+        if (servicos.length === 0) {
+            container.innerHTML = `
+                <div class="col-12 text-center text-muted py-5">
+                    <i class="fas fa-search fa-3x mb-3 opacity-50"></i>
+                    <p>Nenhum serviço encontrado.</p>
+                </div>
+            `;
+            return;
+        }
+        
+        // Agrupar por categoria
+        const grupos = {};
+        servicos.forEach(servico => {
+            const catId = servico.categoriaId;
+            if (!grupos[catId]) {
+                const cat = dadosPrecario.categorias.find(c => c.id === catId);
+                grupos[catId] = {
+                    id: catId,
+                    nome: cat ? cat.nome : 'Outros',
+                    cor: cat ? cat.cor : '#666',
+                    servicos: []
+                };
+            }
+            grupos[catId].servicos.push(servico);
+        });
+        
+        const gruposOrdenados = Object.values(grupos).sort((a, b) => a.nome.localeCompare(b.nome));
+        
+        let html = '';
+        let corIndex = 0;
+        
+        gruposOrdenados.forEach(grupo => {
+            const cor = grupo.cor || coresCards[corIndex % coresCards.length];
+            corIndex++;
+            
+            html += `
+                <div class="col-12 mb-3">
+                    <div class="d-flex align-items-center gap-2" style="border-bottom: 3px solid ${cor}; padding-bottom: 8px;">
+                        <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${cor};"></span>
+                        <h5 class="mb-0 fw-bold" style="color:${cor};">${grupo.nome}</h5>
+                        <span class="badge bg-secondary ms-2">${grupo.servicos.length}</span>
+                    </div>
+                </div>
+            `;
+            
+            grupo.servicos.forEach((servico, idx) => {
+                const corCard = coresCards[(corIndex + idx) % coresCards.length];
+                
+                html += `
+                    <div class="col-md-4 col-lg-3 col-6 mb-3">
+                        <div class="precario-card" style="border-left: 4px solid ${corCard}; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); height: 100%; display: flex; flex-direction: column; overflow: hidden; transition: all 0.3s;">
+                            <div class="card-body" style="padding: 14px; flex: 1; display: flex; flex-direction: column;">
+                                <span class="categoria-badge" style="background: ${corCard}; color: white; font-size: 10px; font-weight: 600; padding: 3px 10px; border-radius: 20px; text-transform: uppercase; align-self: flex-start; margin-bottom: 8px;">
+                                    ${grupo.nome}
+                                </span>
+                                <div class="servico-nome" style="font-size: 14px; font-weight: 600; color: #333; margin-bottom: 4px; line-height: 1.3;">
+                                    ${servico.nome}
+                                </div>
+                                <div class="servico-preco" style="font-size: 18px; font-weight: 700; color: #28a745; margin: 4px 0;">
+                                    € ${servico.preco.toFixed(2)}
+                                </div>
+                                <div class="servico-tempo" style="font-size: 13px; color: #6c757d; margin-bottom: 6px;">
+                                    <i class="far fa-clock me-1"></i>${servico.tempo} min
+                                </div>
+                                <div class="servico-descricao" style="font-size: 13px; color: #6c757d; margin-bottom: 10px; flex: 1; min-height: 20px;">
+                                    ${servico.descricao || ''}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        });
+        
+        container.innerHTML = html;
+    }
+    
+    // ============================================================
+    // 7. ADICIONAR ESTILOS
+    // ============================================================
+    function adicionarEstilosPrecario() {
+        const styleId = 'precarioEstilosDiretos';
+        if (document.getElementById(styleId)) return;
+        
+        const style = document.createElement('style');
+        style.id = styleId;
+        style.textContent = `
+            .precario-card:hover {
+                transform: translateY(-4px);
+                box-shadow: 0 8px 24px rgba(0,0,0,0.15) !important;
+            }
+            
+            .precario-card .categoria-badge {
+                font-size: 10px;
+                font-weight: 600;
+                padding: 3px 10px;
+                border-radius: 20px;
+                text-transform: uppercase;
+                letter-spacing: 0.3px;
+                align-self: flex-start;
+                margin-bottom: 8px;
+            }
+            
+            @media (max-width: 768px) {
+                .precario-card .servico-nome {
+                    font-size: 12px;
+                }
+                .precario-card .servico-preco {
+                    font-size: 15px;
+                }
+                .precario-card .card-body {
+                    padding: 10px;
                 }
             }
-        });
-    });
-
-    // Adicionar o botão
-    container.appendChild(btn);
-    console.log('✅ Botão "Importar Preçário" adicionado com sucesso!');
-}
-
-// ============================================================
-// INICIALIZAÇÃO
-// ============================================================
-
-// Tentar adicionar o botão quando o DOM estiver pronto
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() {
-        setTimeout(addBotaoImportarPrecario, 2000);
-    });
-} else {
-    setTimeout(addBotaoImportarPrecario, 2000);
-}
-
-// Também tentar quando a seção Preçário for ativada
-const observerPrecario = new MutationObserver(function(mutations) {
-    mutations.forEach(function(mutation) {
-        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-            const precario = document.getElementById('precario');
-            if (precario && precario.classList.contains('active')) {
-                setTimeout(addBotaoImportarPrecario, 500);
-            }
-        }
-    });
-});
-
-// Observar mudanças na seção Preçário
-document.addEventListener('DOMContentLoaded', function() {
-    const precario = document.getElementById('precario');
-    if (precario) {
-        observerPrecario.observe(precario, { attributes: true });
+        `;
+        
+        document.head.appendChild(style);
     }
-});
+    
+    // ============================================================
+    // 8. ADICIONAR CARD NO MENU MOBILE
+    // ============================================================
+    function adicionarCardMobile() {
+        const mobileCards = document.querySelector('#mobileCards .row');
+        if (!mobileCards) {
+            setTimeout(adicionarCardMobile, 500);
+            return;
+        }
+        
+        if (document.querySelector('.mobile-card[data-section="precario"]')) return;
+        
+        mobileCards.insertAdjacentHTML('beforeend', `
+            <div class="col-6">
+                <div class="mobile-card" data-section="precario" onclick="mostrarPrecario()">
+                    <i class="fas fa-list-ul"></i>
+                    <h5>Preçário</h5>
+                    <p>Lista de serviços</p>
+                </div>
+            </div>
+        `);
+        console.log('✅ Card mobile adicionado');
+    }
+    
+    // ============================================================
+    // 9. ADICIONAR NO MENU DESKTOP
+    // ============================================================
+    function adicionarMenuDesktop() {
+        const desktopMenu = document.querySelector('.sidebar .nav');
+        if (!desktopMenu) {
+            setTimeout(adicionarMenuDesktop, 500);
+            return;
+        }
+        
+        if (desktopMenu.querySelector('a[data-section="precario"]')) return;
+        
+        const menuItem = document.createElement('a');
+        menuItem.className = 'nav-link';
+        menuItem.setAttribute('href', '#');
+        menuItem.setAttribute('data-section', 'precario');
+        menuItem.innerHTML = '<i class="fas fa-list-ul"></i> Preçário';
+        menuItem.addEventListener('click', function(e) {
+            e.preventDefault();
+            desktopMenu.querySelectorAll('.nav-link').forEach(item => item.classList.remove('active'));
+            this.classList.add('active');
+            mostrarPrecario();
+        });
+        
+        desktopMenu.appendChild(menuItem);
+        console.log('✅ Menu desktop adicionado');
+    }
+    
+    // ============================================================
+    // 10. FUNÇÃO PARA MOSTRAR PREÇÁRIO
+    // ============================================================
+    window.mostrarPrecario = function() {
+        const section = document.getElementById('precario');
+        if (!section) {
+            criarSecaoPrecario();
+            setTimeout(window.mostrarPrecario, 500);
+            return;
+        }
+        
+        document.querySelectorAll('.section').forEach(el => {
+            el.classList.remove('active');
+            el.style.display = 'none';
+        });
+        
+        section.classList.add('active');
+        section.style.display = 'block';
+        
+        const mobileCards = document.getElementById('mobileCards');
+        if (mobileCards) {
+            mobileCards.classList.remove('active');
+            mobileCards.style.display = 'none';
+        }
+        
+        const homeBtn = document.getElementById('mobileHomeButton');
+        if (homeBtn) homeBtn.style.display = 'flex';
+        
+        setTimeout(renderizarPrecarioDireto, 300);
+    };
+    
+    // ============================================================
+    // 11. INICIALIZAR
+    // ============================================================
+    console.log('🚀 Inicializando Preçário com dados embutidos...');
+    
+    // Adicionar cards e menus
+    adicionarCardMobile();
+    adicionarMenuDesktop();
+    
+    // Criar seção
+    setTimeout(criarSecaoPrecario, 1000);
+    
+    // Expor função global
+    window.recarregarPrecario = renderizarPrecarioDireto;
+    
+    console.log('✅ Preçário com dados embutidos carregado!');
+    console.log(`📊 ${dadosPrecario.servicos.length} serviços disponíveis`);
+    console.log('📌 Para recarregar: recarregarPrecario()');
+    console.log('📌 Para mostrar: mostrarPrecario()');
 
-console.log('✅ Script de importação do Preçário carregado!');
-console.log('📌 Para importar, clique no botão "Importar Preçário" na tela do Preçário.');
-console.log('📌 Ou execute no console: importarPrecarioCompleto()');
-console.log('📌 Página pública: /precario-publico.html');
+})();
 
 
 
