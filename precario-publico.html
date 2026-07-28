@@ -790,7 +790,7 @@
         <div class="filtros">
             <div class="search-wrapper">
                 <i class="fas fa-search"></i>
-                <input type="text" id="searchInput" placeholder="Buscar serviço, categoria ou colaborador..." autocomplete="off" />
+                <input type="text" id="searchInput" placeholder="Buscar serviço, categoria ou colaborador... (use vírgula para múltiplos)" autocomplete="off" />
             </div>
             <select id="categoriaFilter">
                 <option value="">Todas as categorias</option>
@@ -1007,31 +1007,99 @@
         }
 
         // ============================================================
-        // ENCONTRAR SERVIÇOS QUE CORRESPONDEM À BUSCA (MÚLTIPLOS)
+        // VERIFICAR SE UM SERVIÇO CORRESPONDE A UM TERMO DE BUSCA
         // ============================================================
-        function encontrarServicosExatos(searchTerm) {
-            if (!searchTerm || searchTerm.length < 2) return [];
+        function servicoCorresponde(servico, termo) {
+            const termoLower = termo.toLowerCase().trim();
+            if (!termoLower) return true;
+            
+            const nomeMatch = (servico.nome || '').toLowerCase().includes(termoLower);
+            const catMatch = (servico.categoriaNome || '').toLowerCase().includes(termoLower);
+            const descMatch = (servico.descricao || '').toLowerCase().includes(termoLower);
+            
+            return nomeMatch || catMatch || descMatch;
+        }
+
+        // ============================================================
+        // ENCONTRAR SERVIÇOS - PRIMEIRO EXATO, DEPOIS CATEGORIA
+        // ============================================================
+        function encontrarServicosPrioritario(searchTerm) {
+            if (!searchTerm || searchTerm.trim().length === 0) return { exatos: [], porCategoria: [] };
             
             const term = searchTerm.toLowerCase().trim();
             
-            // Busca todos os serviços que contêm o termo no nome (prioridade)
-            const encontrados = todosServicos.filter(s => {
+            // PASSO 1: Busca serviços com nome exato ou que contenham o termo no nome
+            const servicosExatos = todosServicos.filter(s => {
                 const nome = (s.nome || '').toLowerCase().trim();
                 return nome.includes(term);
             });
             
-            // Se encontrou, retorna todos
-            if (encontrados.length > 0) {
-                return encontrados;
+            // Se encontrou serviços por nome, retorna eles e também busca serviços da mesma categoria
+            if (servicosExatos.length > 0) {
+                // Pega os IDs das categorias dos serviços encontrados
+                const categoriasIds = new Set();
+                servicosExatos.forEach(s => {
+                    if (s.categoriaId) categoriasIds.add(s.categoriaId);
+                });
+                
+                // Busca serviços da mesma categoria (excluindo os já encontrados)
+                const idsExatos = new Set(servicosExatos.map(s => s.id));
+                const servicosPorCategoria = todosServicos.filter(s => {
+                    // Se já está nos exatos, não inclui
+                    if (idsExatos.has(s.id)) return false;
+                    // Se tem categoria e está no set de categorias
+                    if (s.categoriaId && categoriasIds.has(s.categoriaId)) return true;
+                    return false;
+                });
+                
+                return { exatos: servicosExatos, porCategoria: servicosPorCategoria };
             }
             
-            // Se não encontrou por nome, tenta por categoria
-            const porCategoria = todosServicos.filter(s => {
+            // PASSO 2: Se não encontrou por nome, busca por categoria            const servicosPorCategoria = todosServicos.filter(s => {
                 const categoria = (s.categoriaNome || '').toLowerCase().trim();
                 return categoria.includes(term);
             });
             
-            return porCategoria;
+            return { exatos: [], porCategoria: servicosPorCategoria };
+        }
+
+        // ============================================================
+        // ENCONTRAR SERVIÇOS POR MÚLTIPLOS TERMOS (com vírgula)
+        // ============================================================
+        function encontrarServicosMultiplos(searchTerm) {
+            if (!searchTerm || searchTerm.trim().length === 0) return { exatos: [], porCategoria: [] };
+            
+            const termos = searchTerm.split(',').map(t => t.trim()).filter(t => t.length > 0);
+            
+            if (termos.length === 1) {
+                return encontrarServicosPrioritario(termos[0]);
+            }
+            
+            // Múltiplos termos: faz a união de todos os resultados prioritários
+            const exatosSet = new Set();
+            const porCategoriaSet = new Set();
+            const exatosResult = [];
+            const porCategoriaResult = [];
+            
+            termos.forEach(term => {
+                const resultado = encontrarServicosPrioritario(term);
+                
+                resultado.exatos.forEach(s => {
+                    if (!exatosSet.has(s.id)) {
+                        exatosSet.add(s.id);
+                        exatosResult.push(s);
+                    }
+                });
+                
+                resultado.porCategoria.forEach(s => {
+                    if (!exatosSet.has(s.id) && !porCategoriaSet.has(s.id)) {
+                        porCategoriaSet.add(s.id);
+                        porCategoriaResult.push(s);
+                    }
+                });
+            });
+            
+            return { exatos: exatosResult, porCategoria: porCategoriaResult };
         }
 
         // ============================================================
@@ -1074,7 +1142,7 @@
         }
 
         // ============================================================
-        // GERAR CARD DE SERVIÇO NA GRID (sem tabela)
+        // GERAR CARD DE SERVIÇO NA GRID
         // ============================================================
         function gerarCardServico(servico) {
             const colaboradoresIds = servico.colaboradoresIds || [];
@@ -1110,37 +1178,35 @@
         // ============================================================
         function renderizarPrecario() {
             const container = document.getElementById('precarioContainer');
-            const search = document.getElementById('searchInput').value.toLowerCase().trim();
+            const search = document.getElementById('searchInput').value;
             const categoriaId = document.getElementById('categoriaFilter').value;
             const ordenacao = document.getElementById('ordenacaoFilter').value;
 
-            // === BUSCA EXATA (MÚLTIPLOS CARDS) ===
-            const servicosExatos = encontrarServicosExatos(search);
+            const searchTrim = search.trim();
+            
+            // === BUSCA PRIORITÁRIA: PRIMEIRO EXATO, DEPOIS CATEGORIA ===
+            const resultadoBusca = encontrarServicosMultiplos(searchTrim);
+            const servicosExatos = resultadoBusca.exatos;
+            const servicosPorCategoria = resultadoBusca.porCategoria;
+            
             const exatosContainer = document.getElementById('servicosExatosContainer');
             const exatosGrid = document.getElementById('servicosExatosGrid');
             
-            if (servicosExatos.length > 0 && search.length >= 2) {
+            // Mostrar cards exatos se houver resultados e busca tiver pelo menos 2 caracteres
+            if (servicosExatos.length > 0 && searchTrim.length >= 2) {
                 exatosContainer.classList.add('visible');
                 exatosGrid.innerHTML = servicosExatos.map(s => gerarCardServicoExato(s)).join('');
                 
                 // IDs dos serviços exatos para filtrar da lista
                 const idsExatos = new Set(servicosExatos.map(s => s.id));
                 
-                // === FILTRAR SERVIÇOS PARA A LISTA (excluindo os exatos) ===
-                let filtrados = todosServicos.filter(servico => {
+                // === LISTA DE CATEGORIAS (serviços por categoria) ===
+                let filtrados = servicosPorCategoria.filter(servico => {
                     // Excluir serviços que já estão nos cards
                     if (idsExatos.has(servico.id)) {
                         return false;
                     }
                     
-                    // Busca (para os demais serviços)
-                    if (search) {
-                        const nomeMatch = (servico.nome || '').toLowerCase().includes(search);
-                        const catMatch = (servico.categoriaNome || '').toLowerCase().includes(search);
-                        const descMatch = (servico.descricao || '').toLowerCase().includes(search);
-                        if (!(nomeMatch || catMatch || descMatch)) return false;
-                    }
-
                     // Categoria
                     if (categoriaId) {
                         if (servico.categoriaId !== categoriaId) return false;
@@ -1177,7 +1243,7 @@
                 // Ordenar grupos por nome
                 const gruposOrdenados = Object.values(grupos).sort((a, b) => a.nome.localeCompare(b.nome));
 
-                if (gruposOrdenados.length === 0) {
+                if (gruposOrdenados.length === 0 && servicosExatos.length > 0) {
                     container.innerHTML = `
                         <div class="empty-state" style="padding: 20px 20px;">
                             <i class="fas fa-info-circle"></i>
@@ -1227,14 +1293,21 @@
                 exatosGrid.innerHTML = '';
             }
 
-            // === SE NÃO HOUVER BUSCA EXATA, COMPORTAMENTO NORMAL ===
+            // === SE NÃO HOUVER BUSCA EXATA, MOSTRA BUSCA NORMAL ===
             let filtrados = todosServicos.filter(servico => {
-                // Busca
-                if (search) {
-                    const nomeMatch = (servico.nome || '').toLowerCase().includes(search);
-                    const catMatch = (servico.categoriaNome || '').toLowerCase().includes(search);
-                    const descMatch = (servico.descricao || '').toLowerCase().includes(search);
-                    if (!(nomeMatch || catMatch || descMatch)) return false;
+                // Busca com múltiplos termos (fallback)
+                if (searchTrim) {
+                    const termos = searchTrim.split(',').map(t => t.trim()).filter(t => t.length > 0);
+                    if (termos.length > 0) {
+                        let corresponde = false;
+                        for (const term of termos) {
+                            if (servicoCorresponde(servico, term)) {
+                                corresponde = true;
+                                break;
+                            }
+                        }
+                        if (!corresponde) return false;
+                    }
                 }
 
                 // Categoria
@@ -1279,1422 +1352,7 @@
                         <i class="fas fa-search"></i>
                         <h3>Nenhum serviço encontrado</h3>
                         <p>Tente ajustar os filtros ou buscar por outro termo.</p>
-                    </div>
-                `;
-                return;
-            }
-
-            let html = '';
-            gruposOrdenados.forEach(grupo => {
-                const cor = grupo.cor || '#26196b';
-                const icon = iconesCategorias[grupo.nome] || 'fa-tag';
-
-                html += `
-                    <div class="categoria-section">
-                        <div class="categoria-header" onclick="toggleCategoria(this)">
-                            <div class="cat-icon" style="background: ${cor};">
-                                <i class="fas ${icon}"></i>
-                            </div>
-                            <h2>${grupo.nome}</h2>
-                            <span class="cat-count">${grupo.servicos.length} serviços</span>
-                            <i class="fas fa-chevron-down toggle-icon"></i>
-                        </div>
-                        <div class="categoria-body">
-                            <div class="table-wrapper">
-                                <div class="servicos-grid">
-                                    ${grupo.servicos.map(s => gerarCardServico(s)).join('')}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            });
-
-            container.innerHTML = html;
-
-            // Expandir a primeira categoria por padrão
-            const firstBody = container.querySelector('.categoria-body');
-            if (firstBody) {
-                firstBody.style.maxHeight = firstBody.scrollHeight + 'px';
-            }
-        }
-
-        // ============================================================
-        // TOGGLE CATEGORIA (EXPANDIR/RECOLHER)
-        // ============================================================
-        function toggleCategoria(header) {
-            const body = header.nextElementSibling;
-            const icon = header.querySelector('.toggle-icon');
-            
-            if (!body) return;
-            
-            if (body.style.maxHeight && body.style.maxHeight !== '0px') {
-                body.style.maxHeight = '0px';
-                if (icon) icon.classList.add('rotated');
-            } else {
-                body.style.maxHeight = body.scrollHeight + 'px';
-                if (icon) icon.classList.remove('rotated');
-            }
-        }
-
-        // ============================================================
-        // EVENTOS DOS FILTROS
-        // ============================================================
-        document.getElementById('searchInput').addEventListener('input', renderizarPrecario);
-        document.getElementById('categoriaFilter').addEventListener('change', renderizarPrecario);
-        document.getElementById('ordenacaoFilter').addEventListener('change', renderizarPrecario);
-
-        // ============================================================
-        // PWA - SERVICE WORKER E MANIFEST (via JavaScript)
-        // ============================================================
-        function registerPWA() {
-            const manifest = {
-                name: "Preçário Studio DeVitto",
-                short_name: "DeVitto Preçário",
-                description: "Preçário completo do Studio DeVitto",
-                start_url: window.location.href.split('?')[0],
-                display: "standalone",
-                background_color: "#f5f2f0",
-                theme_color: "#26196b",
-                orientation: "portrait-primary",
-                icons: [
-                    {
-                        src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%2326196b'/%3E%3Ctext x='256' y='340' font-family='Arial' font-size='280' text-anchor='middle' fill='%23D4AF37'%3E✂️%3C/text%3E%3C/svg%3E",
-                        sizes: "512x512",
-                        type: "image/svg+xml",
-                        purpose: "any maskable"
-                    }
-                ]
-            };
-
-            const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
-            const manifestURL = URL.createObjectURL(blob);
-            const link = document.createElement('link');
-            link.rel = 'manifest';
-            link.href = manifestURL;
-            document.head.appendChild(link);
-
-            if ('serviceWorker' in navigator) {
-                const swCode = `
-                    self.addEventListener('install', e => {
-                        e.waitUntil(
-                            caches.open('devitto-precario-v1').then(cache => {
-                                return cache.addAll([
-                                    '/',
-                                    '${window.location.href}'
-                                ]);
-                            })
-                        );
-                    });
-                    self.addEventListener('fetch', e => {
-                        e.respondWith(
-                            caches.match(e.request).then(response => {
-                                return response || fetch(e.request);
-                            })
-                        );
-                    });
-                `;
-                
-                const swBlob = new Blob([swCode], { type: 'application/javascript' });
-                const swURL = URL.createObjectURL(swBlob);
-                
-                navigator.serviceWorker.register(swURL, { scope: '/' })
-                    .then(() => console.log('✅ Service Worker registrado!'))
-                    .catch(err => console.log('⚠️ Service Worker não registrado:', err));
-            }
-        }
-
-        // ============================================================
-        // INICIALIZAR
-        // ============================================================
-        carregarDados();
-        registerPWA();
-
-        console.log('✅ Página pública do Preçário carregada!');
-        console.log('📌 Link para compartilhar: ' + window.location.href);
-    </script>
-</body>
-</html><!DOCTYPE html>
-<html lang="pt">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Preçário · Studio DeVitto</title>
-    
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-    
-    <style>
-        /* ============================================================
-           ESTILOS COMPLETOS - MODO CLARO E ELEGANTE
-           ============================================================ */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        /* BLOQUEIO DE ZOOM DEFINITIVO */
-        html, body {
-            font-family: 'Poppins', sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            min-height: 100vh;
-            touch-action: pan-x pan-y;
-            -webkit-touch-callout: none;
-            -webkit-user-select: none;
-            user-select: none;
-            -webkit-text-size-adjust: 100%;
-            -ms-text-size-adjust: 100%;
-            text-size-adjust: 100%;
-            overscroll-behavior: contain;
-        }
-        
-        /* Bloqueio de zoom em inputs */
-        input, select, textarea, button {
-            font-size: 16px !important;
-            touch-action: manipulation;
-            -webkit-text-size-adjust: 100%;
-            -ms-text-size-adjust: 100%;
-            text-size-adjust: 100%;
-        }
-        
-        /* Impede zoom com gestos de pinça */
-        img, iframe, video, canvas, svg {
-            touch-action: none;
-        }
-        
-        :root {
-            --primary: #26196b;
-            --primary-light: #4a3a9c;
-            --secondary: #D4AF37;
-            --secondary-light: #f0e08a;
-            --bg: #f5f2f0;
-            --surface: #ffffff;
-            --text: #1a1a2e;
-            --text-muted: #6c6c8a;
-            --card-bg: #ffffff;
-            --shadow: 0 8px 30px rgba(0,0,0,0.08);
-            --radius: 16px;
-            --transition: 0.3s ease;
-            --header-bg: linear-gradient(135deg, #26196b 0%, #4a3a9c 100%);
-        }
-        
-        /* ===== HEADER ===== */
-        .header {
-            background: var(--header-bg);
-            color: white;
-            padding: 40px 20px 60px;
-            text-align: center;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .header::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            right: -20%;
-            width: 400px;
-            height: 400px;
-            background: rgba(255, 215, 0, 0.08);
-            border-radius: 50%;
-        }
-        
-        .header::after {
-            content: '';
-            position: absolute;
-            bottom: -30%;
-            left: -10%;
-            width: 300px;
-            height: 300px;
-            background: rgba(255, 215, 0, 0.05);
-            border-radius: 50%;
-        }
-        
-        .header-content {
-            position: relative;
-            z-index: 1;
-            max-width: 900px;
-            margin: 0 auto;
-        }
-        
-        .header .logo-icon {
-            font-size: 48px;
-            color: var(--secondary);
-            margin-bottom: 10px;
-            display: block;
-        }
-        
-        .header h1 {
-            font-size: 2.5rem;
-            font-weight: 800;
-            letter-spacing: -0.5px;
-            margin-bottom: 8px;
-        }
-        
-        .header h1 span {
-            color: var(--secondary);
-        }
-        
-        .header p {
-            font-size: 1.1rem;
-            opacity: 0.85;
-            font-weight: 300;
-            max-width: 600px;
-            margin: 0 auto;
-        }
-        
-        .header .badge-count {
-            display: inline-block;
-            background: rgba(255, 215, 0, 0.2);
-            color: var(--secondary);
-            padding: 6px 20px;
-            border-radius: 30px;
-            font-size: 0.85rem;
-            font-weight: 500;
-            margin-top: 12px;
-            border: 1px solid rgba(255, 215, 0, 0.2);
-        }
-        
-        /* ===== CONTAINER ===== */
-        .container {
-            max-width: 1200px;
-            margin: -30px auto 40px;
-            padding: 0 20px;
-            position: relative;
-            z-index: 2;
-        }
-        
-        /* ===== FILTROS ===== */
-        .filtros {
-            background: var(--surface);
-            border-radius: var(--radius);
-            padding: 20px 24px;
-            box-shadow: var(--shadow);
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            align-items: center;
-            margin-bottom: 30px;
-        }
-        
-        .filtros .search-wrapper {
-            flex: 1;
-            min-width: 200px;
-            position: relative;
-        }
-        
-        .filtros .search-wrapper i {
-            position: absolute;
-            left: 14px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-muted);
-        }
-        
-        .filtros .search-wrapper input {
-            width: 100%;
-            padding: 10px 16px 10px 44px;
-            border: 2px solid #e8e6ea;
-            border-radius: 30px;
-            font-family: 'Poppins', sans-serif;
-            font-size: 16px !important;
-            transition: var(--transition);
-            background: #fafafc;
-        }
-        
-        .filtros .search-wrapper input:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(38, 25, 107, 0.1);
-        }
-        
-        .filtros select {
-            padding: 10px 16px;
-            border: 2px solid #e8e6ea;
-            border-radius: 30px;
-            font-family: 'Poppins', sans-serif;
-            font-size: 16px !important;
-            background: #fafafc;
-            color: var(--text);
-            cursor: pointer;
-            min-width: 150px;
-            transition: var(--transition);
-            appearance: auto;
-        }
-        
-        .filtros select:focus {
-            outline: none;
-            border-color: var(--primary);
-        }
-        
-        /* ===== CATEGORIAS ===== */
-        .categoria-section {
-            margin-bottom: 40px;
-        }
-        
-        .categoria-header {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            margin-bottom: 16px;
-            padding-bottom: 12px;
-            border-bottom: 3px solid var(--secondary);
-            cursor: pointer;
-            user-select: none;
-        }
-        
-        .categoria-header .cat-icon {
-            width: 42px;
-            height: 42px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 18px;
-            flex-shrink: 0;
-        }
-        
-        .categoria-header h2 {
-            font-size: 1.4rem;
-            font-weight: 600;
-            color: var(--text);
-            flex: 1;
-        }
-        
-        .categoria-header .cat-count {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            font-weight: 400;
-            background: #f0eef2;
-            padding: 2px 12px;
-            border-radius: 20px;
-        }
-        
-        .categoria-header .toggle-icon {
-            color: var(--text-muted);
-            transition: var(--transition);
-        }
-        
-        .categoria-header .toggle-icon.rotated {
-            transform: rotate(180deg);
-        }
-        
-        .categoria-body {
-            overflow: hidden;
-            transition: max-height 0.4s ease;
-        }
-        
-        .categoria-body.collapsed {
-            max-height: 0 !important;
-        }
-        
-        /* ===== TABELA DE SERVIÇOS - VERSÃO RESPONSIVA ===== */
-        .table-wrapper {
-            background: var(--surface);
-            border-radius: var(--radius);
-            overflow: hidden;
-            box-shadow: var(--shadow);
-        }
-        
-        /* Layout em grid para dispositivos móveis */
-        .servicos-grid {
-            display: grid;
-            gap: 12px;
-            padding: 12px;
-        }
-        
-        /* Desktop: 3 colunas */
-        @media (min-width: 769px) {
-            .servicos-grid {
-                grid-template-columns: repeat(3, 1fr);
-            }
-        }
-        
-        /* Tablet e Mobile: 2 colunas */
-        @media (max-width: 768px) {
-            .servicos-grid {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 10px;
-                padding: 10px;
-            }
-        }
-        
-        /* Mobile pequeno: 2 colunas com ajuste */
-        @media (max-width: 480px) {
-            .servicos-grid {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 8px;
-                padding: 8px;
-            }
-        }
-        
-        /* Card de serviço na grid */
-        .servico-card {
-            background: var(--surface);
-            border: 1px solid #f0eef2;
-            border-radius: 12px;
-            padding: 14px 16px;
-            transition: var(--transition);
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-        }
-        
-        .servico-card:hover {
-            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
-            border-color: var(--primary-light);
-        }
-        
-        .servico-card .servico-nome {
-            font-weight: 600;
-            font-size: 14px;
-            color: var(--text);
-            line-height: 1.2;
-        }
-        
-        .servico-card .servico-desc {
-            font-size: 12px;
-            color: var(--text-muted);
-            line-height: 1.3;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-        }
-        
-        .servico-card .servico-info-row {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 4px 8px;
-            margin-top: 4px;
-        }
-        
-        .servico-card .servico-info-row .colaborador-tag {
-            display: inline-block;
-            background: #f0eef2;
-            padding: 2px 10px;
-            border-radius: 12px;
-            font-size: 10px;
-            color: var(--text-muted);
-            white-space: nowrap;
-        }
-        
-        .servico-card .servico-info-row .servico-tempo {
-            font-size: 11px;
-            color: var(--text-muted);
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-        
-        .servico-card .servico-preco {
-            font-weight: 700;
-            color: var(--primary);
-            font-size: 16px;
-            margin-top: 2px;
-        }
-        
-        .servico-card .preco-tipo {
-            display: inline-block;
-            padding: 1px 10px;
-            border-radius: 12px;
-            font-size: 9px;
-            font-weight: 600;
-            text-transform: uppercase;
-            margin-left: 4px;
-        }
-        
-        .preco-tipo.fixo {
-            background: #d4edda;
-            color: #155724;
-        }
-        
-        .preco-tipo.partir {
-            background: #fff3cd;
-            color: #856404;
-        }
-        
-        /* Cabeçalho da tabela - escondido em mobile */
-        .table-header-desktop {
-            display: table-header-group;
-        }
-        
-        @media (max-width: 768px) {
-            .table-header-desktop {
-                display: none;
-            }
-        }
-        
-        /* ===== SERVIÇOS EXATOS (Cards de busca) ===== */
-        .servicos-exatos-container {
-            display: none;
-            flex-direction: column;
-            gap: 16px;
-            margin-bottom: 30px;
-        }
-        
-        .servicos-exatos-container.visible {
-            display: flex;
-        }
-        
-        /* Grid para cards exatos */
-        .servicos-exatos-grid {
-            display: grid;
-            gap: 16px;
-        }
-        
-        @media (min-width: 769px) {
-            .servicos-exatos-grid {
-                grid-template-columns: repeat(3, 1fr);
-            }
-        }
-        
-        @media (max-width: 768px) {
-            .servicos-exatos-grid {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 12px;
-            }
-        }
-        
-        @media (max-width: 480px) {
-            .servicos-exatos-grid {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 10px;
-            }
-        }
-        
-        .servico-exato-card {
-            background: var(--surface);
-            border-radius: var(--radius);
-            padding: 18px 20px;
-            box-shadow: 0 8px 30px rgba(38, 25, 107, 0.12);
-            border-left: 5px solid var(--secondary);
-            animation: fadeInUp 0.3s ease;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        
-        .servico-exato-card .exato-header {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-        
-        .servico-exato-card .exato-header .exato-icon {
-            background: var(--primary);
-            color: white;
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            flex-shrink: 0;
-        }
-        
-        .servico-exato-card .exato-header h3 {
-            font-size: 1rem;
-            font-weight: 600;
-            color: var(--text);
-            flex: 1;
-        }
-        
-        .servico-exato-card .exato-badge {
-            font-size: 0.6rem;
-            background: var(--secondary);
-            color: white;
-            padding: 2px 12px;
-            border-radius: 20px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .servico-exato-card .exato-detalhes {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px 20px;
-            padding-top: 8px;
-            border-top: 1px solid #f0eef2;
-        }
-        
-        .servico-exato-card .exato-detalhes span {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            color: var(--text-muted);
-            font-size: 13px;
-        }
-        
-        .servico-exato-card .exato-detalhes span i {
-            color: var(--primary);
-            width: 16px;
-            font-size: 13px;
-        }
-        
-        .servico-exato-card .exato-detalhes .preco-destaque {
-            font-size: 1.2rem;
-            font-weight: 700;
-            color: var(--primary);
-        }
-        
-        .servico-exato-card .exato-colaboradores {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 4px;
-            margin-top: 4px;
-        }
-        
-        .servico-exato-card .exato-colaboradores .colab-tag {
-            background: #f0eef2;
-            padding: 3px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            color: var(--text);
-        }
-        
-        .servico-exato-card .exato-colaboradores .colab-tag i {
-            color: var(--primary);
-            margin-right: 4px;
-        }
-        
-        .servico-exato-card .exato-categoria-tag {
-            display: inline-block;
-            background: rgba(38, 25, 107, 0.1);
-            color: var(--primary);
-            padding: 2px 12px;
-            border-radius: 20px;
-            font-size: 11px;
-            font-weight: 500;
-        }
-        
-        .servico-exato-card .preco-tipo {
-            display: inline-block;
-            padding: 1px 10px;
-            border-radius: 12px;
-            font-size: 9px;
-            font-weight: 600;
-            text-transform: uppercase;
-            margin-left: 4px;
-        }
-        
-        /* ===== STATUS ===== */
-        .status-badge {
-            display: inline-block;
-            padding: 2px 12px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: 500;
-        }
-        
-        .status-badge.active {
-            background: #d4edda;
-            color: #155724;
-        }
-        
-        .status-badge.inactive {
-            background: #f8d7da;
-            color: #721c24;
-        }
-        
-        /* ===== LOADING ===== */
-        .loading {
-            text-align: center;
-            padding: 60px 20px;
-            color: var(--text-muted);
-        }
-        
-        .loading .spinner {
-            display: inline-block;
-            width: 40px;
-            height: 40px;
-            border: 4px solid #e8e6ea;
-            border-top-color: var(--primary);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin-bottom: 16px;
-        }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        
-        /* ===== SEM RESULTADOS ===== */
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: var(--text-muted);
-        }
-        
-        .empty-state i {
-            font-size: 48px;
-            opacity: 0.3;
-            margin-bottom: 16px;
-        }
-        
-        /* ===== FOOTER ===== */
-        .footer {
-            text-align: center;
-            padding: 30px 20px;
-            color: var(--text-muted);
-            font-size: 0.85rem;
-            border-top: 1px solid #e8e6ea;
-            margin-top: 20px;
-        }
-        
-        .footer .social {
-            display: flex;
-            justify-content: center;
-            gap: 16px;
-            margin-bottom: 12px;
-        }
-        
-        .footer .social a {
-            color: var(--text-muted);
-            font-size: 20px;
-            transition: var(--transition);
-        }
-        
-        .footer .social a:hover {
-            color: var(--primary);
-        }
-        
-        /* ===== RESPONSIVO ===== */
-        @media (max-width: 768px) {
-            .header {
-                padding: 30px 16px 50px;
-            }
-            
-            .header h1 {
-                font-size: 1.8rem;
-            }
-            
-            .header p {
-                font-size: 0.95rem;
-            }
-            
-            .container {
-                margin-top: -20px;
-                padding: 0 12px;
-            }
-            
-            .filtros {
-                padding: 16px;
-                flex-direction: column;
-                align-items: stretch;
-            }
-            
-            .filtros .search-wrapper {
-                min-width: auto;
-            }
-            
-            .filtros select {
-                min-width: auto;
-                width: 100%;
-            }
-            
-            .categoria-header h2 {
-                font-size: 1.1rem;
-            }
-            
-            .servico-exato-card {
-                padding: 14px 16px;
-            }
-            
-            .servico-exato-card .exato-detalhes .preco-destaque {
-                font-size: 1.1rem;
-            }
-            
-            .servico-exato-card .exato-header h3 {
-                font-size: 0.95rem;
-            }
-        }
-        
-        @media (max-width: 480px) {
-            .header h1 {
-                font-size: 1.4rem;
-            }
-            
-            .header .logo-icon {
-                font-size: 36px;
-            }
-            
-            .categoria-header .cat-icon {
-                width: 34px;
-                height: 34px;
-                font-size: 14px;
-            }
-            
-            .servico-card {
-                padding: 12px 14px;
-            }
-            
-            .servico-card .servico-nome {
-                font-size: 13px;
-            }
-            
-            .servico-card .servico-preco {
-                font-size: 14px;
-            }
-        }
-        
-        /* ===== ANIMAÇÃO DE ENTRADA ===== */
-        .categoria-section {
-            animation: fadeInUp 0.6s ease forwards;
-            opacity: 0;
-        }
-        
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        
-        .categoria-section:nth-child(2) { animation-delay: 0.05s; }
-        .categoria-section:nth-child(3) { animation-delay: 0.10s; }
-        .categoria-section:nth-child(4) { animation-delay: 0.15s; }
-        .categoria-section:nth-child(5) { animation-delay: 0.20s; }
-        .categoria-section:nth-child(6) { animation-delay: 0.25s; }
-        .categoria-section:nth-child(7) { animation-delay: 0.30s; }
-        .categoria-section:nth-child(8) { animation-delay: 0.35s; }
-        .categoria-section:nth-child(9) { animation-delay: 0.40s; }
-        .categoria-section:nth-child(10) { animation-delay: 0.45s; }
-        .categoria-section:nth-child(11) { animation-delay: 0.50s; }
-        .categoria-section:nth-child(12) { animation-delay: 0.55s; }
-        .categoria-section:nth-child(13) { animation-delay: 0.60s; }
-        .categoria-section:nth-child(14) { animation-delay: 0.65s; }
-        .categoria-section:nth-child(15) { animation-delay: 0.70s; }
-    </style>
-</head>
-<body>
-
-    <!-- ===== HEADER ===== -->
-    <header class="header">
-        <div class="header-content">
-            <span class="logo-icon">✂️</span>
-            <h1>Preçário <span>Studio DeVitto</span></h1>
-            <p>Conheça nossos serviços, preços e horários. Agende sua visita!</p>
-            <div class="badge-count">
-                <i class="fas fa-cut me-2"></i>
-                <span id="totalServicos">Carregando...</span> serviços disponíveis
-            </div>
-        </div>
-    </header>
-
-    <!-- ===== CONTEÚDO ===== -->
-    <div class="container">
-        
-        <!-- Filtros -->
-        <div class="filtros">
-            <div class="search-wrapper">
-                <i class="fas fa-search"></i>
-                <input type="text" id="searchInput" placeholder="Buscar serviço, categoria ou colaborador..." autocomplete="off" />
-            </div>
-            <select id="categoriaFilter">
-                <option value="">Todas as categorias</option>
-            </select>
-            <select id="ordenacaoFilter">
-                <option value="nome">Ordenar por Nome</option>
-                <option value="preco">Ordenar por Preço (menor)</option>
-                <option value="preco-desc">Ordenar por Preço (maior)</option>
-            </select>
-        </div>
-
-        <!-- Container para múltiplos cards de serviços exatos -->
-        <div id="servicosExatosContainer" class="servicos-exatos-container">
-            <div id="servicosExatosGrid" class="servicos-exatos-grid">
-                <!-- Cards serão gerados dinamicamente aqui -->
-            </div>
-        </div>
-
-        <!-- Lista de Categorias e Serviços -->
-        <div id="precarioContainer">
-            <div class="loading">
-                <div class="spinner"></div>
-                <p>Carregando serviços...</p>
-            </div>
-        </div>
-
-    </div>
-
-    <!-- ===== FOOTER ===== -->
-    <footer class="footer">
-        <div class="social">
-            <a href="#" title="Instagram"><i class="fab fa-instagram"></i></a>
-            <a href="#" title="Facebook"><i class="fab fa-facebook"></i></a>
-            <a href="#" title="WhatsApp"><i class="fab fa-whatsapp"></i></a>
-            <a href="#" title="TikTok"><i class="fab fa-tiktok"></i></a>
-        </div>
-        <p>&copy; 2026 Studio DeVitto · Todos os direitos reservados</p>
-        <p style="font-size: 0.75rem; margin-top: 4px;">Preços sujeitos a alteração. Consulte-nos para mais informações.</p>
-    </footer>
-
-    <!-- ============================================================
-    JAVASCRIPT
-    ============================================================ -->
-    <script>
-        // ============================================================
-        // CONFIGURAÇÃO DO FIREBASE (MESMA DO SISTEMA)
-        // ============================================================
-        const firebaseConfig = {
-            apiKey: "AIzaSyC5ezGCOS5d-Vy2l-Gimkl_V9VmwDLZzKc",
-            authDomain: "studio-devitto-152400.firebaseapp.com",
-            projectId: "studio-devitto-152400",
-            storageBucket: "studio-devitto-152400.appspot.com",
-            messagingSenderId: "138996544906",
-            appId: "1:138996544906:web:6569bf954a00e2f7944473",
-            measurementId: "G-FCC5T13QW8"
-        };
-
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
-
-        // ============================================================
-        // VARIÁVEIS
-        // ============================================================
-        let todosServicos = [];
-        let todasCategorias = [];
-        let todosColaboradores = [];
-        let servicosListener = null;
-        let categoriasListener = null;
-        let currentFilter = '';
-        let currentCategoria = '';
-        let currentOrdenacao = 'nome';
-
-        // ============================================================
-        // CORES DAS CATEGORIAS (PARA O ÍCONE)
-        // ============================================================
-        const coresCategorias = {
-            'Cabelo': '#26196b',
-            'Brushing': '#D4AF37',
-            'Madeixas': '#8B4513',
-            'Coloração': '#C71585',
-            'Alisamentos': '#2E8B57',
-            'Tratamentos': '#6A5ACD',
-            'Mega Hair': '#FF4500',
-            'Manicure': '#FF69B4',
-            'Unhas em Gel': '#BA55D3',
-            'Depilação Feminina': '#FF1493',
-            'Depilação Masculina': '#1E90FF',
-            'Procedimentos Faciais': '#FFD700',
-            'Procedimentos Corporais': '#32CD32',
-            'Sobrancelhas': '#8B008B',
-            'Podologia': '#CD853F'
-        };
-
-        const iconesCategorias = {
-            'Cabelo': 'fa-cut',
-            'Brushing': 'fa-wind',
-            'Madeixas': 'fa-paint-brush',
-            'Coloração': 'fa-palette',
-            'Alisamentos': 'fa-magic',
-            'Tratamentos': 'fa-hand-holding-heart',
-            'Mega Hair': 'fa-user-plus',
-            'Manicure': 'fa-hand-sparkles',
-            'Unhas em Gel': 'fa-paint-roller',
-            'Depilação Feminina': 'fa-female',
-            'Depilação Masculina': 'fa-male',
-            'Procedimentos Faciais': 'fa-face-smile',
-            'Procedimentos Corporais': 'fa-people-arrows',
-            'Sobrancelhas': 'fa-eye',
-            'Podologia': 'fa-foot'
-        };
-
-        // ============================================================
-        // CARREGAR DADOS DO FIREBASE (PÚBLICO - SEM AUTENTICAÇÃO)
-        // ============================================================
-        function carregarDados() {
-            const container = document.getElementById('precarioContainer');
-            container.innerHTML = `
-                <div class="loading">
-                    <div class="spinner"></div>
-                    <p>Carregando serviços...</p>
-                </div>
-            `;
-
-            // Carregar categorias
-            db.collection('categorias')
-                .get()
-                .then(snapshot => {
-                    todasCategorias = [];
-                    snapshot.forEach(doc => {
-                        const data = doc.data();
-                        if (data.nome) {
-                            todasCategorias.push({
-                                id: doc.id,
-                                ...data
-                            });
-                        }
-                    });
-                    console.log('📋 Categorias carregadas:', todasCategorias.length);
-                    atualizarFiltroCategorias();
-                })
-                .catch(error => {
-                    console.error('Erro ao carregar categorias:', error);
-                });
-
-            // Carregar colaboradores
-            db.collection('colaboradores')
-                .get()
-                .then(snapshot => {
-                    todosColaboradores = [];
-                    snapshot.forEach(doc => {
-                        const data = doc.data();
-                        if (data.nome) {
-                            todosColaboradores.push({
-                                id: doc.id,
-                                ...data
-                            });
-                        }
-                    });
-                    console.log('👤 Colaboradores carregados:', todosColaboradores.length);
-                })
-                .catch(error => {
-                    console.error('Erro ao carregar colaboradores:', error);
-                });
-
-            // Carregar serviços
-            db.collection('servicos')
-                .get()
-                .then(snapshot => {
-                    todosServicos = [];
-                    snapshot.forEach(doc => {
-                        const data = doc.data();
-                        if (data.ativo !== false) {
-                            todosServicos.push({
-                                id: doc.id,
-                                ...data
-                            });
-                        }
-                    });
-                    console.log('📋 Serviços carregados:', todosServicos.length);
-                    document.getElementById('totalServicos').textContent = todosServicos.length;
-                    renderizarPrecario();
-                })
-                .catch(error => {
-                    console.error('Erro ao carregar serviços:', error);
-                    container.innerHTML = `
-                        <div class="empty-state">
-                            <i class="fas fa-exclamation-triangle"></i>
-                            <p>Erro ao carregar serviços: ${error.message}</p>
-                            <button onclick="carregarDados()" style="margin-top:12px; padding:8px 24px; background:var(--primary); color:white; border:none; border-radius:30px; cursor:pointer;">
-                                <i class="fas fa-sync-alt me-2"></i>Tentar novamente
-                            </button>
-                        </div>
-                    `;
-                });
-        }
-
-        // ============================================================
-        // ATUALIZAR FILTRO DE CATEGORIAS
-        // ============================================================
-        function atualizarFiltroCategorias() {
-            const select = document.getElementById('categoriaFilter');
-            select.innerHTML = '<option value="">Todas as categorias</option>';
-            todasCategorias.forEach(cat => {
-                select.innerHTML += `<option value="${cat.id}">${cat.nome}</option>`;
-            });
-        }
-
-        // ============================================================
-        // OBTER NOME DO COLABORADOR POR ID
-        // ============================================================
-        function getColaboradorNome(id) {
-            const colab = todosColaboradores.find(c => c.id === id);
-            return colab ? colab.nome : id;
-        }
-
-        // ============================================================
-        // ENCONTRAR SERVIÇOS QUE CORRESPONDEM À BUSCA (MÚLTIPLOS)
-        // ============================================================
-        function encontrarServicosExatos(searchTerm) {
-            if (!searchTerm || searchTerm.length < 2) return [];
-            
-            const term = searchTerm.toLowerCase().trim();
-            
-            // Busca todos os serviços que contêm o termo no nome (prioridade)
-            const encontrados = todosServicos.filter(s => {
-                const nome = (s.nome || '').toLowerCase().trim();
-                return nome.includes(term);
-            });
-            
-            // Se encontrou, retorna todos
-            if (encontrados.length > 0) {
-                return encontrados;
-            }
-            
-            // Se não encontrou por nome, tenta por categoria
-            const porCategoria = todosServicos.filter(s => {
-                const categoria = (s.categoriaNome || '').toLowerCase().trim();
-                return categoria.includes(term);
-            });
-            
-            return porCategoria;
-        }
-
-        // ============================================================
-        // GERAR CARD DE SERVIÇO EXATO
-        // ============================================================
-        function gerarCardServicoExato(servico) {
-            const preco = servico.preco || 0;
-            const precoTipo = servico.precoTipo || 'Fixo';
-            const precoTipoClass = precoTipo === 'Fixo' ? 'fixo' : 'partir';
-            const colaboradoresIds = servico.colaboradoresIds || [];
-            
-            let colabHtml = '';
-            if (colaboradoresIds.length > 0) {
-                colabHtml = colaboradoresIds.map(id => {
-                    const nome = getColaboradorNome(id);
-                    return `<span class="colab-tag"><i class="fas fa-user"></i> ${nome}</span>`;
-                }).join('');
-            } else {
-                colabHtml = `<span class="colab-tag"><i class="fas fa-user"></i> Profissional não definido</span>`;
-            }
-            
-            return `
-                <div class="servico-exato-card">
-                    <div class="exato-header">
-                        <div class="exato-icon"><i class="fas fa-star"></i></div>
-                        <h3>${servico.nome || 'Serviço'}</h3>
-                        <span class="exato-badge">Encontrado</span>
-                        <span class="exato-categoria-tag"><i class="fas fa-tag"></i> ${servico.categoriaNome || 'Geral'}</span>
-                    </div>
-                    <div class="exato-detalhes">
-                        <span><i class="fas fa-clock"></i> ${servico.tempo ? servico.tempo + ' min' : 'Tempo não definido'}</span>
-                        <span class="preco-destaque">${preco > 0 ? '€ ' + preco.toFixed(2).replace('.', ',') : 'Consultar'}</span>
-                        <span class="preco-tipo ${precoTipoClass}">${precoTipo}</span>
-                    </div>
-                    <div class="exato-colaboradores">
-                        ${colabHtml}
-                    </div>
-                </div>
-            `;
-        }
-
-        // ============================================================
-        // GERAR CARD DE SERVIÇO NA GRID (sem tabela)
-        // ============================================================
-        function gerarCardServico(servico) {
-            const colaboradoresIds = servico.colaboradoresIds || [];
-            const colabNomes = colaboradoresIds.map(id => getColaboradorNome(id));
-            const precoTipo = servico.precoTipo || 'Fixo';
-            const precoTipoClass = precoTipo === 'Fixo' ? 'fixo' : 'partir';
-            
-            let colabHtml = '';
-            if (colabNomes.length > 0) {
-                colabHtml = colabNomes.map(n => `<span class="colaborador-tag">${n}</span>`).join('');
-            } else {
-                colabHtml = '<span class="colaborador-tag">-</span>';
-            }
-            
-            return `
-                <div class="servico-card">
-                    <div class="servico-nome">${servico.nome || 'Sem nome'}</div>
-                    <div class="servico-desc">${servico.descricao || '-'}</div>
-                    <div class="servico-info-row">
-                        ${colabHtml}
-                        <span class="servico-tempo"><i class="far fa-clock"></i> ${servico.tempo ? servico.tempo + 'min' : '-'}</span>
-                    </div>
-                    <div>
-                        <span class="servico-preco">${servico.preco ? '€ ' + servico.preco.toFixed(2).replace('.', ',') : 'Consultar'}</span>
-                        <span class="preco-tipo ${precoTipoClass}">${precoTipo}</span>
-                    </div>
-                </div>
-            `;
-        }
-
-        // ============================================================
-        // RENDERIZAR PREÇÁRIO
-        // ============================================================
-        function renderizarPrecario() {
-            const container = document.getElementById('precarioContainer');
-            const search = document.getElementById('searchInput').value.toLowerCase().trim();
-            const categoriaId = document.getElementById('categoriaFilter').value;
-            const ordenacao = document.getElementById('ordenacaoFilter').value;
-
-            // === BUSCA EXATA (MÚLTIPLOS CARDS) ===
-            const servicosExatos = encontrarServicosExatos(search);
-            const exatosContainer = document.getElementById('servicosExatosContainer');
-            const exatosGrid = document.getElementById('servicosExatosGrid');
-            
-            if (servicosExatos.length > 0 && search.length >= 2) {
-                exatosContainer.classList.add('visible');
-                exatosGrid.innerHTML = servicosExatos.map(s => gerarCardServicoExato(s)).join('');
-                
-                // IDs dos serviços exatos para filtrar da lista
-                const idsExatos = new Set(servicosExatos.map(s => s.id));
-                
-                // === FILTRAR SERVIÇOS PARA A LISTA (excluindo os exatos) ===
-                let filtrados = todosServicos.filter(servico => {
-                    // Excluir serviços que já estão nos cards
-                    if (idsExatos.has(servico.id)) {
-                        return false;
-                    }
-                    
-                    // Busca (para os demais serviços)
-                    if (search) {
-                        const nomeMatch = (servico.nome || '').toLowerCase().includes(search);
-                        const catMatch = (servico.categoriaNome || '').toLowerCase().includes(search);
-                        const descMatch = (servico.descricao || '').toLowerCase().includes(search);
-                        if (!(nomeMatch || catMatch || descMatch)) return false;
-                    }
-
-                    // Categoria
-                    if (categoriaId) {
-                        if (servico.categoriaId !== categoriaId) return false;
-                    }
-
-                    return true;
-                });
-                
-                // Ordenar
-                if (ordenacao === 'nome') {
-                    filtrados.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
-                } else if (ordenacao === 'preco') {
-                    filtrados.sort((a, b) => (a.preco || 0) - (b.preco || 0));
-                } else if (ordenacao === 'preco-desc') {
-                    filtrados.sort((a, b) => (b.preco || 0) - (a.preco || 0));
-                }
-
-                // Agrupar por categoria
-                const grupos = {};
-                filtrados.forEach(servico => {
-                    const key = servico.categoriaId || 'outros';
-                    if (!grupos[key]) {
-                        const categoria = todasCategorias.find(c => c.id === key);
-                        grupos[key] = {
-                            id: key,
-                            nome: categoria ? categoria.nome : (servico.categoriaNome || 'Outros'),
-                            cor: categoria ? (categoria.cor || coresCategorias[categoria.nome] || '#26196b') : '#26196b',
-                            servicos: []
-                        };
-                    }
-                    grupos[key].servicos.push(servico);
-                });
-
-                // Ordenar grupos por nome
-                const gruposOrdenados = Object.values(grupos).sort((a, b) => a.nome.localeCompare(b.nome));
-
-                if (gruposOrdenados.length === 0) {
-                    container.innerHTML = `
-                        <div class="empty-state" style="padding: 20px 20px;">
-                            <i class="fas fa-info-circle"></i>
-                            <p style="font-size:14px;">${servicosExatos.length} resultado(s) encontrado(s) nos cards acima.</p>
-                        </div>
-                    `;
-                    return;
-                }
-
-                let html = '';
-                gruposOrdenados.forEach(grupo => {
-                    const cor = grupo.cor || '#26196b';
-                    const icon = iconesCategorias[grupo.nome] || 'fa-tag';
-
-                    html += `
-                        <div class="categoria-section">
-                            <div class="categoria-header" onclick="toggleCategoria(this)">
-                                <div class="cat-icon" style="background: ${cor};">
-                                    <i class="fas ${icon}"></i>
-                                </div>
-                                <h2>${grupo.nome}</h2>
-                                <span class="cat-count">${grupo.servicos.length} serviços</span>
-                                <i class="fas fa-chevron-down toggle-icon"></i>
-                            </div>
-                            <div class="categoria-body">
-                                <div class="table-wrapper">
-                                    <div class="servicos-grid">
-                                        ${grupo.servicos.map(s => gerarCardServico(s)).join('')}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                });
-
-                container.innerHTML = html;
-
-                // Expandir a primeira categoria por padrão
-                const firstBody = container.querySelector('.categoria-body');
-                if (firstBody) {
-                    firstBody.style.maxHeight = firstBody.scrollHeight + 'px';
-                }
-                
-                return;
-            } else {
-                exatosContainer.classList.remove('visible');
-                exatosGrid.innerHTML = '';
-            }
-
-            // === SE NÃO HOUVER BUSCA EXATA, COMPORTAMENTO NORMAL ===
-            let filtrados = todosServicos.filter(servico => {
-                // Busca
-                if (search) {
-                    const nomeMatch = (servico.nome || '').toLowerCase().includes(search);
-                    const catMatch = (servico.categoriaNome || '').toLowerCase().includes(search);
-                    const descMatch = (servico.descricao || '').toLowerCase().includes(search);
-                    if (!(nomeMatch || catMatch || descMatch)) return false;
-                }
-
-                // Categoria
-                if (categoriaId) {
-                    if (servico.categoriaId !== categoriaId) return false;
-                }
-
-                return true;
-            });
-
-            // Ordenar
-            if (ordenacao === 'nome') {
-                filtrados.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
-            } else if (ordenacao === 'preco') {
-                filtrados.sort((a, b) => (a.preco || 0) - (b.preco || 0));
-            } else if (ordenacao === 'preco-desc') {
-                filtrados.sort((a, b) => (b.preco || 0) - (a.preco || 0));
-            }
-
-            // Agrupar por categoria
-            const grupos = {};
-            filtrados.forEach(servico => {
-                const key = servico.categoriaId || 'outros';
-                if (!grupos[key]) {
-                    const categoria = todasCategorias.find(c => c.id === key);
-                    grupos[key] = {
-                        id: key,
-                        nome: categoria ? categoria.nome : (servico.categoriaNome || 'Outros'),
-                        cor: categoria ? (categoria.cor || coresCategorias[categoria.nome] || '#26196b') : '#26196b',
-                        servicos: []
-                    };
-                }
-                grupos[key].servicos.push(servico);
-            });
-
-            // Ordenar grupos por nome
-            const gruposOrdenados = Object.values(grupos).sort((a, b) => a.nome.localeCompare(b.nome));
-
-            if (gruposOrdenados.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <i class="fas fa-search"></i>
-                        <h3>Nenhum serviço encontrado</h3>
-                        <p>Tente ajustar os filtros ou buscar por outro termo.</p>
+                        <p style="font-size:12px; margin-top:8px; opacity:0.7;">Use vírgula para buscar múltiplos serviços: ex: "madeixas, manicure"</p>
                     </div>
                 `;
                 return;
