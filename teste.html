@@ -22039,7 +22039,1822 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
 
 
 
+<!-- ============================================================
+   SCRIPT COMPLETO - PREÇÁRIO INTEGRADO COM HTML PÚBLICO
+   ============================================================ -->
+<!-- COLE ESTE CÓDIGO ANTES DO </body>                          -->
+<!-- ============================================================ -->
 
+<script>
+(function() {
+    'use strict';
+    
+    console.log('🔄 INICIANDO PREÇÁRIO INTEGRADO...');
+
+    // ============================================================
+    // VARIÁVEIS GLOBAIS
+    // ============================================================
+    let todosServicos = [];
+    let todasCategorias = [];
+    let todosColaboradores = [];
+    let servicoAtualEditando = null;
+    let servicosSelecionados = [];
+    let usuariosCadastrados = [];
+    let empresaData = {};
+
+    // ============================================================
+    // FUNÇÕES PARA OBTER DADOS DO SISTEMA
+    // ============================================================
+    function getCurrentUser() {
+        try {
+            if (typeof window.currentUser !== 'undefined') return window.currentUser;
+            if (typeof currentUser !== 'undefined') return currentUser;
+            return null;
+        } catch(e) { return null; }
+    }
+
+    function getFirestore() {
+        try {
+            if (typeof firebase !== 'undefined' && firebase.firestore) {
+                return firebase.firestore();
+            }
+            if (typeof db !== 'undefined') {
+                return db;
+            }
+            return null;
+        } catch(e) { return null; }
+    }
+
+    function getCollaboratorsList() {
+        try {
+            if (typeof window.collaborators !== 'undefined' && Array.isArray(window.collaborators)) {
+                return window.collaborators;
+            }
+            if (typeof collaborators !== 'undefined' && Array.isArray(collaborators)) {
+                return collaborators;
+            }
+            return [];
+        } catch(e) { return []; }
+    }
+
+    function getClientsList() {
+        try {
+            if (typeof window.clients !== 'undefined' && Array.isArray(window.clients)) {
+                return window.clients;
+            }
+            if (typeof clients !== 'undefined' && Array.isArray(clients)) {
+                return clients;
+            }
+            return [];
+        } catch(e) { return []; }
+    }
+
+    // ============================================================
+    // TOAST - NOTIFICAÇÕES
+    // ============================================================
+    function showToast(message, type = 'info') {
+        // Verificar se existe SweetAlert2
+        if (typeof Swal !== 'undefined') {
+            const icons = {
+                'success': 'success',
+                'error': 'error',
+                'warning': 'warning',
+                'info': 'info'
+            };
+            Swal.fire({
+                icon: icons[type] || 'info',
+                title: message,
+                timer: 3000,
+                showConfirmButton: false,
+                toast: true,
+                position: 'top-end',
+                timerProgressBar: true
+            });
+        } else {
+            // Fallback: alert simples
+            console.log(`[${type.toUpperCase()}] ${message}`);
+            
+            // Criar toast simples
+            const toast = document.createElement('div');
+            toast.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 12px 24px;
+                background: ${type === 'error' ? '#dc3545' : type === 'success' ? '#28a745' : type === 'warning' ? '#ffc107' : '#26196b'};
+                color: white;
+                border-radius: 12px;
+                font-family: 'Poppins', sans-serif;
+                font-size: 14px;
+                z-index: 99999;
+                box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+                max-width: 90%;
+                animation: slideInRight 0.3s ease;
+            `;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100px)';
+                toast.style.transition = 'all 0.3s ease';
+                setTimeout(() => toast.remove(), 400);
+            }, 3000);
+        }
+    }
+
+    // ============================================================
+    // CARREGAR DADOS DO FIREBASE
+    // ============================================================
+    async function loadPrecarioData() {
+        try {
+            const db = getFirestore();
+            if (!db) {
+                console.warn('⚠️ Firebase não disponível');
+                return;
+            }
+
+            const user = getCurrentUser();
+            
+            // Buscar serviços
+            let servicosQuery = db.collection('servicos');
+            if (user) {
+                servicosQuery = servicosQuery.where('userId', '==', user.uid);
+            }
+            const servicosSnapshot = await servicosQuery.get();
+            
+            todosServicos = [];
+            servicosSnapshot.forEach(doc => {
+                todosServicos.push({
+                    id: doc.id,
+                    ...doc.data()
+                });
+            });
+
+            // Buscar categorias
+            let categoriasQuery = db.collection('categorias');
+            if (user) {
+                categoriasQuery = categoriasQuery.where('userId', '==', user.uid);
+            }
+            const categoriasSnapshot = await categoriasQuery.get();
+            
+            todasCategorias = [];
+            categoriasSnapshot.forEach(doc => {
+                todasCategorias.push({
+                    id: doc.id,
+                    ...doc.data()
+                });
+            });
+
+            // Buscar colaboradores
+            let colaboradoresQuery = db.collection('colaboradores');
+            if (user) {
+                colaboradoresQuery = colaboradoresQuery.where('userId', '==', user.uid);
+            }
+            const colaboradoresSnapshot = await colaboradoresQuery.get();
+            
+            todosColaboradores = [];
+            colaboradoresSnapshot.forEach(doc => {
+                todosColaboradores.push({
+                    id: doc.id,
+                    ...doc.data()
+                });
+            });
+
+            // Buscar empresa
+            if (user) {
+                const empresaSnapshot = await db.collection('empresas')
+                    .where('userId', '==', user.uid)
+                    .limit(1)
+                    .get();
+                    
+                empresaData = {};
+                empresaSnapshot.forEach(doc => {
+                    empresaData = doc.data();
+                });
+            }
+
+            console.log('✅ Dados carregados:', {
+                servicos: todosServicos.length,
+                categorias: todasCategorias.length,
+                colaboradores: todosColaboradores.length
+            });
+
+            // Atualizar interface
+            updatePrecarioUI();
+            updateCategoriaSelects();
+            updateColaboradorSelects();
+
+        } catch (error) {
+            console.error('❌ Erro ao carregar dados:', error);
+            showToast('Erro ao carregar dados: ' + error.message, 'error');
+        }
+    }
+
+    // ============================================================
+    // ATUALIZAR INTERFACE PREÇÁRIO
+    // ============================================================
+    function updatePrecarioUI() {
+        const container = document.getElementById('precarioContainer');
+        if (!container) return;
+
+        // Atualizar contador
+        const totalSpan = document.getElementById('totalServicos');
+        if (totalSpan) {
+            totalSpan.textContent = todosServicos.length;
+        }
+
+        // Renderizar cards
+        renderPrecarioCards();
+    }
+
+    // ============================================================
+    // RENDERIZAR CARDS PREÇÁRIO
+    // ============================================================
+    function renderPrecarioCards() {
+        const container = document.getElementById('precarioContainer');
+        if (!container) return;
+
+        const searchTerm = document.getElementById('searchInput')?.value?.toLowerCase().trim() || '';
+        const categoriaId = document.getElementById('categoriaFilter')?.value || '';
+        const ordenacao = document.getElementById('ordenacaoFilter')?.value || 'nome';
+
+        let filtered = [...todosServicos];
+
+        // Filtro por busca
+        if (searchTerm) {
+            const termos = searchTerm.split(',').map(t => t.trim()).filter(t => t.length > 0);
+            filtered = filtered.filter(s => {
+                const nomeMatch = (s.nome || '').toLowerCase().includes(searchTerm);
+                const catMatch = (s.categoriaNome || '').toLowerCase().includes(searchTerm);
+                const descMatch = (s.descricao || '').toLowerCase().includes(searchTerm);
+                const colMatch = (s.colaboradoresIds || []).some(id => {
+                    const col = todosColaboradores.find(c => c.id === id);
+                    return col ? (col.nome || '').toLowerCase().includes(searchTerm) : false;
+                });
+                return nomeMatch || catMatch || descMatch || colMatch;
+            });
+        }
+
+        // Filtro por categoria
+        if (categoriaId) {
+            filtered = filtered.filter(s => s.categoriaId === categoriaId);
+        }
+
+        // Ordenação
+        if (ordenacao === 'nome') {
+            filtered.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+        } else if (ordenacao === 'preco') {
+            filtered.sort((a, b) => (a.preco || 0) - (b.preco || 0));
+        } else if (ordenacao === 'preco-desc') {
+            filtered.sort((a, b) => (b.preco || 0) - (a.preco || 0));
+        }
+
+        if (filtered.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-inbox"></i>
+                    <h3>Nenhum serviço encontrado</h3>
+                    <p>Tente ajustar os filtros ou adicione um novo serviço.</p>
+                    <button class="btn btn-primary" onclick="window.openPrecarioModal()" style="margin-top:12px; padding:10px 24px; background:var(--primary); color:white; border:none; border-radius:30px; cursor:pointer;">
+                        <i class="fas fa-plus me-2"></i>Adicionar Serviço
+                    </button>
+                </div>
+            `;
+            return;
+        }
+
+        // Agrupar por categoria
+        const grupos = {};
+        filtered.forEach(servico => {
+            const key = servico.categoriaId || 'outros';
+            if (!grupos[key]) {
+                const categoria = todasCategorias.find(c => c.id === key);
+                grupos[key] = {
+                    id: key,
+                    nome: categoria ? categoria.nome : (servico.categoriaNome || 'Outros'),
+                    cor: categoria ? categoria.cor : '#26196b',
+                    servicos: []
+                };
+            }
+            grupos[key].servicos.push(servico);
+        });
+
+        const gruposOrdenados = Object.values(grupos).sort((a, b) => a.nome.localeCompare(b.nome));
+
+        let html = '';
+        gruposOrdenados.forEach(grupo => {
+            const cor = grupo.cor || '#26196b';
+            const icon = getCategoriaIcon(grupo.nome);
+
+            html += `
+                <div class="categoria-section">
+                    <div class="categoria-header" onclick="window.toggleCategoria(this)">
+                        <div class="cat-icon" style="background: ${cor};">
+                            <i class="fas ${icon}"></i>
+                        </div>
+                        <h2>${grupo.nome}</h2>
+                        <span class="cat-count">${grupo.servicos.length} serviços</span>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
+                    </div>
+                    <div class="categoria-body">
+                        <div class="table-wrapper">
+                            <div class="servicos-grid">
+                                ${grupo.servicos.map(s => window.generateServicoCard(s, cor)).join('')}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+
+        // Expandir a primeira categoria
+        setTimeout(() => {
+            const firstBody = container.querySelector('.categoria-body');
+            if (firstBody) {
+                firstBody.style.maxHeight = firstBody.scrollHeight + 'px';
+            }
+        }, 100);
+    }
+
+    // ============================================================
+    // GERAR CARD DE SERVIÇO INDIVIDUAL
+    // ============================================================
+    window.generateServicoCard = function(servico, corCategoria) {
+        const colaboradoresIds = servico.colaboradoresIds || [];
+        const colabNomes = colaboradoresIds.map(id => {
+            const col = todosColaboradores.find(c => c.id === id);
+            return col ? col.nome : null;
+        }).filter(Boolean);
+
+        const isSelecionado = window.servicosSelecionados && window.servicosSelecionados.some(s => s.id === servico.id);
+        const precoTipo = servico.precoTipo || 'Fixo';
+        const precoTipoClass = precoTipo === 'Fixo' ? 'fixo' : 'partir';
+        
+        let colabHtml = '';
+        if (colabNomes.length > 0) {
+            colabHtml = colabNomes.map(n => `<span class="colaborador-tag">${n}</span>`).join('');
+        } else {
+            colabHtml = '<span class="colaborador-tag" style="color:#999;">Nenhum</span>';
+        }
+
+        return `
+            <div class="servico-card ${isSelecionado ? 'selecionado' : ''}" 
+                 data-id="${servico.id}"
+                 onclick="window.toggleSelecaoServico('${servico.id}')"
+                 style="border-left: 4px solid ${corCategoria || '#26196b'};">
+                <div class="servico-nome">${servico.nome || 'Sem nome'}</div>
+                <div class="servico-desc">${servico.descricao || '-'}</div>
+                <div class="servico-info-row">
+                    ${colabHtml}
+                    <span class="servico-tempo"><i class="far fa-clock"></i> ${servico.tempo ? servico.tempo + 'min' : '-'}</span>
+                </div>
+                <div>
+                    <span class="servico-preco">${servico.preco ? '€ ' + servico.preco.toFixed(2).replace('.', ',') : 'Consultar'}</span>
+                    <span class="preco-tipo ${precoTipoClass}">${precoTipo}</span>
+                </div>
+                <div style="display:flex; gap:6px; margin-top:6px; flex-wrap:wrap;">
+                    <button onclick="event.stopPropagation(); window.editPrecarioServico('${servico.id}')" 
+                            style="background:transparent; border:none; color:#0d6efd; cursor:pointer; font-size:12px; padding:2px 8px; border-radius:4px;">
+                        <i class="fas fa-edit"></i> Editar
+                    </button>
+                    <button onclick="event.stopPropagation(); window.deletePrecarioServico('${servico.id}')" 
+                            style="background:transparent; border:none; color:#dc3545; cursor:pointer; font-size:12px; padding:2px 8px; border-radius:4px;">
+                        <i class="fas fa-trash"></i> Excluir
+                    </button>
+                </div>
+            </div>
+        `;
+    };
+
+    // ============================================================
+    // ÍCONE POR CATEGORIA
+    // ============================================================
+    function getCategoriaIcon(nome) {
+        const icons = {
+            'Cabelo': 'fa-cut',
+            'Brushing': 'fa-wind',
+            'Madeixas': 'fa-paint-brush',
+            'Coloração': 'fa-palette',
+            'Alisamentos': 'fa-magic',
+            'Tratamentos': 'fa-hand-holding-heart',
+            'Mega Hair': 'fa-user-plus',
+            'Manicure': 'fa-hand-sparkles',
+            'Unhas em Gel': 'fa-paint-roller',
+            'Depilação Feminina': 'fa-female',
+            'Depilação Masculina': 'fa-male',
+            'Procedimentos Faciais': 'fa-face-smile',
+            'Procedimentos Corporais': 'fa-people-arrows',
+            'Sobrancelhas': 'fa-eye',
+            'Podologia': 'fa-foot'
+        };
+        return icons[nome] || 'fa-tag';
+    }
+
+    // ============================================================
+    // TOGGLE CATEGORIA
+    // ============================================================
+    window.toggleCategoria = function(header) {
+        const body = header.nextElementSibling;
+        const icon = header.querySelector('.toggle-icon');
+        
+        if (!body) return;
+        
+        if (body.style.maxHeight && body.style.maxHeight !== '0px') {
+            body.style.maxHeight = '0px';
+            if (icon) icon.classList.add('rotated');
+        } else {
+            body.style.maxHeight = body.scrollHeight + 'px';
+            if (icon) icon.classList.remove('rotated');
+        }
+    };
+
+    // ============================================================
+    // ATUALIZAR SELECTS DE CATEGORIA
+    // ============================================================
+    function updateCategoriaSelects() {
+        const selects = [
+            document.getElementById('categoriaFilter'),
+            document.getElementById('ps_categoria')
+        ];
+
+        selects.forEach(select => {
+            if (!select) return;
+            
+            // Salvar valor selecionado
+            const currentValue = select.value;
+            
+            select.innerHTML = '<option value="">Selecione uma categoria</option>';
+            
+            todasCategorias.forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat.id;
+                option.textContent = cat.nome;
+                select.appendChild(option);
+            });
+
+            // Adicionar opção "Nova categoria"
+            const newOption = document.createElement('option');
+            newOption.value = '__nova_categoria__';
+            newOption.textContent = '➕ Nova categoria...';
+            newOption.style.color = '#26196b';
+            newOption.style.fontWeight = 'bold';
+            select.appendChild(newOption);
+
+            // Restaurar valor
+            if (currentValue) {
+                select.value = currentValue;
+            }
+
+            // Evento para criar nova categoria
+            select.onchange = function(e) {
+                if (this.value === '__nova_categoria__') {
+                    window.createNewCategoria(this);
+                }
+            };
+        });
+    }
+
+    // ============================================================
+    // CRIAR NOVA CATEGORIA
+    // ============================================================
+    window.createNewCategoria = function(selectElement) {
+        // Verificar se já existe modal de criação
+        if (document.getElementById('novaCategoriaModal')) {
+            document.getElementById('novaCategoriaModal').remove();
+        }
+
+        const modalHTML = `
+            <div id="novaCategoriaModal" style="
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.5);
+                backdrop-filter: blur(8px);
+                z-index: 10000;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 20px;
+            ">
+                <div style="
+                    background: white;
+                    border-radius: 20px;
+                    max-width: 400px;
+                    width: 100%;
+                    padding: 30px;
+                    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+                ">
+                    <h3 style="margin-bottom:16px; color:#26196b;">
+                        <i class="fas fa-folder-plus me-2"></i>Nova Categoria
+                    </h3>
+                    <div style="margin-bottom:16px;">
+                        <label style="font-weight:500; display:block; margin-bottom:4px;">Nome da categoria *</label>
+                        <input type="text" id="novaCategoriaNome" placeholder="Ex: Cabelo, Maquiagem..." 
+                               style="width:100%; padding:12px 16px; border:2px solid #e8e6ea; border-radius:12px; font-size:16px;">
+                    </div>
+                    <div style="margin-bottom:16px;">
+                        <label style="font-weight:500; display:block; margin-bottom:4px;">Cor</label>
+                        <input type="color" id="novaCategoriaCor" value="#26196b" 
+                               style="width:100%; height:50px; border:2px solid #e8e6ea; border-radius:12px; padding:4px; cursor:pointer;">
+                    </div>
+                    <div style="display:flex; gap:10px; justify-content:flex-end;">
+                        <button onclick="document.getElementById('novaCategoriaModal').remove()" 
+                                style="padding:10px 20px; border:none; border-radius:30px; background:#f0eef2; cursor:pointer;">
+                            Cancelar
+                        </button>
+                        <button onclick="window.saveNewCategoria(this)" 
+                                style="padding:10px 24px; border:none; border-radius:30px; background:#26196b; color:white; cursor:pointer;">
+                            <i class="fas fa-save me-1"></i> Salvar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        
+        // Foco no input
+        setTimeout(() => {
+            document.getElementById('novaCategoriaNome')?.focus();
+        }, 100);
+    };
+
+    // ============================================================
+    // SALVAR NOVA CATEGORIA
+    // ============================================================
+    window.saveNewCategoria = async function(btn) {
+        const nomeInput = document.getElementById('novaCategoriaNome');
+        const corInput = document.getElementById('novaCategoriaCor');
+        
+        const nome = nomeInput?.value?.trim();
+        const cor = corInput?.value || '#26196b';
+
+        if (!nome) {
+            showToast('Digite o nome da categoria.', 'error');
+            nomeInput?.focus();
+            return;
+        }
+
+        // Verificar se já existe
+        if (todasCategorias.some(c => c.nome.toLowerCase() === nome.toLowerCase())) {
+            showToast('Já existe uma categoria com este nome.', 'warning');
+            return;
+        }
+
+        try {
+            const db = getFirestore();
+            if (!db) throw new Error('Firebase não disponível');
+
+            const user = getCurrentUser();
+            if (!user) throw new Error('Usuário não logado');
+
+            const docRef = await db.collection('categorias').add({
+                nome: nome,
+                cor: cor,
+                userId: user.uid,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            // Adicionar à lista local
+            todasCategorias.push({
+                id: docRef.id,
+                nome: nome,
+                cor: cor
+            });
+
+            // Fechar modal
+            document.getElementById('novaCategoriaModal')?.remove();
+
+            showToast(`Categoria "${nome}" criada com sucesso!`, 'success');
+
+            // Atualizar selects
+            updateCategoriaSelects();
+
+            // Se o select que chamou ainda existe, selecionar a nova categoria
+            const select = document.getElementById('ps_categoria');
+            if (select) {
+                select.value = docRef.id;
+            }
+
+        } catch (error) {
+            console.error('Erro ao criar categoria:', error);
+            showToast('Erro ao criar categoria: ' + error.message, 'error');
+        }
+    };
+
+    // ============================================================
+    // ATUALIZAR SELECTS DE COLABORADORES
+    // ============================================================
+    function updateColaboradorSelects() {
+        const container = document.getElementById('colaboradoresCheckboxContainer');
+        if (!container) return;
+
+        if (todosColaboradores.length === 0) {
+            container.innerHTML = `
+                <p style="color:#999; font-size:13px; padding:12px; background:#f8f7fc; border-radius:8px;">
+                    <i class="fas fa-info-circle me-2"></i>Nenhum colaborador cadastrado.
+                    <br><small>Adicione colaboradores no painel de administração.</small>
+                </p>
+            `;
+            return;
+        }
+
+        let html = '';
+        todosColaboradores.forEach(col => {
+            html += `
+                <div class="form-check form-check-inline" style="margin-right:12px; margin-bottom:8px;">
+                    <input class="form-check-input" type="checkbox" id="col_${col.id}" value="${col.id}">
+                    <label class="form-check-label" for="col_${col.id}" style="font-size:14px;">
+                        ${col.nome}
+                    </label>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+    }
+
+    // ============================================================
+    // MOSTRAR MODAL PARA ADICIONAR/EDITAR SERVIÇO
+    // ============================================================
+    window.openPrecarioModal = function(servicoId = null) {
+        // Verificar se já existe modal
+        let modal = document.getElementById('precarioModal');
+        if (modal) {
+            modal.remove();
+            document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+        }
+
+        const isEditing = !!servicoId;
+        let servico = null;
+        
+        if (isEditing) {
+            servico = todosServicos.find(s => s.id === servicoId);
+            if (!servico) {
+                showToast('Serviço não encontrado.', 'error');
+                return;
+            }
+            servicoAtualEditando = servicoId;
+        } else {
+            servico = {
+                nome: '',
+                categoriaId: '',
+                preco: '',
+                tempo: '',
+                descricao: '',
+                colaboradoresIds: [],
+                ativo: true,
+                cor: '#26196b',
+                precoTipo: 'Fixo'
+            };
+            servicoAtualEditando = null;
+        }
+
+        // Gerar opções de categorias
+        let catOptions = '';
+        todasCategorias.forEach(c => {
+            const selected = c.id === servico.categoriaId ? 'selected' : '';
+            catOptions += `<option value="${c.id}" ${selected}>${c.nome}</option>`;
+        });
+
+        // Gerar checkboxes de colaboradores
+        let colabHtml = '';
+        if (todosColaboradores.length === 0) {
+            colabHtml = `
+                <p style="color:#999; font-size:13px; padding:12px; background:#f8f7fc; border-radius:8px;">
+                    <i class="fas fa-info-circle me-2"></i>Nenhum colaborador cadastrado.
+                    <br><small>Adicione colaboradores no painel de administração.</small>
+                </p>
+            `;
+        } else {
+            todosColaboradores.forEach(col => {
+                const checked = (servico.colaboradoresIds || []).includes(col.id) ? 'checked' : '';
+                colabHtml += `
+                    <div class="form-check form-check-inline" style="margin-right:12px; margin-bottom:8px;">
+                        <input class="form-check-input" type="checkbox" id="col_${col.id}" value="${col.id}" ${checked}>
+                        <label class="form-check-label" for="col_${col.id}" style="font-size:14px;">
+                            ${col.nome}
+                        </label>
+                    </div>
+                `;
+            });
+        }
+
+        const modalHTML = `
+            <div class="modal fade" id="precarioModal" tabindex="-1" data-bs-backdrop="static" style="display:block; background:rgba(0,0,0,0.5); z-index:1050;">
+                <div class="modal-dialog modal-lg modal-dialog-scrollable" style="margin:30px auto;">
+                    <div class="modal-content" style="border-radius:16px; overflow:hidden; max-height:90vh;">
+                        <div class="modal-header" style="background:#26196b; color:white; padding:16px 24px; border-bottom:none;">
+                            <h5 class="modal-title" style="font-weight:600;">
+                                <i class="fas fa-${isEditing ? 'edit' : 'plus-circle'} me-2"></i>
+                                ${isEditing ? 'Editar Serviço' : 'Novo Serviço'}
+                            </h5>
+                            <button type="button" class="btn-close" onclick="window.closePrecarioModal()" style="filter:brightness(0) invert(1);"></button>
+                        </div>
+                        <div class="modal-body" style="padding:24px; overflow-y:auto;">
+                            <form id="precarioServicoForm">
+                                <!-- Nome e Preço -->
+                                <div class="row g-3">
+                                    <div class="col-md-8">
+                                        <label class="form-label fw-bold">Nome do Serviço *</label>
+                                        <input type="text" class="form-control" id="ps_nome" value="${servico.nome || ''}" 
+                                               placeholder="Ex: Corte Feminino" style="border-radius:10px;" required>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-bold">Preço (€) *</label>
+                                        <input type="number" class="form-control" id="ps_preco" step="0.01" min="0" 
+                                               value="${servico.preco || ''}" placeholder="0.00" style="border-radius:10px;" required>
+                                    </div>
+                                </div>
+
+                                <!-- Categoria e Tempo -->
+                                <div class="row g-3 mt-1">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold">Categoria</label>
+                                        <select class="form-select" id="ps_categoria" style="border-radius:10px;">
+                                            <option value="">Selecione uma categoria</option>
+                                            ${catOptions}
+                                            <option value="__nova_categoria__" style="color:#26196b; font-weight:bold;">➕ Nova categoria...</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold">Tempo (minutos)</label>
+                                        <input type="number" class="form-control" id="ps_tempo" min="0" step="5" 
+                                               value="${servico.tempo || ''}" placeholder="Ex: 60" style="border-radius:10px;">
+                                    </div>
+                                </div>
+
+                                <!-- Tipo de Preço -->
+                                <div class="row g-3 mt-1">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold">Tipo de Preço</label>
+                                        <select class="form-select" id="ps_precoTipo" style="border-radius:10px;">
+                                            <option value="Fixo" ${servico.precoTipo === 'Fixo' ? 'selected' : ''}>Fixo</option>
+                                            <option value="A partir de" ${servico.precoTipo === 'A partir de' ? 'selected' : ''}>A partir de</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6 d-flex align-items-center">
+                                        <div class="form-check mt-3">
+                                            <input class="form-check-input" type="checkbox" id="ps_ativo" ${servico.ativo !== false ? 'checked' : ''}>
+                                            <label class="form-check-label" for="ps_ativo">Serviço Ativo</label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Descrição -->
+                                <div class="mt-3">
+                                    <label class="form-label fw-bold">Descrição</label>
+                                    <textarea class="form-control" id="ps_descricao" rows="2" 
+                                              placeholder="Breve descrição do serviço..." style="border-radius:10px;">${servico.descricao || ''}</textarea>
+                                </div>
+
+                                <!-- Colaboradores -->
+                                <div class="mt-3">
+                                    <label class="form-label fw-bold">Colaboradores</label>
+                                    <div id="colaboradoresCheckboxContainer" style="padding:12px 16px; background:#f8f7fc; border-radius:10px; min-height:50px;">
+                                        ${colabHtml}
+                                    </div>
+                                    <small class="text-muted">Selecione os colaboradores que realizam este serviço.</small>
+                                </div>
+
+                                <!-- Cor -->
+                                <div class="mt-3">
+                                    <label class="form-label fw-bold">Cor do Card</label>
+                                    <input type="color" class="form-control form-control-color" id="ps_cor" 
+                                           value="${servico.cor || '#26196b'}" style="height:50px; border-radius:10px; padding:4px; cursor:pointer;">
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer" style="padding:16px 24px; border-top:1px solid #f0eef2;">
+                            <button type="button" class="btn btn-secondary" onclick="window.closePrecarioModal()" style="border-radius:30px; padding:10px 24px;">
+                                Cancelar
+                            </button>
+                            <button type="button" class="btn btn-primary" id="precarioSalvarBtn" 
+                                    style="background:#26196b; border-color:#26196b; border-radius:30px; padding:10px 30px;">
+                                <i class="fas fa-save me-1"></i>${isEditing ? 'Atualizar' : 'Salvar'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+        // Adicionar evento para criar nova categoria
+        document.getElementById('ps_categoria')?.addEventListener('change', function(e) {
+            if (this.value === '__nova_categoria__') {
+                window.createNewCategoria(this);
+            }
+        });
+
+        // Evento de salvar
+        document.getElementById('precarioSalvarBtn')?.addEventListener('click', function() {
+            window.savePrecarioServico(servicoId);
+        });
+
+        // Permitir salvar com Enter
+        document.addEventListener('keydown', function handler(e) {
+            if (e.key === 'Enter' && e.target.closest('#precarioModal') && e.target.tagName !== 'TEXTAREA') {
+                e.preventDefault();
+                window.savePrecarioServico(servicoId);
+            }
+        });
+
+        // Fechar com ESC
+        document.addEventListener('keydown', function handlerEsc(e) {
+            if (e.key === 'Escape' && document.getElementById('precarioModal')) {
+                window.closePrecarioModal();
+                document.removeEventListener('keydown', handlerEsc);
+            }
+        });
+
+        // Atualizar colaboradores quando mudar
+        setTimeout(() => {
+            updateColaboradorSelects();
+        }, 100);
+    };
+
+    // ============================================================
+    // FECHAR MODAL PREÇÁRIO
+    // ============================================================
+    window.closePrecarioModal = function() {
+        const modal = document.getElementById('precarioModal');
+        if (modal) modal.remove();
+        document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        servicoAtualEditando = null;
+    };
+
+    // ============================================================
+    // SALVAR SERVIÇO
+    // ============================================================
+    window.savePrecarioServico = async function(servicoId = null) {
+        const nome = document.getElementById('ps_nome')?.value?.trim();
+        if (!nome) {
+            showToast('O nome do serviço é obrigatório.', 'error');
+            document.getElementById('ps_nome')?.focus();
+            return;
+        }
+
+        const preco = parseFloat(document.getElementById('ps_preco')?.value);
+        if (isNaN(preco) || preco < 0) {
+            showToast('Preço inválido.', 'error');
+            document.getElementById('ps_preco')?.focus();
+            return;
+        }
+
+        const categoriaId = document.getElementById('ps_categoria')?.value || '';
+        const tempo = parseInt(document.getElementById('ps_tempo')?.value) || 0;
+        const descricao = document.getElementById('ps_descricao')?.value || '';
+        const cor = document.getElementById('ps_cor')?.value || '#26196b';
+        const ativo = document.getElementById('ps_ativo')?.checked !== false;
+        const precoTipo = document.getElementById('ps_precoTipo')?.value || 'Fixo';
+
+        // Coletar colaboradores selecionados
+        const colaboradoresIds = [];
+        document.querySelectorAll('#precarioModal input[type="checkbox"]:checked').forEach(cb => {
+            colaboradoresIds.push(cb.value);
+        });
+
+        // Buscar nome da categoria
+        const categoria = todasCategorias.find(c => c.id === categoriaId);
+        const categoriaNome = categoria ? categoria.nome : '';
+
+        const user = getCurrentUser();
+        if (!user) {
+            showToast('Usuário não logado.', 'error');
+            return;
+        }
+
+        const db = getFirestore();
+        if (!db) {
+            showToast('Firebase não disponível.', 'error');
+            return;
+        }
+
+        const dados = {
+            nome: nome,
+            preco: preco,
+            categoriaId: categoriaId,
+            categoriaNome: categoriaNome,
+            tempo: tempo,
+            descricao: descricao,
+            cor: cor,
+            ativo: ativo,
+            precoTipo: precoTipo,
+            colaboradoresIds: colaboradoresIds,
+            userId: user.uid,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+
+        try {
+            showToast('Salvando...', 'info');
+
+            if (servicoId) {
+                // Editar
+                await db.collection('servicos').doc(servicoId).update(dados);
+                showToast('Serviço atualizado com sucesso!', 'success');
+            } else {
+                // Novo
+                dados.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+                await db.collection('servicos').add(dados);
+                showToast('Serviço adicionado com sucesso!', 'success');
+            }
+
+            // Fechar modal
+            window.closePrecarioModal();
+
+            // Recarregar dados
+            await loadPrecarioData();
+
+        } catch (error) {
+            console.error('Erro ao salvar serviço:', error);
+            showToast('Erro ao salvar: ' + error.message, 'error');
+        }
+    };
+
+    // ============================================================
+    // EDITAR SERVIÇO (GLOBAL)
+    // ============================================================
+    window.editPrecarioServico = function(servicoId) {
+        window.openPrecarioModal(servicoId);
+    };
+
+    // ============================================================
+    // EXCLUIR SERVIÇO
+    // ============================================================
+    window.deletePrecarioServico = function(servicoId) {
+        const servico = todosServicos.find(s => s.id === servicoId);
+        if (!servico) {
+            showToast('Serviço não encontrado.', 'error');
+            return;
+        }
+
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                title: 'Tem certeza?',
+                text: `Excluir o serviço "${servico.nome}"? Esta ação não pode ser desfeita.`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Sim, excluir!',
+                cancelButtonText: 'Cancelar'
+            }).then(async (result) => {
+                if (result.isConfirmed) {
+                    await executeDeleteServico(servicoId);
+                }
+            });
+        } else {
+            if (confirm(`Tem certeza que deseja excluir "${servico.nome}"?`)) {
+                executeDeleteServico(servicoId);
+            }
+        }
+    };
+
+    async function executeDeleteServico(servicoId) {
+        try {
+            const db = getFirestore();
+            if (!db) throw new Error('Firebase não disponível');
+
+            await db.collection('servicos').doc(servicoId).delete();
+            showToast('Serviço excluído com sucesso!', 'success');
+            await loadPrecarioData();
+
+        } catch (error) {
+            console.error('Erro ao excluir serviço:', error);
+            showToast('Erro ao excluir: ' + error.message, 'error');
+        }
+    }
+
+    // ============================================================
+    // SELEÇÃO DE SERVIÇOS PARA AGENDAMENTO
+    // ============================================================
+    window.servicosSelecionados = [];
+
+    window.toggleSelecaoServico = function(id) {
+        const servico = todosServicos.find(s => s.id === id);
+        if (!servico) return;
+        
+        const index = window.servicosSelecionados.findIndex(s => s.id === id);
+        if (index !== -1) {
+            window.servicosSelecionados.splice(index, 1);
+        } else {
+            window.servicosSelecionados.push(servico);
+        }
+        
+        window.atualizarSelecao();
+    };
+
+    window.atualizarSelecao = function() {
+        const contador = document.getElementById('contadorSelecionados');
+        const btnWhatsapp = document.getElementById('btnWhatsappFlutuante');
+        const total = window.servicosSelecionados.length;
+        
+        if (contador) contador.textContent = total;
+        
+        if (btnWhatsapp) {
+            if (total > 0) {
+                btnWhatsapp.classList.add('visible');
+            } else {
+                btnWhatsapp.classList.remove('visible');
+            }
+        }
+        
+        // Atualizar cards
+        renderPrecarioCards();
+    };
+
+    // ============================================================
+    // ABRIR MODAL DE AGENDAMENTO
+    // ============================================================
+    window.abrirModalAgendamento = function() {
+        if (window.servicosSelecionados.length === 0) {
+            showToast('Selecione pelo menos um serviço para agendar.', 'warning');
+            return;
+        }
+        
+        const modal = document.getElementById('modalAgendamento');
+        const infoDiv = document.getElementById('infoServicosSelecionados');
+        
+        if (!modal || !infoDiv) {
+            showToast('Modal de agendamento não encontrado.', 'error');
+            return;
+        }
+        
+        // Preencher informações dos serviços selecionados
+        let html = '';
+        let total = 0;
+        
+        window.servicosSelecionados.forEach((servico, index) => {
+            const preco = servico.preco || 0;
+            total += preco;
+            html += `
+                <div class="servico-item">
+                    <span>${index + 1} - ${servico.nome || 'Serviço'}</span>
+                    <span>${preco > 0 ? '€ ' + preco.toFixed(2).replace('.', ',') : 'Consultar'}</span>
+                </div>
+            `;
+        });
+        
+        const totalFormatado = total > 0 ? '€ ' + total.toFixed(2).replace('.', ',') : 'Consultar';
+        
+        html += `
+            <div class="total-info">
+                <span>Total de ${window.servicosSelecionados.length} serviços</span>
+                <span>${totalFormatado}</span>
+            </div>
+        `;
+        
+        infoDiv.innerHTML = html;
+        
+        // Definir data mínima (amanhã)
+        const hoje = new Date();
+        const amanha = new Date(hoje);
+        amanha.setDate(amanha.getDate() + 1);
+        const dataMin = amanha.toISOString().split('T')[0];
+        
+        const dataInput = document.getElementById('inputData');
+        if (dataInput) {
+            dataInput.min = dataMin;
+            dataInput.value = dataMin;
+        }
+        
+        const horaInput = document.getElementById('inputHora');
+        if (horaInput) {
+            horaInput.value = '10:00';
+        }
+        
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    };
+
+    // ============================================================
+    // FECHAR MODAL DE AGENDAMENTO
+    // ============================================================
+    window.fecharModalAgendamento = function() {
+        const modal = document.getElementById('modalAgendamento');
+        if (modal) modal.classList.remove('active');
+        document.body.style.overflow = '';
+    };
+
+    // ============================================================
+    // ABRIR CONFIRMAÇÃO
+    // ============================================================
+    window.abrirConfirmacao = function() {
+        const nome = document.getElementById('inputNome')?.value?.trim();
+        const telefone = document.getElementById('inputTelefone')?.value?.trim();
+        const data = document.getElementById('inputData')?.value;
+        const hora = document.getElementById('inputHora')?.value;
+        
+        if (!nome) {
+            showToast('Digite seu nome.', 'error');
+            document.getElementById('inputNome')?.focus();
+            return;
+        }
+        
+        if (!telefone || telefone.length < 6) {
+            showToast('Digite um número de contacto válido.', 'error');
+            document.getElementById('inputTelefone')?.focus();
+            return;
+        }
+        
+        if (!data) {
+            showToast('Selecione uma data.', 'error');
+            document.getElementById('inputData')?.focus();
+            return;
+        }
+        
+        if (!hora) {
+            showToast('Selecione uma hora.', 'error');
+            document.getElementById('inputHora')?.focus();
+            return;
+        }
+        
+        // Calcular valor total
+        let total = 0;
+        window.servicosSelecionados.forEach(s => {
+            if (s.preco) total += s.preco;
+        });
+        
+        const totalFormatado = total > 0 ? '€ ' + total.toFixed(2).replace('.', ',') : 'Consultar';
+        
+        // Mostrar valor total na confirmação
+        const valorDiv = document.getElementById('valorTotalConfirmacao');
+        if (valorDiv) {
+            valorDiv.innerHTML = `
+                <i class="fas fa-euro-sign"></i> Valor total: ${totalFormatado}
+                <span style="font-size:14px; font-weight:400; opacity:0.8; display:block; margin-top:4px;">
+                    (soma dos ${window.servicosSelecionados.length} serviços selecionados)
+                </span>
+            `;
+        }
+        
+        // Fechar modal de agendamento
+        window.fecharModalAgendamento();
+        
+        // Abrir modal de confirmação
+        const confirmModal = document.getElementById('modalConfirmacao');
+        if (confirmModal) {
+            confirmModal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+    };
+
+    // ============================================================
+    // FECHAR CONFIRMAÇÃO
+    // ============================================================
+    window.fecharConfirmacao = function() {
+        const modal = document.getElementById('modalConfirmacao');
+        if (modal) modal.classList.remove('active');
+        document.body.style.overflow = '';
+    };
+
+    // ============================================================
+    // ENVIAR PARA WHATSAPP
+    // ============================================================
+    window.enviarWhatsApp = function() {
+        const nome = document.getElementById('inputNome')?.value?.trim() || '';
+        const ddi = document.getElementById('inputDDI')?.value || '+351';
+        const telefone = document.getElementById('inputTelefone')?.value?.trim() || '';
+        const data = document.getElementById('inputData')?.value || '';
+        const hora = document.getElementById('inputHora')?.value || '';
+        
+        // Formatar data
+        let dataFormatada = data;
+        if (data) {
+            const d = new Date(data + 'T00:00:00');
+            dataFormatada = d.toLocaleDateString('pt-BR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            });
+        }
+        
+        // Calcular total
+        let total = 0;
+        window.servicosSelecionados.forEach(s => {
+            if (s.preco) total += s.preco;
+        });
+        const totalFormatado = total > 0 ? '€ ' + total.toFixed(2).replace('.', ',') : 'Consultar';
+        
+        // Construir mensagem
+        let mensagem = '*🛎️ Solicitação de Agendamento*%0A';
+        mensagem += `*Nome:* ${nome}%0A`;
+        mensagem += `*Contacto:* ${ddi} ${telefone}%0A%0A`;
+        mensagem += '*Serviços solicitados:*%0A';
+        
+        window.servicosSelecionados.forEach((s, i) => {
+            const preco = s.preco || 0;
+            const precoStr = preco > 0 ? '€ ' + preco.toFixed(2).replace('.', ',') : 'Consultar';
+            mensagem += `${i+1} - ${s.nome || 'Serviço'} (${precoStr})%0A`;
+        });
+        
+        mensagem += `%0A*Total:* ${totalFormatado}`;
+        mensagem += `%0A*Data:* ${dataFormatada}`;
+        mensagem += `%0A*Hora:* ${hora}`;
+        
+        // Fechar modal de confirmação
+        window.fecharConfirmacao();
+        
+        // Número do WhatsApp
+        const numero = '351927431517';
+        
+        // Abrir WhatsApp
+        const url = `https://wa.me/${numero}?text=${mensagem}`;
+        window.open(url, '_blank');
+        
+        // Limpar seleção
+        setTimeout(() => {
+            window.servicosSelecionados = [];
+            window.atualizarSelecao();
+        }, 2000);
+    };
+
+    // ============================================================
+    // ADICIONAR CARD NO MOBILE
+    // ============================================================
+    function addPrecarioMobileCard() {
+        const mobileCards = document.querySelector('#mobileCards .row');
+        if (!mobileCards) {
+            setTimeout(addPrecarioMobileCard, 500);
+            return;
+        }
+        if (document.querySelector('.mobile-card[data-section="precario"]')) return;
+
+        mobileCards.insertAdjacentHTML('beforeend', `
+            <div class="col-6">
+                <div class="mobile-card" data-section="precario" onclick="showSection('precario')">
+                    <i class="fas fa-list-ul"></i>
+                    <h5>Preçário</h5>
+                    <p>Lista de serviços</p>
+                </div>
+            </div>
+        `);
+        console.log('✅ Card Preçário adicionado no mobile');
+    }
+
+    // ============================================================
+    // ADICIONAR ITEM NO MENU DESKTOP
+    // ============================================================
+    function addPrecarioDesktopMenu() {
+        const desktopMenu = document.querySelector('.sidebar .nav');
+        if (!desktopMenu) {
+            setTimeout(addPrecarioDesktopMenu, 500);
+            return;
+        }
+        
+        if (desktopMenu.querySelector('a[data-section="precario"]')) return;
+
+        const menuItem = document.createElement('a');
+        menuItem.className = 'nav-link';
+        menuItem.setAttribute('href', '#');
+        menuItem.setAttribute('data-section', 'precario');
+        menuItem.innerHTML = '<i class="fas fa-list-ul"></i> Preçário';
+        
+        menuItem.addEventListener('click', function(e) {
+            e.preventDefault();
+            desktopMenu.querySelectorAll('.nav-link').forEach(item => {
+                item.classList.remove('active');
+            });
+            this.classList.add('active');
+            if (typeof showSection === 'function') {
+                showSection('precario');
+            } else {
+                showPrecarioSection();
+            }
+        });
+
+        // Inserir após "Registros de Clientes" ou antes de "Perfil da Empresa"
+        const clientRecordsLink = desktopMenu.querySelector('a[data-section="client-records"]');
+        const businessProfileLink = desktopMenu.querySelector('a[data-section="business-profile"]');
+        
+        if (clientRecordsLink && clientRecordsLink.nextSibling) {
+            desktopMenu.insertBefore(menuItem, clientRecordsLink.nextSibling);
+        } else if (businessProfileLink) {
+            desktopMenu.insertBefore(menuItem, businessProfileLink);
+        } else {
+            desktopMenu.appendChild(menuItem);
+        }
+        console.log('✅ Menu Preçário adicionado no desktop');
+    }
+
+    // ============================================================
+    // MOSTRAR SEÇÃO PREÇÁRIO
+    // ============================================================
+    function showPrecarioSection() {
+        let section = document.getElementById('precario');
+        if (!section) {
+            createPrecarioSection();
+            setTimeout(showPrecarioSection, 300);
+            return;
+        }
+
+        document.querySelectorAll('.section').forEach(el => {
+            el.classList.remove('active');
+            el.style.display = 'none';
+        });
+
+        section.classList.add('active');
+        section.style.display = 'block';
+
+        const mobileCards = document.getElementById('mobileCards');
+        if (mobileCards) {
+            mobileCards.classList.remove('active');
+            mobileCards.style.display = 'none';
+        }
+
+        const homeBtn = document.getElementById('mobileHomeButton');
+        if (homeBtn) homeBtn.style.display = 'flex';
+    }
+
+    // ============================================================
+    // CRIAR SEÇÃO PREÇÁRIO
+    // ============================================================
+    function createPrecarioSection() {
+        if (document.getElementById('precario')) return;
+
+        const sectionContainer = document.querySelector('.section-container');
+        if (!sectionContainer) {
+            setTimeout(createPrecarioSection, 500);
+            return;
+        }
+
+        sectionContainer.insertAdjacentHTML('beforeend', `
+            <div id="precario" class="section">
+                <div class="d-flex justify-content-between align-items-center flex-wrap mb-3">
+                    <h4><i class="fas fa-list-ul me-2" style="color: var(--primary-color);"></i>Preçário - Studio DeVitto</h4>
+                    <div>
+                        <button class="btn btn-primary btn-sm" id="addServicoBtn" style="background: var(--primary-color); border-color: var(--primary-color);">
+                            <i class="fas fa-plus me-1"></i>Novo Serviço
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm" id="refreshPrecarioBtn">
+                            <i class="fas fa-sync-alt me-1"></i>Atualizar
+                        </button>
+                    </div>
+                </div>
+
+                <div class="row g-2 mb-3">
+                    <div class="col-md-4">
+                        <div class="input-group">
+                            <span class="input-group-text bg-white border-end-0">
+                                <i class="fas fa-search text-primary"></i>
+                            </span>
+                            <input type="text" class="form-control border-start-0" id="precarioSearch" 
+                                   placeholder="Buscar por nome, categoria ou colaborador..." style="border-left: none;">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="precarioFiltroCategoria">
+                            <option value="">Todas as categorias</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="precarioFiltroColaborador">
+                            <option value="">Todos os colaboradores</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <select class="form-select" id="precarioOrdenacao">
+                            <option value="nome">Ordenar por Nome</option>
+                            <option value="preco">Ordenar por Preço</option>
+                            <option value="tempo">Ordenar por Tempo</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="precarioCardContainer" class="row g-3">
+                    <div class="col-12 text-center text-muted py-5">
+                        <i class="fas fa-spinner fa-spin fa-3x mb-3"></i>
+                        <p>Carregando serviços...</p>
+                    </div>
+                </div>
+            </div>
+        `);
+
+        // Configurar eventos
+        document.getElementById('precarioSearch')?.addEventListener('input', filterPrecario);
+        document.getElementById('precarioFiltroCategoria')?.addEventListener('change', filterPrecario);
+        document.getElementById('precarioFiltroColaborador')?.addEventListener('change', filterPrecario);
+        document.getElementById('precarioOrdenacao')?.addEventListener('change', filterPrecario);
+        document.getElementById('refreshPrecarioBtn')?.addEventListener('click', loadPrecarioData);
+        document.getElementById('addServicoBtn')?.addEventListener('click', function() {
+            window.openPrecarioModal();
+        });
+
+        // Carregar dados
+        setTimeout(loadPrecarioData, 500);
+        console.log('✅ Seção Preçário criada');
+    }
+
+    // ============================================================
+    // FILTRAR PREÇÁRIO (versão da seção)
+    // ============================================================
+    function filterPrecario() {
+        const container = document.getElementById('precarioCardContainer');
+        if (!container) return;
+
+        const searchTerm = document.getElementById('precarioSearch')?.value?.toLowerCase().trim() || '';
+        const categoriaId = document.getElementById('precarioFiltroCategoria')?.value || '';
+        const colaboradorId = document.getElementById('precarioFiltroColaborador')?.value || '';
+        const ordenacao = document.getElementById('precarioOrdenacao')?.value || 'nome';
+
+        let filtered = [...todosServicos];
+
+        if (searchTerm) {
+            filtered = filtered.filter(s => {
+                const nomeMatch = (s.nome || '').toLowerCase().includes(searchTerm);
+                const catMatch = (s.categoriaNome || '').toLowerCase().includes(searchTerm);
+                const descMatch = (s.descricao || '').toLowerCase().includes(searchTerm);
+                const colMatch = (s.colaboradoresIds || []).some(id => {
+                    const col = todosColaboradores.find(c => c.id === id);
+                    return col ? (col.nome || '').toLowerCase().includes(searchTerm) : false;
+                });
+                return nomeMatch || catMatch || descMatch || colMatch;
+            });
+        }
+
+        if (categoriaId) {
+            filtered = filtered.filter(s => s.categoriaId === categoriaId);
+        }
+
+        if (colaboradorId) {
+            filtered = filtered.filter(s => (s.colaboradoresIds || []).includes(colaboradorId));
+        }
+
+        if (ordenacao === 'nome') {
+            filtered.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+        } else if (ordenacao === 'preco') {
+            filtered.sort((a, b) => (a.preco || 0) - (b.preco || 0));
+        } else if (ordenacao === 'tempo') {
+            filtered.sort((a, b) => (a.tempo || 0) - (b.tempo || 0));
+        }
+
+        renderPrecarioCardsSection(filtered);
+    }
+
+    // ============================================================
+    // RENDERIZAR CARDS NA SEÇÃO
+    // ============================================================
+    function renderPrecarioCardsSection(servicos) {
+        const container = document.getElementById('precarioCardContainer');
+        if (!container) return;
+
+        if (!servicos || servicos.length === 0) {
+            container.innerHTML = `
+                <div class="col-12 text-center text-muted py-5">
+                    <i class="fas fa-inbox fa-3x mb-3 opacity-50"></i>
+                    <p>Nenhum serviço encontrado.</p>
+                    <small>Clique em "Novo Serviço" para adicionar.</small>
+                </div>
+            `;
+            return;
+        }
+
+        let html = '';
+        servicos.forEach(servico => {
+            const categoria = todasCategorias.find(c => c.id === servico.categoriaId);
+            const categoriaNome = categoria ? categoria.nome : (servico.categoriaNome || 'Sem categoria');
+            const categoriaCor = categoria ? categoria.cor : '#26196b';
+
+            const colaboradoresNomes = (servico.colaboradoresIds || [])
+                .map(id => {
+                    const col = todosColaboradores.find(c => c.id === id);
+                    return col ? col.nome : null;
+                })
+                .filter(Boolean)
+                .join(', ') || 'Nenhum';
+
+            const isActive = servico.ativo !== false;
+
+            html += `
+                <div class="col-md-4 col-lg-3 col-6">
+                    <div class="precario-card" style="border-left-color: ${categoriaCor};">
+                        <div class="card-body">
+                            <span class="categoria-badge" style="background: ${categoriaCor};">
+                                ${categoriaNome}
+                            </span>
+                            <div class="servico-nome">
+                                ${servico.nome || 'Sem nome'}
+                                <span class="status-badge ${isActive ? 'active' : 'inactive'}">
+                                    ${isActive ? 'Ativo' : 'Inativo'}
+                                </span>
+                            </div>
+                            <div class="servico-preco">€ ${(servico.preco || 0).toFixed(2)}</div>
+                            <div class="servico-tempo">
+                                <i class="far fa-clock me-1"></i>${servico.tempo || 0} min
+                            </div>
+                            <div class="servico-descricao">${servico.descricao || ''}</div>
+                            <div class="servico-colaboradores">
+                                <i class="fas fa-user me-1"></i>${colaboradoresNomes}
+                            </div>
+                            <div class="card-actions">
+                                <button class="btn-edit" onclick="window.editPrecarioServico('${servico.id}')" title="Editar">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn-delete" onclick="window.deletePrecarioServico('${servico.id}')" title="Excluir">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+    }
+
+    // ============================================================
+    // ATUALIZAR FILTROS DA SEÇÃO
+    // ============================================================
+    function updateSectionFilters() {
+        const catSelect = document.getElementById('precarioFiltroCategoria');
+        if (catSelect) {
+            catSelect.innerHTML = '<option value="">Todas as categorias</option>';
+            todasCategorias.forEach(cat => {
+                catSelect.innerHTML += `<option value="${cat.id}">${cat.nome}</option>`;
+            });
+        }
+
+        const colSelect = document.getElementById('precarioFiltroColaborador');
+        if (colSelect) {
+            colSelect.innerHTML = '<option value="">Todos os colaboradores</option>';
+            todosColaboradores.forEach(col => {
+                colSelect.innerHTML += `<option value="${col.id}">${col.nome}</option>`;
+            });
+        }
+    }
+
+    // ============================================================
+    // INICIALIZAÇÃO
+    // ============================================================
+    function initPrecario() {
+        console.log('🚀 Inicializando Preçário Integrado...');
+
+        // Adicionar card mobile
+        addPrecarioMobileCard();
+
+        // Adicionar menu desktop
+        addPrecarioDesktopMenu();
+
+        // Criar seção
+        createPrecarioSection();
+
+        // Carregar dados
+        setTimeout(loadPrecarioData, 800);
+
+        // Configurar eventos dos filtros da página pública
+        document.getElementById('searchInput')?.addEventListener('input', renderPrecarioCards);
+        document.getElementById('categoriaFilter')?.addEventListener('change', renderPrecarioCards);
+        document.getElementById('ordenacaoFilter')?.addEventListener('change', renderPrecarioCards);
+
+        // Botão WhatsApp
+        document.getElementById('btnWhatsappFlutuante')?.addEventListener('click', window.abrirModalAgendamento);
+
+        // Fechar modais com ESC
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                window.fecharModalAgendamento();
+                window.fecharConfirmacao();
+            }
+        });
+
+        // Fechar modais clicando fora
+        document.getElementById('modalAgendamento')?.addEventListener('click', function(e) {
+            if (e.target === this) window.fecharModalAgendamento();
+        });
+
+        document.getElementById('modalConfirmacao')?.addEventListener('click', function(e) {
+            if (e.target === this) window.fecharConfirmacao();
+        });
+
+        console.log('✅ Preçário Integrado inicializado com sucesso!');
+    }
+
+    // Iniciar quando o DOM estiver pronto
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initPrecario);
+    } else {
+        setTimeout(initPrecario, 500);
+    }
+
+    // ============================================================
+    // EXPOR FUNÇÕES PARA USO GLOBAL
+    // ============================================================
+    window.loadPrecarioData = loadPrecarioData;
+    window.filterPrecario = filterPrecario;
+    window.renderPrecarioCards = renderPrecarioCards;
+    window.updateSectionFilters = updateSectionFilters;
+    window.showPrecarioSection = showPrecarioSection;
+    window.addPrecarioCard = addPrecarioMobileCard;
+    window.addPrecarioMenuDesktop = addPrecarioDesktopMenu;
+    window.createPrecarioSection = createPrecarioSection;
+    window.renderPrecarioCardsSection = renderPrecarioCardsSection;
+
+    console.log('✅ Script do Preçário Integrado carregado!');
+    console.log('📌 Funções disponíveis:');
+    console.log('  - window.openPrecarioModal()  // Adicionar novo serviço');
+    console.log('  - window.editPrecarioServico(id)  // Editar serviço');
+    console.log('  - window.deletePrecarioServico(id)  // Excluir serviço');
+    console.log('  - window.loadPrecarioData()  // Recarregar dados');
+    console.log('  - window.toggleSelecaoServico(id)  // Selecionar serviço');
+
+})();
+</script>
+
+<!-- ============================================================
+   ESTILOS ADICIONAIS PARA O PREÇÁRIO
+   ============================================================ -->
+<style>
+    /* Estilos para o Preçário Integrado */
+    .precario-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        overflow: hidden;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        border-left: 4px solid #26196b;
+    }
+    
+    .precario-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 24px rgba(38, 25, 107, 0.15);
+    }
+    
+    .precario-card .card-body {
+        padding: 16px;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .precario-card .categoria-badge {
+        display: inline-block;
+        background: #26196b;
+        color: white;
+        font-size: 10px;
+        font-weight: 600;
+        padding: 3px 10px;
+        border-radius: 20px;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        align-self: flex-start;
+        margin-bottom: 8px;
+    }
+    
+    .precario-card .servico-nome {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 4px;
+        line-height: 1.3;
+    }
+    
+    .precario-card .servico-preco {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: #28a745;
+        margin: 4px 0;
+    }
+    
+    .precario-card .servico-tempo {
+        font-size: 0.85rem;
+        color: #6c757d;
+        margin-bottom: 6px;
+    }
+    
+    .precario-card .servico-descricao {
+        font-size: 0.85rem;
+        color: #6c757d;
+        margin-bottom: 10px;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        flex: 1;
+    }
+    
+    .precario-card .servico-colaboradores {
+        font-size: 0.8rem;
+        color: #6c757d;
+        margin-bottom: 10px;
+        padding-top: 8px;
+        border-top: 1px solid #f0f0f0;
+    }
+    
+    .precario-card .card-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+        padding-top: 10px;
+        border-top: 1px solid #f0f0f0;
+        margin-top: auto;
+    }
+    
+    .precario-card .card-actions button {
+        background: transparent;
+        border: none;
+        padding: 6px 10px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 14px;
+    }
+    
+    .precario-card .card-actions .btn-edit {
+        color: #0d6efd;
+    }
+    .precario-card .card-actions .btn-edit:hover {
+        background: #e7f1ff;
+    }
+    .precario-card .card-actions .btn-delete {
+        color: #dc3545;
+    }
+    .precario-card .card-actions .btn-delete:hover {
+        background: #ffe7e9;
+    }
+    
+    .precario-card .status-badge {
+        font-size: 0.7rem;
+        padding: 2px 8px;
+        border-radius: 12px;
+        margin-left: 6px;
+    }
+    .precario-card .status-badge.active { background: #d4edda; color: #155724; }
+    .precario-card .status-badge.inactive { background: #f8d7da; color: #721c24; }
+
+    /* Modal do Preçário */
+    #precarioModal .modal-header {
+        background: #26196b;
+        color: white;
+    }
+    #precarioModal .modal-header .btn-close {
+        filter: brightness(0) invert(1);
+    }
+    #precarioModal .form-control:focus,
+    #precarioModal .form-select:focus {
+        border-color: #26196b;
+        box-shadow: 0 0 0 0.25rem rgba(38, 25, 107, 0.25);
+    }
+
+    /* Categoria header com toggle */
+    .categoria-header .toggle-icon {
+        transition: transform 0.3s ease;
+    }
+    .categoria-header .toggle-icon.rotated {
+        transform: rotate(180deg);
+    }
+    .categoria-body {
+        overflow: hidden;
+        transition: max-height 0.4s ease;
+        max-height: 0;
+    }
+    .categoria-body.expanded {
+        max-height: none;
+    }
+
+    /* Responsivo */
+    @media (max-width: 768px) {
+        .precario-card .servico-nome {
+            font-size: 0.9rem;
+        }
+        .precario-card .servico-preco {
+            font-size: 1.1rem;
+        }
+        .precario-card .card-body {
+            padding: 12px;
+        }
+        .precario-card .card-actions button {
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+    }
+
+    /* Animações */
+    @keyframes slideInRight {
+        from {
+            transform: translateX(100px);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+</style>
    
 </body>
 
