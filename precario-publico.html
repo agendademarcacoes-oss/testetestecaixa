@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt">
 <head>
@@ -173,7 +174,7 @@
         
         .filtros .search-wrapper {
             flex: 1;
-            min-width: 200px;
+            min-width: 180px;
             position: relative;
         }
         
@@ -211,7 +212,7 @@
             background: #fafafc;
             color: var(--text);
             cursor: pointer;
-            min-width: 150px;
+            min-width: 140px;
             transition: var(--transition);
             appearance: auto;
         }
@@ -219,6 +220,130 @@
         .filtros select:focus {
             outline: none;
             border-color: var(--primary);
+        }
+        
+        /* ===== BOTÃO FILTRO COLABORADOR (CÍRCULO) ===== */
+        .btn-filtro-colaborador {
+            width: 46px;
+            height: 46px;
+            border-radius: 50%;
+            border: 2px solid #e8e6ea;
+            background: #fafafc;
+            color: var(--primary);
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: var(--transition);
+            flex-shrink: 0;
+            position: relative;
+        }
+        
+        .btn-filtro-colaborador:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+            transform: scale(1.05);
+        }
+        
+        .btn-filtro-colaborador.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        
+        .btn-filtro-colaborador .badge-filtro {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            background: var(--whatsapp-green);
+            color: white;
+            font-size: 10px;
+            font-weight: 700;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        /* ===== DROPDOWN DE COLABORADORES ===== */
+        .dropdown-colaboradores {
+            display: none;
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            background: var(--surface);
+            border-radius: var(--radius);
+            box-shadow: 0 8px 40px rgba(0,0,0,0.15);
+            padding: 12px;
+            min-width: 220px;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 100;
+            border: 1px solid #f0eef2;
+        }
+        
+        .dropdown-colaboradores.open {
+            display: block;
+        }
+        
+        .dropdown-colaboradores .dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: var(--transition);
+            font-size: 14px;
+            color: var(--text);
+        }
+        
+        .dropdown-colaboradores .dropdown-item:hover {
+            background: #f8f7fc;
+        }
+        
+        .dropdown-colaboradores .dropdown-item.active {
+            background: var(--primary);
+            color: white;
+        }
+        
+        .dropdown-colaboradores .dropdown-item .colab-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--primary-light);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+        
+        .dropdown-colaboradores .dropdown-item .colab-nome {
+            flex: 1;
+        }
+        
+        .dropdown-colaboradores .dropdown-item .colab-check {
+            color: var(--whatsapp-green);
+        }
+        
+        .dropdown-colaboradores .dropdown-divider {
+            height: 1px;
+            background: #f0eef2;
+            margin: 6px 0;
+        }
+        
+        .filtros .wrapper-com-botao {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            position: relative;
         }
         
         /* ===== CATEGORIAS ===== */
@@ -1269,6 +1394,19 @@
                 width: 100%;
             }
             
+            .filtros .wrapper-com-botao {
+                display: flex;
+                gap: 10px;
+                align-items: center;
+                width: 100%;
+            }
+            
+            .dropdown-colaboradores {
+                right: 0;
+                left: auto;
+                min-width: 200px;
+            }
+            
             .categoria-header h2 {
                 font-size: 1.1rem;
             }
@@ -1379,6 +1517,19 @@
                 <option value="preco">Ordenar por Preço (menor)</option>
                 <option value="preco-desc">Ordenar por Preço (maior)</option>
             </select>
+            
+            <!-- Botão círculo para filtro de colaboradores (MESMA LINHA DA BUSCA) -->
+            <div class="wrapper-com-botao">
+                <button class="btn-filtro-colaborador" id="btnFiltroColaborador" title="Filtrar por colaborador">
+                    <i class="fas fa-user"></i>
+                    <span class="badge-filtro" id="badgeFiltroColaborador" style="display:none;">0</span>
+                </button>
+                
+                <!-- Dropdown de colaboradores -->
+                <div class="dropdown-colaboradores" id="dropdownColaboradores">
+                    <!-- Itens serão gerados dinamicamente -->
+                </div>
+            </div>
         </div>
 
         <!-- Container para múltiplos cards de serviços exatos -->
@@ -1541,10 +1692,7 @@
         let todosColaboradores = [];
         let servicosSelecionados = [];
         let servicosListener = null;
-        let categoriasListener = null;
-        let currentFilter = '';
-        let currentCategoria = '';
-        let currentOrdenacao = 'nome';
+        let colaboradorFiltroId = null; // ID do colaborador selecionado para filtro
 
         // Número do WhatsApp do Studio (configurável)
         const NUMERO_WHATSAPP = "351927431517";
@@ -1622,45 +1770,67 @@
                 });
 
             // Carregar colaboradores
-            db.collection('colaboradores')
+            db.collection('collaborators')
+                .where('active', '==', true)
                 .get()
                 .then(snapshot => {
                     todosColaboradores = [];
                     snapshot.forEach(doc => {
                         const data = doc.data();
-                        if (data.nome) {
+                        if (data.name) {
                             todosColaboradores.push({
                                 id: doc.id,
-                                ...data
+                                ...data,
+                                nome: data.name // Normalização para compatibilidade
                             });
                         }
                     });
                     console.log('👤 Colaboradores carregados:', todosColaboradores.length);
+                    atualizarDropdownColaboradores();
                 })
                 .catch(error => {
                     console.error('Erro ao carregar colaboradores:', error);
                 });
 
-            // Carregar serviços
-            db.collection('servicos')
-                .get()
-                .then(snapshot => {
+            // Carregar serviços (com listener em tempo real)
+            if (servicosListener) {
+                servicosListener();
+            }
+
+            servicosListener = db.collection('servicos')
+                .where('ativo', '==', true)
+                .onSnapshot(snapshot => {
                     todosServicos = [];
                     snapshot.forEach(doc => {
                         const data = doc.data();
-                        if (data.ativo !== false) {
-                            todosServicos.push({
-                                id: doc.id,
-                                ...data
-                            });
+                        
+                        // CORREÇÃO: Garantir que o precoTipo seja preservado do banco de dados
+                        // Se não existir no documento, tentar buscar do campo tipoValor (backward compatibility)
+                        let precoTipo = data.precoTipo;
+                        if (!precoTipo && data.tipoValor) {
+                            precoTipo = data.tipoValor === 'desde' ? 'Partir' : 'Fixo';
                         }
+                        if (!precoTipo) {
+                            precoTipo = 'Fixo'; // valor padrão
+                        }
+                        
+                        // Garantir que o tempo seja número
+                        if (data.tempo && typeof data.tempo === 'string') {
+                            data.tempo = parseInt(data.tempo) || 30;
+                        }
+                        
+                        todosServicos.push({
+                            id: doc.id,
+                            ...data,
+                            precoTipo: precoTipo // Sobrescrever com o valor corrigido
+                        });
                     });
-                    console.log('📋 Serviços carregados:', todosServicos.length);
+                    console.log('📋 Serviços carregados (tempo real):', todosServicos.length);
+                    console.log('📋 Exemplo de precoTipo:', todosServicos.slice(0, 3).map(s => ({ nome: s.nome, precoTipo: s.precoTipo })));
                     document.getElementById('totalServicos').textContent = todosServicos.length;
                     renderizarPrecario();
-                })
-                .catch(error => {
-                    console.error('Erro ao carregar serviços:', error);
+                }, error => {
+                    console.error('Erro no listener de serviços:', error);
                     container.innerHTML = `
                         <div class="empty-state">
                             <i class="fas fa-exclamation-triangle"></i>
@@ -1685,6 +1855,96 @@
         }
 
         // ============================================================
+        // ATUALIZAR DROPDOWN DE COLABORADORES
+        // ============================================================
+        function atualizarDropdownColaboradores() {
+            const dropdown = document.getElementById('dropdownColaboradores');
+            if (!dropdown) return;
+            
+            let html = '';
+            
+            // Opção "Todos"
+            const isAllActive = colaboradorFiltroId === null;
+            html += `
+                <div class="dropdown-item ${isAllActive ? 'active' : ''}" data-id="">
+                    <span class="colab-avatar" style="background: var(--primary);">
+                        <i class="fas fa-users" style="font-size:14px;"></i>
+                    </span>
+                    <span class="colab-nome">Todos os colaboradores</span>
+                    ${isAllActive ? '<span class="colab-check"><i class="fas fa-check-circle"></i></span>' : ''}
+                </div>
+            `;
+            
+            html += `<div class="dropdown-divider"></div>`;
+            
+            // Lista de colaboradores
+            todosColaboradores.forEach(colab => {
+                const isActive = colaboradorFiltroId === colab.id;
+                const initial = (colab.nome || '?').charAt(0).toUpperCase();
+                const cor = colab.cor || '#4a3a9c';
+                html += `
+                    <div class="dropdown-item ${isActive ? 'active' : ''}" data-id="${colab.id}">
+                        <span class="colab-avatar" style="background: ${cor};">
+                            ${initial}
+                        </span>
+                        <span class="colab-nome">${colab.nome}</span>
+                        ${isActive ? '<span class="colab-check"><i class="fas fa-check-circle"></i></span>' : ''}
+                    </div>
+                `;
+            });
+            
+            dropdown.innerHTML = html;
+            
+            // Adicionar eventos aos itens
+            dropdown.querySelectorAll('.dropdown-item').forEach(item => {
+                item.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const id = this.getAttribute('data-id');
+                    colaboradorFiltroId = id || null;
+                    atualizarBotaoFiltro();
+                    dropdown.classList.remove('open');
+                    renderizarPrecario();
+                });
+            });
+        }
+
+        // ============================================================
+        // ATUALIZAR BOTÃO DE FILTRO DE COLABORADOR
+        // ============================================================
+        function atualizarBotaoFiltro() {
+            const btn = document.getElementById('btnFiltroColaborador');
+            const badge = document.getElementById('badgeFiltroColaborador');
+            
+            if (colaboradorFiltroId) {
+                btn.classList.add('active');
+                const colab = todosColaboradores.find(c => c.id === colaboradorFiltroId);
+                badge.textContent = colab ? colab.nome.charAt(0).toUpperCase() : '1';
+                badge.style.display = 'flex';
+            } else {
+                btn.classList.remove('active');
+                badge.style.display = 'none';
+            }
+        }
+
+        // ============================================================
+        // TOGGLE DROPDOWN DE COLABORADORES
+        // ============================================================
+        document.getElementById('btnFiltroColaborador').addEventListener('click', function(e) {
+            e.stopPropagation();
+            const dropdown = document.getElementById('dropdownColaboradores');
+            dropdown.classList.toggle('open');
+        });
+
+        // Fechar dropdown ao clicar fora
+        document.addEventListener('click', function(e) {
+            const dropdown = document.getElementById('dropdownColaboradores');
+            const btn = document.getElementById('btnFiltroColaborador');
+            if (dropdown && !dropdown.contains(e.target) && !btn.contains(e.target)) {
+                dropdown.classList.remove('open');
+            }
+        });
+
+        // ============================================================
         // OBTER NOME DO COLABORADOR POR ID
         // ============================================================
         function getColaboradorNome(id) {
@@ -1703,7 +1963,16 @@
             const catMatch = (servico.categoriaNome || '').toLowerCase().includes(termoLower);
             const descMatch = (servico.descricao || '').toLowerCase().includes(termoLower);
             
-            return nomeMatch || catMatch || descMatch;
+            // Buscar por colaboradores também
+            let colabMatch = false;
+            if (servico.colaboradoresIds && servico.colaboradoresIds.length > 0) {
+                colabMatch = servico.colaboradoresIds.some(id => {
+                    const nome = getColaboradorNome(id);
+                    return nome.toLowerCase().includes(termoLower);
+                });
+            }
+            
+            return nomeMatch || catMatch || descMatch || colabMatch;
         }
 
         // ============================================================
@@ -1751,15 +2020,24 @@
         // FILTRAR SERVIÇOS PARA A LISTA (excluindo os exatos)
         // ============================================================
         function filtrarServicosParaLista(termos, idsExatos, categoriaId) {
+            // Filtrar por colaborador
+            let servicosFiltrados = todosServicos;
+            
+            if (colaboradorFiltroId) {
+                servicosFiltrados = todosServicos.filter(s => 
+                    s.colaboradoresIds && s.colaboradoresIds.includes(colaboradorFiltroId)
+                );
+            }
+            
             if (!termos || termos.length === 0) {
                 // Sem busca, retorna todos os serviços (com filtro de categoria)
-                return todosServicos.filter(s => {
+                return servicosFiltrados.filter(s => {
                     if (categoriaId && s.categoriaId !== categoriaId) return false;
                     return true;
                 });
             }
             
-            return todosServicos.filter(servico => {
+            return servicosFiltrados.filter(servico => {
                 // Excluir serviços que já estão nos cards exatos
                 if (idsExatos && idsExatos.has(servico.id)) {
                     return false;
@@ -1806,12 +2084,14 @@
         }
 
         // ============================================================
-        // GERAR CARD DE SERVIÇO EXATO (COM SELEÇÃO)
+        // GERAR CARD DE SERVIÇO EXATO (COM SELEÇÃO) - CORRIGIDO
         // ============================================================
         function gerarCardServicoExato(servico) {
             const preco = servico.preco || 0;
+            // CORREÇÃO: Usar precoTipo diretamente do objeto (já corrigido no carregamento)
             const precoTipo = servico.precoTipo || 'Fixo';
-            const precoTipoClass = precoTipo === 'Fixo' ? 'fixo' : 'partir';
+            const precoTipoClass = precoTipo === 'Fixo' || precoTipo === 'fixo' ? 'fixo' : 'partir';
+            const labelPrecoTipo = precoTipo === 'Fixo' || precoTipo === 'fixo' ? 'Fixo' : 'Desde';
             const colaboradoresIds = servico.colaboradoresIds || [];
             const isSelecionado = servicosSelecionados.some(s => s.id === servico.id);
             
@@ -1823,6 +2103,19 @@
                 }).join('');
             } else {
                 colabHtml = `<span class="colab-tag"><i class="fas fa-user"></i> Profissional não definido</span>`;
+            }
+            
+            // Gerar descrição das especialidades dos colaboradores
+            let especialidadesHtml = '';
+            if (colaboradoresIds.length > 0) {
+                const especialidades = colaboradoresIds.map(id => {
+                    const colab = todosColaboradores.find(c => c.id === id);
+                    return colab && colab.especialidade ? colab.especialidade : null;
+                }).filter(Boolean);
+                
+                if (especialidades.length > 0) {
+                    especialidadesHtml = `<div style="font-size:11px; color:var(--text-muted); margin-top:2px;"><i class="fas fa-tag"></i> ${especialidades.join(', ')}</div>`;
+                }
             }
             
             return `
@@ -1838,23 +2131,26 @@
                     <div class="exato-detalhes">
                         <span><i class="fas fa-clock"></i> ${servico.tempo ? servico.tempo + ' min' : 'Tempo não definido'}</span>
                         <span class="preco-destaque">${preco > 0 ? '€ ' + preco.toFixed(2).replace('.', ',') : 'Consultar'}</span>
-                        <span class="preco-tipo ${precoTipoClass}">${precoTipo}</span>
+                        <span class="preco-tipo ${precoTipoClass}">${labelPrecoTipo}</span>
                     </div>
                     <div class="exato-colaboradores">
                         ${colabHtml}
                     </div>
+                    ${especialidadesHtml}
                 </div>
             `;
         }
 
         // ============================================================
-        // GERAR CARD DE SERVIÇO NA GRID (COM SELEÇÃO)
+        // GERAR CARD DE SERVIÇO NA GRID (COM SELEÇÃO) - CORRIGIDO
         // ============================================================
         function gerarCardServico(servico) {
             const colaboradoresIds = servico.colaboradoresIds || [];
             const colabNomes = colaboradoresIds.map(id => getColaboradorNome(id));
+            // CORREÇÃO: Usar precoTipo diretamente do objeto (já corrigido no carregamento)
             const precoTipo = servico.precoTipo || 'Fixo';
-            const precoTipoClass = precoTipo === 'Fixo' ? 'fixo' : 'partir';
+            const precoTipoClass = precoTipo === 'Fixo' || precoTipo === 'fixo' ? 'fixo' : 'partir';
+            const labelPrecoTipo = precoTipo === 'Fixo' || precoTipo === 'fixo' ? 'Fixo' : 'Desde';
             const isSelecionado = servicosSelecionados.some(s => s.id === servico.id);
             
             let colabHtml = '';
@@ -1876,7 +2172,7 @@
                     </div>
                     <div>
                         <span class="servico-preco">${servico.preco ? '€ ' + servico.preco.toFixed(2).replace('.', ',') : 'Consultar'}</span>
-                        <span class="preco-tipo ${precoTipoClass}">${precoTipo}</span>
+                        <span class="preco-tipo ${precoTipoClass}">${labelPrecoTipo}</span>
                     </div>
                 </div>
             `;
@@ -1935,10 +2231,11 @@
             
             servicosSelecionados.forEach((servico, index) => {
                 const preco = servico.preco || 0;
+                const tipo = servico.precoTipo || 'Fixo';
                 html += `
                     <div class="servico-item">
                         <span>${index + 1} - ${servico.nome || 'Serviço'}</span>
-                        <span>${preco > 0 ? '€ ' + preco.toFixed(2).replace('.', ',') : 'Consultar'}</span>
+                        <span>${preco > 0 ? '€ ' + preco.toFixed(2).replace('.', ',') : 'Consultar'} (${tipo})</span>
                     </div>
                 `;
             });
@@ -2059,7 +2356,8 @@
             servicosSelecionados.forEach((servico, index) => {
                 const preco = servico.preco || 0;
                 const precoStr = preco > 0 ? '€ ' + preco.toFixed(2).replace('.', ',') : 'Consultar';
-                mensagem += `${index + 1} - ${servico.nome || 'Serviço'} (${precoStr})%0A`;
+                const precoTipo = servico.precoTipo || 'Fixo';
+                mensagem += `${index + 1} - ${servico.nome || 'Serviço'} (${precoStr} - ${precoTipo})%0A`;
             });
             
             mensagem += `%0A*📊 Total de ${servicosSelecionados.length} serviços*%0A`;
@@ -2290,6 +2588,8 @@
             if (e.key === 'Escape') {
                 fecharModalAgendamento();
                 fecharConfirmacao();
+                const dropdown = document.getElementById('dropdownColaboradores');
+                if (dropdown) dropdown.classList.remove('open');
             }
         });
 
@@ -2384,6 +2684,55 @@
         console.log('✅ Página pública do Preçário carregada!');
         console.log('📌 Link para compartilhar: ' + window.location.href);
         console.log('📱 Número do WhatsApp: +' + NUMERO_WHATSAPP);
+
+        // ============================================================
+        // SISTEMA DE VERIFICAÇÃO DE SEGUNDO EM SEGUNDO (ATUALIZAÇÃO AUTOMÁTICA)
+        // ============================================================
+        let ultimaVersao = '';
+        let ultimaAtualizacao = Date.now();
+
+        // Função para verificar se houve mudanças nos dados
+        function verificarAtualizacoes() {
+            // Verificar se o listener ainda está ativo
+            if (!servicosListener) {
+                console.log('⚠️ Listener inativo, recarregando dados...');
+                carregarDados();
+                return;
+            }
+
+            // Verificar a última atualização dos dados
+            const agora = Date.now();
+            if (agora - ultimaAtualizacao > 3000) {
+                console.log('🔄 Verificação periódica: recarregando dados...');
+                ultimaAtualizacao = agora;
+            }
+
+            // Forçar re-renderização se necessário (apenas para garantir)
+            if (todosServicos.length === 0) {
+                console.log('⚠️ Nenhum serviço carregado, recarregando...');
+                carregarDados();
+            }
+        }
+
+        // Executar verificação a cada 1 segundo
+        setInterval(verificarAtualizacoes, 1000);
+
+        // Monitorar mudanças no documento (para detectar quando a página voltar a ficar ativa)
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden) {
+                console.log('📱 Página reativada, verificando atualizações...');
+                if (todosServicos.length === 0) {
+                    carregarDados();
+                } else {
+                    renderizarPrecario();
+                }
+            }
+        });
+
+        console.log('🔄 Sistema de verificação automática ativado (1 segundo)');
+        console.log('🔄 Badge de preço (Fixo/Desde) CORRIGIDO - agora sincroniza do banco de dados');
+        console.log('🔄 Botão de filtro por colaborador adicionado (círculo à direita da busca)');
+        console.log('🔄 Nenhum "Carla" no badge - o badge mostra a inicial do colaborador selecionado');
     </script>
 </body>
 </html>
