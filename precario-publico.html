@@ -1662,126 +1662,44 @@
         let servicosListener = null;
         let colaboradorFiltroId = null;
         let categoriaFiltroId = null;
-        let numeroWhatsAppEmpresa = "351927431517"; // Valor padrão
 
-        // ============================================================
-        // CARREGAR NÚMERO DO WHATSAPP DA EMPRESA DO FIREBASE
-        // ============================================================
-        function carregarWhatsAppEmpresa() {
-            // Tentar carregar do localStorage primeiro (cache)
-            const cached = localStorage.getItem('whatsapp_empresa');
-            if (cached) {
-                numeroWhatsAppEmpresa = cached;
-                console.log('📱 WhatsApp carregado do cache:', numeroWhatsAppEmpresa);
-            }
+        const NUMERO_WHATSAPP = "351927431517";
 
-            // Buscar do Firebase (businessProfile)
-            if (firebase.auth().currentUser) {
-                const userId = firebase.auth().currentUser.uid;
-                db.collection('businessProfile').doc(userId).get()
-                    .then((doc) => {
-                        if (doc.exists) {
-                            const data = doc.data();
-                            if (data.whatsApp) {
-                                const whatsapp = data.whatsApp.replace(/\D/g, '');
-                                if (whatsapp) {
-                                    numeroWhatsAppEmpresa = whatsapp;
-                                    localStorage.setItem('whatsapp_empresa', whatsapp);
-                                    console.log('📱 WhatsApp carregado do Firebase:', numeroWhatsAppEmpresa);
-                                }
-                            }
-                        }
-                    })
-                    .catch(err => console.warn('Erro ao carregar WhatsApp:', err));
-            }
+        const coresCategorias = {
+            'Cabelo': '#26196b',
+            'Brushing': '#D4AF37',
+            'Madeixas': '#8B4513',
+            'Coloração': '#C71585',
+            'Alisamentos': '#2E8B57',
+            'Tratamentos': '#6A5ACD',
+            'Mega Hair': '#FF4500',
+            'Manicure': '#FF69B4',
+            'Unhas em Gel': '#BA55D3',
+            'Depilação Feminina': '#FF1493',
+            'Depilação Masculina': '#1E90FF',
+            'Procedimentos Faciais': '#FFD700',
+            'Procedimentos Corporais': '#32CD32',
+            'Sobrancelhas': '#8B008B',
+            'Podologia': '#CD853F'
+        };
 
-            // Também escutar mudanças em tempo real
-            if (firebase.auth().currentUser) {
-                const userId = firebase.auth().currentUser.uid;
-                db.collection('businessProfile').doc(userId)
-                    .onSnapshot((doc) => {
-                        if (doc.exists) {
-                            const data = doc.data();
-                            if (data.whatsApp) {
-                                const whatsapp = data.whatsApp.replace(/\D/g, '');
-                                if (whatsapp && whatsapp !== numeroWhatsAppEmpresa) {
-                                    numeroWhatsAppEmpresa = whatsapp;
-                                    localStorage.setItem('whatsapp_empresa', whatsapp);
-                                    console.log('📱 WhatsApp atualizado em tempo real:', numeroWhatsAppEmpresa);
-                                    // Atualizar o botão flutuante se necessário
-                                    atualizarBotaoWhatsapp();
-                                }
-                            }
-                        }
-                    }, (error) => {
-                        console.warn('Erro no listener do WhatsApp:', error);
-                    });
-            }
-        }
-
-        // ============================================================
-        // ATUALIZAR BOTÃO WHATSAPP COM O NÚMERO CORRETO
-        // ============================================================
-        function atualizarBotaoWhatsapp() {
-            const btn = document.getElementById('btnWhatsappFlutuante');
-            if (btn) {
-                // O número já está atualizado na variável global
-                console.log('📱 Número do WhatsApp atualizado:', numeroWhatsAppEmpresa);
-            }
-        }
-
-        // ============================================================
-        // FUNÇÃO PARA ENVIAR WHATSAPP COM O NÚMERO CORRETO
-        // ============================================================
-        function enviarWhatsApp() {
-            const nome = document.getElementById('inputNome').value.trim();
-            const ddi = document.getElementById('inputDDI').value;
-            const telefone = document.getElementById('inputTelefone').value.trim();
-            const data = document.getElementById('inputData').value;
-            const hora = document.getElementById('inputHora').value;
-            
-            const dataObj = new Date(data + 'T00:00:00');
-            const dataFormatada = dataObj.toLocaleDateString('pt-BR', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric'
-            });
-            
-            const valorTotal = calcularValorTotal();
-            const totalFormatado = valorTotal.total > 0 ? '€ ' + valorTotal.total.toFixed(2).replace('.', ',') : 'Consultar';
-            
-            let mensagem = '*🛎️ Solicitação de Agendamento - Studio DeVitto*%0A%0A';
-            mensagem += `*👤 Qual seu nome:* ${nome}%0A`;
-            mensagem += `*📱 Qual seu número de contacto:* ${ddi} ${telefone}%0A%0A`;
-            mensagem += '*📋 Serviços solicitados:*%0A';
-            
-            servicosSelecionados.forEach((servico, index) => {
-                const preco = servico.preco || 0;
-                const precoStr = preco > 0 ? '€ ' + preco.toFixed(2).replace('.', ',') : 'Consultar';
-                const precoTipo = servico.precoTipo || 'Fixo';
-                mensagem += `${index + 1} - ${servico.nome || 'Serviço'} (${precoStr} - ${precoTipo})%0A`;
-            });
-            
-            mensagem += `%0A*📊 Total de ${servicosSelecionados.length} serviços*%0A`;
-            mensagem += `*💰 Valor total dos serviços:* ${totalFormatado}%0A`;
-            mensagem += `*ℹ️ Atenção:* o valor total é a soma dos serviços selecionados, podendo sofrer pequena alteração para mais ou para menos.%0A%0A`;
-            
-            mensagem += `*📅 Data pretendida:* ${dataFormatada}%0A`;
-            mensagem += `*🕐 Hora pretendida:* ${hora}%0A%0A`;
-            mensagem += `_Aguardando confirmação do Studio DeVitto._`;
-            
-            document.getElementById('modalConfirmacao').classList.remove('active');
-            document.body.style.overflow = '';
-            
-            // Usar o número do WhatsApp da empresa carregado do Firebase
-            const url = `https://wa.me/${numeroWhatsAppEmpresa}?text=${mensagem}`;
-            window.open(url, '_blank');
-            
-            setTimeout(() => {
-                servicosSelecionados = [];
-                atualizarSelecao();
-            }, 1000);
-        }
+        const iconesCategorias = {
+            'Cabelo': 'fa-cut',
+            'Brushing': 'fa-wind',
+            'Madeixas': 'fa-paint-brush',
+            'Coloração': 'fa-palette',
+            'Alisamentos': 'fa-magic',
+            'Tratamentos': 'fa-hand-holding-heart',
+            'Mega Hair': 'fa-user-plus',
+            'Manicure': 'fa-hand-sparkles',
+            'Unhas em Gel': 'fa-paint-roller',
+            'Depilação Feminina': 'fa-female',
+            'Depilação Masculina': 'fa-male',
+            'Procedimentos Faciais': 'fa-face-smile',
+            'Procedimentos Corporais': 'fa-people-arrows',
+            'Sobrancelhas': 'fa-eye',
+            'Podologia': 'fa-foot'
+        };
 
         // ============================================================
         // CARREGAR DADOS DO FIREBASE
@@ -1794,9 +1712,6 @@
                     <p>Carregando serviços...</p>
                 </div>
             `;
-
-            // Carregar WhatsApp da empresa
-            carregarWhatsAppEmpresa();
 
             db.collection('categorias')
                 .get()
@@ -2156,6 +2071,7 @@
 
         // ============================================================
         // GERAR CARDS - COM BORDINHA LATERAL E COR
+        // E FUNÇÃO DE MOUSE QUE ALTERA A BORDA COMPLETA - CORRIGIDO
         // ============================================================
         function gerarCardServicoExato(servico) {
             const preco = servico.preco || 0;
@@ -2165,6 +2081,7 @@
             const colaboradoresIds = servico.colaboradoresIds || [];
             const isSelecionado = servicosSelecionados.some(s => s.id === servico.id);
             
+            // Buscar a cor da categoria
             const categoria = todasCategorias.find(c => c.id === servico.categoriaId);
             const corCategoria = categoria ? categoria.cor || coresCategorias[categoria.nome] || '#26196b' : '#26196b';
             
@@ -2178,6 +2095,7 @@
                 colabHtml = `<span class="colab-tag"><i class="fas fa-user"></i> Profissional não definido</span>`;
             }
             
+            // ID único para o card
             const cardId = 'card_' + servico.id + '_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
             
             return `
@@ -2214,6 +2132,7 @@
             const labelPrecoTipo = precoTipo === 'Fixo' || precoTipo === 'fixo' ? 'Fixo' : 'Desde';
             const isSelecionado = servicosSelecionados.some(s => s.id === servico.id);
             
+            // Buscar a cor da categoria
             const categoria = todasCategorias.find(c => c.id === servico.categoriaId);
             const corCategoria = categoria ? categoria.cor || coresCategorias[categoria.nome] || '#26196b' : '#26196b';
             
@@ -2224,6 +2143,7 @@
                 colabHtml = '<span class="colaborador-tag">-</span>';
             }
             
+            // ID único para o card
             const cardId = 'card_' + servico.id + '_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
             
             return `
@@ -2249,18 +2169,24 @@
         }
 
         // ============================================================
-        // FUNÇÕES PARA BORDA COMPLETA NO MOUSE
+        // FUNÇÕES PARA BORDA COMPLETA NO MOUSE - CORRIGIDAS
         // ============================================================
         function aplicarBordaCompleta(elemento, cor) {
             if (!elemento) return;
+            // Não aplicar se estiver selecionado (já tem borda verde)
             if (elemento.classList.contains('selecionado')) return;
+            // Aplica a borda completa com a cor da categoria
             elemento.style.border = '2px solid ' + cor;
+            // Mantém a borda esquerda mais grossa
             elemento.style.borderLeft = '6px solid ' + cor;
         }
 
         function removerBordaCompleta(elemento, corOriginal) {
             if (!elemento) return;
+            // Não remover se estiver selecionado
             if (elemento.classList.contains('selecionado')) return;
+            // Restaura APENAS a borda lateral esquerda com a cor original
+            // Remove todas as bordas e depois aplica apenas a esquerda
             elemento.style.border = '';
             elemento.style.borderLeft = '6px solid ' + corOriginal;
         }
@@ -2395,6 +2321,55 @@
             fecharModalAgendamento();
             document.getElementById('modalConfirmacao').classList.add('active');
             document.body.style.overflow = 'hidden';
+        }
+
+        function enviarWhatsApp() {
+            const nome = document.getElementById('inputNome').value.trim();
+            const ddi = document.getElementById('inputDDI').value;
+            const telefone = document.getElementById('inputTelefone').value.trim();
+            const data = document.getElementById('inputData').value;
+            const hora = document.getElementById('inputHora').value;
+            
+            const dataObj = new Date(data + 'T00:00:00');
+            const dataFormatada = dataObj.toLocaleDateString('pt-BR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            });
+            
+            const valorTotal = calcularValorTotal();
+            const totalFormatado = valorTotal.total > 0 ? '€ ' + valorTotal.total.toFixed(2).replace('.', ',') : 'Consultar';
+            
+            let mensagem = '*🛎️ Solicitação de Agendamento - Studio DeVitto*%0A%0A';
+            mensagem += `*👤 Qual seu nome:* ${nome}%0A`;
+            mensagem += `*📱 Qual seu número de contacto:* ${ddi} ${telefone}%0A%0A`;
+            mensagem += '*📋 Serviços solicitados:*%0A';
+            
+            servicosSelecionados.forEach((servico, index) => {
+                const preco = servico.preco || 0;
+                const precoStr = preco > 0 ? '€ ' + preco.toFixed(2).replace('.', ',') : 'Consultar';
+                const precoTipo = servico.precoTipo || 'Fixo';
+                mensagem += `${index + 1} - ${servico.nome || 'Serviço'} (${precoStr} - ${precoTipo})%0A`;
+            });
+            
+            mensagem += `%0A*📊 Total de ${servicosSelecionados.length} serviços*%0A`;
+            mensagem += `*💰 Valor total dos serviços:* ${totalFormatado}%0A`;
+            mensagem += `*ℹ️ Atenção:* o valor total é a soma dos serviços selecionados, podendo sofrer pequena alteração para mais ou para menos.%0A%0A`;
+            
+            mensagem += `*📅 Data pretendida:* ${dataFormatada}%0A`;
+            mensagem += `*🕐 Hora pretendida:* ${hora}%0A%0A`;
+            mensagem += `_Aguardando confirmação do Studio DeVitto._`;
+            
+            document.getElementById('modalConfirmacao').classList.remove('active');
+            document.body.style.overflow = '';
+            
+            const url = `https://wa.me/${NUMERO_WHATSAPP}?text=${mensagem}`;
+            window.open(url, '_blank');
+            
+            setTimeout(() => {
+                servicosSelecionados = [];
+                atualizarSelecao();
+            }, 1000);
         }
 
         function fecharConfirmacao() {
@@ -2669,16 +2644,12 @@
         initBotaoTopo();
         initBotaoWhatsapp();
 
-        // Garantir que o número do WhatsApp seja carregado antes de qualquer envio
-        carregarWhatsAppEmpresa();
-
         console.log('✅ Página pública do Preçário carregada!');
         console.log('🔄 Badge de preço (Fixo/Desde) CORRIGIDO');
         console.log('🎨 Cards com bordinha lateral colorida pela categoria');
         console.log('🖱️ Mouse sobre o card: borda completa com a cor da categoria');
-        console.log('🔄 Mouse sai: borda lateral esquerda volta à cor original da categoria');
-        console.log('📱 Número do WhatsApp sincronizado com o sistema MAE (businessProfile)');
-        console.log('📱 Alterações no WhatsApp do sistema MAE refletidas automaticamente aqui');
+        console.log('🔄 Mouse sai: borda lateral esquerda volta à cor original da categoria (CORRIGIDO)');
+        console.log('📱 Layout compacto: Busca + Badges em 2 linhas');
 
         let ultimaAtualizacao = Date.now();
 
@@ -2711,8 +2682,6 @@
                 } else {
                     renderizarPrecario();
                 }
-                // Recarregar WhatsApp também
-                carregarWhatsAppEmpresa();
             }
         });
     </script>
