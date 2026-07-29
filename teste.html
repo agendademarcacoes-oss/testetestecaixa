@@ -17773,10 +17773,11 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
 
 
 <!-- ============================================================
-   SCRIPT COMPLETO: PREÇÁRIO - CORREÇÃO DE BUGS
-   CORREÇÕES:
-   1. Criar nova categoria - MODAL BOOTSTRAP FUNCIONAL
-   2. Colaboradores - nomes corretos, sem "undefined"
+   SCRIPT COMPLETO: PREÇÁRIO - COM EDIÇÃO EM LOTE
+   NOVAS FUNÇÕES:
+   1. Tipo de Valor: Fixo ou Desde (obrigatório)
+   2. Seleção múltipla de cards (checkbox em cada card)
+   3. Edição em lote: categoria, tempo, colaborador, valor, tipo de valor
    ============================================================ -->
 
 <script>
@@ -17790,6 +17791,9 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
     let todasCategorias = [];
     let todosColaboradores = [];
     let servicoAtualEditando = null;
+    let categoriaEditandoId = null;
+    let cardsSelecionados = new Set();
+    let modoSelecaoMultipla = false;
     
     // Cores para os cards
     const coresCards = [
@@ -17937,6 +17941,10 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
                         todosColaboradores.some(c => c.id === id)
                     );
                 }
+                // Garantir que tipoValor existe (backward compatibility)
+                if (!dados.tipoValor) {
+                    dados.tipoValor = 'fixo';
+                }
                 todosServicos.push({ id: doc.id, ...dados });
             });
             console.log(`📦 ${todosServicos.length} serviços carregados.`);
@@ -17995,15 +18003,15 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
             todasCategorias = categoriasCriadas;
 
             const servicosExemplo = [
-                { nome: 'Corte Feminino', preco: 20.00, tempo: 60, categoriaId: categoriasCriadas[0]?.id || '', descricao: 'Corte e acabamento' },
-                { nome: 'Corte Masculino', preco: 12.00, tempo: 30, categoriaId: categoriasCriadas[0]?.id || '', descricao: '' },
-                { nome: 'Brushing Curto', preco: 14.00, tempo: 40, categoriaId: categoriasCriadas[1]?.id || '', descricao: '' },
-                { nome: 'Brushing Longo', preco: 19.00, tempo: 60, categoriaId: categoriasCriadas[1]?.id || '', descricao: '' },
-                { nome: 'Madeixas Cabelo Médio', preco: 120.00, tempo: 210, categoriaId: categoriasCriadas[2]?.id || '', descricao: '' },
-                { nome: 'Coloração Raiz', preco: 30.00, tempo: 90, categoriaId: categoriasCriadas[3]?.id || '', descricao: '' },
-                { nome: 'Hidratação', preco: 24.00, tempo: 60, categoriaId: categoriasCriadas[4]?.id || '', descricao: '' },
-                { nome: 'Manicure', preco: 10.00, tempo: 40, categoriaId: categoriasCriadas[5]?.id || '', descricao: '' },
-                { nome: 'Sobrancelha Designer', preco: 12.00, tempo: 30, categoriaId: categoriasCriadas[7]?.id || '', descricao: '' }
+                { nome: 'Corte Feminino', preco: 20.00, tempo: 60, categoriaId: categoriasCriadas[0]?.id || '', descricao: 'Corte e acabamento', tipoValor: 'fixo' },
+                { nome: 'Corte Masculino', preco: 12.00, tempo: 30, categoriaId: categoriasCriadas[0]?.id || '', descricao: '', tipoValor: 'fixo' },
+                { nome: 'Brushing Curto', preco: 14.00, tempo: 40, categoriaId: categoriasCriadas[1]?.id || '', descricao: '', tipoValor: 'fixo' },
+                { nome: 'Brushing Longo', preco: 19.00, tempo: 60, categoriaId: categoriasCriadas[1]?.id || '', descricao: '', tipoValor: 'fixo' },
+                { nome: 'Madeixas Cabelo Médio', preco: 120.00, tempo: 210, categoriaId: categoriasCriadas[2]?.id || '', descricao: '', tipoValor: 'desde' },
+                { nome: 'Coloração Raiz', preco: 30.00, tempo: 90, categoriaId: categoriasCriadas[3]?.id || '', descricao: '', tipoValor: 'fixo' },
+                { nome: 'Hidratação', preco: 24.00, tempo: 60, categoriaId: categoriasCriadas[4]?.id || '', descricao: '', tipoValor: 'fixo' },
+                { nome: 'Manicure', preco: 10.00, tempo: 40, categoriaId: categoriasCriadas[5]?.id || '', descricao: '', tipoValor: 'fixo' },
+                { nome: 'Sobrancelha Designer', preco: 12.00, tempo: 30, categoriaId: categoriasCriadas[7]?.id || '', descricao: '', tipoValor: 'fixo' }
             ];
 
             for (const servico of servicosExemplo) {
@@ -18059,7 +18067,7 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
     }
 
     // ============================================================
-    // 6. RENDERIZAR CARDS
+    // 6. RENDERIZAR CARDS - COM CHECKBOX PARA SELEÇÃO
     // ============================================================
     function renderizarCards(servicos) {
         const container = document.getElementById('precarioCardContainer');
@@ -18098,14 +18106,26 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
 
             const isActive = servico.ativo !== false;
             const corCard = coresCards[index % coresCards.length];
+            const isSelecionado = cardsSelecionados.has(servico.id);
+            const tipoValor = servico.tipoValor || 'fixo';
+            const labelTipoValor = tipoValor === 'fixo' ? 'Fixo' : 'Desde';
 
             html += `
                 <div class="col-md-4 col-lg-3 col-6 mb-3">
-                    <div class="precario-card" style="border-left: 4px solid ${categoriaCor}; background: white; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); height: 100%; display: flex; flex-direction: column; overflow: hidden; transition: all 0.3s;">
+                    <div class="precario-card ${isSelecionado ? 'card-selecionado' : ''}" 
+                         style="border-left: 4px solid ${categoriaCor}; background: ${isSelecionado ? '#f0f0ff' : 'white'}; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); height: 100%; display: flex; flex-direction: column; overflow: hidden; transition: all 0.3s; ${isSelecionado ? 'box-shadow: 0 0 0 3px #26196b;' : ''}">
                         <div class="card-body" style="padding: 16px; flex: 1; display: flex; flex-direction: column;">
-                            <span class="categoria-badge" style="background: ${categoriaCor}; color: white; font-size: 10px; font-weight: 600; padding: 3px 10px; border-radius: 20px; text-transform: uppercase; align-self: flex-start; margin-bottom: 8px;">
-                                ${categoriaNome}
-                            </span>
+                            <div class="d-flex justify-content-between align-items-start">
+                                <span class="categoria-badge" style="background: ${categoriaCor}; color: white; font-size: 10px; font-weight: 600; padding: 3px 10px; border-radius: 20px; text-transform: uppercase; align-self: flex-start; margin-bottom: 8px;">
+                                    ${categoriaNome}
+                                </span>
+                                <div class="form-check" style="margin-top: -5px;">
+                                    <input class="form-check-input card-checkbox" type="checkbox" 
+                                           data-servico-id="${servico.id}" 
+                                           ${isSelecionado ? 'checked' : ''}
+                                           style="width: 18px; height: 18px; cursor: pointer;">
+                                </div>
+                            </div>
                             <div class="servico-nome" style="font-size: 1rem; font-weight: 600; color: #333; margin-bottom: 4px; line-height: 1.3;">
                                 ${servico.nome || 'Sem nome'}
                                 <span class="status-badge ${isActive ? 'active' : 'inactive'}" style="font-size: 0.7rem; padding: 2px 8px; border-radius: 12px; margin-left: 6px; background: ${isActive ? '#d4edda' : '#f8d7da'}; color: ${isActive ? '#155724' : '#721c24'};">
@@ -18113,7 +18133,7 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
                                 </span>
                             </div>
                             <div class="servico-preco" style="font-size: 1.3rem; font-weight: 700; color: #28a745; margin: 4px 0;">
-                                € ${(servico.preco || 0).toFixed(2)}
+                                ${tipoValor === 'desde' ? 'Desde ' : ''}€ ${(servico.preco || 0).toFixed(2)}
                             </div>
                             <div class="servico-tempo" style="font-size: 0.85rem; color: #6c757d; margin-bottom: 6px;">
                                 <i class="far fa-clock me-1"></i>${servico.tempo || 0} min
@@ -18139,10 +18159,365 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
         });
 
         container.innerHTML = html;
+
+        // Adicionar eventos aos checkboxes
+        document.querySelectorAll('.card-checkbox').forEach(cb => {
+            cb.addEventListener('change', function() {
+                const servicoId = this.getAttribute('data-servico-id');
+                if (this.checked) {
+                    cardsSelecionados.add(servicoId);
+                } else {
+                    cardsSelecionados.delete(servicoId);
+                }
+                atualizarBarraSelecao();
+                renderizarCards(todosServicos); // Re-renderizar para atualizar estilo
+                filtrarEOrdenar(); // Re-aplicar filtros
+            });
+        });
+        
+        atualizarBarraSelecao();
     }
 
     // ============================================================
-    // 7. FILTRAR E ORDENAR SERVIÇOS
+    // 7. ATUALIZAR BARRA DE SELEÇÃO MÚLTIPLA
+    // ============================================================
+    function atualizarBarraSelecao() {
+        const barraExistente = document.getElementById('barraSelecaoMultipla');
+        if (barraExistente) barraExistente.remove();
+
+        if (cardsSelecionados.size === 0) return;
+
+        const container = document.getElementById('precarioCardContainer');
+        if (!container) return;
+
+        const barra = document.createElement('div');
+        barra.id = 'barraSelecaoMultipla';
+        barra.style.cssText = `
+            position: sticky;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(135deg, #26196b, #4a3a9c);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 12px;
+            margin-top: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            z-index: 100;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.2);
+        `;
+
+        barra.innerHTML = `
+            <div>
+                <strong>${cardsSelecionados.size}</strong> serviço(s) selecionado(s)
+                <button class="btn btn-sm btn-outline-light ms-2" onclick="limparSelecao()">
+                    <i class="fas fa-times"></i> Limpar
+                </button>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                <button class="btn btn-sm btn-warning" onclick="editarSelecionados()" title="Editar todos os selecionados">
+                    <i class="fas fa-edit"></i> Editar Selecionados
+                </button>
+                <button class="btn btn-sm btn-danger" onclick="excluirSelecionados()" title="Excluir todos os selecionados">
+                    <i class="fas fa-trash"></i> Excluir Selecionados
+                </button>
+            </div>
+        `;
+
+        container.appendChild(barra);
+    }
+
+    // ============================================================
+    // 8. FUNÇÕES DE SELEÇÃO MÚLTIPLA
+    // ============================================================
+    window.limparSelecao = function() {
+        cardsSelecionados.clear();
+        renderizarCards(todosServicos);
+        filtrarEOrdenar();
+        atualizarBarraSelecao();
+    };
+
+    window.editarSelecionados = function() {
+        if (cardsSelecionados.size === 0) {
+            showToast('Selecione pelo menos um serviço.', 'warning');
+            return;
+        }
+
+        // Buscar dados do primeiro serviço selecionado para preencher o modal
+        const primeiroId = cardsSelecionados.values().next().value;
+        const servico = todosServicos.find(s => s.id === primeiroId);
+        if (!servico) {
+            showToast('Serviço não encontrado.', 'error');
+            return;
+        }
+
+        const modalId = 'edicaoLoteModal';
+        const modalAntigo = document.getElementById(modalId);
+        if (modalAntigo) modalAntigo.remove();
+
+        // Opções de categorias
+        const catOptions = todasCategorias.map(c => 
+            `<option value="${c.id}" ${c.id === servico.categoriaId ? 'selected' : ''}>${c.nome}</option>`
+        ).join('');
+
+        // Opções de colaboradores (checkboxes)
+        const colOptions = todosColaboradores.map(c => {
+            const checked = (servico.colaboradoresIds || []).includes(c.id) ? 'checked' : '';
+            const nome = c.nome || c.name || c.Nome || 'Colaborador';
+            return `
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input colaborador-check-lote" type="checkbox" id="col_lote_${c.id}" value="${c.id}" ${checked}>
+                    <label class="form-check-label" for="col_lote_${c.id}">${nome}</label>
+                </div>
+            `;
+        }).join('');
+
+        const modalHTML = `
+            <div class="modal fade" id="${modalId}" tabindex="-1" data-bs-backdrop="static">
+                <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                    <div class="modal-content">
+                        <div class="modal-header" style="background: #26196b; color: white;">
+                            <h5 class="modal-title">
+                                <i class="fas fa-edit me-2"></i>Editar ${cardsSelecionados.size} Serviço(s)
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                As alterações serão aplicadas a <strong>${cardsSelecionados.size}</strong> serviço(s) selecionados.
+                                Campos vazios serão ignorados.
+                            </div>
+                            <form id="edicaoLoteForm">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">Categoria</label>
+                                        <select class="form-select" id="lote_categoria">
+                                            <option value="">Não alterar</option>
+                                            ${catOptions}
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">Tempo (minutos)</label>
+                                        <input type="number" class="form-control" id="lote_tempo" placeholder="Deixe em branco para não alterar" step="5" min="0">
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">Valor (€)</label>
+                                        <input type="number" class="form-control" id="lote_valor" placeholder="Deixe em branco para não alterar" step="0.01" min="0">
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">Tipo de Valor</label>
+                                        <select class="form-select" id="lote_tipoValor">
+                                            <option value="">Não alterar</option>
+                                            <option value="fixo">Fixo</option>
+                                            <option value="desde">Desde</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Colaboradores</label>
+                                    <div class="p-3 bg-light rounded" style="max-height: 150px; overflow-y: auto;">
+                                        ${colOptions}
+                                    </div>
+                                    <small class="text-muted">Selecione os colaboradores que realizam este serviço.</small>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Status</label>
+                                    <select class="form-select" id="lote_status">
+                                        <option value="">Não alterar</option>
+                                        <option value="ativo">Ativo</option>
+                                        <option value="inativo">Inativo</option>
+                                    </select>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="button" class="btn btn-primary" id="confirmarEdicaoLoteBtn">
+                                <i class="fas fa-save me-1"></i>Aplicar a ${cardsSelecionados.size} Serviço(s)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+        const modalElement = document.getElementById(modalId);
+        const modal = new bootstrap.Modal(modalElement, { backdrop: 'static', keyboard: true });
+        modal.show();
+
+        document.getElementById('confirmarEdicaoLoteBtn').addEventListener('click', async function() {
+            await aplicarEdicaoLote();
+            const bsModal = bootstrap.Modal.getInstance(modalElement);
+            if (bsModal) bsModal.hide();
+        });
+
+        modalElement.addEventListener('hidden.bs.modal', function() {
+            const backdrop = document.querySelector('.modal-backdrop');
+            if (backdrop) backdrop.remove();
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+        });
+    };
+
+    // ============================================================
+    // 9. APLICAR EDIÇÃO EM LOTE
+    // ============================================================
+    async function aplicarEdicaoLote() {
+        const categoriaId = document.getElementById('lote_categoria').value;
+        const tempo = document.getElementById('lote_tempo').value;
+        const valor = document.getElementById('lote_valor').value;
+        const tipoValor = document.getElementById('lote_tipoValor').value;
+        const status = document.getElementById('lote_status').value;
+
+        // Coletar colaboradores selecionados
+        const colaboradoresIds = [];
+        document.querySelectorAll('#edicaoLoteForm .colaborador-check-lote:checked').forEach(cb => {
+            colaboradoresIds.push(cb.value);
+        });
+
+        // Verificar se pelo menos um campo foi preenchido
+        if (!categoriaId && !tempo && !valor && !tipoValor && !status && colaboradoresIds.length === 0) {
+            showToast('Nenhuma alteração foi feita.', 'warning');
+            return;
+        }
+
+        try {
+            showToast('Aplicando alterações...', 'info');
+
+            const db = getFirestore();
+            if (!db) {
+                showToast('Firebase não disponível.', 'error');
+                return;
+            }
+
+            const updates = {};
+            if (categoriaId) {
+                const categoria = todasCategorias.find(c => c.id === categoriaId);
+                updates.categoriaId = categoriaId;
+                updates.categoriaNome = categoria ? categoria.nome : '';
+            }
+            if (tempo) updates.tempo = parseInt(tempo);
+            if (valor) updates.preco = parseFloat(valor);
+            if (tipoValor) updates.tipoValor = tipoValor;
+            if (colaboradoresIds.length > 0) updates.colaboradoresIds = colaboradoresIds;
+            if (status) updates.ativo = status === 'ativo';
+            updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+
+            // Atualizar cada serviço selecionado
+            const batch = db.batch();
+            const servicosAtualizados = [];
+
+            cardsSelecionados.forEach(servicoId => {
+                const servico = todosServicos.find(s => s.id === servicoId);
+                if (servico) {
+                    const ref = db.collection('servicos').doc(servicoId);
+                    batch.update(ref, updates);
+                    
+                    // Atualizar lista local
+                    Object.keys(updates).forEach(key => {
+                        if (key !== 'updatedAt') {
+                            servico[key] = updates[key];
+                        }
+                    });
+                    servicosAtualizados.push(servico);
+                }
+            });
+
+            await batch.commit();
+
+            // Limpar seleção
+            cardsSelecionados.clear();
+            
+            // Recarregar dados
+            await carregarTodosOsDados();
+            atualizarFiltros();
+            filtrarEOrdenar();
+            
+            showToast(`${servicosAtualizados.length} serviço(s) atualizado(s) com sucesso!`, 'success');
+
+        } catch (error) {
+            console.error('Erro ao editar em lote:', error);
+            showToast('Erro ao editar: ' + error.message, 'error');
+        }
+    };
+
+    // ============================================================
+    // 10. EXCLUIR SELECIONADOS
+    // ============================================================
+    window.excluirSelecionados = function() {
+        if (cardsSelecionados.size === 0) {
+            showToast('Selecione pelo menos um serviço.', 'warning');
+            return;
+        }
+
+        const nomes = [];
+        cardsSelecionados.forEach(id => {
+            const servico = todosServicos.find(s => s.id === id);
+            if (servico) nomes.push(servico.nome);
+        });
+
+        Swal.fire({
+            title: 'Excluir Selecionados',
+            html: `
+                <p>Tem certeza que deseja excluir <strong>${cardsSelecionados.size}</strong> serviço(s)?</p>
+                <div style="max-height: 150px; overflow-y: auto; text-align: left; font-size: 13px; background: #f8f9fa; padding: 10px; border-radius: 8px;">
+                    ${nomes.map(n => `<div>• ${n}</div>`).join('')}
+                </div>
+                <p style="color: #dc3545; font-size: 14px; margin-top: 10px;">Esta ação não pode ser desfeita!</p>
+            `,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Sim, excluir todos!',
+            cancelButtonText: 'Cancelar'
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                try {
+                    const db = getFirestore();
+                    if (!db) {
+                        showToast('Firebase não disponível.', 'error');
+                        return;
+                    }
+
+                    const batch = db.batch();
+                    cardsSelecionados.forEach(servicoId => {
+                        const ref = db.collection('servicos').doc(servicoId);
+                        batch.delete(ref);
+                    });
+
+                    await batch.commit();
+
+                    // Remover da lista local
+                    const idsParaRemover = new Set(cardsSelecionados);
+                    todosServicos = todosServicos.filter(s => !idsParaRemover.has(s.id));
+                    cardsSelecionados.clear();
+
+                    await carregarTodosOsDados();
+                    atualizarFiltros();
+                    filtrarEOrdenar();
+                    
+                    showToast('Serviços excluídos com sucesso!', 'success');
+
+                } catch (error) {
+                    console.error('Erro ao excluir em lote:', error);
+                    showToast('Erro ao excluir: ' + error.message, 'error');
+                }
+            }
+        });
+    };
+
+    // ============================================================
+    // 11. FILTRAR E ORDENAR SERVIÇOS
     // ============================================================
     function filtrarEOrdenar() {
         const searchTerm = document.getElementById('precarioSearch')?.value.toLowerCase().trim() || '';
@@ -18190,14 +18565,18 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
     }
 
     // ============================================================
-    // 8. ATUALIZAR FILTROS
+    // 12. ATUALIZAR FILTROS
     // ============================================================
     function atualizarFiltros() {
         const selectCategoria = document.getElementById('precarioFiltroCategoria');
         if (selectCategoria) {
             selectCategoria.innerHTML = '<option value="">Todas as categorias</option>';
             todasCategorias.forEach(cat => {
-                selectCategoria.innerHTML += `<option value="${cat.id}">${cat.nome}</option>`;
+                const option = document.createElement('option');
+                option.value = cat.id;
+                option.textContent = cat.nome;
+                option.setAttribute('data-cor', cat.cor || '#6c757d');
+                selectCategoria.appendChild(option);
             });
         }
 
@@ -18212,7 +18591,204 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
     }
 
     // ============================================================
-    // 9. MODAL PARA ADICIONAR/EDITAR SERVIÇO
+    // 13. EDITAR CATEGORIA
+    // ============================================================
+    window.editarCategoria = async function(categoriaId) {
+        const categoria = todasCategorias.find(c => c.id === categoriaId);
+        if (!categoria) {
+            showToast('Categoria não encontrada.', 'error');
+            return;
+        }
+
+        categoriaEditandoId = categoriaId;
+
+        const modalId = 'editarCategoriaBootstrapModal';
+        const modalAntigo = document.getElementById(modalId);
+        if (modalAntigo) modalAntigo.remove();
+
+        const modalHTML = `
+            <div class="modal fade" id="${modalId}" tabindex="-1" data-bs-backdrop="static">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header" style="background: #26196b; color: white;">
+                            <h5 class="modal-title">
+                                <i class="fas fa-edit me-2"></i>Editar Categoria
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label for="editarCategoriaNome" class="form-label fw-bold">Nome da Categoria *</label>
+                                <input type="text" class="form-control" id="editarCategoriaNome" 
+                                       value="${categoria.nome}"
+                                       placeholder="Ex: Cabelo, Manicure, etc."
+                                       autofocus>
+                            </div>
+                            <div class="mb-3">
+                                <label for="editarCategoriaCor" class="form-label fw-bold">Cor da Categoria</label>
+                                <div class="d-flex align-items-center gap-3">
+                                    <input type="color" class="form-control form-control-color" id="editarCategoriaCor" 
+                                           value="${categoria.cor || '#26196b'}" style="width: 60px; height: 50px; padding: 2px;">
+                                    <span class="text-muted">Clique para escolher uma cor</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="button" class="btn btn-primary" id="confirmarEditarCategoriaBtn">
+                                <i class="fas fa-save me-1"></i>Salvar Alterações
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+        const modalElement = document.getElementById(modalId);
+        const modal = new bootstrap.Modal(modalElement, { backdrop: true, keyboard: true });
+
+        modalElement.addEventListener('shown.bs.modal', function() {
+            const input = document.getElementById('editarCategoriaNome');
+            if (input) {
+                setTimeout(() => {
+                    input.focus();
+                    input.select();
+                }, 100);
+            }
+        });
+
+        document.getElementById('confirmarEditarCategoriaBtn').addEventListener('click', async function() {
+            const nomeInput = document.getElementById('editarCategoriaNome');
+            const corInput = document.getElementById('editarCategoriaCor');
+            
+            const nome = nomeInput.value.trim();
+            const cor = corInput.value;
+
+            if (!nome) {
+                nomeInput.style.borderColor = '#dc3545';
+                nomeInput.style.borderWidth = '2px';
+                showToast('Digite um nome para a categoria', 'error');
+                nomeInput.focus();
+                return;
+            }
+
+            try {
+                const db = getFirestore();
+                if (!db) {
+                    showToast('Firebase não disponível.', 'error');
+                    return;
+                }
+
+                await db.collection('categorias').doc(categoriaId).update({
+                    nome: nome,
+                    cor: cor,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                const index = todasCategorias.findIndex(c => c.id === categoriaId);
+                if (index !== -1) {
+                    todasCategorias[index].nome = nome;
+                    todasCategorias[index].cor = cor;
+                }
+
+                atualizarFiltros();
+                filtrarEOrdenar();
+                
+                const bsModal = bootstrap.Modal.getInstance(modalElement);
+                if (bsModal) bsModal.hide();
+                
+                showToast('Categoria atualizada!', 'success');
+                
+            } catch (error) {
+                console.error('Erro ao editar categoria:', error);
+                showToast('Erro ao editar: ' + error.message, 'error');
+            }
+        });
+
+        modal.show();
+    };
+
+    // ============================================================
+    // 14. EXCLUIR CATEGORIA
+    // ============================================================
+    window.excluirCategoria = async function(categoriaId) {
+        const categoria = todasCategorias.find(c => c.id === categoriaId);
+        if (!categoria) {
+            showToast('Categoria não encontrada.', 'error');
+            return;
+        }
+
+        const servicosComCategoria = todosServicos.filter(s => s.categoriaId === categoriaId);
+        
+        let mensagem = `Excluir a categoria "${categoria.nome}"?`;
+        let textoAdicional = 'Esta ação não pode ser desfeita.';
+        
+        if (servicosComCategoria.length > 0) {
+            textoAdicional = `Esta categoria está sendo usada por ${servicosComCategoria.length} serviço(s). Ao excluí-la, estes serviços ficarão sem categoria. Deseja continuar?`;
+        }
+
+        const result = await Swal.fire({
+            title: 'Tem certeza?',
+            html: `
+                <p>${mensagem}</p>
+                <p style="color: #dc3545; font-size: 14px;">${textoAdicional}</p>
+            `,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Sim, excluir!',
+            cancelButtonText: 'Cancelar'
+        });
+
+        if (result.isConfirmed) {
+            try {
+                const db = getFirestore();
+                if (!db) {
+                    showToast('Firebase não disponível.', 'error');
+                    return;
+                }
+
+                await db.collection('categorias').doc(categoriaId).delete();
+
+                todasCategorias = todasCategorias.filter(c => c.id !== categoriaId);
+
+                if (servicosComCategoria.length > 0) {
+                    const batch = db.batch();
+                    servicosComCategoria.forEach(servico => {
+                        const ref = db.collection('servicos').doc(servico.id);
+                        batch.update(ref, {
+                            categoriaId: '',
+                            categoriaNome: '',
+                            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                        });
+                    });
+                    await batch.commit();
+
+                    todosServicos.forEach(s => {
+                        if (s.categoriaId === categoriaId) {
+                            s.categoriaId = '';
+                            s.categoriaNome = '';
+                        }
+                    });
+                }
+
+                atualizarFiltros();
+                filtrarEOrdenar();
+                
+                showToast('Categoria excluída com sucesso!', 'success');
+                
+            } catch (error) {
+                console.error('Erro ao excluir categoria:', error);
+                showToast('Erro ao excluir: ' + error.message, 'error');
+            }
+        }
+    };
+
+    // ============================================================
+    // 15. MODAL PARA ADICIONAR/EDITAR SERVIÇO - COM TIPO DE VALOR
     // ============================================================
     function mostrarModal(servicoId = null) {
         const modalAntigo = document.getElementById('precarioModal');
@@ -18239,7 +18815,8 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
                 tempo: '',
                 descricao: '',
                 colaboradoresIds: [],
-                ativo: true
+                ativo: true,
+                tipoValor: 'fixo'
             };
             servicoAtualEditando = null;
         }
@@ -18258,6 +18835,8 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
                 </div>
             `;
         }).join('');
+
+        const tipoValor = servico.tipoValor || 'fixo';
 
         const modalHTML = `
             <div class="modal fade" id="precarioModal" tabindex="-1" data-bs-backdrop="static">
@@ -18300,6 +18879,22 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
                                         <input type="number" class="form-control" id="ps_tempo" min="0" step="5" value="${servico.tempo || ''}">
                                     </div>
                                 </div>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">Tipo de Valor *</label>
+                                        <select class="form-select" id="ps_tipoValor" required>
+                                            <option value="fixo" ${tipoValor === 'fixo' ? 'selected' : ''}>Fixo</option>
+                                            <option value="desde" ${tipoValor === 'desde' ? 'selected' : ''}>Desde (valor mínimo)</option>
+                                        </select>
+                                        <small class="text-muted">Selecione se o valor é fixo ou a partir de (desde)</small>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <div class="form-check mt-4">
+                                            <input class="form-check-input" type="checkbox" id="ps_ativo" ${servico.ativo !== false ? 'checked' : ''}>
+                                            <label class="form-check-label" for="ps_ativo">Serviço Ativo</label>
+                                        </div>
+                                    </div>
+                                </div>
                                 <div class="mb-3">
                                     <label class="form-label fw-bold">Descrição</label>
                                     <textarea class="form-control" id="ps_descricao" rows="2">${servico.descricao || ''}</textarea>
@@ -18310,14 +18905,6 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
                                         ${colOptions || '<p class="text-muted small">Nenhum colaborador cadastrado.</p>'}
                                     </div>
                                     <small class="text-muted">Selecione os colaboradores que realizam este serviço.</small>
-                                </div>
-                                <div class="row">
-                                    <div class="col-md-6 mb-3">
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" id="ps_ativo" ${servico.ativo !== false ? 'checked' : ''}>
-                                            <label class="form-check-label" for="ps_ativo">Serviço Ativo</label>
-                                        </div>
-                                    </div>
                                 </div>
                             </form>
                         </div>
@@ -18335,17 +18922,12 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
         document.body.insertAdjacentHTML('beforeend', modalHTML);
 
         // ============================================================
-        // CRIAÇÃO DE NOVA CATEGORIA - MODAL BOOTSTRAP FUNCIONAL
+        // CRIAÇÃO DE NOVA CATEGORIA
         // ============================================================
         document.getElementById('ps_novaCategoriaBtn').addEventListener('click', function() {
-            // Criar um modal Bootstrap simples e funcional
             const modalId = 'novaCategoriaBootstrapModal';
-            
-            // Remover modal antigo se existir
             const modalAntigo = document.getElementById(modalId);
-            if (modalAntigo) {
-                modalAntigo.remove();
-            }
+            if (modalAntigo) modalAntigo.remove();
 
             const modalHTML = `
                 <div class="modal fade" id="${modalId}" tabindex="-1" data-bs-backdrop="static">
@@ -18386,14 +18968,9 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
 
             document.body.insertAdjacentHTML('beforeend', modalHTML);
 
-            // Inicializar o modal
             const modalElement = document.getElementById(modalId);
-            const modal = new bootstrap.Modal(modalElement, {
-                backdrop: true,
-                keyboard: true
-            });
+            const modal = new bootstrap.Modal(modalElement, { backdrop: true, keyboard: true });
 
-            // Quando o modal for mostrado, focar no input
             modalElement.addEventListener('shown.bs.modal', function() {
                 const input = document.getElementById('novaCategoriaNome');
                 if (input) {
@@ -18404,7 +18981,6 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
                 }
             });
 
-            // Evento do botão Confirmar
             document.getElementById('confirmarNovaCategoriaBtn').addEventListener('click', async function() {
                 const nomeInput = document.getElementById('novaCategoriaNome');
                 const corInput = document.getElementById('novaCategoriaCor');
@@ -18438,7 +19014,6 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
                     const docRef = await db.collection('categorias').add(novaCategoria);
                     todasCategorias.push({ id: docRef.id, ...novaCategoria });
                     
-                    // Atualizar select
                     const select = document.getElementById('ps_categoria');
                     if (select) {
                         const option = document.createElement('option');
@@ -18451,7 +19026,6 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
                     atualizarFiltros();
                     showToast('Categoria criada!', 'success');
                     
-                    // Fechar modal
                     const bsModal = bootstrap.Modal.getInstance(modalElement);
                     if (bsModal) bsModal.hide();
                     
@@ -18461,7 +19035,6 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
                 }
             });
 
-            // Mostrar o modal
             modal.show();
         });
 
@@ -18490,7 +19063,7 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
     }
 
     // ============================================================
-    // 10. SALVAR SERVIÇO
+    // 16. SALVAR SERVIÇO - COM TIPO DE VALOR
     // ============================================================
     async function salvarServico(servicoId = null) {
         const nome = document.getElementById('ps_nome')?.value.trim();
@@ -18502,6 +19075,12 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
         const preco = parseFloat(document.getElementById('ps_preco')?.value);
         if (isNaN(preco) || preco < 0) {
             showToast('Preço inválido.', 'error');
+            return;
+        }
+
+        const tipoValor = document.getElementById('ps_tipoValor')?.value || 'fixo';
+        if (!tipoValor) {
+            showToast('Selecione o tipo de valor (Fixo ou Desde).', 'error');
             return;
         }
 
@@ -18527,6 +19106,7 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
         const dados = {
             nome: nome,
             preco: preco,
+            tipoValor: tipoValor,
             categoriaId: categoriaId,
             categoriaNome: categoriaNome,
             tempo: tempo,
@@ -18569,7 +19149,7 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
     }
 
     // ============================================================
-    // 11. FUNÇÕES GLOBAIS
+    // 17. FUNÇÕES GLOBAIS
     // ============================================================
     window.editarServico = function(servicoId) {
         mostrarModal(servicoId);
@@ -18604,6 +19184,7 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
                 await db.collection('servicos').doc(servicoId).delete();
                 showToast('Serviço excluído com sucesso!', 'success');
                 
+                cardsSelecionados.delete(servicoId);
                 await carregarTodosOsDados();
                 atualizarFiltros();
                 filtrarEOrdenar();
@@ -18616,7 +19197,7 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
     };
 
     // ============================================================
-    // 12. CRIAR SEÇÃO PREÇÁRIO
+    // 18. CRIAR SEÇÃO PREÇÁRIO
     // ============================================================
     function criarSecaoPrecario() {
         if (document.getElementById('precario')) {
@@ -18656,9 +19237,18 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
                         </div>
                     </div>
                     <div class="col-md-3">
-                        <select class="form-select" id="precarioFiltroCategoria">
-                            <option value="">Todas as categorias</option>
-                        </select>
+                        <label class="form-label small fw-bold">Categoria</label>
+                        <div class="input-group">
+                            <select class="form-select" id="precarioFiltroCategoria">
+                                <option value="">Todas as categorias</option>
+                            </select>
+                            <button class="btn btn-outline-primary" type="button" id="btnEditarCategoria" title="Editar categoria selecionada" style="display:none;">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-outline-danger" type="button" id="btnExcluirCategoria" title="Excluir categoria selecionada" style="display:none;">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="col-md-3">
                         <select class="form-select" id="precarioFiltroColaborador">
@@ -18686,7 +19276,39 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
         adicionarEstilos();
 
         document.getElementById('precarioSearch')?.addEventListener('input', filtrarEOrdenar);
-        document.getElementById('precarioFiltroCategoria')?.addEventListener('change', filtrarEOrdenar);
+        document.getElementById('precarioFiltroCategoria')?.addEventListener('change', function() {
+            const categoriaId = this.value;
+            const btnEditar = document.getElementById('btnEditarCategoria');
+            const btnExcluir = document.getElementById('btnExcluirCategoria');
+            
+            if (categoriaId) {
+                btnEditar.style.display = 'inline-block';
+                btnExcluir.style.display = 'inline-block';
+            } else {
+                btnEditar.style.display = 'none';
+                btnExcluir.style.display = 'none';
+            }
+            filtrarEOrdenar();
+        });
+        
+        document.getElementById('btnEditarCategoria')?.addEventListener('click', function() {
+            const categoriaId = document.getElementById('precarioFiltroCategoria').value;
+            if (categoriaId) {
+                editarCategoria(categoriaId);
+            } else {
+                showToast('Selecione uma categoria para editar.', 'warning');
+            }
+        });
+        
+        document.getElementById('btnExcluirCategoria')?.addEventListener('click', function() {
+            const categoriaId = document.getElementById('precarioFiltroCategoria').value;
+            if (categoriaId) {
+                excluirCategoria(categoriaId);
+            } else {
+                showToast('Selecione uma categoria para excluir.', 'warning');
+            }
+        });
+        
         document.getElementById('precarioFiltroColaborador')?.addEventListener('change', filtrarEOrdenar);
         document.getElementById('precarioOrdenacao')?.addEventListener('change', filtrarEOrdenar);
         
@@ -18711,7 +19333,7 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
     }
 
     // ============================================================
-    // 13. ESTILOS CSS
+    // 19. ESTILOS CSS
     // ============================================================
     function adicionarEstilos() {
         const styleId = 'precarioEstilos';
@@ -18734,6 +19356,10 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
             .precario-card:hover {
                 transform: translateY(-4px);
                 box-shadow: 0 8px 24px rgba(38, 25, 107, 0.15);
+            }
+            .precario-card.card-selecionado {
+                box-shadow: 0 0 0 3px #26196b, 0 4px 12px rgba(0,0,0,0.08) !important;
+                background: #f8f5ff !important;
             }
             .precario-card .card-body {
                 padding: 16px;
@@ -18827,13 +19453,22 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
                 border-color: #26196b;
                 box-shadow: 0 0 0 0.25rem rgba(38, 25, 107, 0.25);
             }
+            
+            #barraSelecaoMultipla {
+                animation: slideUp 0.3s ease;
+            }
+            
+            @keyframes slideUp {
+                from { transform: translateY(20px); opacity: 0; }
+                to { transform: translateY(0); opacity: 1; }
+            }
         `;
         document.head.appendChild(style);
         console.log('✅ Estilos adicionados');
     }
 
     // ============================================================
-    // 14. MOSTRAR SEÇÃO PREÇÁRIO
+    // 20. MOSTRAR SEÇÃO PREÇÁRIO
     // ============================================================
     window.mostrarPrecario = function() {
         let section = document.getElementById('precario');
@@ -18868,7 +19503,7 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
     };
 
     // ============================================================
-    // 15. ADICIONAR MENUS
+    // 21. ADICIONAR MENUS
     // ============================================================
     function adicionarMenus() {
         const mobileCards = document.querySelector('#mobileCards .row');
@@ -18910,7 +19545,7 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
     }
 
     // ============================================================
-    // 16. TOAST
+    // 22. TOAST
     // ============================================================
     function showToast(message, type = 'info') {
         if (typeof Swal !== 'undefined') {
@@ -18941,7 +19576,7 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
     }
 
     // ============================================================
-    // 17. INICIALIZAÇÃO
+    // 23. INICIALIZAÇÃO
     // ============================================================
     async function inicializarPrecario() {
         console.log('🚀 Inicializando Preçário...');
@@ -18959,6 +19594,9 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
         console.log('✅ Preçário inicializado com sucesso!');
         console.log('📌 Para recarregar: recarregarPrecario()');
         console.log('📌 Para mostrar: mostrarPrecario()');
+        console.log('📌 Para selecionar múltiplos: marque os checkboxes nos cards');
+        console.log('📌 Para editar em lote: selecione os cards e clique em "Editar Selecionados"');
+        console.log('📌 Tipo de valor: Fixo ou Desde (obrigatório)');
     }
 
     if (document.readyState === 'loading') {
