@@ -1431,6 +1431,7 @@
         
         /* ============================================================
            RESPONSIVO PARA MOBILE VERTICAL (RETRATO)
+           BADGES EM UMA ÚNICA LINHA
            ============================================================ */
         @media (max-width: 768px) and (orientation: portrait) {
             .filtros .badges-row {
@@ -1702,10 +1703,12 @@
 
     <!-- ===== HEADER ===== -->
     <header class="header" id="topo">
-        <div class="header-content" id="headerContent">
-            <!-- Logo e Nome da Empresa serão carregados dinamicamente -->
-            <span class="logo-icon" id="headerLogoIcon">✂️</span>
-            <h1>Preçário <span id="headerEmpresaNome">Studio DeVitto</span></h1>
+        <div class="header-content">
+            <div id="headerLogoContainer">
+                <span class="logo-icon" id="headerLogoIcon">✂️</span>
+                <span id="headerLogoImg" style="display:none;"></span>
+            </div>
+            <h1>Preçário <span id="headerBusinessName">Studio DeVitto</span></h1>
             <p>Conheça nossos serviços, preços e horários. Agende sua visita!</p>
             <div class="badge-count">
                 <i class="fas fa-cut me-2"></i>
@@ -1777,7 +1780,7 @@
             <a href="#" title="WhatsApp"><i class="fab fa-whatsapp"></i></a>
             <a href="#" title="TikTok"><i class="fab fa-tiktok"></i></a>
         </div>
-        <p>&copy; 2026 <span id="footerEmpresaNome">Studio DeVitto</span> · Todos os direitos reservados</p>
+        <p>&copy; 2026 <span id="footerBusinessName">Studio DeVitto</span> · Todos os direitos reservados</p>
         <p style="font-size: 0.75rem; margin-top: 4px;">Preços sujeitos a alteração. Consulte-nos para mais informações.</p>
     </footer>
 
@@ -1863,7 +1866,7 @@
         <div class="confirmacao-content">
             <div class="icone-confirmacao">📋</div>
             <h2>⚠️ Leia com atenção!</h2>
-            <p>O agendamento só está confirmado após a confirmação do <strong>Studio DeVitto</strong>.</p>
+            <p>O agendamento só está confirmado após a confirmação do <strong id="confirmBusinessName">Studio DeVitto</strong>.</p>
             <p style="font-size:13px; color:var(--text-muted);">Aguarde que já entraremos em contato.</p>
             
             <div id="valorTotalConfirmacao" class="valor-total"></div>
@@ -1911,7 +1914,7 @@
         // ============================================================
         // DADOS DA EMPRESA - VINCULADOS AO SISTEMA "MÃE"
         // ============================================================
-        let dadosEmpresa = {
+        let empresaData = {
             nome: "Studio DeVitto",
             whatsApp: "351927431517",
             logoUrl: null,
@@ -1919,173 +1922,181 @@
         };
 
         // ============================================================
-        // FUNÇÃO PARA CARREGAR DADOS DA EMPRESA DO SISTEMA "MÃE"
+        // FUNÇÃO PARA CARREGAR DADOS DA EMPRESA
         // ============================================================
-        function carregarDadosDaEmpresa() {
-            // 1. Carregar do localStorage (cache rápido)
+        function carregarDadosEmpresa() {
+            // Primeiro tenta carregar do localStorage (onde o sistema mae salva)
             try {
-                // Perfil da Empresa (businessProfile)
                 const perfilSalvo = localStorage.getItem('businessProfile');
                 if (perfilSalvo) {
                     const perfil = JSON.parse(perfilSalvo);
-                    if (perfil.name) dadosEmpresa.nome = perfil.name;
-                    if (perfil.whatsApp) dadosEmpresa.whatsApp = perfil.whatsApp.replace(/\D/g, '');
+                    if (perfil.name) empresaData.nome = perfil.name;
+                    if (perfil.whatsApp) empresaData.whatsApp = perfil.whatsApp.replace(/\D/g, '');
                 }
-                
-                // Configurações da Empresa (businessSettings - logo)
+            } catch (e) {
+                console.log('Erro ao carregar perfil do localStorage:', e);
+            }
+
+            // Carregar configurações da empresa (logo)
+            try {
                 const settingsSalvo = localStorage.getItem('businessSettings');
                 if (settingsSalvo) {
                     const settings = JSON.parse(settingsSalvo);
-                    if (settings.name) dadosEmpresa.nome = settings.name;
-                    if (settings.customLogo) dadosEmpresa.logoUrl = settings.customLogo;
-                    if (settings.logoType) dadosEmpresa.logoType = settings.logoType;
+                    if (settings.name) empresaData.nome = settings.name;
+                    if (settings.customLogo) empresaData.logoUrl = settings.customLogo;
+                    if (settings.logoType) empresaData.logoType = settings.logoType;
                 }
-                
-                atualizarInterfaceEmpresa();
-                console.log('📋 Dados da empresa carregados do localStorage:', dadosEmpresa.nome);
             } catch (e) {
-                console.log('Erro ao carregar dados da empresa do localStorage:', e);
+                console.log('Erro ao carregar settings do localStorage:', e);
             }
 
-            // 2. Buscar do Firestore (dados mais atualizados)
-            if (typeof currentUser !== 'undefined' && currentUser) {
-                // Buscar businessProfile
-                db.collection('businessProfile').doc(currentUser.uid).get()
-                    .then((doc) => {
-                        if (doc.exists) {
-                            const data = doc.data();
-                            if (data.name) dadosEmpresa.nome = data.name;
-                            if (data.whatsApp) dadosEmpresa.whatsApp = data.whatsApp.replace(/\D/g, '');
-                            atualizarInterfaceEmpresa();
+            // Atualizar a UI com os dados carregados
+            atualizarUIPagina();
+        }
+
+        // ============================================================
+        // FUNÇÃO PARA ATUALIZAR A UI COM OS DADOS DA EMPRESA
+        // ============================================================
+        function atualizarUIPagina() {
+            // Atualizar nome da empresa em todos os lugares
+            const nome = empresaData.nome || 'Studio DeVitto';
+            
+            // Header
+            document.getElementById('headerBusinessName').textContent = nome;
+            document.getElementById('headerBusinessName').textContent = nome;
+            
+            // Footer
+            document.getElementById('footerBusinessName').textContent = nome;
+            
+            // Título da página
+            document.title = `Preçário · ${nome}`;
+            
+            // Modal de confirmação
+            const confirmName = document.getElementById('confirmBusinessName');
+            if (confirmName) confirmName.textContent = nome;
+            
+            // Header H1 (mantém o span)
+            const h1 = document.querySelector('.header h1');
+            if (h1) {
+                h1.innerHTML = `Preçário <span id="headerBusinessName">${nome}</span>`;
+            }
+            
+            // ============================================================
+            // ATUALIZAR LOGO
+            // ============================================================
+            const logoIcon = document.getElementById('headerLogoIcon');
+            const logoImg = document.getElementById('headerLogoImg');
+            
+            if (empresaData.logoUrl) {
+                // Mostrar imagem
+                logoIcon.style.display = 'none';
+                logoImg.style.display = 'inline-block';
+                logoImg.innerHTML = `<img src="${empresaData.logoUrl}" alt="${nome}" style="height:50px; max-width:150px; object-fit:contain; margin-bottom:10px;">`;
+            } else {
+                // Mostrar ícone
+                logoIcon.style.display = 'inline-block';
+                logoImg.style.display = 'none';
+                logoImg.innerHTML = '';
+                
+                // Definir o ícone baseado no tipo
+                const icons = {
+                    'scissors': 'fa-scissors',
+                    'store': 'fa-store',
+                    'spa': 'fa-spa',
+                    'salon': 'fa-cut',
+                    'barber': 'fa-user-md'
+                };
+                const iconClass = icons[empresaData.logoType] || 'fa-scissors';
+                logoIcon.className = `logo-icon ${iconClass}`;
+            }
+        }
+
+        // ============================================================
+        // FUNÇÃO PARA OUVIR MUDANÇAS EM TEMPO REAL NO FIREBASE
+        // ============================================================
+        function ouvirMudancasEmpresa() {
+            if (typeof currentUser === 'undefined' || !currentUser) {
+                console.log('⚠️ Aguardando usuário logado para ouvir mudanças...');
+                setTimeout(ouvirMudancasEmpresa, 2000);
+                return;
+            }
+
+            console.log('📡 Iniciando listener de mudanças da empresa...');
+
+            // Listener para businessProfile (nome, whatsapp)
+            db.collection('businessProfile').doc(currentUser.uid)
+                .onSnapshot((doc) => {
+                    if (doc.exists) {
+                        const data = doc.data();
+                        let mudou = false;
+                        
+                        if (data.name && data.name !== empresaData.nome) {
+                            empresaData.nome = data.name;
+                            mudou = true;
+                        }
+                        if (data.whatsApp) {
+                            const novoWhats = data.whatsApp.replace(/\D/g, '');
+                            if (novoWhats !== empresaData.whatsApp) {
+                                empresaData.whatsApp = novoWhats;
+                                mudou = true;
+                            }
+                        }
+                        
+                        if (mudou) {
+                            console.log('🔄 Dados da empresa atualizados (businessProfile):', empresaData);
+                            atualizarUIPagina();
                             // Salvar no localStorage
                             try {
                                 const perfil = JSON.parse(localStorage.getItem('businessProfile') || '{}');
-                                perfil.name = data.name;
-                                perfil.whatsApp = data.whatsApp;
+                                perfil.name = empresaData.nome;
+                                perfil.whatsApp = empresaData.whatsApp;
                                 localStorage.setItem('businessProfile', JSON.stringify(perfil));
                             } catch (e) {}
                         }
-                    })
-                    .catch((error) => console.log('Erro ao buscar businessProfile:', error));
+                    }
+                }, (error) => {
+                    console.error('Erro no listener businessProfile:', error);
+                });
 
-                // Buscar businessSettings (logo)
-                db.collection('businessSettings').doc(currentUser.uid).get()
-                    .then((doc) => {
-                        if (doc.exists) {
-                            const data = doc.data();
-                            if (data.name) dadosEmpresa.nome = data.name;
-                            if (data.customLogo) dadosEmpresa.logoUrl = data.customLogo;
-                            if (data.logoType) dadosEmpresa.logoType = data.logoType;
-                            atualizarInterfaceEmpresa();
+            // Listener para businessSettings (logo)
+            db.collection('businessSettings').doc(currentUser.uid)
+                .onSnapshot((doc) => {
+                    if (doc.exists) {
+                        const data = doc.data();
+                        let mudou = false;
+                        
+                        if (data.name && data.name !== empresaData.nome) {
+                            empresaData.nome = data.name;
+                            mudou = true;
+                        }
+                        if (data.customLogo && data.customLogo !== empresaData.logoUrl) {
+                            empresaData.logoUrl = data.customLogo;
+                            mudou = true;
+                        }
+                        if (data.logoType && data.logoType !== empresaData.logoType) {
+                            empresaData.logoType = data.logoType;
+                            mudou = true;
+                        }
+                        
+                        if (mudou) {
+                            console.log('🔄 Dados da empresa atualizados (businessSettings):', empresaData);
+                            atualizarUIPagina();
                             // Salvar no localStorage
                             try {
                                 const settings = JSON.parse(localStorage.getItem('businessSettings') || '{}');
-                                settings.name = data.name;
-                                settings.customLogo = data.customLogo;
-                                settings.logoType = data.logoType;
+                                settings.name = empresaData.nome;
+                                settings.customLogo = empresaData.logoUrl;
+                                settings.logoType = empresaData.logoType;
                                 localStorage.setItem('businessSettings', JSON.stringify(settings));
                             } catch (e) {}
                         }
-                    })
-                    .catch((error) => console.log('Erro ao buscar businessSettings:', error));
+                    }
+                }, (error) => {
+                    console.error('Erro no listener businessSettings:', error);
+                });
 
-                // LISTENER EM TEMPO REAL - businessProfile
-                db.collection('businessProfile').doc(currentUser.uid)
-                    .onSnapshot((doc) => {
-                        if (doc.exists) {
-                            const data = doc.data();
-                            let atualizado = false;
-                            if (data.name && data.name !== dadosEmpresa.nome) {
-                                dadosEmpresa.nome = data.name;
-                                atualizado = true;
-                            }
-                            if (data.whatsApp) {
-                                const novoWhats = data.whatsApp.replace(/\D/g, '');
-                                if (novoWhats !== dadosEmpresa.whatsApp) {
-                                    dadosEmpresa.whatsApp = novoWhats;
-                                    atualizado = true;
-                                }
-                            }
-                            if (atualizado) {
-                                atualizarInterfaceEmpresa();
-                                console.log('📱 Dados da empresa atualizados em tempo real (businessProfile)');
-                            }
-                        }
-                    }, (error) => console.log('Erro no listener businessProfile:', error));
-
-                // LISTENER EM TEMPO REAL - businessSettings (logo)
-                db.collection('businessSettings').doc(currentUser.uid)
-                    .onSnapshot((doc) => {
-                        if (doc.exists) {
-                            const data = doc.data();
-                            let atualizado = false;
-                            if (data.name && data.name !== dadosEmpresa.nome) {
-                                dadosEmpresa.nome = data.name;
-                                atualizado = true;
-                            }
-                            if (data.customLogo && data.customLogo !== dadosEmpresa.logoUrl) {
-                                dadosEmpresa.logoUrl = data.customLogo;
-                                atualizado = true;
-                            }
-                            if (data.logoType && data.logoType !== dadosEmpresa.logoType) {
-                                dadosEmpresa.logoType = data.logoType;
-                                atualizado = true;
-                            }
-                            if (atualizado) {
-                                atualizarInterfaceEmpresa();
-                                console.log('📱 Dados da empresa atualizados em tempo real (businessSettings)');
-                            }
-                        }
-                    }, (error) => console.log('Erro no listener businessSettings:', error));
-            }
+            console.log('✅ Listeners de empresa ativados!');
         }
-
-        // ============================================================
-        // FUNÇÃO PARA ATUALIZAR A INTERFACE COM OS DADOS DA EMPRESA
-        // ============================================================
-        function atualizarInterfaceEmpresa() {
-            // Atualizar título da página
-            document.title = `Preçário · ${dadosEmpresa.nome}`;
-            
-            // Atualizar header
-            const nomeSpan = document.getElementById('headerEmpresaNome');
-            if (nomeSpan) nomeSpan.textContent = dadosEmpresa.nome;
-            
-            // Atualizar footer
-            const footerNome = document.getElementById('footerEmpresaNome');
-            if (footerNome) footerNome.textContent = dadosEmpresa.nome;
-            
-            // Atualizar logo no header
-            const logoIcon = document.getElementById('headerLogoIcon');
-            if (logoIcon) {
-                if (dadosEmpresa.logoUrl) {
-                    // Se tem logo personalizada, substituir o ícone por imagem
-                    logoIcon.innerHTML = `<img src="${dadosEmpresa.logoUrl}" alt="${dadosEmpresa.nome}" style="height:48px; width:auto; max-width:100px; object-fit:contain; display:inline-block;">`;
-                    logoIcon.style.fontSize = '0';
-                } else {
-                    // Usar ícone baseado no tipo
-                    logoIcon.style.fontSize = '48px';
-                    const icons = {
-                        'scissors': '✂️',
-                        'store': '🏪',
-                        'spa': '🧖',
-                        'salon': '💇',
-                        'barber': '💈'
-                    };
-                    logoIcon.textContent = icons[dadosEmpresa.logoType] || '✂️';
-                }
-            }
-
-            // Atualizar o número do WhatsApp em todas as funções
-            numeroWhatsApp = dadosEmpresa.whatsApp || '351927431517';
-            
-            console.log('✅ Interface da empresa atualizada:', dadosEmpresa.nome);
-        }
-
-        // ============================================================
-        // NÚMERO DO WHATSAPP - VINCULADO AO PERFIL DA EMPRESA
-        // ============================================================
-        let numeroWhatsApp = "351927431517";
 
         // ============================================================
         // CORES DAS CATEGORIAS (PARA O ÍCONE)
@@ -2138,8 +2149,11 @@
                 </div>
             `;
 
-            // Carregar dados da empresa (vinculado ao sistema mãe)
-            carregarDadosDaEmpresa();
+            // Carregar dados da empresa
+            carregarDadosEmpresa();
+            
+            // Iniciar listeners em tempo real após carregar dados
+            setTimeout(ouvirMudancasEmpresa, 1000);
 
             // Carregar categorias
             db.collection('categorias')
@@ -2738,7 +2752,7 @@
         }
 
         // ============================================================
-        // ENVIAR PARA WHATSAPP - USANDO O NÚMERO DO PERFIL DA EMPRESA
+        // ENVIAR PARA WHATSAPP - USANDO O NÚMERO DA EMPRESA
         // ============================================================
         function enviarWhatsApp() {
             const nome = document.getElementById('inputNome').value.trim();
@@ -2757,10 +2771,8 @@
             const valorTotal = calcularValorTotal();
             const totalFormatado = valorTotal.total > 0 ? '€ ' + valorTotal.total.toFixed(2).replace('.', ',') : 'Consultar';
             
-            const phone = numeroWhatsApp || '351927431517';
-            
-            // Usar o nome da empresa nos placeholders
-            const nomeEmpresa = dadosEmpresa.nome || 'Studio DeVitto';
+            const phone = empresaData.whatsApp || '351927431517';
+            const nomeEmpresa = empresaData.nome || 'Studio DeVitto';
             
             let mensagem = `*🛎️ Solicitação de Agendamento - ${nomeEmpresa}*%0A%0A`;
             mensagem += `*👤 Qual seu nome:* ${nome}%0A`;
@@ -3003,9 +3015,9 @@
         // ============================================================
         function registerPWA() {
             const manifest = {
-                name: `Preçário ${dadosEmpresa.nome}`,
-                short_name: `${dadosEmpresa.nome}`,
-                description: `Preçário completo do ${dadosEmpresa.nome}`,
+                name: `Preçário ${empresaData.nome || 'Studio DeVitto'}`,
+                short_name: `${empresaData.nome || 'Studio DeVitto'}`,
+                description: `Preçário completo do ${empresaData.nome || 'Studio DeVitto'}`,
                 start_url: window.location.href.split('?')[0],
                 display: "standalone",
                 background_color: "#f5f2f0",
@@ -3013,7 +3025,7 @@
                 orientation: "portrait-primary",
                 icons: [
                     {
-                        src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%2326196b'/%3E%3Ctext x='256' y='340' font-family='Arial' font-size='280' text-anchor='middle' fill='%23D4AF37'%3E✂️%3C/text%3E%3C/svg%3E",
+                        src: empresaData.logoUrl || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%2326196b'/%3E%3Ctext x='256' y='340' font-family='Arial' font-size='280' text-anchor='middle' fill='%23D4AF37'%3E✂️%3C/text%3E%3C/svg%3E",
                         sizes: "512x512",
                         type: "image/svg+xml",
                         purpose: "any maskable"
@@ -3027,35 +3039,6 @@
             link.rel = 'manifest';
             link.href = manifestURL;
             document.head.appendChild(link);
-
-            if ('serviceWorker' in navigator) {
-                const swCode = `
-                    self.addEventListener('install', e => {
-                        e.waitUntil(
-                            caches.open('devitto-precario-v1').then(cache => {
-                                return cache.addAll([
-                                    '/',
-                                    '${window.location.href}'
-                                ]);
-                            })
-                        );
-                    });
-                    self.addEventListener('fetch', e => {
-                        e.respondWith(
-                            caches.match(e.request).then(response => {
-                                return response || fetch(e.request);
-                            })
-                        );
-                    });
-                `;
-                
-                const swBlob = new Blob([swCode], { type: 'application/javascript' });
-                const swURL = URL.createObjectURL(swBlob);
-                
-                navigator.serviceWorker.register(swURL, { scope: '/' })
-                    .then(() => console.log('✅ Service Worker registrado!'))
-                    .catch(err => console.log('⚠️ Service Worker não registrado:', err));
-            }
         }
 
         // ============================================================
@@ -3067,12 +3050,16 @@
         initBotaoWhatsapp();
 
         console.log('✅ Página pública do Preçário carregada!');
-        console.log('📱 Nome e WhatsApp vinculados ao perfil da empresa (sistema mae)');
-        console.log('🔄 Badge de preço (Fixo/Desde) CORRIGIDO');
-        console.log('🎨 Cards com bordinha lateral colorida pela categoria');
+        console.log('📱 WhatsApp vinculado ao perfil da empresa (sistema mae)');
+        console.log('🏢 Nome da empresa vinculado ao perfil da empresa (sistema mae)');
+        console.log('🖼️ Logo vinculada ao perfil da empresa (sistema mae)');
+        console.log('🔄 Atualização em tempo real a cada 1 segundo');
         console.log('📱 Layout responsivo: Badges em uma única linha no mobile vertical');
         console.log('📱 Dropdowns de colaborador e categoria funcionando corretamente');
 
+        // ============================================================
+        // VERIFICAÇÃO PERIÓDICA A CADA 1 SEGUNDO
+        // ============================================================
         let ultimaAtualizacao = Date.now();
 
         function verificarAtualizacoes() {
@@ -3093,7 +3080,8 @@
                 carregarDados();
             }
             
-            carregarDadosDaEmpresa();
+            // Atualizar dados da empresa periodicamente
+            carregarDadosEmpresa();
         }
 
         setInterval(verificarAtualizacoes, 1000);
@@ -3101,7 +3089,7 @@
         document.addEventListener('visibilitychange', function() {
             if (!document.hidden) {
                 console.log('📱 Página reativada, verificando atualizações...');
-                carregarDadosDaEmpresa();
+                carregarDadosEmpresa();
                 if (todosServicos.length === 0) {
                     carregarDados();
                 } else {
