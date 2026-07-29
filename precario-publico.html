@@ -1684,13 +1684,17 @@
             logoType: "scissors"
         };
 
+        // Cache para evitar piscadas
+        let ultimoNome = "";
+        let ultimaLogo = "";
+
         // ============================================================
-        // FUNÇÃO PARA CARREGAR DADOS DA EMPRESA (FORÇA ATUALIZAÇÃO)
+        // FUNÇÃO PARA CARREGAR DADOS DA EMPRESA (COM CACHE)
         // ============================================================
         function carregarDadosEmpresa() {
             let mudou = false;
             
-            // 1. Carregar do localStorage (businessProfile - nome e whatsapp)
+            // Tentar carregar do localStorage (cache rápido)
             try {
                 const perfilSalvo = localStorage.getItem('businessProfile');
                 if (perfilSalvo) {
@@ -1709,7 +1713,6 @@
                 }
             } catch (e) {}
 
-            // 2. Carregar do localStorage (businessSettings - logo)
             try {
                 const settingsSalvo = localStorage.getItem('businessSettings');
                 if (settingsSalvo) {
@@ -1729,68 +1732,87 @@
                 }
             } catch (e) {}
 
-            // 3. Se mudou algo, atualizar a UI
+            // Se houve mudança, atualizar UI (sem piscar)
             if (mudou) {
-                console.log('🔄 Dados da empresa atualizados:', empresaData);
                 atualizarUIPagina();
             }
         }
 
         // ============================================================
-        // FUNÇÃO PARA ATUALIZAR A UI COM OS DADOS DA EMPRESA
+        // FUNÇÃO PARA ATUALIZAR A UI (SEM PISCAR A LOGO)
         // ============================================================
         function atualizarUIPagina() {
             const nome = empresaData.nome || 'Studio DeVitto';
             
-            // Atualizar nome no header
-            const headerName = document.getElementById('headerBusinessName');
-            if (headerName) headerName.textContent = nome;
+            // Atualizar nome (apenas se mudou)
+            const nomeSpan = document.getElementById('headerBusinessName');
+            if (nomeSpan && nomeSpan.textContent !== nome) {
+                nomeSpan.textContent = nome;
+                document.title = `Preçário · ${nome}`;
+            }
             
-            // Atualizar nome no footer
-            const footerName = document.getElementById('footerBusinessName');
-            if (footerName) footerName.textContent = nome;
+            const footerNome = document.getElementById('footerBusinessName');
+            if (footerNome && footerNome.textContent !== nome) {
+                footerNome.textContent = nome;
+            }
             
-            // Atualizar título da página
-            document.title = `Preçário · ${nome}`;
+            const confirmNome = document.getElementById('confirmBusinessName');
+            if (confirmNome && confirmNome.textContent !== nome) {
+                confirmNome.textContent = nome;
+            }
             
-            // Atualizar nome na confirmação
-            const confirmName = document.getElementById('confirmBusinessName');
-            if (confirmName) confirmName.textContent = nome;
-            
-            // Atualizar H1 (mantém o span)
+            // Atualizar H1
             const h1 = document.querySelector('.header h1');
             if (h1) {
-                h1.innerHTML = `Preçário <span id="headerBusinessName">${nome}</span>`;
+                const currentH1 = h1.innerHTML;
+                const newH1 = `Preçário <span id="headerBusinessName">${nome}</span>`;
+                if (currentH1 !== newH1) {
+                    h1.innerHTML = newH1;
+                }
             }
             
             // ============================================================
-            // ATUALIZAR LOGO (FORÇA A ATUALIZAÇÃO MESMO EM DISPOSITIVOS MÓVEIS)
+            // ATUALIZAR LOGO SEM PISCAR
             // ============================================================
             const logoIcon = document.getElementById('headerLogoIcon');
             const logoImg = document.getElementById('headerLogoImg');
             
-            if (empresaData.logoUrl) {
-                // Mostrar imagem da logo
-                logoIcon.style.display = 'none';
-                logoImg.style.display = 'inline-block';
-                logoImg.innerHTML = `<img src="${empresaData.logoUrl}?t=${Date.now()}" alt="${nome}" style="height:50px; max-width:150px; object-fit:contain; margin-bottom:10px;" onerror="this.onerror=null; this.style.display='none'; document.getElementById('headerLogoIcon').style.display='inline-block';">`;
-                console.log('🖼️ Logo atualizada:', empresaData.logoUrl);
-            } else {
-                // Mostrar ícone padrão
-                logoIcon.style.display = 'inline-block';
-                logoImg.style.display = 'none';
-                logoImg.innerHTML = '';
+            // Verificar se a logo realmente mudou
+            const logoAtual = empresaData.logoUrl || '';
+            if (logoAtual !== ultimaLogo) {
+                ultimaLogo = logoAtual;
                 
-                const icons = {
-                    'scissors': 'fa-scissors',
-                    'store': 'fa-store',
-                    'spa': 'fa-spa',
-                    'salon': 'fa-cut',
-                    'barber': 'fa-user-md'
-                };
-                const iconClass = icons[empresaData.logoType] || 'fa-scissors';
-                logoIcon.className = `logo-icon ${iconClass}`;
-                console.log('🖼️ Ícone padrão usando:', iconClass);
+                if (empresaData.logoUrl) {
+                    // Mostrar imagem - sem piscar usando requestAnimationFrame
+                    requestAnimationFrame(() => {
+                        logoIcon.style.display = 'none';
+                        logoImg.style.display = 'inline-block';
+                        // Usar uma imagem com cache para evitar reload
+                        const imgTag = `<img src="${empresaData.logoUrl}" alt="${nome}" style="height:50px; max-width:150px; object-fit:contain; margin-bottom:10px;" loading="lazy">`;
+                        if (logoImg.innerHTML !== imgTag) {
+                            logoImg.innerHTML = imgTag;
+                        }
+                    });
+                } else {
+                    // Mostrar ícone
+                    requestAnimationFrame(() => {
+                        logoIcon.style.display = 'inline-block';
+                        logoImg.style.display = 'none';
+                        logoImg.innerHTML = '';
+                        
+                        const icons = {
+                            'scissors': 'fa-scissors',
+                            'store': 'fa-store',
+                            'spa': 'fa-spa',
+                            'salon': 'fa-cut',
+                            'barber': 'fa-user-md'
+                        };
+                        const iconClass = icons[empresaData.logoType] || 'fa-scissors';
+                        if (!logoIcon.className.includes(iconClass)) {
+                            logoIcon.className = `logo-icon ${iconClass}`;
+                        }
+                    });
+                }
             }
         }
 
@@ -1799,15 +1821,12 @@
         // ============================================================
         function ouvirMudancasEmpresa() {
             if (typeof currentUser === 'undefined' || !currentUser) {
-                console.log('⚠️ Aguardando usuário logado para ouvir mudanças...');
                 setTimeout(ouvirMudancasEmpresa, 2000);
                 return;
             }
 
-            console.log('📡 Iniciando listeners de empresa...');
-
             // Listener para businessProfile (nome, whatsapp)
-            const unsubscribeProfile = db.collection('businessProfile').doc(currentUser.uid)
+            db.collection('businessProfile').doc(currentUser.uid)
                 .onSnapshot((doc) => {
                     if (doc.exists) {
                         const data = doc.data();
@@ -1826,23 +1845,19 @@
                         }
                         
                         if (mudou) {
-                            console.log('🔄 Mudança detectada no businessProfile');
-                            // Salvar no localStorage
+                            atualizarUIPagina();
                             try {
                                 const perfil = JSON.parse(localStorage.getItem('businessProfile') || '{}');
                                 perfil.name = empresaData.nome;
                                 perfil.whatsApp = empresaData.whatsApp;
                                 localStorage.setItem('businessProfile', JSON.stringify(perfil));
                             } catch (e) {}
-                            atualizarUIPagina();
                         }
                     }
-                }, (error) => {
-                    console.error('Erro no listener businessProfile:', error);
-                });
+                }, (error) => {});
 
             // Listener para businessSettings (logo)
-            const unsubscribeSettings = db.collection('businessSettings').doc(currentUser.uid)
+            db.collection('businessSettings').doc(currentUser.uid)
                 .onSnapshot((doc) => {
                     if (doc.exists) {
                         const data = doc.data();
@@ -1862,8 +1877,7 @@
                         }
                         
                         if (mudou) {
-                            console.log('🔄 Mudança detectada no businessSettings');
-                            // Salvar no localStorage
+                            atualizarUIPagina();
                             try {
                                 const settings = JSON.parse(localStorage.getItem('businessSettings') || '{}');
                                 settings.name = empresaData.nome;
@@ -1871,20 +1885,9 @@
                                 settings.logoType = empresaData.logoType;
                                 localStorage.setItem('businessSettings', JSON.stringify(settings));
                             } catch (e) {}
-                            atualizarUIPagina();
                         }
                     }
-                }, (error) => {
-                    console.error('Erro no listener businessSettings:', error);
-                });
-
-            console.log('✅ Listeners de empresa ativados!');
-            
-            // Retornar função para cancelar listeners (opcional)
-            return function() {
-                if (unsubscribeProfile) unsubscribeProfile();
-                if (unsubscribeSettings) unsubscribeSettings();
-            };
+                }, (error) => {});
         }
 
         // ============================================================
@@ -1896,10 +1899,7 @@
             const badges = document.querySelectorAll('.filtros .badge-filtro');
             const isMobile = window.innerWidth <= 1024;
             
-            if (!badgesRow) return;
-            
             if (isMobile && isPortrait) {
-                // Modo retrato (vertical) - badges em uma linha
                 badgesRow.style.display = 'flex';
                 badgesRow.style.flexWrap = 'nowrap';
                 badgesRow.style.gap = '4px';
@@ -1989,7 +1989,6 @@
                 document.querySelector('.filtros').style.zIndex = '100';
                 
             } else {
-                // Modo paisagem (horizontal) ou desktop - estilo normal
                 badgesRow.style.display = '';
                 badgesRow.style.flexWrap = '';
                 badgesRow.style.gap = '';
@@ -2131,13 +2130,9 @@
                 </div>
             `;
 
-            // Carregar dados da empresa imediatamente
             carregarDadosEmpresa();
-            
-            // Iniciar listeners em tempo real
             setTimeout(ouvirMudancasEmpresa, 1000);
 
-            // Carregar categorias
             db.collection('categorias')
                 .get()
                 .then(snapshot => {
@@ -2151,14 +2146,10 @@
                             });
                         }
                     });
-                    console.log('📋 Categorias carregadas:', todasCategorias.length);
                     atualizarDropdownCategorias();
                 })
-                .catch(error => {
-                    console.error('Erro ao carregar categorias:', error);
-                });
+                .catch(error => {});
 
-            // Carregar colaboradores
             db.collection('collaborators')
                 .where('active', '==', true)
                 .get()
@@ -2174,14 +2165,10 @@
                             });
                         }
                     });
-                    console.log('👤 Colaboradores carregados:', todosColaboradores.length);
                     atualizarDropdownColaboradores();
                 })
-                .catch(error => {
-                    console.error('Erro ao carregar colaboradores:', error);
-                });
+                .catch(error => {});
 
-            // Carregar serviços (com listener em tempo real)
             if (servicosListener) {
                 servicosListener();
             }
@@ -2211,11 +2198,9 @@
                             precoTipo: precoTipo
                         });
                     });
-                    console.log('📋 Serviços carregados (tempo real):', todosServicos.length);
                     document.getElementById('totalServicos').textContent = todosServicos.length;
                     renderizarPrecario();
                 }, error => {
-                    console.error('Erro no listener de serviços:', error);
                     container.innerHTML = `
                         <div class="empty-state">
                             <i class="fas fa-exclamation-triangle"></i>
@@ -2734,7 +2719,7 @@
         }
 
         // ============================================================
-        // ENVIAR PARA WHATSAPP - USANDO O NÚMERO DA EMPRESA
+        // ENVIAR PARA WHATSAPP
         // ============================================================
         function enviarWhatsApp() {
             const nome = document.getElementById('inputNome').value.trim();
@@ -3035,7 +3020,7 @@
         console.log('📱 WhatsApp vinculado ao perfil da empresa (sistema mae)');
         console.log('🏢 Nome da empresa vinculado ao perfil da empresa (sistema mae)');
         console.log('🖼️ Logo vinculada ao perfil da empresa (sistema mae)');
-        console.log('🔄 Atualização em tempo real a cada 1 segundo (FORÇADO)');
+        console.log('🔄 Atualização em tempo real a cada 1 segundo (SEM PISCAR)');
         console.log('📱 Detecção de orientação via JavaScript (mais confiável)');
         console.log('📱 Badges em uma única linha no mobile vertical');
 
@@ -3044,48 +3029,22 @@
         // ============================================================
         window.addEventListener('resize', function() {
             detectarOrientacao();
-            // Também forçar atualização da empresa ao redimensionar
-            carregarDadosEmpresa();
         });
 
         window.addEventListener('orientationchange', function() {
-            setTimeout(function() {
-                detectarOrientacao();
-                carregarDadosEmpresa();
-            }, 300);
+            setTimeout(detectarOrientacao, 300);
         });
 
         document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(function() {
-                detectarOrientacao();
-                carregarDadosEmpresa();
-            }, 100);
-            
-            // Forçar atualização após 500ms
-            setTimeout(function() {
-                carregarDadosEmpresa();
-                detectarOrientacao();
-            }, 500);
-            
-            // Forçar atualização após 1.5s (para garantir que tudo carregou)
-            setTimeout(function() {
-                carregarDadosEmpresa();
-                detectarOrientacao();
-            }, 1500);
+            setTimeout(detectarOrientacao, 100);
         });
 
         // ============================================================
-        // VERIFICAÇÃO PERIÓDICA A CADA 1 SEGUNDO (FORÇADA)
+        // VERIFICAÇÃO PERIÓDICA A CADA 1 SEGUNDO (MAIS LEVE)
         // ============================================================
         let ultimaAtualizacao = Date.now();
 
         function verificarAtualizacoes() {
-            // FORÇAR CARREGAMENTO DOS DADOS DA EMPRESA A CADA 1 SEGUNDO
-            carregarDadosEmpresa();
-            
-            // Verificar orientação também
-            detectarOrientacao();
-
             if (!servicosListener) {
                 carregarDados();
                 return;
@@ -3099,19 +3058,18 @@
             if (todosServicos.length === 0) {
                 carregarDados();
             }
+            
+            // Verificar dados da empresa (sem piscar)
+            carregarDadosEmpresa();
+            detectarOrientacao();
         }
 
-        // Executar a cada 1 segundo (FORÇADO)
         setInterval(verificarAtualizacoes, 1000);
 
-        // Também quando a página ficar visível novamente
         document.addEventListener('visibilitychange', function() {
             if (!document.hidden) {
-                console.log('📱 Página reativada - Forçando atualização');
                 carregarDadosEmpresa();
                 detectarOrientacao();
-                
-                // Recarregar dados se necessário
                 if (todosServicos.length === 0) {
                     carregarDados();
                 } else {
@@ -3119,20 +3077,6 @@
                 }
             }
         });
-
-        // Forçar atualização após qualquer interação do usuário (clique, toque)
-        document.addEventListener('click', function() {
-            // Verificar se houve mudança na empresa (sem custo)
-            carregarDadosEmpresa();
-        });
-
-        document.addEventListener('touchstart', function() {
-            // Verificar se houve mudança na empresa (sem custo)
-            carregarDadosEmpresa();
-        });
-
-        console.log('✅ Sistema de atualização forçada ativado (a cada 1 segundo)');
-        console.log('✅ Nome da empresa e Logo serão atualizados automaticamente');
     </script>
 </body>
 </html>
