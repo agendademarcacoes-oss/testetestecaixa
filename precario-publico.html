@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt">
 <head>
@@ -1637,7 +1638,7 @@
 
     <script>
         // ============================================================
-        // CONFIGURAÇÃO DO FIREBASE
+        // CONFIGURAÇÃO DO FIREBASE (MESMA DO SISTEMA "MÃE")
         // ============================================================
         const firebaseConfig = {
             apiKey: "AIzaSyC5ezGCOS5d-Vy2l-Gimkl_V9VmwDLZzKc",
@@ -1663,8 +1664,79 @@
         let colaboradorFiltroId = null;
         let categoriaFiltroId = null;
 
-        const NUMERO_WHATSAPP = "351927431517";
+        // ============================================================
+        // NÚMERO DO WHATSAPP - VINCULADO AO PERFIL DA EMPRESA (SISTEMA MÃE)
+        // ============================================================
+        let numeroWhatsApp = "351927431517"; // Valor padrão (fallback)
 
+        // Função para carregar o número do WhatsApp do perfil da empresa
+        function carregarWhatsAppDaEmpresa() {
+            // Primeiro tenta carregar do localStorage (onde o sistema mae salva)
+            try {
+                const perfilSalvo = localStorage.getItem('businessProfile');
+                if (perfilSalvo) {
+                    const perfil = JSON.parse(perfilSalvo);
+                    if (perfil.whatsApp) {
+                        numeroWhatsApp = perfil.whatsApp.replace(/\D/g, '');
+                        console.log('📱 WhatsApp carregado do localStorage:', numeroWhatsApp);
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.log('Erro ao carregar WhatsApp do localStorage:', e);
+            }
+
+            // Se não encontrou no localStorage, tenta buscar do Firestore (coleção businessProfile)
+            if (typeof currentUser !== 'undefined' && currentUser) {
+                db.collection('businessProfile').doc(currentUser.uid).get()
+                    .then((doc) => {
+                        if (doc.exists) {
+                            const data = doc.data();
+                            if (data.whatsApp) {
+                                numeroWhatsApp = data.whatsApp.replace(/\D/g, '');
+                                console.log('📱 WhatsApp carregado do Firestore:', numeroWhatsApp);
+                                // Salvar no localStorage para cache
+                                try {
+                                    const perfil = JSON.parse(localStorage.getItem('businessProfile') || '{}');
+                                    perfil.whatsApp = data.whatsApp;
+                                    localStorage.setItem('businessProfile', JSON.stringify(perfil));
+                                } catch (e) {}
+                            }
+                        }
+                    })
+                    .catch((error) => {
+                        console.log('Erro ao buscar WhatsApp do Firestore:', error);
+                    });
+            }
+
+            // Escuta mudanças em tempo real no perfil da empresa
+            if (typeof currentUser !== 'undefined' && currentUser) {
+                db.collection('businessProfile').doc(currentUser.uid)
+                    .onSnapshot((doc) => {
+                        if (doc.exists) {
+                            const data = doc.data();
+                            if (data.whatsApp) {
+                                const novoNumero = data.whatsApp.replace(/\D/g, '');
+                                if (novoNumero !== numeroWhatsApp) {
+                                    numeroWhatsApp = novoNumero;
+                                    console.log('📱 WhatsApp atualizado em tempo real:', numeroWhatsApp);
+                                    try {
+                                        const perfil = JSON.parse(localStorage.getItem('businessProfile') || '{}');
+                                        perfil.whatsApp = data.whatsApp;
+                                        localStorage.setItem('businessProfile', JSON.stringify(perfil));
+                                    } catch (e) {}
+                                }
+                            }
+                        }
+                    }, (error) => {
+                        console.log('Erro no listener do WhatsApp:', error);
+                    });
+            }
+        }
+
+        // ============================================================
+        // CORES DAS CATEGORIAS (PARA O ÍCONE)
+        // ============================================================
         const coresCategorias = {
             'Cabelo': '#26196b',
             'Brushing': '#D4AF37',
@@ -1702,7 +1774,7 @@
         };
 
         // ============================================================
-        // CARREGAR DADOS DO FIREBASE
+        // CARREGAR DADOS DO FIREBASE (PÚBLICO - SEM AUTENTICAÇÃO)
         // ============================================================
         function carregarDados() {
             const container = document.getElementById('precarioContainer');
@@ -1713,6 +1785,10 @@
                 </div>
             `;
 
+            // Carregar WhatsApp da empresa
+            carregarWhatsAppDaEmpresa();
+
+            // Carregar categorias
             db.collection('categorias')
                 .get()
                 .then(snapshot => {
@@ -1733,6 +1809,7 @@
                     console.error('Erro ao carregar categorias:', error);
                 });
 
+            // Carregar colaboradores
             db.collection('collaborators')
                 .where('active', '==', true)
                 .get()
@@ -1744,7 +1821,7 @@
                             todosColaboradores.push({
                                 id: doc.id,
                                 ...data,
-                                nome: data.name
+                                nome: data.name // Normalização para compatibilidade
                             });
                         }
                     });
@@ -1755,6 +1832,7 @@
                     console.error('Erro ao carregar colaboradores:', error);
                 });
 
+            // Carregar serviços (com listener em tempo real)
             if (servicosListener) {
                 servicosListener();
             }
@@ -1766,6 +1844,7 @@
                     snapshot.forEach(doc => {
                         const data = doc.data();
                         
+                        // CORREÇÃO: Garantir que o precoTipo seja preservado do banco de dados
                         let precoTipo = data.precoTipo;
                         if (!precoTipo && data.tipoValor) {
                             precoTipo = data.tipoValor === 'desde' ? 'Partir' : 'Fixo';
@@ -2323,6 +2402,9 @@
             document.body.style.overflow = 'hidden';
         }
 
+        // ============================================================
+        // ENVIAR PARA WHATSAPP - USANDO O NÚMERO DO PERFIL DA EMPRESA
+        // ============================================================
         function enviarWhatsApp() {
             const nome = document.getElementById('inputNome').value.trim();
             const ddi = document.getElementById('inputDDI').value;
@@ -2339,6 +2421,9 @@
             
             const valorTotal = calcularValorTotal();
             const totalFormatado = valorTotal.total > 0 ? '€ ' + valorTotal.total.toFixed(2).replace('.', ',') : 'Consultar';
+            
+            // USAR O NÚMERO DO WHATSAPP DO PERFIL DA EMPRESA
+            const phone = numeroWhatsApp || '351927431517';
             
             let mensagem = '*🛎️ Solicitação de Agendamento - Studio DeVitto*%0A%0A';
             mensagem += `*👤 Qual seu nome:* ${nome}%0A`;
@@ -2363,7 +2448,7 @@
             document.getElementById('modalConfirmacao').classList.remove('active');
             document.body.style.overflow = '';
             
-            const url = `https://wa.me/${NUMERO_WHATSAPP}?text=${mensagem}`;
+            const url = `https://wa.me/${phone}?text=${mensagem}`;
             window.open(url, '_blank');
             
             setTimeout(() => {
@@ -2645,6 +2730,7 @@
         initBotaoWhatsapp();
 
         console.log('✅ Página pública do Preçário carregada!');
+        console.log('📱 WhatsApp vinculado ao perfil da empresa (sistema mae)');
         console.log('🔄 Badge de preço (Fixo/Desde) CORRIGIDO');
         console.log('🎨 Cards com bordinha lateral colorida pela categoria');
         console.log('🖱️ Mouse sobre o card: borda completa com a cor da categoria');
@@ -2670,6 +2756,9 @@
                 console.log('⚠️ Nenhum serviço carregado, recarregando...');
                 carregarDados();
             }
+            
+            // Atualizar WhatsApp periodicamente
+            carregarWhatsAppDaEmpresa();
         }
 
         setInterval(verificarAtualizacoes, 1000);
@@ -2677,6 +2766,7 @@
         document.addEventListener('visibilitychange', function() {
             if (!document.hidden) {
                 console.log('📱 Página reativada, verificando atualizações...');
+                carregarWhatsAppDaEmpresa();
                 if (todosServicos.length === 0) {
                     carregarDados();
                 } else {
