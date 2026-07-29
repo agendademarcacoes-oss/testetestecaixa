@@ -1431,7 +1431,6 @@
         
         /* ============================================================
            RESPONSIVO PARA MOBILE VERTICAL (RETRATO)
-           BADGES EM UMA ÚNICA LINHA - CORRIGIDO COM Z-INDEX ALTO
            ============================================================ */
         @media (max-width: 768px) and (orientation: portrait) {
             .filtros .badges-row {
@@ -1483,7 +1482,6 @@
                 position: relative !important;
             }
             
-            /* DROPDOWN CORRIGIDO - POSICIONADO CORRETAMENTE */
             .filtros .badge-dropdown {
                 position: absolute !important;
                 top: calc(100% + 4px) !important;
@@ -1524,7 +1522,6 @@
                 padding: 0 4px !important;
             }
             
-            /* GARANTIR QUE O DROPDOWN FIQUE VISÍVEL */
             .filtros .badge-filtro {
                 overflow: visible !important;
             }
@@ -1705,9 +1702,10 @@
 
     <!-- ===== HEADER ===== -->
     <header class="header" id="topo">
-        <div class="header-content">
-            <span class="logo-icon">✂️</span>
-            <h1>Preçário <span>Studio DeVitto</span></h1>
+        <div class="header-content" id="headerContent">
+            <!-- Logo e Nome da Empresa serão carregados dinamicamente -->
+            <span class="logo-icon" id="headerLogoIcon">✂️</span>
+            <h1>Preçário <span id="headerEmpresaNome">Studio DeVitto</span></h1>
             <p>Conheça nossos serviços, preços e horários. Agende sua visita!</p>
             <div class="badge-count">
                 <i class="fas fa-cut me-2"></i>
@@ -1727,7 +1725,6 @@
             </div>
             
             <div class="badges-row">
-                <!-- BADGE COLABORADOR -->
                 <div class="badge-filtro" id="badgeColaborador">
                     <i class="fas fa-user"></i>
                     <span id="badgeColaboradorLabel">Colaborador</span>
@@ -1735,22 +1732,18 @@
                     <i class="fas fa-chevron-down" style="font-size:10px; margin-left:2px;"></i>
                     
                     <div class="badge-dropdown" id="dropdownColaboradores">
-                        <!-- Itens gerados dinamicamente -->
                     </div>
                 </div>
                 
-                <!-- BADGE CATEGORIA -->
                 <div class="badge-filtro" id="badgeCategoria">
                     <i class="fas fa-tag"></i>
                     <span id="badgeCategoriaLabel">Categoria</span>
                     <i class="fas fa-chevron-down" style="font-size:10px; margin-left:2px;"></i>
                     
                     <div class="badge-dropdown" id="dropdownCategorias">
-                        <!-- Itens gerados dinamicamente -->
                     </div>
                 </div>
                 
-                <!-- BADGE ORDENAÇÃO -->
                 <div class="badge-filtro sort-badge" id="badgeOrdenacao">
                     <i class="fas fa-sort"></i>
                     <select id="ordenacaoFilter">
@@ -1784,7 +1777,7 @@
             <a href="#" title="WhatsApp"><i class="fab fa-whatsapp"></i></a>
             <a href="#" title="TikTok"><i class="fab fa-tiktok"></i></a>
         </div>
-        <p>&copy; 2026 Studio DeVitto · Todos os direitos reservados</p>
+        <p>&copy; 2026 <span id="footerEmpresaNome">Studio DeVitto</span> · Todos os direitos reservados</p>
         <p style="font-size: 0.75rem; margin-top: 4px;">Preços sujeitos a alteração. Consulte-nos para mais informações.</p>
     </footer>
 
@@ -1916,74 +1909,183 @@
         let categoriaFiltroId = null;
 
         // ============================================================
-        // NÚMERO DO WHATSAPP - VINCULADO AO PERFIL DA EMPRESA (SISTEMA MÃE)
+        // DADOS DA EMPRESA - VINCULADOS AO SISTEMA "MÃE"
         // ============================================================
-        let numeroWhatsApp = "351927431517"; // Valor padrão (fallback)
+        let dadosEmpresa = {
+            nome: "Studio DeVitto",
+            whatsApp: "351927431517",
+            logoUrl: null,
+            logoType: "scissors"
+        };
 
-        // Função para carregar o número do WhatsApp do perfil da empresa
-        function carregarWhatsAppDaEmpresa() {
-            // Primeiro tenta carregar do localStorage (onde o sistema mae salva)
+        // ============================================================
+        // FUNÇÃO PARA CARREGAR DADOS DA EMPRESA DO SISTEMA "MÃE"
+        // ============================================================
+        function carregarDadosDaEmpresa() {
+            // 1. Carregar do localStorage (cache rápido)
             try {
+                // Perfil da Empresa (businessProfile)
                 const perfilSalvo = localStorage.getItem('businessProfile');
                 if (perfilSalvo) {
                     const perfil = JSON.parse(perfilSalvo);
-                    if (perfil.whatsApp) {
-                        numeroWhatsApp = perfil.whatsApp.replace(/\D/g, '');
-                        console.log('📱 WhatsApp carregado do localStorage:', numeroWhatsApp);
-                        return;
-                    }
+                    if (perfil.name) dadosEmpresa.nome = perfil.name;
+                    if (perfil.whatsApp) dadosEmpresa.whatsApp = perfil.whatsApp.replace(/\D/g, '');
                 }
+                
+                // Configurações da Empresa (businessSettings - logo)
+                const settingsSalvo = localStorage.getItem('businessSettings');
+                if (settingsSalvo) {
+                    const settings = JSON.parse(settingsSalvo);
+                    if (settings.name) dadosEmpresa.nome = settings.name;
+                    if (settings.customLogo) dadosEmpresa.logoUrl = settings.customLogo;
+                    if (settings.logoType) dadosEmpresa.logoType = settings.logoType;
+                }
+                
+                atualizarInterfaceEmpresa();
+                console.log('📋 Dados da empresa carregados do localStorage:', dadosEmpresa.nome);
             } catch (e) {
-                console.log('Erro ao carregar WhatsApp do localStorage:', e);
+                console.log('Erro ao carregar dados da empresa do localStorage:', e);
             }
 
-            // Se não encontrou no localStorage, tenta buscar do Firestore (coleção businessProfile)
+            // 2. Buscar do Firestore (dados mais atualizados)
             if (typeof currentUser !== 'undefined' && currentUser) {
+                // Buscar businessProfile
                 db.collection('businessProfile').doc(currentUser.uid).get()
                     .then((doc) => {
                         if (doc.exists) {
                             const data = doc.data();
-                            if (data.whatsApp) {
-                                numeroWhatsApp = data.whatsApp.replace(/\D/g, '');
-                                console.log('📱 WhatsApp carregado do Firestore:', numeroWhatsApp);
-                                // Salvar no localStorage para cache
-                                try {
-                                    const perfil = JSON.parse(localStorage.getItem('businessProfile') || '{}');
-                                    perfil.whatsApp = data.whatsApp;
-                                    localStorage.setItem('businessProfile', JSON.stringify(perfil));
-                                } catch (e) {}
-                            }
+                            if (data.name) dadosEmpresa.nome = data.name;
+                            if (data.whatsApp) dadosEmpresa.whatsApp = data.whatsApp.replace(/\D/g, '');
+                            atualizarInterfaceEmpresa();
+                            // Salvar no localStorage
+                            try {
+                                const perfil = JSON.parse(localStorage.getItem('businessProfile') || '{}');
+                                perfil.name = data.name;
+                                perfil.whatsApp = data.whatsApp;
+                                localStorage.setItem('businessProfile', JSON.stringify(perfil));
+                            } catch (e) {}
                         }
                     })
-                    .catch((error) => {
-                        console.log('Erro ao buscar WhatsApp do Firestore:', error);
-                    });
-            }
+                    .catch((error) => console.log('Erro ao buscar businessProfile:', error));
 
-            // Escuta mudanças em tempo real no perfil da empresa
-            if (typeof currentUser !== 'undefined' && currentUser) {
+                // Buscar businessSettings (logo)
+                db.collection('businessSettings').doc(currentUser.uid).get()
+                    .then((doc) => {
+                        if (doc.exists) {
+                            const data = doc.data();
+                            if (data.name) dadosEmpresa.nome = data.name;
+                            if (data.customLogo) dadosEmpresa.logoUrl = data.customLogo;
+                            if (data.logoType) dadosEmpresa.logoType = data.logoType;
+                            atualizarInterfaceEmpresa();
+                            // Salvar no localStorage
+                            try {
+                                const settings = JSON.parse(localStorage.getItem('businessSettings') || '{}');
+                                settings.name = data.name;
+                                settings.customLogo = data.customLogo;
+                                settings.logoType = data.logoType;
+                                localStorage.setItem('businessSettings', JSON.stringify(settings));
+                            } catch (e) {}
+                        }
+                    })
+                    .catch((error) => console.log('Erro ao buscar businessSettings:', error));
+
+                // LISTENER EM TEMPO REAL - businessProfile
                 db.collection('businessProfile').doc(currentUser.uid)
                     .onSnapshot((doc) => {
                         if (doc.exists) {
                             const data = doc.data();
+                            let atualizado = false;
+                            if (data.name && data.name !== dadosEmpresa.nome) {
+                                dadosEmpresa.nome = data.name;
+                                atualizado = true;
+                            }
                             if (data.whatsApp) {
-                                const novoNumero = data.whatsApp.replace(/\D/g, '');
-                                if (novoNumero !== numeroWhatsApp) {
-                                    numeroWhatsApp = novoNumero;
-                                    console.log('📱 WhatsApp atualizado em tempo real:', numeroWhatsApp);
-                                    try {
-                                        const perfil = JSON.parse(localStorage.getItem('businessProfile') || '{}');
-                                        perfil.whatsApp = data.whatsApp;
-                                        localStorage.setItem('businessProfile', JSON.stringify(perfil));
-                                    } catch (e) {}
+                                const novoWhats = data.whatsApp.replace(/\D/g, '');
+                                if (novoWhats !== dadosEmpresa.whatsApp) {
+                                    dadosEmpresa.whatsApp = novoWhats;
+                                    atualizado = true;
                                 }
                             }
+                            if (atualizado) {
+                                atualizarInterfaceEmpresa();
+                                console.log('📱 Dados da empresa atualizados em tempo real (businessProfile)');
+                            }
                         }
-                    }, (error) => {
-                        console.log('Erro no listener do WhatsApp:', error);
-                    });
+                    }, (error) => console.log('Erro no listener businessProfile:', error));
+
+                // LISTENER EM TEMPO REAL - businessSettings (logo)
+                db.collection('businessSettings').doc(currentUser.uid)
+                    .onSnapshot((doc) => {
+                        if (doc.exists) {
+                            const data = doc.data();
+                            let atualizado = false;
+                            if (data.name && data.name !== dadosEmpresa.nome) {
+                                dadosEmpresa.nome = data.name;
+                                atualizado = true;
+                            }
+                            if (data.customLogo && data.customLogo !== dadosEmpresa.logoUrl) {
+                                dadosEmpresa.logoUrl = data.customLogo;
+                                atualizado = true;
+                            }
+                            if (data.logoType && data.logoType !== dadosEmpresa.logoType) {
+                                dadosEmpresa.logoType = data.logoType;
+                                atualizado = true;
+                            }
+                            if (atualizado) {
+                                atualizarInterfaceEmpresa();
+                                console.log('📱 Dados da empresa atualizados em tempo real (businessSettings)');
+                            }
+                        }
+                    }, (error) => console.log('Erro no listener businessSettings:', error));
             }
         }
+
+        // ============================================================
+        // FUNÇÃO PARA ATUALIZAR A INTERFACE COM OS DADOS DA EMPRESA
+        // ============================================================
+        function atualizarInterfaceEmpresa() {
+            // Atualizar título da página
+            document.title = `Preçário · ${dadosEmpresa.nome}`;
+            
+            // Atualizar header
+            const nomeSpan = document.getElementById('headerEmpresaNome');
+            if (nomeSpan) nomeSpan.textContent = dadosEmpresa.nome;
+            
+            // Atualizar footer
+            const footerNome = document.getElementById('footerEmpresaNome');
+            if (footerNome) footerNome.textContent = dadosEmpresa.nome;
+            
+            // Atualizar logo no header
+            const logoIcon = document.getElementById('headerLogoIcon');
+            if (logoIcon) {
+                if (dadosEmpresa.logoUrl) {
+                    // Se tem logo personalizada, substituir o ícone por imagem
+                    logoIcon.innerHTML = `<img src="${dadosEmpresa.logoUrl}" alt="${dadosEmpresa.nome}" style="height:48px; width:auto; max-width:100px; object-fit:contain; display:inline-block;">`;
+                    logoIcon.style.fontSize = '0';
+                } else {
+                    // Usar ícone baseado no tipo
+                    logoIcon.style.fontSize = '48px';
+                    const icons = {
+                        'scissors': '✂️',
+                        'store': '🏪',
+                        'spa': '🧖',
+                        'salon': '💇',
+                        'barber': '💈'
+                    };
+                    logoIcon.textContent = icons[dadosEmpresa.logoType] || '✂️';
+                }
+            }
+
+            // Atualizar o número do WhatsApp em todas as funções
+            numeroWhatsApp = dadosEmpresa.whatsApp || '351927431517';
+            
+            console.log('✅ Interface da empresa atualizada:', dadosEmpresa.nome);
+        }
+
+        // ============================================================
+        // NÚMERO DO WHATSAPP - VINCULADO AO PERFIL DA EMPRESA
+        // ============================================================
+        let numeroWhatsApp = "351927431517";
 
         // ============================================================
         // CORES DAS CATEGORIAS (PARA O ÍCONE)
@@ -2036,8 +2138,8 @@
                 </div>
             `;
 
-            // Carregar WhatsApp da empresa
-            carregarWhatsAppDaEmpresa();
+            // Carregar dados da empresa (vinculado ao sistema mãe)
+            carregarDadosDaEmpresa();
 
             // Carregar categorias
             db.collection('categorias')
@@ -2072,7 +2174,7 @@
                             todosColaboradores.push({
                                 id: doc.id,
                                 ...data,
-                                nome: data.name // Normalização para compatibilidade
+                                nome: data.name
                             });
                         }
                     });
@@ -2095,7 +2197,6 @@
                     snapshot.forEach(doc => {
                         const data = doc.data();
                         
-                        // CORREÇÃO: Garantir que o precoTipo seja preservado do banco de dados
                         let precoTipo = data.precoTipo;
                         if (!precoTipo && data.tipoValor) {
                             precoTipo = data.tipoValor === 'desde' ? 'Partir' : 'Fixo';
@@ -2132,7 +2233,7 @@
         }
 
         // ============================================================
-        // ATUALIZAR DROPDOWNS - FUNCIONALIDADE RESTAURADA
+        // ATUALIZAR DROPDOWNS
         // ============================================================
         function atualizarDropdownColaboradores() {
             const dropdown = document.getElementById('dropdownColaboradores');
@@ -2259,12 +2360,11 @@
         }
 
         // ============================================================
-        // TOGGLE DROPDOWNS - COM Z-INDEX CORRIGIDO
+        // TOGGLE DROPDOWNS
         // ============================================================
         document.getElementById('badgeColaborador').addEventListener('click', function(e) {
             e.stopPropagation();
             const dropdown = document.getElementById('dropdownColaboradores');
-            // Fechar outros dropdowns
             document.querySelectorAll('.badge-dropdown').forEach(d => {
                 if (d !== dropdown) d.classList.remove('open');
             });
@@ -2280,7 +2380,6 @@
             dropdown.classList.toggle('open');
         });
 
-        // Fechar dropdowns ao clicar fora
         document.addEventListener('click', function(e) {
             document.querySelectorAll('.badge-dropdown').forEach(d => {
                 if (!d.closest('.badge-filtro') || !d.contains(e.target)) {
@@ -2490,7 +2589,7 @@
         }
 
         // ============================================================
-        // FUNÇÕES PARA BORDA COMPLETA NO MOUSE - CORRIGIDAS
+        // FUNÇÕES PARA BORDA COMPLETA NO MOUSE
         // ============================================================
         function aplicarBordaCompleta(elemento, cor) {
             if (!elemento) return;
@@ -2660,7 +2759,10 @@
             
             const phone = numeroWhatsApp || '351927431517';
             
-            let mensagem = '*🛎️ Solicitação de Agendamento - Studio DeVitto*%0A%0A';
+            // Usar o nome da empresa nos placeholders
+            const nomeEmpresa = dadosEmpresa.nome || 'Studio DeVitto';
+            
+            let mensagem = `*🛎️ Solicitação de Agendamento - ${nomeEmpresa}*%0A%0A`;
             mensagem += `*👤 Qual seu nome:* ${nome}%0A`;
             mensagem += `*📱 Qual seu número de contacto:* ${ddi} ${telefone}%0A%0A`;
             mensagem += '*📋 Serviços solicitados:*%0A';
@@ -2678,7 +2780,7 @@
             
             mensagem += `*📅 Data pretendida:* ${dataFormatada}%0A`;
             mensagem += `*🕐 Hora pretendida:* ${hora}%0A%0A`;
-            mensagem += `_Aguardando confirmação do Studio DeVitto._`;
+            mensagem += `_Aguardando confirmação do ${nomeEmpresa}._`;
             
             document.getElementById('modalConfirmacao').classList.remove('active');
             document.body.style.overflow = '';
@@ -2901,9 +3003,9 @@
         // ============================================================
         function registerPWA() {
             const manifest = {
-                name: "Preçário Studio DeVitto",
-                short_name: "DeVitto Preçário",
-                description: "Preçário completo do Studio DeVitto",
+                name: `Preçário ${dadosEmpresa.nome}`,
+                short_name: `${dadosEmpresa.nome}`,
+                description: `Preçário completo do ${dadosEmpresa.nome}`,
                 start_url: window.location.href.split('?')[0],
                 display: "standalone",
                 background_color: "#f5f2f0",
@@ -2965,11 +3067,9 @@
         initBotaoWhatsapp();
 
         console.log('✅ Página pública do Preçário carregada!');
-        console.log('📱 WhatsApp vinculado ao perfil da empresa (sistema mae)');
+        console.log('📱 Nome e WhatsApp vinculados ao perfil da empresa (sistema mae)');
         console.log('🔄 Badge de preço (Fixo/Desde) CORRIGIDO');
         console.log('🎨 Cards com bordinha lateral colorida pela categoria');
-        console.log('🖱️ Mouse sobre o card: borda completa com a cor da categoria');
-        console.log('🔄 Mouse sai: borda lateral esquerda volta à cor original da categoria');
         console.log('📱 Layout responsivo: Badges em uma única linha no mobile vertical');
         console.log('📱 Dropdowns de colaborador e categoria funcionando corretamente');
 
@@ -2993,7 +3093,7 @@
                 carregarDados();
             }
             
-            carregarWhatsAppDaEmpresa();
+            carregarDadosDaEmpresa();
         }
 
         setInterval(verificarAtualizacoes, 1000);
@@ -3001,7 +3101,7 @@
         document.addEventListener('visibilitychange', function() {
             if (!document.hidden) {
                 console.log('📱 Página reativada, verificando atualizações...');
-                carregarWhatsAppDaEmpresa();
+                carregarDadosDaEmpresa();
                 if (todosServicos.length === 0) {
                     carregarDados();
                 } else {
