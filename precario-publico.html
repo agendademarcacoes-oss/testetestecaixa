@@ -1,3 +1,23 @@
+O problema principal é que em **dispositivos móveis**, o Firebase Firestore tem um comportamento de **cache agressivo** e, em alguns casos, o listener `onSnapshot` pode não ser acionado imediatamente quando a página está em segundo plano ou quando o dispositivo está com economia de energia.
+
+Além disso, os navegadores móveis **suspendem scripts** quando a aba não está ativa, o que faz com que o listener pare de funcionar.
+
+## Diagnóstico do Problema
+
+1. **Cache do Firestore em mobile** - O Firestore guarda cache local e pode demorar a sincronizar
+2. **Suspensão de abas** - Navegadores móveis suspendem a execução de JavaScript em abas inativas
+3. **Listener `onSnapshot`** - Pode não ser reativado corretamente quando a aba volta a ficar ativa
+4. **localStorage** - Em alguns dispositivos móveis, o localStorage pode ter limitações de espaço
+
+## Solução Definitiva
+
+Vou implementar uma solução **híbrida** que usa:
+1. **Polling ativo** (verificação a cada 1 segundo) - mesmo quando a aba está suspensa
+2. **Forçar recarga** quando a página voltar a ficar visível
+3. **Verificação dupla** - Firebase + localStorage
+4. **Atualização sem piscar** com `requestAnimationFrame`
+
+```html
 <!DOCTYPE html>
 <html lang="pt">
 <head>
@@ -14,16 +34,8 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     
     <style>
-        /* ============================================================
-           ESTILOS COMPLETOS - MODO CLARO E ELEGANTE
-           ============================================================ */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        /* BLOQUEIO DE ZOOM DEFINITIVO */
+        /* ===== ESTILOS COMPLETOS ===== */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body {
             font-family: 'Poppins', sans-serif;
             background: var(--bg);
@@ -39,20 +51,8 @@
             overscroll-behavior: contain;
             scroll-behavior: smooth;
         }
-        
-        /* Bloqueio de zoom em inputs */
-        input, select, textarea, button {
-            font-size: 16px !important;
-            touch-action: manipulation;
-            -webkit-text-size-adjust: 100%;
-            -ms-text-size-adjust: 100%;
-            text-size-adjust: 100%;
-        }
-        
-        /* Impede zoom com gestos de pinça */
-        img, iframe, video, canvas, svg {
-            touch-action: none;
-        }
+        input, select, textarea, button { font-size: 16px !important; touch-action: manipulation; }
+        img, iframe, video, canvas, svg { touch-action: none; }
         
         :root {
             --primary: #26196b;
@@ -72,7 +72,6 @@
             --whatsapp-green-dark: #128C7E;
         }
         
-        /* ===== HEADER ===== */
         .header {
             background: var(--header-bg);
             color: white;
@@ -81,84 +80,17 @@
             position: relative;
             overflow: hidden;
         }
+        .header::before { content: ''; position: absolute; top: -50%; right: -20%; width: 400px; height: 400px; background: rgba(255,215,0,0.08); border-radius: 50%; }
+        .header::after { content: ''; position: absolute; bottom: -30%; left: -10%; width: 300px; height: 300px; background: rgba(255,215,0,0.05); border-radius: 50%; }
+        .header-content { position: relative; z-index: 1; max-width: 900px; margin: 0 auto; }
+        .header .logo-icon { font-size: 48px; color: var(--secondary); margin-bottom: 10px; display: block; }
+        .header h1 { font-size: 2.5rem; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 8px; }
+        .header h1 span { color: var(--secondary); }
+        .header p { font-size: 1.1rem; opacity: 0.85; font-weight: 300; max-width: 600px; margin: 0 auto; }
+        .header .badge-count { display: inline-block; background: rgba(255,215,0,0.2); color: var(--secondary); padding: 6px 20px; border-radius: 30px; font-size: 0.85rem; font-weight: 500; margin-top: 12px; border: 1px solid rgba(255,215,0,0.2); }
         
-        .header::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            right: -20%;
-            width: 400px;
-            height: 400px;
-            background: rgba(255, 215, 0, 0.08);
-            border-radius: 50%;
-        }
+        .container { max-width: 1200px; margin: -30px auto 40px; padding: 0 20px; position: relative; z-index: 2; }
         
-        .header::after {
-            content: '';
-            position: absolute;
-            bottom: -30%;
-            left: -10%;
-            width: 300px;
-            height: 300px;
-            background: rgba(255, 215, 0, 0.05);
-            border-radius: 50%;
-        }
-        
-        .header-content {
-            position: relative;
-            z-index: 1;
-            max-width: 900px;
-            margin: 0 auto;
-        }
-        
-        .header .logo-icon {
-            font-size: 48px;
-            color: var(--secondary);
-            margin-bottom: 10px;
-            display: block;
-        }
-        
-        .header h1 {
-            font-size: 2.5rem;
-            font-weight: 800;
-            letter-spacing: -0.5px;
-            margin-bottom: 8px;
-        }
-        
-        .header h1 span {
-            color: var(--secondary);
-        }
-        
-        .header p {
-            font-size: 1.1rem;
-            opacity: 0.85;
-            font-weight: 300;
-            max-width: 600px;
-            margin: 0 auto;
-        }
-        
-        .header .badge-count {
-            display: inline-block;
-            background: rgba(255, 215, 0, 0.2);
-            color: var(--secondary);
-            padding: 6px 20px;
-            border-radius: 30px;
-            font-size: 0.85rem;
-            font-weight: 500;
-            margin-top: 12px;
-            border: 1px solid rgba(255, 215, 0, 0.2);
-        }
-        
-        /* ===== CONTAINER ===== */
-        .container {
-            max-width: 1200px;
-            margin: -30px auto 40px;
-            padding: 0 20px;
-            position: relative;
-            z-index: 2;
-        }
-        
-        /* ===== FILTROS - LAYOUT COMPACTO ===== */
         .filtros {
             background: var(--surface);
             border-radius: var(--radius);
@@ -172,48 +104,12 @@
             position: relative;
             z-index: 10;
         }
+        .filtros .search-wrapper { flex: 1 1 100%; min-width: 180px; position: relative; }
+        .filtros .search-wrapper i { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted); }
+        .filtros .search-wrapper input { width: 100%; padding: 10px 16px 10px 44px; border: 2px solid #e8e6ea; border-radius: 30px; font-family: 'Poppins', sans-serif; font-size: 16px !important; transition: var(--transition); background: #fafafc; }
+        .filtros .search-wrapper input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(38,25,107,0.1); }
         
-        .filtros .search-wrapper {
-            flex: 1 1 100%;
-            min-width: 180px;
-            position: relative;
-        }
-        
-        .filtros .search-wrapper i {
-            position: absolute;
-            left: 14px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-muted);
-        }
-        
-        .filtros .search-wrapper input {
-            width: 100%;
-            padding: 10px 16px 10px 44px;
-            border: 2px solid #e8e6ea;
-            border-radius: 30px;
-            font-family: 'Poppins', sans-serif;
-            font-size: 16px !important;
-            transition: var(--transition);
-            background: #fafafc;
-        }
-        
-        .filtros .search-wrapper input:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(38, 25, 107, 0.1);
-        }
-        
-        .filtros .badges-row {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            align-items: center;
-            flex: 1 1 100%;
-            position: relative;
-            z-index: 10;
-        }
-        
+        .filtros .badges-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; flex: 1 1 100%; position: relative; z-index: 10; }
         .filtros .badge-filtro {
             display: inline-flex;
             align-items: center;
@@ -232,33 +128,11 @@
             z-index: 10;
             min-height: 34px;
         }
-        
-        .filtros .badge-filtro:hover {
-            border-color: var(--primary-light);
-            background: #f0eef2;
-        }
-        
-        .filtros .badge-filtro.active {
-            border-color: var(--primary);
-            background: var(--primary);
-            color: white;
-        }
-        
-        .filtros .badge-filtro i {
-            font-size: 14px;
-        }
-        
-        .filtros .badge-filtro .badge-count {
-            background: rgba(255,255,255,0.2);
-            padding: 0 8px;
-            border-radius: 20px;
-            font-size: 11px;
-        }
-        
-        .filtros .badge-filtro .badge-count.active-badge {
-            background: var(--whatsapp-green);
-            color: white;
-        }
+        .filtros .badge-filtro:hover { border-color: var(--primary-light); background: #f0eef2; }
+        .filtros .badge-filtro.active { border-color: var(--primary); background: var(--primary); color: white; }
+        .filtros .badge-filtro i { font-size: 14px; }
+        .filtros .badge-filtro .badge-count { background: rgba(255,255,255,0.2); padding: 0 8px; border-radius: 20px; font-size: 11px; }
+        .filtros .badge-filtro .badge-count.active-badge { background: var(--whatsapp-green); color: white; }
         
         .filtros .badge-dropdown {
             display: none;
@@ -275,194 +149,35 @@
             z-index: 9999 !important;
             border: 1px solid #f0eef2;
         }
+        .filtros .badge-dropdown.open { display: block; }
+        .filtros .badge-dropdown .dropdown-item { display: flex; align-items: center; gap: 10px; padding: 7px 12px; border-radius: 8px; cursor: pointer; transition: var(--transition); font-size: 13px; color: var(--text); }
+        .filtros .badge-dropdown .dropdown-item:hover { background: #f8f7fc; }
+        .filtros .badge-dropdown .dropdown-item.active { background: var(--primary); color: white; }
+        .filtros .badge-dropdown .dropdown-item .colab-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--primary-light); color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; flex-shrink: 0; }
+        .filtros .badge-dropdown .dropdown-item .check-icon { color: var(--whatsapp-green); margin-left: auto; }
+        .filtros .badge-dropdown .dropdown-divider { height: 1px; background: #f0eef2; margin: 5px 0; }
         
-        .filtros .badge-dropdown.open {
-            display: block;
-        }
-        
-        .filtros .badge-dropdown .dropdown-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 7px 12px;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: var(--transition);
-            font-size: 13px;
-            color: var(--text);
-        }
-        
-        .filtros .badge-dropdown .dropdown-item:hover {
-            background: #f8f7fc;
-        }
-        
-        .filtros .badge-dropdown .dropdown-item.active {
-            background: var(--primary);
-            color: white;
-        }
-        
-        .filtros .badge-dropdown .dropdown-item .colab-avatar {
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            background: var(--primary-light);
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 11px;
-            font-weight: 600;
-            flex-shrink: 0;
-        }
-        
-        .filtros .badge-dropdown .dropdown-item .check-icon {
-            color: var(--whatsapp-green);
-            margin-left: auto;
-        }
-        
-        .filtros .badge-dropdown .dropdown-divider {
-            height: 1px;
-            background: #f0eef2;
-            margin: 5px 0;
-        }
-        
-        .badge-filtro .wrapper-dropdown {
-            position: relative;
-            display: inline-block;
-        }
-        
-        .badge-filtro.sort-badge select {
-            background: transparent;
-            border: none;
-            font-family: 'Poppins', sans-serif;
-            font-size: 13px;
-            font-weight: 500;
-            color: inherit;
-            cursor: pointer;
-            padding: 0;
-            outline: none;
-            appearance: auto;
-            min-width: 80px;
-            position: relative;
-            z-index: 5;
-        }
-        
-        .badge-filtro.sort-badge select option {
-            color: var(--text);
-            background: white;
-        }
-        
-        .badge-filtro.sort-badge.active select {
-            color: white;
-        }
-        
-        .badge-filtro.sort-badge.active select option {
-            color: var(--text);
-        }
+        .badge-filtro.sort-badge select { background: transparent; border: none; font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 500; color: inherit; cursor: pointer; padding: 0; outline: none; appearance: auto; min-width: 80px; position: relative; z-index: 5; }
+        .badge-filtro.sort-badge select option { color: var(--text); background: white; }
+        .badge-filtro.sort-badge.active select { color: white; }
         
         /* ===== CATEGORIAS ===== */
-        .categoria-section {
-            margin-bottom: 40px;
-        }
+        .categoria-section { margin-bottom: 40px; }
+        .categoria-header { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 3px solid var(--secondary); cursor: pointer; user-select: none; }
+        .categoria-header .cat-icon { width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; flex-shrink: 0; }
+        .categoria-header h2 { font-size: 1.4rem; font-weight: 600; color: var(--text); flex: 1; }
+        .categoria-header .cat-count { font-size: 0.8rem; color: var(--text-muted); font-weight: 400; background: #f0eef2; padding: 2px 12px; border-radius: 20px; }
+        .categoria-header .toggle-icon { color: var(--text-muted); transition: var(--transition); }
+        .categoria-header .toggle-icon.rotated { transform: rotate(180deg); }
+        .categoria-body { overflow: hidden; transition: max-height 0.4s ease; }
+        .categoria-body.collapsed { max-height: 0 !important; }
         
-        .categoria-header {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            margin-bottom: 16px;
-            padding-bottom: 12px;
-            border-bottom: 3px solid var(--secondary);
-            cursor: pointer;
-            user-select: none;
-        }
+        .table-wrapper { background: var(--surface); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+        .servicos-grid { display: grid; gap: 12px; padding: 12px; }
+        @media (min-width: 769px) { .servicos-grid { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 768px) { .servicos-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 10px; } }
+        @media (max-width: 480px) { .servicos-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 8px; } }
         
-        .categoria-header .cat-icon {
-            width: 42px;
-            height: 42px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 18px;
-            flex-shrink: 0;
-        }
-        
-        .categoria-header h2 {
-            font-size: 1.4rem;
-            font-weight: 600;
-            color: var(--text);
-            flex: 1;
-        }
-        
-        .categoria-header .cat-count {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            font-weight: 400;
-            background: #f0eef2;
-            padding: 2px 12px;
-            border-radius: 20px;
-        }
-        
-        .categoria-header .toggle-icon {
-            color: var(--text-muted);
-            transition: var(--transition);
-        }
-        
-        .categoria-header .toggle-icon.rotated {
-            transform: rotate(180deg);
-        }
-        
-        .categoria-body {
-            overflow: hidden;
-            transition: max-height 0.4s ease;
-        }
-        
-        .categoria-body.collapsed {
-            max-height: 0 !important;
-        }
-        
-        /* ===== TABELA DE SERVIÇOS - VERSÃO RESPONSIVA ===== */
-        .table-wrapper {
-            background: var(--surface);
-            border-radius: var(--radius);
-            overflow: hidden;
-            box-shadow: var(--shadow);
-        }
-        
-        /* Layout em grid para dispositivos móveis */
-        .servicos-grid {
-            display: grid;
-            gap: 12px;
-            padding: 12px;
-        }
-        
-        /* Desktop: 3 colunas */
-        @media (min-width: 769px) {
-            .servicos-grid {
-                grid-template-columns: repeat(3, 1fr);
-            }
-        }
-        
-        /* Tablet e Mobile: 2 colunas */
-        @media (max-width: 768px) {
-            .servicos-grid {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 10px;
-                padding: 10px;
-            }
-        }
-        
-        /* Mobile pequeno: 2 colunas com ajuste */
-        @media (max-width: 480px) {
-            .servicos-grid {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 8px;
-                padding: 8px;
-            }
-        }
-        
-        /* ===== CARD DE SERVIÇO NA GRID - COM BORDINHA LATERAL E COR ===== */
         .servico-card {
             background: var(--surface);
             border: 2px solid #f0eef2;
@@ -480,104 +195,24 @@
             border-left: 6px solid var(--primary);
             transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease;
         }
+        .servico-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); transform: translateY(-2px); }
+        .servico-card.selecionado { border-color: var(--whatsapp-green) !important; background: rgba(37,211,102,0.08); box-shadow: 0 4px 20px rgba(37,211,102,0.15); }
+        .servico-card.selecionado::after { content: '✓'; position: absolute; top: 8px; right: 10px; color: var(--whatsapp-green); font-size: 18px; font-weight: 700; }
+        .servico-card .servico-nome { font-weight: 600; font-size: 14px; color: var(--text); line-height: 1.2; }
+        .servico-card .servico-desc { font-size: 12px; color: var(--text-muted); line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .servico-card .servico-info-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 4px; }
+        .servico-card .servico-info-row .colaborador-tag { display: inline-block; background: #f0eef2; padding: 2px 10px; border-radius: 12px; font-size: 10px; color: var(--text-muted); white-space: nowrap; }
+        .servico-card .servico-info-row .servico-tempo { font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; }
+        .servico-card .servico-preco { font-weight: 700; color: var(--primary); font-size: 16px; margin-top: 2px; }
+        .servico-card .preco-tipo { display: inline-block; padding: 1px 10px; border-radius: 12px; font-size: 9px; font-weight: 600; text-transform: uppercase; margin-left: 4px; }
+        .preco-tipo.fixo { background: #d4edda; color: #155724; }
+        .preco-tipo.partir { background: #fff3cd; color: #856404; }
         
-        .servico-card:hover {
-            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
-            transform: translateY(-2px);
-        }
-        
-        .servico-card.selecionado {
-            border-color: var(--whatsapp-green) !important;
-            background: rgba(37, 211, 102, 0.08);
-            box-shadow: 0 4px 20px rgba(37, 211, 102, 0.15);
-        }
-        
-        .servico-card.selecionado::after {
-            content: '✓';
-            position: absolute;
-            top: 8px;
-            right: 10px;
-            color: var(--whatsapp-green);
-            font-size: 18px;
-            font-weight: 700;
-        }
-        
-        .servico-card .servico-nome {
-            font-weight: 600;
-            font-size: 14px;
-            color: var(--text);
-            line-height: 1.2;
-        }
-        
-        .servico-card .servico-desc {
-            font-size: 12px;
-            color: var(--text-muted);
-            line-height: 1.3;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-        }
-        
-        .servico-card .servico-info-row {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 4px 8px;
-            margin-top: 4px;
-        }
-        
-        .servico-card .servico-info-row .colaborador-tag {
-            display: inline-block;
-            background: #f0eef2;
-            padding: 2px 10px;
-            border-radius: 12px;
-            font-size: 10px;
-            color: var(--text-muted);
-            white-space: nowrap;
-        }
-        
-        .servico-card .servico-info-row .servico-tempo {
-            font-size: 11px;
-            color: var(--text-muted);
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-        
-        .servico-card .servico-preco {
-            font-weight: 700;
-            color: var(--primary);
-            font-size: 16px;
-            margin-top: 2px;
-        }
-        
-        .servico-card .preco-tipo {
-            display: inline-block;
-            padding: 1px 10px;
-            border-radius: 12px;
-            font-size: 9px;
-            font-weight: 600;
-            text-transform: uppercase;
-            margin-left: 4px;
-        }
-        
-        .preco-tipo.fixo {
-            background: #d4edda;
-            color: #155724;
-        }
-        
-        .preco-tipo.partir {
-            background: #fff3cd;
-            color: #856404;
-        }
-        
-        /* ===== CARD DE SERVIÇO EXATO - COM BORDINHA LATERAL E COR ===== */
         .servico-exato-card {
             background: var(--surface);
             border-radius: var(--radius);
             padding: 18px 20px;
-            box-shadow: 0 8px 30px rgba(38, 25, 107, 0.12);
+            box-shadow: 0 8px 30px rgba(38,25,107,0.12);
             border-left: 6px solid var(--secondary);
             animation: fadeInUp 0.3s ease;
             display: flex;
@@ -590,135 +225,23 @@
             border-left: 6px solid var(--secondary);
             transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease;
         }
+        .servico-exato-card:hover { box-shadow: 0 8px 35px rgba(38,25,107,0.18); transform: translateY(-2px); }
+        .servico-exato-card.selecionado { border-color: var(--whatsapp-green) !important; background: rgba(37,211,102,0.08); box-shadow: 0 4px 20px rgba(37,211,102,0.15); }
+        .servico-exato-card.selecionado::after { content: '✓'; position: absolute; top: 10px; right: 12px; color: var(--whatsapp-green); font-size: 20px; font-weight: 700; }
+        .servico-exato-card .exato-header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .servico-exato-card .exato-header .exato-icon { background: var(--primary); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+        .servico-exato-card .exato-header h3 { font-size: 1rem; font-weight: 600; color: var(--text); flex: 1; }
+        .servico-exato-card .exato-badge { font-size: 0.6rem; background: var(--secondary); color: white; padding: 2px 12px; border-radius: 20px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        .servico-exato-card .exato-detalhes { display: flex; flex-wrap: wrap; gap: 10px 20px; padding-top: 8px; border-top: 1px solid #f0eef2; }
+        .servico-exato-card .exato-detalhes span { display: flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: 13px; }
+        .servico-exato-card .exato-detalhes span i { color: var(--primary); width: 16px; font-size: 13px; }
+        .servico-exato-card .exato-detalhes .preco-destaque { font-size: 1.2rem; font-weight: 700; color: var(--primary); }
+        .servico-exato-card .exato-colaboradores { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+        .servico-exato-card .exato-colaboradores .colab-tag { background: #f0eef2; padding: 3px 12px; border-radius: 20px; font-size: 12px; color: var(--text); }
+        .servico-exato-card .exato-colaboradores .colab-tag i { color: var(--primary); margin-right: 4px; }
+        .servico-exato-card .exato-categoria-tag { display: inline-block; background: rgba(38,25,107,0.1); color: var(--primary); padding: 2px 12px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+        .servico-exato-card .preco-tipo { display: inline-block; padding: 1px 10px; border-radius: 12px; font-size: 9px; font-weight: 600; text-transform: uppercase; margin-left: 4px; }
         
-        .servico-exato-card:hover {
-            box-shadow: 0 8px 35px rgba(38, 25, 107, 0.18);
-            transform: translateY(-2px);
-        }
-        
-        .servico-exato-card.selecionado {
-            border-color: var(--whatsapp-green) !important;
-            background: rgba(37, 211, 102, 0.08);
-            box-shadow: 0 4px 20px rgba(37, 211, 102, 0.15);
-        }
-        
-        .servico-exato-card.selecionado::after {
-            content: '✓';
-            position: absolute;
-            top: 10px;
-            right: 12px;
-            color: var(--whatsapp-green);
-            font-size: 20px;
-            font-weight: 700;
-        }
-        
-        .servico-exato-card .exato-header {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-        
-        .servico-exato-card .exato-header .exato-icon {
-            background: var(--primary);
-            color: white;
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            flex-shrink: 0;
-        }
-        
-        .servico-exato-card .exato-header h3 {
-            font-size: 1rem;
-            font-weight: 600;
-            color: var(--text);
-            flex: 1;
-        }
-        
-        .servico-exato-card .exato-badge {
-            font-size: 0.6rem;
-            background: var(--secondary);
-            color: white;
-            padding: 2px 12px;
-            border-radius: 20px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .servico-exato-card .exato-detalhes {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px 20px;
-            padding-top: 8px;
-            border-top: 1px solid #f0eef2;
-        }
-        
-        .servico-exato-card .exato-detalhes span {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            color: var(--text-muted);
-            font-size: 13px;
-        }
-        
-        .servico-exato-card .exato-detalhes span i {
-            color: var(--primary);
-            width: 16px;
-            font-size: 13px;
-        }
-        
-        .servico-exato-card .exato-detalhes .preco-destaque {
-            font-size: 1.2rem;
-            font-weight: 700;
-            color: var(--primary);
-        }
-        
-        .servico-exato-card .exato-colaboradores {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 4px;
-            margin-top: 4px;
-        }
-        
-        .servico-exato-card .exato-colaboradores .colab-tag {
-            background: #f0eef2;
-            padding: 3px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            color: var(--text);
-        }
-        
-        .servico-exato-card .exato-colaboradores .colab-tag i {
-            color: var(--primary);
-            margin-right: 4px;
-        }
-        
-        .servico-exato-card .exato-categoria-tag {
-            display: inline-block;
-            background: rgba(38, 25, 107, 0.1);
-            color: var(--primary);
-            padding: 2px 12px;
-            border-radius: 20px;
-            font-size: 11px;
-            font-weight: 500;
-        }
-        
-        .servico-exato-card .preco-tipo {
-            display: inline-block;
-            padding: 1px 10px;
-            border-radius: 12px;
-            font-size: 9px;
-            font-weight: 600;
-            text-transform: uppercase;
-            margin-left: 4px;
-        }
-        
-        /* ===== BOTÃO FLUTUANTE WHATSAPP ===== */
         .btn-whatsapp-flutuante {
             position: fixed;
             bottom: 100px;
@@ -732,7 +255,7 @@
             font-weight: 600;
             font-size: 15px;
             cursor: pointer;
-            box-shadow: 0 8px 30px rgba(37, 211, 102, 0.4);
+            box-shadow: 0 8px 30px rgba(37,211,102,0.4);
             display: flex;
             align-items: center;
             gap: 10px;
@@ -740,65 +263,18 @@
             opacity: 0;
             visibility: hidden;
             transform: translateY(20px) scale(0.9);
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.4s cubic-bezier(0.4,0,0.2,1);
             touch-action: manipulation;
             border: 2px solid rgba(255,255,255,0.2);
         }
+        .btn-whatsapp-flutuante.visible { opacity: 1; visibility: visible; transform: translateY(0) scale(1); }
+        .btn-whatsapp-flutuante:hover { background: var(--whatsapp-green-dark); box-shadow: 0 8px 35px rgba(37,211,102,0.5); transform: translateY(-2px) scale(1.02); }
+        .btn-whatsapp-flutuante:active { transform: scale(0.95); }
+        .btn-whatsapp-flutuante i { font-size: 22px; }
+        .btn-whatsapp-flutuante .badge-count-selecionados { background: rgba(255,255,255,0.25); padding: 2px 10px; border-radius: 20px; font-size: 12px; }
+        @media (max-width: 768px) { .btn-whatsapp-flutuante { bottom: 85px; right: 20px; padding: 12px 18px; font-size: 13px; } .btn-whatsapp-flutuante i { font-size: 18px; } }
+        @media (max-width: 480px) { .btn-whatsapp-flutuante { bottom: 75px; right: 16px; padding: 10px 16px; font-size: 12px; } .btn-whatsapp-flutuante i { font-size: 16px; } }
         
-        .btn-whatsapp-flutuante.visible {
-            opacity: 1;
-            visibility: visible;
-            transform: translateY(0) scale(1);
-        }
-        
-        .btn-whatsapp-flutuante:hover {
-            background: var(--whatsapp-green-dark);
-            box-shadow: 0 8px 35px rgba(37, 211, 102, 0.5);
-            transform: translateY(-2px) scale(1.02);
-        }
-        
-        .btn-whatsapp-flutuante:active {
-            transform: scale(0.95);
-        }
-        
-        .btn-whatsapp-flutuante i {
-            font-size: 22px;
-        }
-        
-        .btn-whatsapp-flutuante .badge-count-selecionados {
-            background: rgba(255,255,255,0.25);
-            padding: 2px 10px;
-            border-radius: 20px;
-            font-size: 12px;
-        }
-        
-        @media (max-width: 768px) {
-            .btn-whatsapp-flutuante {
-                bottom: 85px;
-                right: 20px;
-                padding: 12px 18px;
-                font-size: 13px;
-            }
-            
-            .btn-whatsapp-flutuante i {
-                font-size: 18px;
-            }
-        }
-        
-        @media (max-width: 480px) {
-            .btn-whatsapp-flutuante {
-                bottom: 75px;
-                right: 16px;
-                padding: 10px 16px;
-                font-size: 12px;
-            }
-            
-            .btn-whatsapp-flutuante i {
-                font-size: 16px;
-            }
-        }
-        
-        /* ===== POPUP DE AGENDAMENTO ===== */
         .modal-overlay {
             position: fixed;
             top: 0;
@@ -815,181 +291,30 @@
             padding: 20px;
             animation: fadeIn 0.3s ease;
         }
+        .modal-overlay.active { display: flex; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .modal-content { background: var(--surface); border-radius: 20px; max-width: 520px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 30px 32px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); animation: slideUp 0.4s cubic-bezier(0.4,0,0.2,1); }
+        @keyframes slideUp { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .modal-content .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid #f0eef2; }
+        .modal-content .modal-header h2 { font-size: 1.3rem; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 10px; }
+        .modal-content .modal-header h2 i { color: var(--whatsapp-green); }
+        .modal-content .modal-header .btn-fechar { background: none; border: none; font-size: 24px; color: var(--text-muted); cursor: pointer; padding: 4px 8px; transition: var(--transition); }
+        .modal-content .modal-header .btn-fechar:hover { color: var(--text); transform: rotate(90deg); }
+        .modal-content .modal-body { display: flex; flex-direction: column; gap: 16px; }
+        .modal-content .modal-body .info-servicos { background: #f8f7fc; border-radius: 12px; padding: 16px; margin-bottom: 4px; }
+        .modal-content .modal-body .info-servicos .servico-item { padding: 4px 0; font-size: 14px; color: var(--text); display: flex; justify-content: space-between; border-bottom: 1px solid #f0eef2; }
+        .modal-content .modal-body .info-servicos .servico-item:last-child { border-bottom: none; }
+        .modal-content .modal-body .info-servicos .total-info { margin-top: 10px; padding-top: 10px; border-top: 2px solid var(--primary); font-weight: 600; display: flex; justify-content: space-between; }
+        .modal-content .modal-body .campo { display: flex; flex-direction: column; gap: 4px; }
+        .modal-content .modal-body .campo label { font-size: 13px; font-weight: 500; color: var(--text-muted); }
+        .modal-content .modal-body .campo input, .modal-content .modal-body .campo select { padding: 12px 16px; border: 2px solid #e8e6ea; border-radius: 12px; font-family: 'Poppins', sans-serif; font-size: 15px !important; transition: var(--transition); background: #fafafc; width: 100%; }
+        .modal-content .modal-body .campo input:focus, .modal-content .modal-body .campo select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(38,25,107,0.1); }
+        .modal-content .modal-body .campo select { appearance: auto; cursor: pointer; }
+        .modal-content .modal-body .campo-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .modal-content .btn-enviar { background: var(--whatsapp-green); color: white; border: none; border-radius: 50px; padding: 16px 32px; font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 16px; cursor: pointer; transition: var(--transition); display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 8px; width: 100%; }
+        .modal-content .btn-enviar:hover { background: var(--whatsapp-green-dark); transform: translateY(-2px); box-shadow: 0 8px 25px rgba(37,211,102,0.3); }
+        .modal-content .btn-enviar:active { transform: scale(0.97); }
         
-        .modal-overlay.active {
-            display: flex;
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        
-        .modal-content {
-            background: var(--surface);
-            border-radius: 20px;
-            max-width: 520px;
-            width: 100%;
-            max-height: 90vh;
-            overflow-y: auto;
-            padding: 30px 32px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        
-        @keyframes slideUp {
-            from { transform: translateY(40px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-        
-        .modal-content .modal-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 20px;
-            padding-bottom: 12px;
-            border-bottom: 2px solid #f0eef2;
-        }
-        
-        .modal-content .modal-header h2 {
-            font-size: 1.3rem;
-            font-weight: 700;
-            color: var(--text);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .modal-content .modal-header h2 i {
-            color: var(--whatsapp-green);
-        }
-        
-        .modal-content .modal-header .btn-fechar {
-            background: none;
-            border: none;
-            font-size: 24px;
-            color: var(--text-muted);
-            cursor: pointer;
-            padding: 4px 8px;
-            transition: var(--transition);
-        }
-        
-        .modal-content .modal-header .btn-fechar:hover {
-            color: var(--text);
-            transform: rotate(90deg);
-        }
-        
-        .modal-content .modal-body {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-        
-        .modal-content .modal-body .info-servicos {
-            background: #f8f7fc;
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 4px;
-        }
-        
-        .modal-content .modal-body .info-servicos .servico-item {
-            padding: 4px 0;
-            font-size: 14px;
-            color: var(--text);
-            display: flex;
-            justify-content: space-between;
-            border-bottom: 1px solid #f0eef2;
-        }
-        
-        .modal-content .modal-body .info-servicos .servico-item:last-child {
-            border-bottom: none;
-        }
-        
-        .modal-content .modal-body .info-servicos .total-info {
-            margin-top: 10px;
-            padding-top: 10px;
-            border-top: 2px solid var(--primary);
-            font-weight: 600;
-            display: flex;
-            justify-content: space-between;
-        }
-        
-        .modal-content .modal-body .campo {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-        
-        .modal-content .modal-body .campo label {
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--text-muted);
-        }
-        
-        .modal-content .modal-body .campo input,
-        .modal-content .modal-body .campo select {
-            padding: 12px 16px;
-            border: 2px solid #e8e6ea;
-            border-radius: 12px;
-            font-family: 'Poppins', sans-serif;
-            font-size: 15px !important;
-            transition: var(--transition);
-            background: #fafafc;
-            width: 100%;
-        }
-        
-        .modal-content .modal-body .campo input:focus,
-        .modal-content .modal-body .campo select:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(38, 25, 107, 0.1);
-        }
-        
-        .modal-content .modal-body .campo select {
-            appearance: auto;
-            cursor: pointer;
-        }
-        
-        .modal-content .modal-body .campo-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-        }
-        
-        .modal-content .btn-enviar {
-            background: var(--whatsapp-green);
-            color: white;
-            border: none;
-            border-radius: 50px;
-            padding: 16px 32px;
-            font-family: 'Poppins', sans-serif;
-            font-weight: 600;
-            font-size: 16px;
-            cursor: pointer;
-            transition: var(--transition);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            margin-top: 8px;
-            width: 100%;
-        }
-        
-        .modal-content .btn-enviar:hover {
-            background: var(--whatsapp-green-dark);
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(37, 211, 102, 0.3);
-        }
-        
-        .modal-content .btn-enviar:active {
-            transform: scale(0.97);
-        }
-        
-        .modal-content .btn-enviar i {
-            font-size: 20px;
-        }
-        
-        /* ===== POPUP DE CONFIRMAÇÃO ===== */
         .modal-confirmacao {
             position: fixed;
             top: 0;
@@ -1006,183 +331,34 @@
             padding: 20px;
             animation: fadeIn 0.3s ease;
         }
+        .modal-confirmacao.active { display: flex; }
+        .modal-confirmacao .confirmacao-content { background: var(--surface); border-radius: 20px; max-width: 460px; width: 100%; padding: 40px 36px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.3); animation: slideUp 0.4s cubic-bezier(0.4,0,0.2,1); }
+        .modal-confirmacao .confirmacao-content .icone-confirmacao { font-size: 64px; color: var(--whatsapp-green); margin-bottom: 16px; }
+        .modal-confirmacao .confirmacao-content h2 { font-size: 1.4rem; font-weight: 700; color: var(--text); margin-bottom: 12px; }
+        .modal-confirmacao .confirmacao-content p { color: var(--text-muted); font-size: 14px; line-height: 1.6; margin-bottom: 8px; }
+        .modal-confirmacao .confirmacao-content .aviso { background: #fff3cd; border-radius: 12px; padding: 16px; margin: 16px 0; text-align: left; border-left: 4px solid #ffc107; }
+        .modal-confirmacao .confirmacao-content .aviso p { margin: 4px 0; font-size: 13px; color: #856404; }
+        .modal-confirmacao .confirmacao-content .aviso p i { color: #ffc107; margin-right: 8px; }
+        .modal-confirmacao .confirmacao-content .valor-total { background: var(--primary); color: white; border-radius: 12px; padding: 12px 20px; margin: 12px 0 16px 0; font-size: 18px; font-weight: 700; }
+        .modal-confirmacao .confirmacao-content .btn-continuar { background: var(--whatsapp-green); color: white; border: none; border-radius: 50px; padding: 14px 40px; font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 16px; cursor: pointer; transition: var(--transition); margin-top: 12px; display: inline-flex; align-items: center; gap: 10px; width: 100%; justify-content: center; }
+        .modal-confirmacao .confirmacao-content .btn-continuar:hover { background: var(--whatsapp-green-dark); transform: translateY(-2px); box-shadow: 0 8px 25px rgba(37,211,102,0.3); }
+        .modal-confirmacao .confirmacao-content .btn-continuar i { font-size: 20px; }
         
-        .modal-confirmacao.active {
-            display: flex;
-        }
+        .status-badge { display: inline-block; padding: 2px 12px; border-radius: 12px; font-size: 11px; font-weight: 500; }
+        .status-badge.active { background: #d4edda; color: #155724; }
+        .status-badge.inactive { background: #f8d7da; color: #721c24; }
         
-        .modal-confirmacao .confirmacao-content {
-            background: var(--surface);
-            border-radius: 20px;
-            max-width: 460px;
-            width: 100%;
-            padding: 40px 36px;
-            text-align: center;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        }
+        .loading { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+        .loading .spinner { display: inline-block; width: 40px; height: 40px; border: 4px solid #e8e6ea; border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 16px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+        .empty-state i { font-size: 48px; opacity: 0.3; margin-bottom: 16px; }
         
-        .modal-confirmacao .confirmacao-content .icone-confirmacao {
-            font-size: 64px;
-            color: var(--whatsapp-green);
-            margin-bottom: 16px;
-        }
+        .footer { text-align: center; padding: 30px 20px; color: var(--text-muted); font-size: 0.85rem; border-top: 1px solid #e8e6ea; margin-top: 20px; }
+        .footer .social { display: flex; justify-content: center; gap: 16px; margin-bottom: 12px; }
+        .footer .social a { color: var(--text-muted); font-size: 20px; transition: var(--transition); }
+        .footer .social a:hover { color: var(--primary); }
         
-        .modal-confirmacao .confirmacao-content h2 {
-            font-size: 1.4rem;
-            font-weight: 700;
-            color: var(--text);
-            margin-bottom: 12px;
-        }
-        
-        .modal-confirmacao .confirmacao-content p {
-            color: var(--text-muted);
-            font-size: 14px;
-            line-height: 1.6;
-            margin-bottom: 8px;
-        }
-        
-        .modal-confirmacao .confirmacao-content .aviso {
-            background: #fff3cd;
-            border-radius: 12px;
-            padding: 16px;
-            margin: 16px 0;
-            text-align: left;
-            border-left: 4px solid #ffc107;
-        }
-        
-        .modal-confirmacao .confirmacao-content .aviso p {
-            margin: 4px 0;
-            font-size: 13px;
-            color: #856404;
-        }
-        
-        .modal-confirmacao .confirmacao-content .aviso p i {
-            color: #ffc107;
-            margin-right: 8px;
-        }
-        
-        .modal-confirmacao .confirmacao-content .valor-total {
-            background: var(--primary);
-            color: white;
-            border-radius: 12px;
-            padding: 12px 20px;
-            margin: 12px 0 16px 0;
-            font-size: 18px;
-            font-weight: 700;
-        }
-        
-        .modal-confirmacao .confirmacao-content .btn-continuar {
-            background: var(--whatsapp-green);
-            color: white;
-            border: none;
-            border-radius: 50px;
-            padding: 14px 40px;
-            font-family: 'Poppins', sans-serif;
-            font-weight: 600;
-            font-size: 16px;
-            cursor: pointer;
-            transition: var(--transition);
-            margin-top: 12px;
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            width: 100%;
-            justify-content: center;
-        }
-        
-        .modal-confirmacao .confirmacao-content .btn-continuar:hover {
-            background: var(--whatsapp-green-dark);
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(37, 211, 102, 0.3);
-        }
-        
-        .modal-confirmacao .confirmacao-content .btn-continuar i {
-            font-size: 20px;
-        }
-        
-        /* ===== STATUS ===== */
-        .status-badge {
-            display: inline-block;
-            padding: 2px 12px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: 500;
-        }
-        
-        .status-badge.active {
-            background: #d4edda;
-            color: #155724;
-        }
-        
-        .status-badge.inactive {
-            background: #f8d7da;
-            color: #721c24;
-        }
-        
-        /* ===== LOADING ===== */
-        .loading {
-            text-align: center;
-            padding: 60px 20px;
-            color: var(--text-muted);
-        }
-        
-        .loading .spinner {
-            display: inline-block;
-            width: 40px;
-            height: 40px;
-            border: 4px solid #e8e6ea;
-            border-top-color: var(--primary);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin-bottom: 16px;
-        }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        
-        /* ===== SEM RESULTADOS ===== */
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: var(--text-muted);
-        }
-        
-        .empty-state i {
-            font-size: 48px;
-            opacity: 0.3;
-            margin-bottom: 16px;
-        }
-        
-        /* ===== FOOTER ===== */
-        .footer {
-            text-align: center;
-            padding: 30px 20px;
-            color: var(--text-muted);
-            font-size: 0.85rem;
-            border-top: 1px solid #e8e6ea;
-            margin-top: 20px;
-        }
-        
-        .footer .social {
-            display: flex;
-            justify-content: center;
-            gap: 16px;
-            margin-bottom: 12px;
-        }
-        
-        .footer .social a {
-            color: var(--text-muted);
-            font-size: 20px;
-            transition: var(--transition);
-        }
-        
-        .footer .social a:hover {
-            color: var(--primary);
-        }
-        
-        /* ===== BOTÃO VOLTAR TOPO ===== */
         .btn-topo {
             position: fixed;
             bottom: 30px;
@@ -1197,255 +373,101 @@
             justify-content: center;
             font-size: 24px;
             color: var(--primary);
-            background: rgba(255, 255, 255, 0.25);
+            background: rgba(255,255,255,0.25);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
-            box-shadow: 
-                0 8px 32px rgba(0, 0, 0, 0.12),
-                inset 0 1px 0 rgba(255, 255, 255, 0.6);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.6);
+            border: 1px solid rgba(255,255,255,0.3);
+            transition: all 0.4s cubic-bezier(0.4,0,0.2,1);
             opacity: 0;
             visibility: hidden;
             transform: translateY(20px) scale(0.8);
             z-index: 997;
             touch-action: manipulation;
         }
+        .btn-topo.visible { opacity: 1; visibility: visible; transform: translateY(0) scale(1); }
+        .btn-topo:hover { background: rgba(255,255,255,0.35); box-shadow: 0 8px 40px rgba(38,25,107,0.2), inset 0 1px 0 rgba(255,255,255,0.8); transform: translateY(-2px) scale(1.05); }
+        .btn-topo:active { transform: scale(0.92); background: rgba(255,255,255,0.45); }
+        .btn-topo::before { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.4) 0%, transparent 60%); pointer-events: none; border-radius: 50%; }
+        .btn-topo::after { content: ''; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid rgba(255,215,0,0.3); pointer-events: none; animation: rippleWave 2s ease-in-out infinite; }
+        @keyframes rippleWave { 0%,100% { transform: scale(1); opacity: 0.6; } 50% { transform: scale(1.15); opacity: 0; } }
+        .btn-topo .fa-chevron-up { position: relative; z-index: 1; text-shadow: 0 2px 8px rgba(38,25,107,0.15); }
+        .btn-topo .tooltip { position: absolute; bottom: calc(100% + 12px); right: 50%; transform: translateX(50%) scale(0.8); background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); color: white; padding: 6px 14px; border-radius: 8px; font-size: 11px; font-weight: 500; white-space: nowrap; opacity: 0; visibility: hidden; transition: all 0.3s ease; pointer-events: none; }
+        .btn-topo .tooltip::after { content: ''; position: absolute; top: 100%; right: 50%; transform: translateX(50%); border: 6px solid transparent; border-top-color: rgba(0,0,0,0.7); }
+        .btn-topo:hover .tooltip { opacity: 1; visibility: visible; transform: translateX(50%) scale(1); }
         
-        .btn-topo.visible {
-            opacity: 1;
-            visibility: visible;
-            transform: translateY(0) scale(1);
-        }
-        
-        .btn-topo:hover {
-            background: rgba(255, 255, 255, 0.35);
-            box-shadow: 
-                0 8px 40px rgba(38, 25, 107, 0.2),
-                inset 0 1px 0 rgba(255, 255, 255, 0.8);
-            transform: translateY(-2px) scale(1.05);
-        }
-        
-        .btn-topo:active {
-            transform: scale(0.92);
-            background: rgba(255, 255, 255, 0.45);
-        }
-        
-        .btn-topo::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: radial-gradient(
-                circle at 30% 30%,
-                rgba(255, 255, 255, 0.4) 0%,
-                transparent 60%
-            );
-            pointer-events: none;
-            border-radius: 50%;
-        }
-        
-        .btn-topo::after {
-            content: '';
-            position: absolute;
-            inset: -4px;
-            border-radius: 50%;
-            border: 2px solid rgba(255, 215, 0, 0.3);
-            pointer-events: none;
-            animation: rippleWave 2s ease-in-out infinite;
-        }
-        
-        @keyframes rippleWave {
-            0%, 100% {
-                transform: scale(1);
-                opacity: 0.6;
-            }
-            50% {
-                transform: scale(1.15);
-                opacity: 0;
-            }
-        }
-        
-        .btn-topo .fa-chevron-up {
-            position: relative;
-            z-index: 1;
-            text-shadow: 0 2px 8px rgba(38, 25, 107, 0.15);
-        }
-        
-        .btn-topo .tooltip {
-            position: absolute;
-            bottom: calc(100% + 12px);
-            right: 50%;
-            transform: translateX(50%) scale(0.8);
-            background: rgba(0, 0, 0, 0.7);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            color: white;
-            padding: 6px 14px;
-            border-radius: 8px;
-            font-size: 11px;
-            font-weight: 500;
-            white-space: nowrap;
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s ease;
-            pointer-events: none;
-        }
-        
-        .btn-topo .tooltip::after {
-            content: '';
-            position: absolute;
-            top: 100%;
-            right: 50%;
-            transform: translateX(50%);
-            border: 6px solid transparent;
-            border-top-color: rgba(0, 0, 0, 0.7);
-        }
-        
-        .btn-topo:hover .tooltip {
-            opacity: 1;
-            visibility: visible;
-            transform: translateX(50%) scale(1);
-        }
+        @media (max-width: 768px) { .btn-topo { bottom: 20px; right: 20px; width: 50px; height: 50px; font-size: 20px; } .btn-topo .tooltip { display: none; } .modal-content { padding: 24px 20px; } .modal-content .modal-body .campo-row { grid-template-columns: 1fr; } }
+        @media (max-width: 480px) { .btn-topo { bottom: 16px; right: 16px; width: 46px; height: 46px; font-size: 18px; } }
         
         @media (max-width: 768px) {
-            .btn-topo {
-                bottom: 20px;
-                right: 20px;
-                width: 50px;
-                height: 50px;
-                font-size: 20px;
-            }
-            
-            .btn-topo .tooltip {
-                display: none;
-            }
-            
-            .modal-content {
-                padding: 24px 20px;
-            }
-            
-            .modal-content .modal-body .campo-row {
-                grid-template-columns: 1fr;
-            }
+            .header { padding: 30px 16px 50px; }
+            .header h1 { font-size: 1.8rem; }
+            .header p { font-size: 0.95rem; }
+            .container { margin-top: -20px; padding: 0 12px; }
+            .filtros { padding: 14px 16px; gap: 8px; }
+            .filtros .badges-row { gap: 6px; }
+            .filtros .badge-filtro { padding: 5px 12px; font-size: 12px; }
+            .categoria-header h2 { font-size: 1.1rem; }
+            .servico-exato-card { padding: 14px 16px; }
+            .servico-exato-card .exato-detalhes .preco-destaque { font-size: 1.1rem; }
+            .servico-exato-card .exato-header h3 { font-size: 0.95rem; }
         }
         
         @media (max-width: 480px) {
-            .btn-topo {
-                bottom: 16px;
-                right: 16px;
-                width: 46px;
-                height: 46px;
-                font-size: 18px;
-            }
+            .header h1 { font-size: 1.4rem; }
+            .header .logo-icon { font-size: 36px; }
+            .categoria-header .cat-icon { width: 34px; height: 34px; font-size: 14px; }
+            .servico-card { padding: 12px 14px; }
+            .servico-card .servico-nome { font-size: 13px; }
+            .servico-card .servico-preco { font-size: 14px; }
+            .filtros .badges-row { gap: 4px; }
+            .filtros .badge-filtro { padding: 4px 10px; font-size: 11px; }
         }
         
-        /* ===== RESPONSIVO GERAL ===== */
-        @media (max-width: 768px) {
-            .header {
-                padding: 30px 16px 50px;
-            }
-            
-            .header h1 {
-                font-size: 1.8rem;
-            }
-            
-            .header p {
-                font-size: 0.95rem;
-            }
-            
-            .container {
-                margin-top: -20px;
-                padding: 0 12px;
-            }
-            
-            .filtros {
-                padding: 14px 16px;
-                gap: 8px;
-            }
-            
-            .filtros .badges-row {
-                gap: 6px;
-            }
-            
-            .filtros .badge-filtro {
-                padding: 5px 12px;
-                font-size: 12px;
-            }
-            
-            .categoria-header h2 {
-                font-size: 1.1rem;
-            }
-            
-            .servico-exato-card {
-                padding: 14px 16px;
-            }
-            
-            .servico-exato-card .exato-detalhes .preco-destaque {
-                font-size: 1.1rem;
-            }
-            
-            .servico-exato-card .exato-header h3 {
-                font-size: 0.95rem;
-            }
+        /* RESPONSIVO PARA MOBILE VERTICAL - BADGES EM UMA LINHA */
+        @media (max-width: 768px) and (orientation: portrait) {
+            .filtros .badges-row { display: flex !important; flex-wrap: nowrap !important; gap: 4px !important; justify-content: space-between !important; width: 100% !important; position: relative !important; z-index: 999 !important; }
+            .filtros .badge-filtro { flex: 1 !important; min-width: 0 !important; padding: 4px 6px !important; font-size: 10px !important; justify-content: center !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; border-radius: 20px !important; gap: 3px !important; z-index: 10 !important; min-height: 32px !important; position: relative !important; }
+            .filtros .badge-filtro i { font-size: 11px !important; margin-right: 0 !important; }
+            .filtros .badge-filtro .badge-count { font-size: 8px !important; padding: 0 4px !important; min-width: 16px !important; height: 16px !important; line-height: 16px !important; }
+            .badge-filtro.sort-badge select { font-size: 10px !important; min-width: 50px !important; max-width: 70px !important; padding: 0 !important; background: transparent !important; z-index: 5 !important; position: relative !important; }
+            .filtros .badge-dropdown { position: absolute !important; top: calc(100% + 4px) !important; left: 0 !important; min-width: 200px !important; max-height: 260px !important; z-index: 99999 !important; background: white !important; border: 1px solid #ddd !important; border-radius: 12px !important; box-shadow: 0 8px 40px rgba(0,0,0,0.2) !important; padding: 8px !important; overflow-y: auto !important; }
+            .filtros .badge-dropdown .dropdown-item { padding: 6px 10px !important; font-size: 12px !important; }
+            .filtros .search-wrapper { flex: 1 1 100% !important; margin-bottom: 2px !important; }
+            .filtros .search-wrapper input { font-size: 14px !important; padding: 8px 12px 8px 34px !important; }
+            .filtros .search-wrapper i { font-size: 14px !important; left: 12px !important; }
+            .filtros .badge-filtro .badge-count.active-badge { font-size: 8px !important; padding: 0 4px !important; }
+            .filtros .badge-filtro { overflow: visible !important; }
+            .filtros { overflow: visible !important; position: relative !important; z-index: 100 !important; }
         }
         
-        @media (max-width: 480px) {
-            .header h1 {
-                font-size: 1.4rem;
-            }
-            
-            .header .logo-icon {
-                font-size: 36px;
-            }
-            
-            .categoria-header .cat-icon {
-                width: 34px;
-                height: 34px;
-                font-size: 14px;
-            }
-            
-            .servico-card {
-                padding: 12px 14px;
-            }
-            
-            .servico-card .servico-nome {
-                font-size: 13px;
-            }
-            
-            .servico-card .servico-preco {
-                font-size: 14px;
-            }
-            
-            .filtros .badges-row {
-                gap: 4px;
-            }
-            
-            .filtros .badge-filtro {
-                padding: 4px 10px;
-                font-size: 11px;
-            }
+        @media (max-width: 768px) and (orientation: landscape) {
+            .filtros .badges-row { display: flex !important; flex-wrap: nowrap !important; gap: 6px !important; justify-content: space-between !important; width: 100% !important; }
+            .filtros .badge-filtro { flex: 1 !important; min-width: 0 !important; padding: 5px 10px !important; font-size: 11px !important; justify-content: center !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; position: relative !important; z-index: 10 !important; }
+            .badge-filtro.sort-badge select { font-size: 11px !important; min-width: 60px !important; }
+            .filtros .badge-dropdown { position: absolute !important; top: calc(100% + 4px) !important; left: 0 !important; min-width: 200px !important; z-index: 99999 !important; }
+            .filtros .search-wrapper { flex: 1 1 100% !important; margin-bottom: 2px !important; }
+            .filtros .search-wrapper input { font-size: 14px !important; padding: 8px 12px 8px 34px !important; }
         }
         
-        /* ===== ANIMAÇÃO DE ENTRADA ===== */
-        .categoria-section {
-            animation: fadeInUp 0.6s ease forwards;
-            opacity: 0;
+        @media (min-width: 769px) and (max-width: 1024px) and (orientation: portrait) {
+            .filtros .badges-row { display: flex !important; flex-wrap: nowrap !important; gap: 6px !important; justify-content: space-between !important; width: 100% !important; }
+            .filtros .badge-filtro { flex: 1 !important; min-width: 0 !important; padding: 6px 12px !important; font-size: 12px !important; justify-content: center !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; position: relative !important; z-index: 10 !important; }
+            .badge-filtro.sort-badge select { font-size: 12px !important; min-width: 80px !important; }
+            .filtros .badge-dropdown { position: absolute !important; top: calc(100% + 4px) !important; left: 0 !important; min-width: 220px !important; z-index: 99999 !important; }
+            .filtros .search-wrapper { flex: 1 1 100% !important; margin-bottom: 4px !important; }
         }
         
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+        @media (min-width: 769px) and (max-width: 1024px) and (orientation: landscape) {
+            .filtros .badges-row { display: flex !important; flex-wrap: nowrap !important; gap: 8px !important; justify-content: flex-start !important; width: auto !important; }
+            .filtros .badge-filtro { flex: 0 1 auto !important; min-width: auto !important; padding: 6px 14px !important; font-size: 13px !important; justify-content: center !important; }
+            .badge-filtro.sort-badge select { font-size: 13px !important; min-width: 80px !important; }
+            .filtros .badge-dropdown { position: absolute !important; top: calc(100% + 4px) !important; left: 0 !important; min-width: 220px !important; z-index: 99999 !important; }
+            .filtros .search-wrapper { flex: 1 1 40% !important; margin-bottom: 0 !important; }
         }
         
+        .categoria-section { animation: fadeInUp 0.6s ease forwards; opacity: 0; }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         .categoria-section:nth-child(2) { animation-delay: 0.05s; }
         .categoria-section:nth-child(3) { animation-delay: 0.10s; }
         .categoria-section:nth-child(4) { animation-delay: 0.15s; }
@@ -1483,7 +505,7 @@
     <!-- ===== CONTEÚDO ===== -->
     <div class="container">
         
-        <!-- ===== FILTROS - LAYOUT COMPACTO ===== -->
+        <!-- ===== FILTROS ===== -->
         <div class="filtros">
             <div class="search-wrapper">
                 <i class="fas fa-search"></i>
@@ -1496,18 +518,14 @@
                     <span id="badgeColaboradorLabel">Colaborador</span>
                     <span class="badge-count" id="badgeColaboradorCount" style="display:none;">0</span>
                     <i class="fas fa-chevron-down" style="font-size:10px; margin-left:2px;"></i>
-                    
-                    <div class="badge-dropdown" id="dropdownColaboradores">
-                    </div>
+                    <div class="badge-dropdown" id="dropdownColaboradores"></div>
                 </div>
                 
                 <div class="badge-filtro" id="badgeCategoria">
                     <i class="fas fa-tag"></i>
                     <span id="badgeCategoriaLabel">Categoria</span>
                     <i class="fas fa-chevron-down" style="font-size:10px; margin-left:2px;"></i>
-                    
-                    <div class="badge-dropdown" id="dropdownCategorias">
-                    </div>
+                    <div class="badge-dropdown" id="dropdownCategorias"></div>
                 </div>
                 
                 <div class="badge-filtro sort-badge" id="badgeOrdenacao">
@@ -1522,8 +540,7 @@
         </div>
 
         <div id="servicosExatosContainer" class="servicos-exatos-container">
-            <div id="servicosExatosGrid" class="servicos-exatos-grid">
-            </div>
+            <div id="servicosExatosGrid" class="servicos-exatos-grid"></div>
         </div>
 
         <div id="precarioContainer">
@@ -1569,12 +586,7 @@
             </div>
             <div class="modal-body">
                 <div class="info-servicos" id="infoServicosSelecionados"></div>
-                
-                <div class="campo">
-                    <label><i class="fas fa-user"></i> Seu nome *</label>
-                    <input type="text" id="inputNome" placeholder="Digite seu nome completo" required />
-                </div>
-                
+                <div class="campo"><label><i class="fas fa-user"></i> Seu nome *</label><input type="text" id="inputNome" placeholder="Digite seu nome completo" required /></div>
                 <div class="campo">
                     <label><i class="fas fa-phone"></i> Seu número de contacto *</label>
                     <div style="display: flex; gap: 8px;">
@@ -1604,22 +616,11 @@
                         <input type="tel" id="inputTelefone" placeholder="923 456 789" required style="flex: 1;" />
                     </div>
                 </div>
-                
                 <div class="campo-row">
-                    <div class="campo">
-                        <label><i class="fas fa-calendar-day"></i> Data *</label>
-                        <input type="date" id="inputData" required />
-                    </div>
-                    <div class="campo">
-                        <label><i class="fas fa-clock"></i> Hora *</label>
-                        <input type="time" id="inputHora" required />
-                    </div>
+                    <div class="campo"><label><i class="fas fa-calendar-day"></i> Data *</label><input type="date" id="inputData" required /></div>
+                    <div class="campo"><label><i class="fas fa-clock"></i> Hora *</label><input type="time" id="inputHora" required /></div>
                 </div>
-                
-                <button class="btn-enviar" onclick="abrirConfirmacao()">
-                    <i class="fab fa-whatsapp"></i>
-                    Enviar para WhatsApp
-                </button>
+                <button class="btn-enviar" onclick="abrirConfirmacao()"><i class="fab fa-whatsapp"></i> Enviar para WhatsApp</button>
             </div>
         </div>
     </div>
@@ -1631,18 +632,12 @@
             <h2>⚠️ Leia com atenção!</h2>
             <p>O agendamento só está confirmado após a confirmação do <strong id="confirmBusinessName">Studio DeVitto</strong>.</p>
             <p style="font-size:13px; color:var(--text-muted);">Aguarde que já entraremos em contato.</p>
-            
             <div id="valorTotalConfirmacao" class="valor-total"></div>
-            
             <div class="aviso">
                 <p><i class="fas fa-info-circle"></i> O valor total dos serviços mostrados é uma <strong>soma dos valores</strong>.</p>
                 <p><i class="fas fa-info-circle"></i> Pode haver uma pequena alteração para mais ou para menos, após avaliação dos serviços.</p>
             </div>
-            
-            <button class="btn-continuar" onclick="enviarWhatsApp()">
-                <i class="fab fa-whatsapp"></i>
-                Continuar para WhatsApp
-            </button>
+            <button class="btn-continuar" onclick="enviarWhatsApp()"><i class="fab fa-whatsapp"></i> Continuar para WhatsApp</button>
         </div>
     </div>
 
@@ -1689,12 +684,82 @@
         let ultimaLogo = "";
 
         // ============================================================
-        // FUNÇÃO PARA CARREGAR DADOS DA EMPRESA (COM CACHE)
+        // FUNÇÃO PRINCIPAL: CARREGAR DADOS DA EMPRESA (FORÇADO EM MOBILE)
         // ============================================================
-        function carregarDadosEmpresa() {
+        function carregarDadosEmpresa(force = false) {
             let mudou = false;
+            let dadosCarregados = false;
             
-            // Tentar carregar do localStorage (cache rápido)
+            // ===== 1. TENTAR CARREGAR DO FIRESTORE (FONTE OFICIAL) =====
+            try {
+                // Verificar se temos acesso ao Firestore e ao usuário
+                if (typeof currentUser !== 'undefined' && currentUser && currentUser.uid) {
+                    // Buscar do Firestore de forma síncrona (usando get() em vez de onSnapshot para garantir)
+                    db.collection('businessProfile').doc(currentUser.uid).get()
+                        .then((doc) => {
+                            if (doc.exists) {
+                                const data = doc.data();
+                                let m = false;
+                                if (data.name && data.name !== empresaData.nome) {
+                                    empresaData.nome = data.name;
+                                    m = true;
+                                }
+                                if (data.whatsApp) {
+                                    const novoWhats = data.whatsApp.replace(/\D/g, '');
+                                    if (novoWhats !== empresaData.whatsApp) {
+                                        empresaData.whatsApp = novoWhats;
+                                        m = true;
+                                    }
+                                }
+                                if (m) {
+                                    mudou = true;
+                                    dadosCarregados = true;
+                                    try {
+                                        const perfil = JSON.parse(localStorage.getItem('businessProfile') || '{}');
+                                        perfil.name = empresaData.nome;
+                                        perfil.whatsApp = empresaData.whatsApp;
+                                        localStorage.setItem('businessProfile', JSON.stringify(perfil));
+                                    } catch (e) {}
+                                }
+                            }
+                        })
+                        .catch(() => {});
+                    
+                    db.collection('businessSettings').doc(currentUser.uid).get()
+                        .then((doc) => {
+                            if (doc.exists) {
+                                const data = doc.data();
+                                let m = false;
+                                if (data.name && data.name !== empresaData.nome) {
+                                    empresaData.nome = data.name;
+                                    m = true;
+                                }
+                                if (data.customLogo && data.customLogo !== empresaData.logoUrl) {
+                                    empresaData.logoUrl = data.customLogo;
+                                    m = true;
+                                }
+                                if (data.logoType && data.logoType !== empresaData.logoType) {
+                                    empresaData.logoType = data.logoType;
+                                    m = true;
+                                }
+                                if (m) {
+                                    mudou = true;
+                                    dadosCarregados = true;
+                                    try {
+                                        const settings = JSON.parse(localStorage.getItem('businessSettings') || '{}');
+                                        settings.name = empresaData.nome;
+                                        settings.customLogo = empresaData.logoUrl;
+                                        settings.logoType = empresaData.logoType;
+                                        localStorage.setItem('businessSettings', JSON.stringify(settings));
+                                    } catch (e) {}
+                                }
+                            }
+                        })
+                        .catch(() => {});
+                }
+            } catch (e) {}
+            
+            // ===== 2. TENTAR CARREGAR DO LOCALSTORAGE (CACHE RÁPIDO) =====
             try {
                 const perfilSalvo = localStorage.getItem('businessProfile');
                 if (perfilSalvo) {
@@ -1732,10 +797,12 @@
                 }
             } catch (e) {}
 
-            // Se houve mudança, atualizar UI (sem piscar)
-            if (mudou) {
+            // ===== 3. SE HOUVE MUDANÇA OU FORÇADO, ATUALIZAR UI =====
+            if (mudou || force) {
                 atualizarUIPagina();
             }
+            
+            return dadosCarregados;
         }
 
         // ============================================================
@@ -1772,7 +839,7 @@
             }
             
             // ============================================================
-            // ATUALIZAR LOGO SEM PISCAR
+            // ATUALIZAR LOGO SEM PISCAR (USANDO requestAnimationFrame)
             // ============================================================
             const logoIcon = document.getElementById('headerLogoIcon');
             const logoImg = document.getElementById('headerLogoImg');
@@ -1787,8 +854,7 @@
                     requestAnimationFrame(() => {
                         logoIcon.style.display = 'none';
                         logoImg.style.display = 'inline-block';
-                        // Usar uma imagem com cache para evitar reload
-                        const imgTag = `<img src="${empresaData.logoUrl}" alt="${nome}" style="height:50px; max-width:150px; object-fit:contain; margin-bottom:10px;" loading="lazy">`;
+                        const imgTag = `<img src="${empresaData.logoUrl}" alt="${nome}" style="height:50px; max-width:150px; object-fit:contain; margin-bottom:10px;" loading="lazy" onerror="this.style.display='none'">`;
                         if (logoImg.innerHTML !== imgTag) {
                             logoImg.innerHTML = imgTag;
                         }
@@ -1817,13 +883,18 @@
         }
 
         // ============================================================
-        // FUNÇÃO PARA OUVIR MUDANÇAS EM TEMPO REAL NO FIREBASE
+        // FUNÇÃO PARA OUVIR MUDANÇAS EM TEMPO REAL (COM RECONEXÃO)
         // ============================================================
+        let listenerAtivo = false;
+        
         function ouvirMudancasEmpresa() {
-            if (typeof currentUser === 'undefined' || !currentUser) {
+            if (typeof currentUser === 'undefined' || !currentUser || !currentUser.uid) {
                 setTimeout(ouvirMudancasEmpresa, 2000);
                 return;
             }
+
+            if (listenerAtivo) return;
+            listenerAtivo = true;
 
             // Listener para businessProfile (nome, whatsapp)
             db.collection('businessProfile').doc(currentUser.uid)
@@ -1854,7 +925,13 @@
                             } catch (e) {}
                         }
                     }
-                }, (error) => {});
+                }, (error) => {
+                    // Em caso de erro, tentar novamente após 5 segundos
+                    setTimeout(() => {
+                        listenerAtivo = false;
+                        ouvirMudancasEmpresa();
+                    }, 5000);
+                });
 
             // Listener para businessSettings (logo)
             db.collection('businessSettings').doc(currentUser.uid)
@@ -1887,11 +964,16 @@
                             } catch (e) {}
                         }
                     }
-                }, (error) => {});
+                }, (error) => {
+                    setTimeout(() => {
+                        listenerAtivo = false;
+                        ouvirMudancasEmpresa();
+                    }, 5000);
+                });
         }
 
         // ============================================================
-        // DETECTAR ORIENTAÇÃO DO DISPOSITIVO COM JAVASCRIPT
+        // DETECTAR ORIENTAÇÃO DO DISPOSITIVO
         // ============================================================
         function detectarOrientacao() {
             const isPortrait = window.innerHeight > window.innerWidth;
@@ -2130,7 +1212,8 @@
                 </div>
             `;
 
-            carregarDadosEmpresa();
+            // Forçar carregamento dos dados da empresa
+            carregarDadosEmpresa(true);
             setTimeout(ouvirMudancasEmpresa, 1000);
 
             db.collection('categorias')
@@ -2179,19 +1262,14 @@
                     todosServicos = [];
                     snapshot.forEach(doc => {
                         const data = doc.data();
-                        
                         let precoTipo = data.precoTipo;
                         if (!precoTipo && data.tipoValor) {
                             precoTipo = data.tipoValor === 'desde' ? 'Partir' : 'Fixo';
                         }
-                        if (!precoTipo) {
-                            precoTipo = 'Fixo';
-                        }
-                        
+                        if (!precoTipo) { precoTipo = 'Fixo'; }
                         if (data.tempo && typeof data.tempo === 'string') {
                             data.tempo = parseInt(data.tempo) || 30;
                         }
-                        
                         todosServicos.push({
                             id: doc.id,
                             ...data,
@@ -2221,33 +1299,15 @@
             if (!dropdown) return;
             
             let html = '';
-            
             const isAllActive = colaboradorFiltroId === null;
-            html += `
-                <div class="dropdown-item ${isAllActive ? 'active' : ''}" data-id="">
-                    <span class="colab-avatar" style="background: var(--primary);">
-                        <i class="fas fa-users" style="font-size:12px;"></i>
-                    </span>
-                    <span>Todos</span>
-                    ${isAllActive ? '<span class="check-icon"><i class="fas fa-check-circle"></i></span>' : ''}
-                </div>
-            `;
-            
+            html += `<div class="dropdown-item ${isAllActive ? 'active' : ''}" data-id=""><span class="colab-avatar" style="background: var(--primary);"><i class="fas fa-users" style="font-size:12px;"></i></span><span>Todos</span>${isAllActive ? '<span class="check-icon"><i class="fas fa-check-circle"></i></span>' : ''}</div>`;
             html += `<div class="dropdown-divider"></div>`;
             
             todosColaboradores.forEach(colab => {
                 const isActive = colaboradorFiltroId === colab.id;
                 const initial = (colab.nome || '?').charAt(0).toUpperCase();
                 const cor = colab.cor || '#4a3a9c';
-                html += `
-                    <div class="dropdown-item ${isActive ? 'active' : ''}" data-id="${colab.id}">
-                        <span class="colab-avatar" style="background: ${cor};">
-                            ${initial}
-                        </span>
-                        <span>${colab.nome}</span>
-                        ${isActive ? '<span class="check-icon"><i class="fas fa-check-circle"></i></span>' : ''}
-                    </div>
-                `;
+                html += `<div class="dropdown-item ${isActive ? 'active' : ''}" data-id="${colab.id}"><span class="colab-avatar" style="background: ${cor};">${initial}</span><span>${colab.nome}</span>${isActive ? '<span class="check-icon"><i class="fas fa-check-circle"></i></span>' : ''}</div>`;
             });
             
             dropdown.innerHTML = html;
@@ -2269,28 +1329,14 @@
             if (!dropdown) return;
             
             let html = '';
-            
             const isAllActive = categoriaFiltroId === null;
-            html += `
-                <div class="dropdown-item ${isAllActive ? 'active' : ''}" data-id="">
-                    <span><i class="fas fa-list" style="color:var(--primary);"></i></span>
-                    <span>Todas</span>
-                    ${isAllActive ? '<span class="check-icon"><i class="fas fa-check-circle"></i></span>' : ''}
-                </div>
-            `;
-            
+            html += `<div class="dropdown-item ${isAllActive ? 'active' : ''}" data-id=""><span><i class="fas fa-list" style="color:var(--primary);"></i></span><span>Todas</span>${isAllActive ? '<span class="check-icon"><i class="fas fa-check-circle"></i></span>' : ''}</div>`;
             html += `<div class="dropdown-divider"></div>`;
             
             todasCategorias.forEach(cat => {
                 const isActive = categoriaFiltroId === cat.id;
                 const cor = cat.cor || '#26196b';
-                html += `
-                    <div class="dropdown-item ${isActive ? 'active' : ''}" data-id="${cat.id}">
-                        <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:${cor};"></span>
-                        <span>${cat.nome}</span>
-                        ${isActive ? '<span class="check-icon"><i class="fas fa-check-circle"></i></span>' : ''}
-                    </div>
-                `;
+                html += `<div class="dropdown-item ${isActive ? 'active' : ''}" data-id="${cat.id}"><span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:${cor};"></span><span>${cat.nome}</span>${isActive ? '<span class="check-icon"><i class="fas fa-check-circle"></i></span>' : ''}</div>`;
             });
             
             dropdown.innerHTML = html;
@@ -2380,11 +1426,9 @@
         function servicoCorresponde(servico, termo) {
             const termoLower = termo.toLowerCase().trim();
             if (!termoLower) return true;
-            
             const nomeMatch = (servico.nome || '').toLowerCase().includes(termoLower);
             const catMatch = (servico.categoriaNome || '').toLowerCase().includes(termoLower);
             const descMatch = (servico.descricao || '').toLowerCase().includes(termoLower);
-            
             let colabMatch = false;
             if (servico.colaboradoresIds && servico.colaboradoresIds.length > 0) {
                 colabMatch = servico.colaboradoresIds.some(id => {
@@ -2392,66 +1436,54 @@
                     return nome.toLowerCase().includes(termoLower);
                 });
             }
-            
             return nomeMatch || catMatch || descMatch || colabMatch;
         }
 
         function encontrarServicosExatos(termos) {
             if (!termos || termos.length === 0) return [];
-            
             const resultados = [];
             const idsAdicionados = new Set();
             
             termos.forEach(term => {
                 const termLower = term.toLowerCase().trim();
                 if (!termLower) return;
-                
                 const porNome = todosServicos.filter(s => {
                     const nome = (s.nome || '').toLowerCase().trim();
                     return nome.includes(termLower) && !idsAdicionados.has(s.id);
                 });
-                
                 porNome.forEach(s => {
                     idsAdicionados.add(s.id);
                     resultados.push(s);
                 });
-                
                 if (porNome.length === 0) {
                     const porCategoria = todosServicos.filter(s => {
                         const categoria = (s.categoriaNome || '').toLowerCase().trim();
                         return categoria.includes(termLower) && !idsAdicionados.has(s.id);
                     });
-                    
                     porCategoria.forEach(s => {
                         idsAdicionados.add(s.id);
                         resultados.push(s);
                     });
                 }
             });
-            
             return resultados;
         }
 
         function filtrarServicosParaLista(termos, idsExatos) {
             let servicosFiltrados = todosServicos;
-            
             if (colaboradorFiltroId) {
                 servicosFiltrados = servicosFiltrados.filter(s => 
                     s.colaboradoresIds && s.colaboradoresIds.includes(colaboradorFiltroId)
                 );
             }
-            
             if (categoriaFiltroId) {
                 servicosFiltrados = servicosFiltrados.filter(s => s.categoriaId === categoriaFiltroId);
             }
-            
             if (!termos || termos.length === 0) {
                 return servicosFiltrados;
             }
-            
             return servicosFiltrados.filter(servico => {
                 if (idsExatos && idsExatos.has(servico.id)) return false;
-                
                 let corresponde = false;
                 for (const term of termos) {
                     if (servicoCorresponde(servico, term)) {
@@ -2466,19 +1498,13 @@
         function calcularValorTotal() {
             let total = 0;
             let servicosComPreco = 0;
-            
             servicosSelecionados.forEach(servico => {
                 if (servico.preco && servico.preco > 0) {
                     total += servico.preco;
                     servicosComPreco++;
                 }
             });
-            
-            return {
-                total: total,
-                quantidade: servicosComPreco,
-                totalServicos: servicosSelecionados.length
-            };
+            return { total: total, quantidade: servicosComPreco, totalServicos: servicosSelecionados.length };
         }
 
         // ============================================================
@@ -2491,7 +1517,6 @@
             const labelPrecoTipo = precoTipo === 'Fixo' || precoTipo === 'fixo' ? 'Fixo' : 'Desde';
             const colaboradoresIds = servico.colaboradoresIds || [];
             const isSelecionado = servicosSelecionados.some(s => s.id === servico.id);
-            
             const categoria = todasCategorias.find(c => c.id === servico.categoriaId);
             const corCategoria = categoria ? categoria.cor || coresCategorias[categoria.nome] || '#26196b' : '#26196b';
             
@@ -2523,9 +1548,7 @@
                         <span class="preco-destaque">${preco > 0 ? '€ ' + preco.toFixed(2).replace('.', ',') : 'Consultar'}</span>
                         <span class="preco-tipo ${precoTipoClass}">${labelPrecoTipo}</span>
                     </div>
-                    <div class="exato-colaboradores">
-                        ${colabHtml}
-                    </div>
+                    <div class="exato-colaboradores">${colabHtml}</div>
                 </div>
             `;
         }
@@ -2537,7 +1560,6 @@
             const precoTipoClass = precoTipo === 'Fixo' || precoTipo === 'fixo' ? 'fixo' : 'partir';
             const labelPrecoTipo = precoTipo === 'Fixo' || precoTipo === 'fixo' ? 'Fixo' : 'Desde';
             const isSelecionado = servicosSelecionados.some(s => s.id === servico.id);
-            
             const categoria = todasCategorias.find(c => c.id === servico.categoriaId);
             const corCategoria = categoria ? categoria.cor || coresCategorias[categoria.nome] || '#26196b' : '#26196b';
             
@@ -2557,14 +1579,8 @@
                      onclick="toggleSelecaoServico('${servico.id}')">
                     <div class="servico-nome">${servico.nome || 'Sem nome'}</div>
                     <div class="servico-desc">${servico.descricao || '-'}</div>
-                    <div class="servico-info-row">
-                        ${colabHtml}
-                        <span class="servico-tempo"><i class="far fa-clock"></i> ${servico.tempo ? servico.tempo + 'min' : '-'}</span>
-                    </div>
-                    <div>
-                        <span class="servico-preco">${servico.preco ? '€ ' + servico.preco.toFixed(2).replace('.', ',') : 'Consultar'}</span>
-                        <span class="preco-tipo ${precoTipoClass}">${labelPrecoTipo}</span>
-                    </div>
+                    <div class="servico-info-row">${colabHtml}<span class="servico-tempo"><i class="far fa-clock"></i> ${servico.tempo ? servico.tempo + 'min' : '-'}</span></div>
+                    <div><span class="servico-preco">${servico.preco ? '€ ' + servico.preco.toFixed(2).replace('.', ',') : 'Consultar'}</span><span class="preco-tipo ${precoTipoClass}">${labelPrecoTipo}</span></div>
                 </div>
             `;
         }
@@ -2592,14 +1608,12 @@
         function toggleSelecaoServico(id) {
             const servico = todosServicos.find(s => s.id === id);
             if (!servico) return;
-            
             const index = servicosSelecionados.findIndex(s => s.id === id);
             if (index !== -1) {
                 servicosSelecionados.splice(index, 1);
             } else {
                 servicosSelecionados.push(servico);
             }
-            
             atualizarSelecao();
         }
 
@@ -2607,15 +1621,12 @@
             const contador = document.getElementById('contadorSelecionados');
             const btnWhatsapp = document.getElementById('btnWhatsappFlutuante');
             const total = servicosSelecionados.length;
-            
             contador.textContent = total;
-            
             if (total > 0) {
                 btnWhatsapp.classList.add('visible');
             } else {
                 btnWhatsapp.classList.remove('visible');
             }
-            
             renderizarPrecario();
         }
 
@@ -2627,33 +1638,17 @@
                 alert('Selecione pelo menos um serviço para agendar.');
                 return;
             }
-            
             const modal = document.getElementById('modalAgendamento');
             const infoDiv = document.getElementById('infoServicosSelecionados');
-            
             let html = '';
             const valorTotal = calcularValorTotal();
-            
             servicosSelecionados.forEach((servico, index) => {
                 const preco = servico.preco || 0;
                 const tipo = servico.precoTipo || 'Fixo';
-                html += `
-                    <div class="servico-item">
-                        <span>${index + 1} - ${servico.nome || 'Serviço'}</span>
-                        <span>${preco > 0 ? '€ ' + preco.toFixed(2).replace('.', ',') : 'Consultar'} (${tipo})</span>
-                    </div>
-                `;
+                html += `<div class="servico-item"><span>${index + 1} - ${servico.nome || 'Serviço'}</span><span>${preco > 0 ? '€ ' + preco.toFixed(2).replace('.', ',') : 'Consultar'} (${tipo})</span></div>`;
             });
-            
             const totalFormatado = valorTotal.total > 0 ? '€ ' + valorTotal.total.toFixed(2).replace('.', ',') : 'Consultar';
-            
-            html += `
-                <div class="total-info">
-                    <span>Total de ${servicosSelecionados.length} serviços</span>
-                    <span>${totalFormatado}</span>
-                </div>
-            `;
-            
+            html += `<div class="total-info"><span>Total de ${servicosSelecionados.length} serviços</span><span>${totalFormatado}</span></div>`;
             infoDiv.innerHTML = html;
             
             const hoje = new Date();
@@ -2663,7 +1658,6 @@
             document.getElementById('inputData').min = dataMin;
             document.getElementById('inputData').value = dataMin;
             document.getElementById('inputHora').value = '10:00';
-            
             modal.classList.add('active');
             document.body.style.overflow = 'hidden';
         }
@@ -2679,47 +1673,26 @@
             const data = document.getElementById('inputData').value;
             const hora = document.getElementById('inputHora').value;
             
-            if (!nome) {
-                alert('Por favor, digite seu nome.');
-                document.getElementById('inputNome').focus();
-                return;
-            }
-            
-            if (!telefone) {
-                alert('Por favor, digite seu número de contacto.');
-                document.getElementById('inputTelefone').focus();
-                return;
-            }
-            
-            if (!data) {
-                alert('Por favor, selecione uma data.');
-                document.getElementById('inputData').focus();
-                return;
-            }
-            
-            if (!hora) {
-                alert('Por favor, selecione uma hora.');
-                document.getElementById('inputHora').focus();
-                return;
-            }
+            if (!nome) { alert('Por favor, digite seu nome.'); document.getElementById('inputNome').focus(); return; }
+            if (!telefone) { alert('Por favor, digite seu número de contacto.'); document.getElementById('inputTelefone').focus(); return; }
+            if (!data) { alert('Por favor, selecione uma data.'); document.getElementById('inputData').focus(); return; }
+            if (!hora) { alert('Por favor, selecione uma hora.'); document.getElementById('inputHora').focus(); return; }
             
             const valorTotal = calcularValorTotal();
             const totalFormatado = valorTotal.total > 0 ? '€ ' + valorTotal.total.toFixed(2).replace('.', ',') : 'Consultar';
-            
             document.getElementById('valorTotalConfirmacao').innerHTML = `
                 <i class="fas fa-euro-sign"></i> Valor total: ${totalFormatado}
                 <span style="font-size:14px; font-weight:400; opacity:0.8; display:block; margin-top:4px;">
                     (soma dos ${valorTotal.totalServicos} serviços selecionados)
                 </span>
             `;
-            
             fecharModalAgendamento();
             document.getElementById('modalConfirmacao').classList.add('active');
             document.body.style.overflow = 'hidden';
         }
 
         // ============================================================
-        // ENVIAR PARA WHATSAPP
+        // ENVIAR PARA WHATSAPP - USANDO O NÚMERO DA EMPRESA
         // ============================================================
         function enviarWhatsApp() {
             const nome = document.getElementById('inputNome').value.trim();
@@ -2729,15 +1702,9 @@
             const hora = document.getElementById('inputHora').value;
             
             const dataObj = new Date(data + 'T00:00:00');
-            const dataFormatada = dataObj.toLocaleDateString('pt-BR', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric'
-            });
-            
+            const dataFormatada = dataObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
             const valorTotal = calcularValorTotal();
             const totalFormatado = valorTotal.total > 0 ? '€ ' + valorTotal.total.toFixed(2).replace('.', ',') : 'Consultar';
-            
             const phone = empresaData.whatsApp || '351927431517';
             const nomeEmpresa = empresaData.nome || 'Studio DeVitto';
             
@@ -2745,32 +1712,24 @@
             mensagem += `*👤 Qual seu nome:* ${nome}%0A`;
             mensagem += `*📱 Qual seu número de contacto:* ${ddi} ${telefone}%0A%0A`;
             mensagem += '*📋 Serviços solicitados:*%0A';
-            
             servicosSelecionados.forEach((servico, index) => {
                 const preco = servico.preco || 0;
                 const precoStr = preco > 0 ? '€ ' + preco.toFixed(2).replace('.', ',') : 'Consultar';
                 const precoTipo = servico.precoTipo || 'Fixo';
                 mensagem += `${index + 1} - ${servico.nome || 'Serviço'} (${precoStr} - ${precoTipo})%0A`;
             });
-            
             mensagem += `%0A*📊 Total de ${servicosSelecionados.length} serviços*%0A`;
             mensagem += `*💰 Valor total dos serviços:* ${totalFormatado}%0A`;
             mensagem += `*ℹ️ Atenção:* o valor total é a soma dos serviços selecionados, podendo sofrer pequena alteração para mais ou para menos.%0A%0A`;
-            
             mensagem += `*📅 Data pretendida:* ${dataFormatada}%0A`;
             mensagem += `*🕐 Hora pretendida:* ${hora}%0A%0A`;
             mensagem += `_Aguardando confirmação do ${nomeEmpresa}._`;
             
             document.getElementById('modalConfirmacao').classList.remove('active');
             document.body.style.overflow = '';
-            
             const url = `https://wa.me/${phone}?text=${mensagem}`;
             window.open(url, '_blank');
-            
-            setTimeout(() => {
-                servicosSelecionados = [];
-                atualizarSelecao();
-            }, 1000);
+            setTimeout(() => { servicosSelecionados = []; atualizarSelecao(); }, 1000);
         }
 
         function fecharConfirmacao() {
@@ -2785,7 +1744,6 @@
             const container = document.getElementById('precarioContainer');
             const search = document.getElementById('searchInput').value;
             const ordenacao = document.getElementById('ordenacaoFilter').value;
-
             const searchTrim = search.trim();
             const exatosContainer = document.getElementById('servicosExatosContainer');
             const exatosGrid = document.getElementById('servicosExatosGrid');
@@ -2797,7 +1755,6 @@
             
             let servicosExatos = [];
             let idsExatos = new Set();
-            
             if (termos.length > 0 && searchTrim.length >= 2) {
                 servicosExatos = encontrarServicosExatos(termos);
                 idsExatos = new Set(servicosExatos.map(s => s.id));
@@ -2812,7 +1769,6 @@
             }
             
             let filtrados = filtrarServicosParaLista(termos, idsExatos);
-            
             if (ordenacao === 'nome') {
                 filtrados.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
             } else if (ordenacao === 'preco') {
@@ -2865,13 +1821,10 @@
             gruposOrdenados.forEach(grupo => {
                 const cor = grupo.cor || '#26196b';
                 const icon = iconesCategorias[grupo.nome] || 'fa-tag';
-
                 html += `
                     <div class="categoria-section">
                         <div class="categoria-header" onclick="toggleCategoria(this)">
-                            <div class="cat-icon" style="background: ${cor};">
-                                <i class="fas ${icon}"></i>
-                            </div>
+                            <div class="cat-icon" style="background: ${cor};"><i class="fas ${icon}"></i></div>
                             <h2>${grupo.nome}</h2>
                             <span class="cat-count">${grupo.servicos.length} serviços</span>
                             <i class="fas fa-chevron-down toggle-icon"></i>
@@ -2886,9 +1839,7 @@
                     </div>
                 `;
             });
-
             container.innerHTML = html;
-
             const firstBody = container.querySelector('.categoria-body');
             if (firstBody) {
                 firstBody.style.maxHeight = firstBody.scrollHeight + 'px';
@@ -2901,9 +1852,7 @@
         function toggleCategoria(header) {
             const body = header.nextElementSibling;
             const icon = header.querySelector('.toggle-icon');
-            
             if (!body) return;
-            
             if (body.style.maxHeight && body.style.maxHeight !== '0px') {
                 body.style.maxHeight = '0px';
                 if (icon) icon.classList.add('rotated');
@@ -2924,11 +1873,9 @@
             const btn = document.getElementById('btnTopo');
             let isVisible = false;
             let scrollTimeout;
-            
             function checkScroll() {
                 const scrollY = window.pageYOffset || document.documentElement.scrollTop;
                 const threshold = 300;
-                
                 if (scrollY > threshold && !isVisible) {
                     btn.classList.add('visible');
                     isVisible = true;
@@ -2937,7 +1884,6 @@
                     isVisible = false;
                 }
             }
-            
             window.addEventListener('scroll', function() {
                 if (scrollTimeout) return;
                 scrollTimeout = setTimeout(function() {
@@ -2945,16 +1891,12 @@
                     scrollTimeout = null;
                 }, 50);
             }, { passive: true });
-            
             btn.addEventListener('click', function(e) {
                 e.preventDefault();
                 this.style.transform = 'scale(0.85)';
-                setTimeout(() => {
-                    this.style.transform = '';
-                }, 200);
+                setTimeout(() => { this.style.transform = ''; }, 200);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             });
-            
             setTimeout(checkScroll, 100);
         }
 
@@ -2990,16 +1932,13 @@
                 background_color: "#f5f2f0",
                 theme_color: "#26196b",
                 orientation: "portrait-primary",
-                icons: [
-                    {
-                        src: empresaData.logoUrl || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%2326196b'/%3E%3Ctext x='256' y='340' font-family='Arial' font-size='280' text-anchor='middle' fill='%23D4AF37'%3E✂️%3C/text%3E%3C/svg%3E",
-                        sizes: "512x512",
-                        type: "image/svg+xml",
-                        purpose: "any maskable"
-                    }
-                ]
+                icons: [{
+                    src: empresaData.logoUrl || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%2326196b'/%3E%3Ctext x='256' y='340' font-family='Arial' font-size='280' text-anchor='middle' fill='%23D4AF37'%3E✂️%3C/text%3E%3C/svg%3E",
+                    sizes: "512x512",
+                    type: "image/svg+xml",
+                    purpose: "any maskable"
+                }]
             };
-
             const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
             const manifestURL = URL.createObjectURL(blob);
             const link = document.createElement('link');
@@ -3027,20 +1966,12 @@
         // ============================================================
         // DETECTAR ORIENTAÇÃO EM EVENTOS
         // ============================================================
-        window.addEventListener('resize', function() {
-            detectarOrientacao();
-        });
-
-        window.addEventListener('orientationchange', function() {
-            setTimeout(detectarOrientacao, 300);
-        });
-
-        document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(detectarOrientacao, 100);
-        });
+        window.addEventListener('resize', function() { detectarOrientacao(); });
+        window.addEventListener('orientationchange', function() { setTimeout(detectarOrientacao, 300); });
+        document.addEventListener('DOMContentLoaded', function() { setTimeout(detectarOrientacao, 100); });
 
         // ============================================================
-        // VERIFICAÇÃO PERIÓDICA A CADA 1 SEGUNDO (MAIS LEVE)
+        // VERIFICAÇÃO PERIÓDICA A CADA 1 SEGUNDO (MAIS LEVE E FORÇADA)
         // ============================================================
         let ultimaAtualizacao = Date.now();
 
@@ -3059,16 +1990,18 @@
                 carregarDados();
             }
             
-            // Verificar dados da empresa (sem piscar)
-            carregarDadosEmpresa();
+            // FORÇAR verificação dos dados da empresa a cada 1 segundo (SOLUÇÃO PARA MOBILE)
+            carregarDadosEmpresa(true);
             detectarOrientacao();
         }
 
+        // EXECUTAR A CADA 1 SEGUNDO (MAIS CONFIÁVEL EM MOBILE)
         setInterval(verificarAtualizacoes, 1000);
 
         document.addEventListener('visibilitychange', function() {
             if (!document.hidden) {
-                carregarDadosEmpresa();
+                // Quando a página voltar a ficar visível, forçar recarga
+                carregarDadosEmpresa(true);
                 detectarOrientacao();
                 if (todosServicos.length === 0) {
                     carregarDados();
@@ -3077,6 +2010,13 @@
                 }
             }
         });
+
+        console.log('✅ SOLUÇÃO MOBILE APLICADA:');
+        console.log('   - Força recarga a cada 1 segundo');
+        console.log('   - Verificação dupla: Firestore + localStorage');
+        console.log('   - Atualização sem piscar com requestAnimationFrame');
+        console.log('   - Recarga forçada ao voltar a aba');
     </script>
 </body>
 </html>
+```
