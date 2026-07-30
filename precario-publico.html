@@ -1690,81 +1690,109 @@
             _ultimaAtualizacao: null
         };
 
+        // Controle para evitar loop infinito
+        let atualizandoUI = false;
+        let logoCarregando = false;
+
         // ============================================================
-        // FUNÇÃO PARA CARREGAR DADOS DA EMPRESA (FORÇADO COM FIREBASE)
+        // FUNÇÃO PARA CARREGAR DADOS DA EMPRESA (FORÇADO - FUNCIONA EM TODOS OS DISPOSITIVOS)
         // ============================================================
         function carregarDadosEmpresa(forcar = false) {
-            return new Promise((resolve) => {
-                try {
-                    // Primeiro tenta carregar do localStorage
-                    let dadosCarregados = false;
-                    
-                    const perfilSalvo = localStorage.getItem('businessProfile');
-                    if (perfilSalvo) {
+            try {
+                let dadosCarregados = false;
+                
+                // ============================================================
+                // PASSO 1: TENTAR CARREGAR DO LOCALSTORAGE (MAIS RÁPIDO)
+                // ============================================================
+                const perfilSalvo = localStorage.getItem('businessProfile');
+                if (perfilSalvo) {
+                    try {
                         const perfil = JSON.parse(perfilSalvo);
                         if (perfil.name) empresaData.nome = perfil.name;
                         if (perfil.whatsApp) empresaData.whatsApp = perfil.whatsApp.replace(/\D/g, '');
                         dadosCarregados = true;
-                    }
+                    } catch (e) {}
+                }
 
-                    const settingsSalvo = localStorage.getItem('businessSettings');
-                    if (settingsSalvo) {
+                const settingsSalvo = localStorage.getItem('businessSettings');
+                if (settingsSalvo) {
+                    try {
                         const settings = JSON.parse(settingsSalvo);
                         if (settings.name) empresaData.nome = settings.name;
                         if (settings.customLogo) empresaData.logoUrl = settings.customLogo;
                         if (settings.logoType) empresaData.logoType = settings.logoType;
                         dadosCarregados = true;
-                    }
-
-                    // Se não encontrou no localStorage OU se for forçado, busca no Firebase
-                    if (forcar || !dadosCarregados) {
-                        if (typeof currentUser !== 'undefined' && currentUser) {
-                            // Buscar businessProfile
-                            db.collection('businessProfile').doc(currentUser.uid).get()
-                                .then((doc) => {
-                                    if (doc.exists) {
-                                        const data = doc.data();
-                                        if (data.name) empresaData.nome = data.name;
-                                        if (data.whatsApp) empresaData.whatsApp = data.whatsApp.replace(/\D/g, '');
-                                    }
-                                    // Buscar businessSettings
-                                    return db.collection('businessSettings').doc(currentUser.uid).get();
-                                })
-                                .then((doc) => {
-                                    if (doc.exists) {
-                                        const data = doc.data();
-                                        if (data.name) empresaData.nome = data.name;
-                                        if (data.customLogo) empresaData.logoUrl = data.customLogo;
-                                        if (data.logoType) empresaData.logoType = data.logoType;
-                                    }
-                                    // Atualizar UI com os dados do Firebase
-                                    atualizarUIPagina();
-                                    resolve(true);
-                                })
-                                .catch((error) => {
-                                    // Se falhar, tenta usar o que já tem
-                                    atualizarUIPagina();
-                                    resolve(false);
-                                });
-                            return;
-                        }
-                    }
-                    
-                    // Se não tem currentUser ou já carregou do localStorage
-                    atualizarUIPagina();
-                    resolve(true);
-                    
-                } catch (e) {
-                    atualizarUIPagina();
-                    resolve(false);
+                    } catch (e) {}
                 }
-            });
+
+                // ============================================================
+                // PASSO 2: BUSCAR DIRETAMENTE DO FIRESTORE (MAIS CONFIÁVEL)
+                // ============================================================
+                // Verificar se o usuário está logado
+                if (typeof currentUser !== 'undefined' && currentUser && currentUser.uid) {
+                    // Buscar businessProfile
+                    db.collection('businessProfile').doc(currentUser.uid).get()
+                        .then((doc) => {
+                            if (doc.exists) {
+                                const data = doc.data();
+                                if (data.name) empresaData.nome = data.name;
+                                if (data.whatsApp) empresaData.whatsApp = data.whatsApp.replace(/\D/g, '');
+                            }
+                            // Buscar businessSettings
+                            return db.collection('businessSettings').doc(currentUser.uid).get();
+                        })
+                        .then((doc) => {
+                            if (doc.exists) {
+                                const data = doc.data();
+                                if (data.name) empresaData.nome = data.name;
+                                if (data.customLogo) {
+                                    // Verificar se a logo mudou
+                                    if (empresaData.logoUrl !== data.customLogo) {
+                                        empresaData.logoUrl = data.customLogo;
+                                        // Forçar recarregamento da imagem
+                                        logoCarregando = false;
+                                    }
+                                }
+                                if (data.logoType) empresaData.logoType = data.logoType;
+                            }
+                            // Atualizar UI com os dados do Firebase
+                            atualizarUIPagina();
+                            // Salvar no localStorage para cache
+                            try {
+                                const perfil = JSON.parse(localStorage.getItem('businessProfile') || '{}');
+                                perfil.name = empresaData.nome;
+                                perfil.whatsApp = empresaData.whatsApp;
+                                localStorage.setItem('businessProfile', JSON.stringify(perfil));
+                                
+                                const settings = JSON.parse(localStorage.getItem('businessSettings') || '{}');
+                                settings.name = empresaData.nome;
+                                settings.customLogo = empresaData.logoUrl;
+                                settings.logoType = empresaData.logoType;
+                                localStorage.setItem('businessSettings', JSON.stringify(settings));
+                            } catch (e) {}
+                        })
+                        .catch((error) => {
+                            // Se falhar, usar o que já tem
+                            atualizarUIPagina();
+                        });
+                    return;
+                } else {
+                    // Se não tem usuário logado, usar o que já carregou do localStorage
+                    atualizarUIPagina();
+                }
+                
+            } catch (e) {
+                atualizarUIPagina();
+            }
         }
 
         // ============================================================
-        // FUNÇÃO PARA ATUALIZAR A UI COM OS DADOS DA EMPRESA
+        // FUNÇÃO PARA ATUALIZAR A UI COM OS DADOS DA EMPRESA (SEM PISCAR)
         // ============================================================
         function atualizarUIPagina() {
+            if (atualizandoUI) return;
+            atualizandoUI = true;
+            
             try {
                 const nome = empresaData.nome || 'Studio DeVitto';
                 
@@ -1782,12 +1810,13 @@
                 });
                 
                 // Atualizar título da página
+                const tituloAtual = document.title;
                 const novoTitulo = `Preçário · ${nome}`;
-                if (document.title !== novoTitulo) {
+                if (tituloAtual !== novoTitulo) {
                     document.title = novoTitulo;
                 }
                 
-                // Atualizar H1
+                // Atualizar H1 (mantém o span)
                 const h1 = document.querySelector('.header h1');
                 if (h1) {
                     const span = h1.querySelector('#headerBusinessName');
@@ -1802,7 +1831,7 @@
                 const logoIcon = document.getElementById('headerLogoIcon');
                 const logoImgContainer = document.getElementById('headerLogoImg');
                 
-                if (empresaData.logoUrl && empresaData.logoUrl.trim() !== '') {
+                if (empresaData.logoUrl && empresaData.logoUrl.trim() !== '' && empresaData.logoUrl !== 'null') {
                     // Verificar se a imagem já está carregada
                     const imgAtual = logoImgContainer.querySelector('img');
                     const urlAtual = imgAtual ? imgAtual.src : '';
@@ -1811,7 +1840,7 @@
                         // Esconder ícone
                         logoIcon.style.display = 'none';
                         
-                        // Mostrar container da imagem
+                        // Mostrar container da imagem com fade
                         logoImgContainer.style.display = 'inline-block';
                         logoImgContainer.style.opacity = '0';
                         
@@ -1831,12 +1860,14 @@
                             logoImgContainer.innerHTML = '';
                             logoImgContainer.appendChild(img);
                             logoImgContainer.style.opacity = '1';
+                            logoCarregando = false;
                         };
                         
                         img.onerror = function() {
                             // Se falhar, voltar para o ícone
                             logoImgContainer.style.display = 'none';
                             logoIcon.style.display = 'inline-block';
+                            logoCarregando = false;
                         };
                         
                         // Se já estiver carregada no cache, mostrar imediatamente
@@ -1844,10 +1875,12 @@
                             logoImgContainer.innerHTML = '';
                             logoImgContainer.appendChild(img);
                             logoImgContainer.style.opacity = '1';
+                            logoCarregando = false;
                         } else {
                             // Limpar container e adicionar a imagem
                             logoImgContainer.innerHTML = '';
                             logoImgContainer.appendChild(img);
+                            // O fade será aplicado no onload
                         }
                     } else {
                         // Mesma URL, apenas garantir que está visível
@@ -1878,6 +1911,8 @@
             } catch (e) {
                 // Fallback seguro
             }
+            
+            atualizandoUI = false;
         }
 
         // ============================================================
@@ -1885,7 +1920,7 @@
         // ============================================================
         function ouvirMudancasEmpresa() {
             // Verificar se o usuário está logado
-            if (typeof currentUser === 'undefined' || !currentUser) {
+            if (typeof currentUser === 'undefined' || !currentUser || !currentUser.uid) {
                 // Tentar novamente em 2 segundos
                 setTimeout(ouvirMudancasEmpresa, 2000);
                 return;
@@ -1942,6 +1977,8 @@
                         if (data.customLogo && data.customLogo !== empresaData.logoUrl) {
                             empresaData.logoUrl = data.customLogo;
                             mudou = true;
+                            // Forçar recarregamento da imagem
+                            logoCarregando = false;
                         }
                         if (data.logoType && data.logoType !== empresaData.logoType) {
                             empresaData.logoType = data.logoType;
@@ -2201,7 +2238,7 @@
         };
 
         // ============================================================
-        // CARREGAR DADOS DO FIREBASE
+        // CARREGAR DADOS DO FIREBASE (PÚBLICO - SEM AUTENTICAÇÃO)
         // ============================================================
         function carregarDados() {
             const container = document.getElementById('precarioContainer');
@@ -2213,10 +2250,10 @@
             `;
 
             // Carregar dados da empresa (forçado)
-            carregarDadosEmpresa(true).then(() => {
-                // Iniciar listeners em tempo real
-                setTimeout(ouvirMudancasEmpresa, 1000);
-            });
+            carregarDadosEmpresa(true);
+            
+            // Iniciar listeners em tempo real após carregar dados
+            setTimeout(ouvirMudancasEmpresa, 1000);
 
             // Carregar categorias
             db.collection('categorias')
@@ -3113,6 +3150,14 @@
         initBotaoWhatsapp();
 
         console.log('✅ Página pública do Preçário carregada!');
+        console.log('📱 WhatsApp vinculado ao perfil da empresa (sistema mae)');
+        console.log('🏢 Nome da empresa vinculado ao perfil da empresa (sistema mae)');
+        console.log('🖼️ Logo vinculada ao perfil da empresa (sistema mae)');
+        console.log('🔄 Atualização em tempo real a cada 1 segundo (com verificação)');
+        console.log('📱 Detecção de orientação via JavaScript (mais confiável)');
+        console.log('📱 Badges em uma única linha no mobile vertical');
+        console.log('🖼️ Logo com fade para evitar "piscar"');
+        console.log('📱 Sincronização de nome e logo funcional em TODOS os dispositivos');
 
         // ============================================================
         // DETECTAR ORIENTAÇÃO EM EVENTOS
@@ -3130,9 +3175,8 @@
         });
 
         // ============================================================
-        // VERIFICAÇÃO PERIÓDICA A CADA 500ms (MAIS AGRESSIVA EM MOBILE)
+        // VERIFICAÇÃO PERIÓDICA A CADA 1 SEGUNDO (COM VERIFICAÇÃO DE MUDANÇA)
         // ============================================================
-        let ultimaAtualizacao = Date.now();
         let ultimoNome = empresaData.nome;
         let ultimaLogo = empresaData.logoUrl;
 
@@ -3148,19 +3192,24 @@
             }
             
             // ============================================================
-            // VERIFICAR MUDANÇAS NOS DADOS DA EMPRESA (FORÇADO)
+            // VERIFICAR MUDANÇAS NOS DADOS DA EMPRESA (FORÇADO - FUNCIONA EM TODOS OS DISPOSITIVOS)
             // ============================================================
+            // Verificar se houve mudança no localStorage
             try {
+                let mudou = false;
+                
                 const perfilSalvo = localStorage.getItem('businessProfile');
                 if (perfilSalvo) {
                     const perfil = JSON.parse(perfilSalvo);
                     if (perfil.name && perfil.name !== empresaData.nome) {
                         empresaData.nome = perfil.name;
+                        mudou = true;
                     }
                     if (perfil.whatsApp) {
                         const novoWhats = perfil.whatsApp.replace(/\D/g, '');
                         if (novoWhats !== empresaData.whatsApp) {
                             empresaData.whatsApp = novoWhats;
+                            mudou = true;
                         }
                     }
                 }
@@ -3170,73 +3219,111 @@
                     const settings = JSON.parse(settingsSalvo);
                     if (settings.name && settings.name !== empresaData.nome) {
                         empresaData.nome = settings.name;
+                        mudou = true;
                     }
                     if (settings.customLogo && settings.customLogo !== empresaData.logoUrl) {
                         empresaData.logoUrl = settings.customLogo;
+                        mudou = true;
+                        logoCarregando = false;
                     }
                     if (settings.logoType && settings.logoType !== empresaData.logoType) {
                         empresaData.logoType = settings.logoType;
+                        mudou = true;
                     }
                 }
-            } catch (e) {}
 
-            // Verificar se houve mudança no nome ou logo
-            if (ultimoNome !== empresaData.nome || ultimaLogo !== empresaData.logoUrl) {
-                console.log('🔄 Mudança detectada - atualizando UI...');
-                ultimoNome = empresaData.nome;
-                ultimaLogo = empresaData.logoUrl;
-                atualizarUIPagina();
-            }
+                // Se não encontrou no localStorage, buscar do Firebase
+                if (!mudou && typeof currentUser !== 'undefined' && currentUser && currentUser.uid) {
+                    // Buscar diretamente do Firebase para garantir dados atualizados
+                    db.collection('businessProfile').doc(currentUser.uid).get()
+                        .then((doc) => {
+                            if (doc.exists) {
+                                const data = doc.data();
+                                if (data.name && data.name !== empresaData.nome) {
+                                    empresaData.nome = data.name;
+                                    mudou = true;
+                                }
+                                if (data.whatsApp) {
+                                    const novoWhats = data.whatsApp.replace(/\D/g, '');
+                                    if (novoWhats !== empresaData.whatsApp) {
+                                        empresaData.whatsApp = novoWhats;
+                                        mudou = true;
+                                    }
+                                }
+                            }
+                            return db.collection('businessSettings').doc(currentUser.uid).get();
+                        })
+                        .then((doc) => {
+                            if (doc.exists) {
+                                const data = doc.data();
+                                if (data.name && data.name !== empresaData.nome) {
+                                    empresaData.nome = data.name;
+                                    mudou = true;
+                                }
+                                if (data.customLogo && data.customLogo !== empresaData.logoUrl) {
+                                    empresaData.logoUrl = data.customLogo;
+                                    mudou = true;
+                                    logoCarregando = false;
+                                }
+                                if (data.logoType && data.logoType !== empresaData.logoType) {
+                                    empresaData.logoType = data.logoType;
+                                    mudou = true;
+                                }
+                            }
+                            if (mudou) {
+                                // Salvar no localStorage
+                                try {
+                                    const perfil = JSON.parse(localStorage.getItem('businessProfile') || '{}');
+                                    perfil.name = empresaData.nome;
+                                    perfil.whatsApp = empresaData.whatsApp;
+                                    localStorage.setItem('businessProfile', JSON.stringify(perfil));
+                                    
+                                    const settings = JSON.parse(localStorage.getItem('businessSettings') || '{}');
+                                    settings.name = empresaData.nome;
+                                    settings.customLogo = empresaData.logoUrl;
+                                    settings.logoType = empresaData.logoType;
+                                    localStorage.setItem('businessSettings', JSON.stringify(settings));
+                                } catch (e) {}
+                                atualizarUIPagina();
+                                console.log('🔄 Dados da empresa atualizados via verificação periódica');
+                            }
+                        })
+                        .catch(() => {
+                            // Se falhar, verificar se houve mudança no nome ou logo
+                            if (ultimoNome !== empresaData.nome || ultimaLogo !== empresaData.logoUrl) {
+                                mudou = true;
+                                atualizarUIPagina();
+                            }
+                        });
+                }
+
+                // Verificar se houve mudança no nome ou logo
+                if (ultimoNome !== empresaData.nome || ultimaLogo !== empresaData.logoUrl) {
+                    ultimoNome = empresaData.nome;
+                    ultimaLogo = empresaData.logoUrl;
+                    atualizarUIPagina();
+                }
+            } catch (e) {}
 
             // Verificar orientação
             detectarOrientacao();
         }
 
-        // ============================================================
-        // VERIFICAÇÃO A CADA 500ms (MAIS RÁPIDO PARA MOBILE)
-        // ============================================================
-        const intervaloVerificacao = setInterval(verificarAtualizacoes, 500);
+        // Executar verificação a cada 1 segundo
+        setInterval(verificarAtualizacoes, 1000);
 
-        // ============================================================
-        // QUANDO A PÁGINA REATIVA, FORÇA VERIFICAÇÃO COMPLETA
-        // ============================================================
         document.addEventListener('visibilitychange', function() {
             if (!document.hidden) {
-                console.log('📱 Página reativada - forçando verificação completa...');
-                // Forçar carregamento do Firebase
-                carregarDadosEmpresa(true).then(() => {
-                    // Forçar atualização da UI
-                    atualizarUIPagina();
-                    // Forçar detecção de orientação
-                    detectarOrientacao();
-                    // Recarregar serviços se necessário
-                    if (todosServicos.length === 0) {
-                        carregarDados();
-                    } else {
-                        renderizarPrecario();
-                    }
-                });
+                console.log('📱 Página reativada - forçando verificação...');
+                carregarDadosEmpresa(true);
+                detectarOrientacao();
+                if (todosServicos.length === 0) {
+                    carregarDados();
+                } else {
+                    renderizarPrecario();
+                }
             }
         });
-
-        // ============================================================
-        // QUANDO O USUÁRIO VOLTA PARA A ABA, FORÇA VERIFICAÇÃO
-        // ============================================================
-        window.addEventListener('focus', function() {
-            console.log('📱 Página recebeu foco - verificando atualizações...');
-            carregarDadosEmpresa(true).then(() => {
-                atualizarUIPagina();
-                detectarOrientacao();
-            });
-        });
-
-        console.log('📱 WhatsApp vinculado ao perfil da empresa (sistema mae)');
-        console.log('🏢 Nome da empresa vinculado ao perfil da empresa (sistema mae)');
-        console.log('🖼️ Logo vinculada ao perfil da empresa (sistema mae)');
-        console.log('🔄 Atualização em tempo real a cada 500ms (mais agressivo em mobile)');
-        console.log('📱 Detecção de orientação via JavaScript (mais confiável)');
-        console.log('📱 Força verificação ao reativar a página e ao receber foco');
-        console.log('🖼️ Logo com fade para evitar "piscar"');
     </script>
 </body>
 </html>
