@@ -1679,6 +1679,7 @@
         let colaboradorFiltroId = null;
         let categoriaFiltroId = null;
         let currentUser = null;
+        let authListenerAtivo = false;
 
         // ============================================================
         // DADOS DA EMPRESA - VINCULADOS AO SISTEMA "MÃE"
@@ -1694,11 +1695,14 @@
         let atualizandoUI = false;
         let ultimoNome = empresaData.nome;
         let ultimaLogo = empresaData.logoUrl;
+        let verificacaoAtiva = false;
 
         // ============================================================
         // FUNÇÃO PARA CARREGAR DADOS DA EMPRESA (FORÇADO - FUNCIONA EM TODOS OS DISPOSITIVOS)
         // ============================================================
         function carregarDadosEmpresa(forcar = false) {
+            if (verificacaoAtiva && !forcar) return;
+            
             try {
                 let mudou = false;
                 
@@ -1743,7 +1747,7 @@
                 }
 
                 // ============================================================
-                // PASSO 2: BUSCAR DIRETAMENTE DO FIRESTORE (MAIS CONFIÁVEL)
+                // PASSO 2: BUSCAR DIRETAMENTE DO FIRESTORE (MAIS CONFIÁVEL - FUNCIONA EM TODOS OS DISPOSITIVOS)
                 // ============================================================
                 // Verificar se o usuário está logado
                 if (currentUser && currentUser.uid) {
@@ -2055,6 +2059,93 @@
                 });
 
             console.log('✅ Listeners de empresa ativados!');
+        }
+
+        // ============================================================
+        // FUNÇÃO DE VERIFICAÇÃO AUTOMÁTICA A CADA 1 SEGUNDO (FUNCIONA EM TODOS OS DISPOSITIVOS)
+        // ============================================================
+        function verificarAtualizacoesAutomaticas() {
+            if (verificacaoAtiva) return;
+            verificacaoAtiva = true;
+            
+            try {
+                // Verificar se o usuário está logado
+                if (!currentUser || !currentUser.uid) {
+                    verificacaoAtiva = false;
+                    return;
+                }
+
+                // Forçar verificação no Firebase
+                let mudou = false;
+                
+                // Buscar businessProfile
+                db.collection('businessProfile').doc(currentUser.uid).get()
+                    .then((doc) => {
+                        if (doc.exists) {
+                            const data = doc.data();
+                            if (data.name && data.name !== empresaData.nome) {
+                                empresaData.nome = data.name;
+                                mudou = true;
+                            }
+                            if (data.whatsApp) {
+                                const novoWhats = data.whatsApp.replace(/\D/g, '');
+                                if (novoWhats !== empresaData.whatsApp) {
+                                    empresaData.whatsApp = novoWhats;
+                                    mudou = true;
+                                }
+                            }
+                        }
+                        return db.collection('businessSettings').doc(currentUser.uid).get();
+                    })
+                    .then((doc) => {
+                        if (doc.exists) {
+                            const data = doc.data();
+                            if (data.name && data.name !== empresaData.nome) {
+                                empresaData.nome = data.name;
+                                mudou = true;
+                            }
+                            if (data.customLogo && data.customLogo !== empresaData.logoUrl) {
+                                empresaData.logoUrl = data.customLogo;
+                                mudou = true;
+                            }
+                            if (data.logoType && data.logoType !== empresaData.logoType) {
+                                empresaData.logoType = data.logoType;
+                                mudou = true;
+                            }
+                        }
+                        
+                        if (mudou) {
+                            console.log('🔄 Dados da empresa atualizados via verificação automática');
+                            // Salvar no localStorage
+                            try {
+                                const perfil = JSON.parse(localStorage.getItem('businessProfile') || '{}');
+                                perfil.name = empresaData.nome;
+                                perfil.whatsApp = empresaData.whatsApp;
+                                localStorage.setItem('businessProfile', JSON.stringify(perfil));
+                                
+                                const settings = JSON.parse(localStorage.getItem('businessSettings') || '{}');
+                                settings.name = empresaData.nome;
+                                settings.customLogo = empresaData.logoUrl;
+                                settings.logoType = empresaData.logoType;
+                                localStorage.setItem('businessSettings', JSON.stringify(settings));
+                            } catch (e) {}
+                            
+                            if (ultimoNome !== empresaData.nome || ultimaLogo !== empresaData.logoUrl) {
+                                ultimoNome = empresaData.nome;
+                                ultimaLogo = empresaData.logoUrl;
+                                atualizarUIPagina();
+                            }
+                        }
+                        
+                        verificacaoAtiva = false;
+                    })
+                    .catch((error) => {
+                        verificacaoAtiva = false;
+                    });
+                    
+            } catch (e) {
+                verificacaoAtiva = false;
+            }
         }
 
         // ============================================================
@@ -3254,9 +3345,9 @@
         });
 
         // ============================================================
-        // VERIFICAÇÃO PERIÓDICA A CADA 1 SEGUNDO (COM VERIFICAÇÃO DE MUDANÇA)
+        // VERIFICAÇÃO PERIÓDICA A CADA 1 SEGUNDO (FUNCIONA EM TODOS OS DISPOSITIVOS)
         // ============================================================
-        function verificarAtualizacoes() {
+        setInterval(function() {
             // Verificar serviços
             if (!servicosListener) {
                 carregarDados();
@@ -3268,19 +3359,35 @@
             }
             
             // Verificar e atualizar dados da empresa (forçado - funciona em todos os dispositivos)
-            carregarDadosEmpresa(true);
+            if (currentUser && currentUser.uid) {
+                verificarAtualizacoesAutomaticas();
+            } else {
+                // Se não tem usuário, tentar autenticar novamente
+                if (typeof firebase !== 'undefined' && firebase.auth) {
+                    const user = firebase.auth().currentUser;
+                    if (user) {
+                        currentUser = user;
+                        console.log('✅ Usuário recuperado via verificação periódica');
+                        carregarDadosEmpresa(true);
+                        ouvirMudancasEmpresa();
+                    }
+                }
+            }
             
             // Verificar orientação
             detectarOrientacao();
-        }
-
-        // Executar verificação a cada 1 segundo
-        setInterval(verificarAtualizacoes, 1000);
+            
+        }, 1000);
 
         document.addEventListener('visibilitychange', function() {
             if (!document.hidden) {
                 console.log('📱 Página reativada - forçando verificação...');
-                carregarDadosEmpresa(true);
+                if (currentUser && currentUser.uid) {
+                    carregarDadosEmpresa(true);
+                    verificarAtualizacoesAutomaticas();
+                } else {
+                    verificarAutenticacao();
+                }
                 detectarOrientacao();
                 if (todosServicos.length === 0) {
                     carregarDados();
