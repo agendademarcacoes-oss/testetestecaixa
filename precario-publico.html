@@ -3201,5 +3201,364 @@
             }
         });
     </script>
+
+
+
+
+
+
+
+
+
+
+
+
+    <!-- Adicione esta seção ANTES do fechamento da tag </body> -->
+<script>
+// ============================================================
+// CORREÇÃO PARA DISPOSITIVOS MÓVEIS - FORÇAR ATUALIZAÇÃO DA LOGO E NOME
+// ============================================================
+(function() {
+    console.log('📱 Iniciando correção para dispositivos móveis...');
+
+    // ============================================================
+    // FUNÇÃO PARA FORÇAR ATUALIZAÇÃO DA UI EM QUALQUER DISPOSITIVO
+    // ============================================================
+    function forcarAtualizacaoUI() {
+        console.log('🔄 Forçando atualização da UI em dispositivo móvel...');
+        
+        // Recuperar dados do localStorage
+        try {
+            const perfilSalvo = localStorage.getItem('businessProfile');
+            const settingsSalvo = localStorage.getItem('businessSettings');
+            
+            let nomeAtualizado = false;
+            let logoAtualizada = false;
+            
+            if (perfilSalvo) {
+                const perfil = JSON.parse(perfilSalvo);
+                if (perfil.name) {
+                    document.querySelectorAll('#headerBusinessName, #footerBusinessName, #confirmBusinessName').forEach(el => {
+                        if (el && el.textContent !== perfil.name) {
+                            el.textContent = perfil.name;
+                            nomeAtualizado = true;
+                        }
+                    });
+                    
+                    // Atualizar título
+                    if (document.title !== `Preçário · ${perfil.name}`) {
+                        document.title = `Preçário · ${perfil.name}`;
+                    }
+                    
+                    // Atualizar H1
+                    const h1 = document.querySelector('.header h1');
+                    if (h1) {
+                        const span = h1.querySelector('#headerBusinessName');
+                        if (span) {
+                            span.textContent = perfil.name;
+                        } else {
+                            h1.innerHTML = `Preçário <span id="headerBusinessName">${perfil.name}</span>`;
+                        }
+                    }
+                }
+            }
+            
+            if (settingsSalvo) {
+                const settings = JSON.parse(settingsSalvo);
+                
+                // Atualizar logo
+                const logoIcon = document.getElementById('headerLogoIcon');
+                const logoImgContainer = document.getElementById('headerLogoImg');
+                
+                if (settings.customLogo && settings.customLogo.trim() !== '' && settings.customLogo !== 'null') {
+                    if (logoIcon) logoIcon.style.display = 'none';
+                    if (logoImgContainer) {
+                        logoImgContainer.style.display = 'inline-block';
+                        logoImgContainer.style.opacity = '0';
+                        
+                        const img = document.createElement('img');
+                        img.src = settings.customLogo;
+                        img.alt = settings.name || 'Studio DeVitto';
+                        img.style.height = '50px';
+                        img.style.maxWidth = '150px';
+                        img.style.objectFit = 'contain';
+                        img.style.marginBottom = '10px';
+                        img.style.borderRadius = '8px';
+                        img.style.transition = 'opacity 0.3s ease';
+                        
+                        img.onload = function() {
+                            logoImgContainer.innerHTML = '';
+                            logoImgContainer.appendChild(img);
+                            logoImgContainer.style.opacity = '1';
+                            logoAtualizada = true;
+                        };
+                        img.onerror = function() {
+                            logoImgContainer.style.display = 'none';
+                            if (logoIcon) logoIcon.style.display = 'inline-block';
+                        };
+                        
+                        if (img.complete && img.naturalHeight > 0) {
+                            logoImgContainer.innerHTML = '';
+                            logoImgContainer.appendChild(img);
+                            logoImgContainer.style.opacity = '1';
+                            logoAtualizada = true;
+                        } else {
+                            logoImgContainer.innerHTML = '';
+                            logoImgContainer.appendChild(img);
+                        }
+                    }
+                } else {
+                    if (logoImgContainer) {
+                        logoImgContainer.style.display = 'none';
+                        logoImgContainer.innerHTML = '';
+                    }
+                    if (logoIcon) {
+                        logoIcon.style.display = 'inline-block';
+                        
+                        // Definir ícone correto
+                        const icons = {
+                            'scissors': 'fa-scissors',
+                            'store': 'fa-store',
+                            'spa': 'fa-spa',
+                            'salon': 'fa-cut',
+                            'barber': 'fa-user-md'
+                        };
+                        const iconClass = icons[settings.logoType] || 'fa-scissors';
+                        logoIcon.className = `logo-icon ${iconClass}`;
+                    }
+                }
+            }
+            
+            if (nomeAtualizado || logoAtualizada) {
+                console.log('✅ UI atualizada com sucesso em dispositivo móvel!');
+            }
+            
+        } catch (e) {
+            console.log('⚠️ Erro ao forçar atualização da UI:', e);
+        }
+    }
+
+    // ============================================================
+    // FUNÇÃO MELHORADA PARA INICIALIZAR AUTH EM DISPOSITIVOS MÓVEIS
+    // ============================================================
+    function initAuthMobile() {
+        console.log('📡 Iniciando autenticação para dispositivos móveis...');
+        
+        // Verificar se o Firebase Auth está disponível
+        if (typeof firebase === 'undefined' || !firebase.auth) {
+            console.log('⏳ Firebase Auth não disponível em dispositivo móvel, tentando novamente...');
+            setTimeout(initAuthMobile, 500);
+            return;
+        }
+
+        // Forçar atualização imediata do localStorage
+        setTimeout(forcarAtualizacaoUI, 100);
+
+        // Listener de autenticação
+        firebase.auth().onAuthStateChanged(function(user) {
+            if (user) {
+                console.log('✅ Usuário autenticado em dispositivo móvel:', user.email);
+                
+                // Carregar dados do Firestore
+                db.collection('businessProfile').doc(user.uid).get()
+                    .then((doc) => {
+                        if (doc.exists) {
+                            const data = doc.data();
+                            if (data.name) {
+                                const nome = data.name;
+                                document.querySelectorAll('#headerBusinessName, #footerBusinessName, #confirmBusinessName').forEach(el => {
+                                    if (el) el.textContent = nome;
+                                });
+                                if (document.title !== `Preçário · ${nome}`) {
+                                    document.title = `Preçário · ${nome}`;
+                                }
+                                const h1 = document.querySelector('.header h1');
+                                if (h1) {
+                                    const span = h1.querySelector('#headerBusinessName');
+                                    if (span) span.textContent = nome;
+                                }
+                                // Salvar no localStorage
+                                try {
+                                    const perfil = JSON.parse(localStorage.getItem('businessProfile') || '{}');
+                                    perfil.name = nome;
+                                    localStorage.setItem('businessProfile', JSON.stringify(perfil));
+                                } catch (e) {}
+                            }
+                        }
+                        return db.collection('businessSettings').doc(user.uid).get();
+                    })
+                    .then((doc) => {
+                        if (doc.exists) {
+                            const data = doc.data();
+                            
+                            // Atualizar logo
+                            const logoIcon = document.getElementById('headerLogoIcon');
+                            const logoImgContainer = document.getElementById('headerLogoImg');
+                            
+                            if (data.customLogo && data.customLogo.trim() !== '' && data.customLogo !== 'null') {
+                                if (logoIcon) logoIcon.style.display = 'none';
+                                if (logoImgContainer) {
+                                    logoImgContainer.style.display = 'inline-block';
+                                    logoImgContainer.style.opacity = '0';
+                                    const img = document.createElement('img');
+                                    img.src = data.customLogo;
+                                    img.alt = data.name || 'Studio DeVitto';
+                                    img.style.height = '50px';
+                                    img.style.maxWidth = '150px';
+                                    img.style.objectFit = 'contain';
+                                    img.style.marginBottom = '10px';
+                                    img.style.borderRadius = '8px';
+                                    img.style.transition = 'opacity 0.3s ease';
+                                    img.onload = function() {
+                                        logoImgContainer.innerHTML = '';
+                                        logoImgContainer.appendChild(img);
+                                        logoImgContainer.style.opacity = '1';
+                                    };
+                                    img.onerror = function() {
+                                        logoImgContainer.style.display = 'none';
+                                        if (logoIcon) logoIcon.style.display = 'inline-block';
+                                    };
+                                    if (img.complete && img.naturalHeight > 0) {
+                                        logoImgContainer.innerHTML = '';
+                                        logoImgContainer.appendChild(img);
+                                        logoImgContainer.style.opacity = '1';
+                                    } else {
+                                        logoImgContainer.innerHTML = '';
+                                        logoImgContainer.appendChild(img);
+                                    }
+                                }
+                            } else {
+                                if (logoImgContainer) {
+                                    logoImgContainer.style.display = 'none';
+                                    logoImgContainer.innerHTML = '';
+                                }
+                                if (logoIcon) {
+                                    logoIcon.style.display = 'inline-block';
+                                }
+                            }
+                            
+                            // Salvar no localStorage
+                            try {
+                                const settings = JSON.parse(localStorage.getItem('businessSettings') || '{}');
+                                settings.customLogo = data.customLogo;
+                                settings.logoType = data.logoType;
+                                localStorage.setItem('businessSettings', JSON.stringify(settings));
+                            } catch (e) {}
+                        }
+                        console.log('✅ Dados da empresa carregados em dispositivo móvel!');
+                    })
+                    .catch((error) => {
+                        console.log('⚠️ Erro ao carregar dados em dispositivo móvel:', error);
+                        forcarAtualizacaoUI(); // Fallback para localStorage
+                    });
+                    
+                // Configurar listeners em tempo real
+                db.collection('businessProfile').doc(user.uid)
+                    .onSnapshot((doc) => {
+                        if (doc.exists) {
+                            const data = doc.data();
+                            if (data.name) {
+                                document.querySelectorAll('#headerBusinessName, #footerBusinessName, #confirmBusinessName').forEach(el => {
+                                    if (el) el.textContent = data.name;
+                                });
+                                if (document.title !== `Preçário · ${data.name}`) {
+                                    document.title = `Preçário · ${data.name}`;
+                                }
+                            }
+                        }
+                    }, (error) => { console.error('❌ Erro listener businessProfile mobile:', error); });
+                    
+                db.collection('businessSettings').doc(user.uid)
+                    .onSnapshot((doc) => {
+                        if (doc.exists) {
+                            const data = doc.data();
+                            // Atualizar logo em tempo real
+                            const logoIcon = document.getElementById('headerLogoIcon');
+                            const logoImgContainer = document.getElementById('headerLogoImg');
+                            
+                            if (data.customLogo && data.customLogo.trim() !== '' && data.customLogo !== 'null') {
+                                if (logoIcon) logoIcon.style.display = 'none';
+                                if (logoImgContainer) {
+                                    logoImgContainer.style.display = 'inline-block';
+                                    logoImgContainer.style.opacity = '0';
+                                    const img = document.createElement('img');
+                                    img.src = data.customLogo;
+                                    img.alt = data.name || 'Studio DeVitto';
+                                    img.style.height = '50px';
+                                    img.style.maxWidth = '150px';
+                                    img.style.objectFit = 'contain';
+                                    img.style.marginBottom = '10px';
+                                    img.style.borderRadius = '8px';
+                                    img.style.transition = 'opacity 0.3s ease';
+                                    img.onload = function() {
+                                        logoImgContainer.innerHTML = '';
+                                        logoImgContainer.appendChild(img);
+                                        logoImgContainer.style.opacity = '1';
+                                    };
+                                    img.onerror = function() {
+                                        logoImgContainer.style.display = 'none';
+                                        if (logoIcon) logoIcon.style.display = 'inline-block';
+                                    };
+                                    if (img.complete && img.naturalHeight > 0) {
+                                        logoImgContainer.innerHTML = '';
+                                        logoImgContainer.appendChild(img);
+                                        logoImgContainer.style.opacity = '1';
+                                    } else {
+                                        logoImgContainer.innerHTML = '';
+                                        logoImgContainer.appendChild(img);
+                                    }
+                                }
+                            } else {
+                                if (logoImgContainer) {
+                                    logoImgContainer.style.display = 'none';
+                                    logoImgContainer.innerHTML = '';
+                                }
+                                if (logoIcon) {
+                                    logoIcon.style.display = 'inline-block';
+                                }
+                            }
+                        }
+                    }, (error) => { console.error('❌ Erro listener businessSettings mobile:', error); });
+                    
+            } else {
+                console.log('⚠️ Nenhum usuário autenticado em dispositivo móvel');
+                forcarAtualizacaoUI(); // Fallback para localStorage
+                setTimeout(initAuthMobile, 3000);
+            }
+        });
+    }
+
+    // ============================================================
+    // INICIALIZAR EM DISPOSITIVOS MÓVEIS
+    // ============================================================
+    function isMobileDevice() {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+               window.innerWidth <= 1024;
+    }
+
+    // Forçar verificação periódica a cada 3 segundos
+    setInterval(function() {
+        if (isMobileDevice()) {
+            console.log('📱 Verificação periódica em dispositivo móvel...');
+            forcarAtualizacaoUI();
+        }
+    }, 3000);
+
+    // Iniciar autenticação móvel
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            if (isMobileDevice()) {
+                setTimeout(initAuthMobile, 200);
+            }
+        });
+    } else {
+        if (isMobileDevice()) {
+            setTimeout(initAuthMobile, 200);
+        }
+    }
+
+    console.log('✅ Correção para dispositivos móveis aplicada!');
+})();
+</script>
 </body>
 </html>
