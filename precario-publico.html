@@ -1690,86 +1690,85 @@
             _ultimaAtualizacao: null
         };
 
-        // Controle para evitar loop infinito
-        let atualizandoUI = false;
-        let logoCarregando = false;
-
         // ============================================================
-        // FUNÇÃO PARA CARREGAR DADOS DA EMPRESA (FORÇADO)
+        // FUNÇÃO PARA CARREGAR DADOS DA EMPRESA (FORÇADO COM FIREBASE)
         // ============================================================
         function carregarDadosEmpresa(forcar = false) {
-            try {
-                // Primeiro tenta carregar do localStorage
-                let dadosCarregados = false;
-                
-                const perfilSalvo = localStorage.getItem('businessProfile');
-                if (perfilSalvo) {
-                    const perfil = JSON.parse(perfilSalvo);
-                    if (perfil.name) empresaData.nome = perfil.name;
-                    if (perfil.whatsApp) empresaData.whatsApp = perfil.whatsApp.replace(/\D/g, '');
-                    dadosCarregados = true;
-                }
-
-                const settingsSalvo = localStorage.getItem('businessSettings');
-                if (settingsSalvo) {
-                    const settings = JSON.parse(settingsSalvo);
-                    if (settings.name) empresaData.nome = settings.name;
-                    if (settings.customLogo) empresaData.logoUrl = settings.customLogo;
-                    if (settings.logoType) empresaData.logoType = settings.logoType;
-                    dadosCarregados = true;
-                }
-
-                // Se não encontrou no localStorage OU se for forçado, busca no Firebase
-                if (forcar || !dadosCarregados) {
-                    if (typeof currentUser !== 'undefined' && currentUser) {
-                        // Buscar businessProfile
-                        db.collection('businessProfile').doc(currentUser.uid).get()
-                            .then((doc) => {
-                                if (doc.exists) {
-                                    const data = doc.data();
-                                    if (data.name) empresaData.nome = data.name;
-                                    if (data.whatsApp) empresaData.whatsApp = data.whatsApp.replace(/\D/g, '');
-                                }
-                                // Buscar businessSettings
-                                return db.collection('businessSettings').doc(currentUser.uid).get();
-                            })
-                            .then((doc) => {
-                                if (doc.exists) {
-                                    const data = doc.data();
-                                    if (data.name) empresaData.nome = data.name;
-                                    if (data.customLogo) empresaData.logoUrl = data.customLogo;
-                                    if (data.logoType) empresaData.logoType = data.logoType;
-                                }
-                                // Atualizar UI com os dados do Firebase
-                                atualizarUIPagina();
-                            })
-                            .catch((error) => {
-                                // Se falhar, tenta usar o que já tem
-                                atualizarUIPagina();
-                            });
-                        return;
+            return new Promise((resolve) => {
+                try {
+                    // Primeiro tenta carregar do localStorage
+                    let dadosCarregados = false;
+                    
+                    const perfilSalvo = localStorage.getItem('businessProfile');
+                    if (perfilSalvo) {
+                        const perfil = JSON.parse(perfilSalvo);
+                        if (perfil.name) empresaData.nome = perfil.name;
+                        if (perfil.whatsApp) empresaData.whatsApp = perfil.whatsApp.replace(/\D/g, '');
+                        dadosCarregados = true;
                     }
+
+                    const settingsSalvo = localStorage.getItem('businessSettings');
+                    if (settingsSalvo) {
+                        const settings = JSON.parse(settingsSalvo);
+                        if (settings.name) empresaData.nome = settings.name;
+                        if (settings.customLogo) empresaData.logoUrl = settings.customLogo;
+                        if (settings.logoType) empresaData.logoType = settings.logoType;
+                        dadosCarregados = true;
+                    }
+
+                    // Se não encontrou no localStorage OU se for forçado, busca no Firebase
+                    if (forcar || !dadosCarregados) {
+                        if (typeof currentUser !== 'undefined' && currentUser) {
+                            // Buscar businessProfile
+                            db.collection('businessProfile').doc(currentUser.uid).get()
+                                .then((doc) => {
+                                    if (doc.exists) {
+                                        const data = doc.data();
+                                        if (data.name) empresaData.nome = data.name;
+                                        if (data.whatsApp) empresaData.whatsApp = data.whatsApp.replace(/\D/g, '');
+                                    }
+                                    // Buscar businessSettings
+                                    return db.collection('businessSettings').doc(currentUser.uid).get();
+                                })
+                                .then((doc) => {
+                                    if (doc.exists) {
+                                        const data = doc.data();
+                                        if (data.name) empresaData.nome = data.name;
+                                        if (data.customLogo) empresaData.logoUrl = data.customLogo;
+                                        if (data.logoType) empresaData.logoType = data.logoType;
+                                    }
+                                    // Atualizar UI com os dados do Firebase
+                                    atualizarUIPagina();
+                                    resolve(true);
+                                })
+                                .catch((error) => {
+                                    // Se falhar, tenta usar o que já tem
+                                    atualizarUIPagina();
+                                    resolve(false);
+                                });
+                            return;
+                        }
+                    }
+                    
+                    // Se não tem currentUser ou já carregou do localStorage
+                    atualizarUIPagina();
+                    resolve(true);
+                    
+                } catch (e) {
+                    atualizarUIPagina();
+                    resolve(false);
                 }
-                
-                // Se não tem currentUser ou já carregou do localStorage
-                atualizarUIPagina();
-                
-            } catch (e) {
-                atualizarUIPagina();
-            }
+            });
         }
 
         // ============================================================
-        // FUNÇÃO PARA ATUALIZAR A UI COM OS DADOS DA EMPRESA (SEM PISCAR)
+        // FUNÇÃO PARA ATUALIZAR A UI COM OS DADOS DA EMPRESA
         // ============================================================
         function atualizarUIPagina() {
-            if (atualizandoUI) return;
-            atualizandoUI = true;
-            
             try {
                 const nome = empresaData.nome || 'Studio DeVitto';
                 
-                // Atualizar nome em todos os lugares - com verificação para evitar loops
+                // Atualizar nome em todos os lugares
                 const nomeElements = [
                     document.getElementById('headerBusinessName'),
                     document.getElementById('footerBusinessName'),
@@ -1783,19 +1782,16 @@
                 });
                 
                 // Atualizar título da página
-                const tituloAtual = document.title;
                 const novoTitulo = `Preçário · ${nome}`;
-                if (tituloAtual !== novoTitulo) {
+                if (document.title !== novoTitulo) {
                     document.title = novoTitulo;
                 }
                 
-                // Atualizar H1 (mantém o span)
+                // Atualizar H1
                 const h1 = document.querySelector('.header h1');
                 if (h1) {
                     const span = h1.querySelector('#headerBusinessName');
-                    if (span) {
-                        // Já atualizado acima
-                    } else {
+                    if (!span) {
                         h1.innerHTML = `Preçário <span id="headerBusinessName">${nome}</span>`;
                     }
                 }
@@ -1815,7 +1811,7 @@
                         // Esconder ícone
                         logoIcon.style.display = 'none';
                         
-                        // Mostrar container da imagem com fade
+                        // Mostrar container da imagem
                         logoImgContainer.style.display = 'inline-block';
                         logoImgContainer.style.opacity = '0';
                         
@@ -1835,14 +1831,12 @@
                             logoImgContainer.innerHTML = '';
                             logoImgContainer.appendChild(img);
                             logoImgContainer.style.opacity = '1';
-                            logoCarregando = false;
                         };
                         
                         img.onerror = function() {
                             // Se falhar, voltar para o ícone
                             logoImgContainer.style.display = 'none';
                             logoIcon.style.display = 'inline-block';
-                            logoCarregando = false;
                         };
                         
                         // Se já estiver carregada no cache, mostrar imediatamente
@@ -1850,12 +1844,10 @@
                             logoImgContainer.innerHTML = '';
                             logoImgContainer.appendChild(img);
                             logoImgContainer.style.opacity = '1';
-                            logoCarregando = false;
                         } else {
                             // Limpar container e adicionar a imagem
                             logoImgContainer.innerHTML = '';
                             logoImgContainer.appendChild(img);
-                            // O fade será aplicado no onload
                         }
                     } else {
                         // Mesma URL, apenas garantir que está visível
@@ -1886,8 +1878,6 @@
             } catch (e) {
                 // Fallback seguro
             }
-            
-            atualizandoUI = false;
         }
 
         // ============================================================
@@ -2211,7 +2201,7 @@
         };
 
         // ============================================================
-        // CARREGAR DADOS DO FIREBASE (PÚBLICO - SEM AUTENTICAÇÃO)
+        // CARREGAR DADOS DO FIREBASE
         // ============================================================
         function carregarDados() {
             const container = document.getElementById('precarioContainer');
@@ -2223,10 +2213,10 @@
             `;
 
             // Carregar dados da empresa (forçado)
-            carregarDadosEmpresa(true);
-            
-            // Iniciar listeners em tempo real após carregar dados
-            setTimeout(ouvirMudancasEmpresa, 1000);
+            carregarDadosEmpresa(true).then(() => {
+                // Iniciar listeners em tempo real
+                setTimeout(ouvirMudancasEmpresa, 1000);
+            });
 
             // Carregar categorias
             db.collection('categorias')
@@ -3123,13 +3113,6 @@
         initBotaoWhatsapp();
 
         console.log('✅ Página pública do Preçário carregada!');
-        console.log('📱 WhatsApp vinculado ao perfil da empresa (sistema mae)');
-        console.log('🏢 Nome da empresa vinculado ao perfil da empresa (sistema mae)');
-        console.log('🖼️ Logo vinculada ao perfil da empresa (sistema mae)');
-        console.log('🔄 Atualização em tempo real a cada 1 segundo (com verificação)');
-        console.log('📱 Detecção de orientação via JavaScript (mais confiável)');
-        console.log('📱 Badges em uma única linha no mobile vertical');
-        console.log('🖼️ Logo com fade para evitar "piscar"');
 
         // ============================================================
         // DETECTAR ORIENTAÇÃO EM EVENTOS
@@ -3147,7 +3130,7 @@
         });
 
         // ============================================================
-        // VERIFICAÇÃO PERIÓDICA A CADA 1 SEGUNDO (COM VERIFICAÇÃO DE MUDANÇA)
+        // VERIFICAÇÃO PERIÓDICA A CADA 500ms (MAIS AGRESSIVA EM MOBILE)
         // ============================================================
         let ultimaAtualizacao = Date.now();
         let ultimoNome = empresaData.nome;
@@ -3167,7 +3150,6 @@
             // ============================================================
             // VERIFICAR MUDANÇAS NOS DADOS DA EMPRESA (FORÇADO)
             // ============================================================
-            // Verificar se houve mudança no localStorage
             try {
                 const perfilSalvo = localStorage.getItem('businessProfile');
                 if (perfilSalvo) {
@@ -3210,21 +3192,51 @@
             detectarOrientacao();
         }
 
-        // Executar verificação a cada 1 segundo
-        setInterval(verificarAtualizacoes, 1000);
+        // ============================================================
+        // VERIFICAÇÃO A CADA 500ms (MAIS RÁPIDO PARA MOBILE)
+        // ============================================================
+        const intervaloVerificacao = setInterval(verificarAtualizacoes, 500);
 
+        // ============================================================
+        // QUANDO A PÁGINA REATIVA, FORÇA VERIFICAÇÃO COMPLETA
+        // ============================================================
         document.addEventListener('visibilitychange', function() {
             if (!document.hidden) {
-                console.log('📱 Página reativada - forçando verificação...');
-                carregarDadosEmpresa(true);
-                detectarOrientacao();
-                if (todosServicos.length === 0) {
-                    carregarDados();
-                } else {
-                    renderizarPrecario();
-                }
+                console.log('📱 Página reativada - forçando verificação completa...');
+                // Forçar carregamento do Firebase
+                carregarDadosEmpresa(true).then(() => {
+                    // Forçar atualização da UI
+                    atualizarUIPagina();
+                    // Forçar detecção de orientação
+                    detectarOrientacao();
+                    // Recarregar serviços se necessário
+                    if (todosServicos.length === 0) {
+                        carregarDados();
+                    } else {
+                        renderizarPrecario();
+                    }
+                });
             }
         });
+
+        // ============================================================
+        // QUANDO O USUÁRIO VOLTA PARA A ABA, FORÇA VERIFICAÇÃO
+        // ============================================================
+        window.addEventListener('focus', function() {
+            console.log('📱 Página recebeu foco - verificando atualizações...');
+            carregarDadosEmpresa(true).then(() => {
+                atualizarUIPagina();
+                detectarOrientacao();
+            });
+        });
+
+        console.log('📱 WhatsApp vinculado ao perfil da empresa (sistema mae)');
+        console.log('🏢 Nome da empresa vinculado ao perfil da empresa (sistema mae)');
+        console.log('🖼️ Logo vinculada ao perfil da empresa (sistema mae)');
+        console.log('🔄 Atualização em tempo real a cada 500ms (mais agressivo em mobile)');
+        console.log('📱 Detecção de orientação via JavaScript (mais confiável)');
+        console.log('📱 Força verificação ao reativar a página e ao receber foco');
+        console.log('🖼️ Logo com fade para evitar "piscar"');
     </script>
 </body>
 </html>
