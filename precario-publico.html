@@ -3037,46 +3037,41 @@
 
 
 
-
-
-
-        // ============================================================
-// SCRIPT DE ATUALIZAÇÃO AUTOMÁTICA PARA DISPOSITIVOS MÓVEIS
+// ============================================================
+// SCRIPT DE ATUALIZAÇÃO AUTOMÁTICA - VERSÃO ULTRA ROBUSTA
 // ============================================================
 (function() {
     'use strict';
     
-    console.log('📱 Iniciando script de atualização automática para mobile...');
+    console.log('🚀 [MOBILE SYNC] Iniciando script de sincronização automática...');
+    console.log('📱 Versão: 2.0 - Ultra Robusta');
     
     // ============================================================
     // CONFIGURAÇÕES
     // ============================================================
     const CONFIG = {
-        // Intervalo de verificação em milissegundos (1 segundo)
-        CHECK_INTERVAL: 1000,
-        // Timeout para recarga da logo em mobile (3 segundos)
-        LOGO_RELOAD_TIMEOUT: 3000,
-        // Tentativas máximas de recarga
-        MAX_RETRY_ATTEMPTS: 5,
-        // Forçar atualização ao detectar mudança de orientação
-        FORCE_ON_ORIENTATION_CHANGE: true
+        CHECK_INTERVAL: 1000, // Verifica a cada 1 segundo
+        MAX_RETRY: 10, // Tentativas máximas de conexão
+        RETRY_DELAY: 2000, // Delay entre tentativas (ms)
+        FORCE_RELOAD: true // Forçar recarga sempre
     };
     
     // ============================================================
-    // VARIÁVEIS DE CONTROLE
+    // ESTADO
     // ============================================================
-    let ultimaVerificacao = 0;
-    let tentativasRecarga = 0;
-    let listenerAtivo = false;
-    let nomeAtual = '';
-    let logoAtual = '';
-    let intervaloVerificacao = null;
-    let forcarAtualizacao = true;
+    let estado = {
+        conectado: false,
+        tentativas: 0,
+        ultimaAtualizacao: 0,
+        nomeAtual: '',
+        logoAtual: '',
+        listenerAtivo: false
+    };
     
     // ============================================================
-    // DADOS DA EMPRESA (SINCRONIZADOS COM O SISTEMA PRINCIPAL)
+    // DADOS DA EMPRESA (FALLBACK)
     // ============================================================
-    let empresaData = {
+    let dadosEmpresa = {
         nome: "Studio DeVitto",
         whatsApp: "351927431517",
         logoUrl: null,
@@ -3084,248 +3079,269 @@
     };
     
     // ============================================================
-    // FUNÇÃO PRINCIPAL DE ATUALIZAÇÃO
+    // FUNÇÃO PRINCIPAL - ATUALIZAR UI
     // ============================================================
-    function forcarAtualizacaoUI() {
-        console.log('🔄 Forçando atualização da UI...');
+    function atualizarUI() {
+        console.log('🔄 [MOBILE SYNC] Atualizando UI...');
         
-        // Atualizar nome
-        const nome = empresaData.nome || 'Studio DeVitto';
+        const nome = dadosEmpresa.nome || 'Studio DeVitto';
+        const agora = Date.now();
         
-        // Atualizar todos os elementos com o nome
-        const elementosNome = ['headerBusinessName', 'footerBusinessName', 'confirmBusinessName'];
-        elementosNome.forEach(id => {
-            const el = document.getElementById(id);
-            if (el && el.textContent !== nome) {
-                el.textContent = nome;
-                console.log(`✅ Nome atualizado em: ${id}`);
-            }
-        });
-        
-        // Atualizar título da página
-        const titulo = `Preçário · ${nome}`;
-        if (document.title !== titulo) {
-            document.title = titulo;
+        // Verificar se já atualizou recentemente (evitar loops)
+        if (agora - estado.ultimaAtualizacao < 500 && estado.ultimaAtualizacao > 0) {
+            console.log('⏳ [MOBILE SYNC] Atualização muito recente, ignorando...');
+            return;
         }
+        estado.ultimaAtualizacao = agora;
         
-        // Atualizar H1
-        const h1 = document.querySelector('.header h1');
-        if (h1) {
-            const span = h1.querySelector('#headerBusinessName');
-            if (span && span.textContent !== nome) {
-                span.textContent = nome;
-            } else if (!span) {
-                h1.innerHTML = `Preçário <span id="headerBusinessName">${nome}</span>`;
+        // ============================================================
+        // ATUALIZAR NOME
+        // ============================================================
+        try {
+            // Atualizar todos os elementos que contêm o nome
+            const elementos = [
+                { id: 'headerBusinessName', fallback: 'Studio DeVitto' },
+                { id: 'footerBusinessName', fallback: 'Studio DeVitto' },
+                { id: 'confirmBusinessName', fallback: 'Studio DeVitto' }
+            ];
+            
+            elementos.forEach(item => {
+                const el = document.getElementById(item.id);
+                if (el) {
+                    const nomeAtual = el.textContent || '';
+                    if (nomeAtual !== nome) {
+                        el.textContent = nome;
+                        console.log(`✅ [MOBILE SYNC] Nome atualizado em #${item.id}: ${nome}`);
+                    }
+                }
+            });
+            
+            // Atualizar título da página
+            const tituloAtual = document.title || '';
+            const novoTitulo = `Preçário · ${nome}`;
+            if (tituloAtual !== novoTitulo) {
+                document.title = novoTitulo;
+                console.log(`✅ [MOBILE SYNC] Título atualizado: ${novoTitulo}`);
             }
+            
+            // Atualizar H1
+            const h1 = document.querySelector('.header h1');
+            if (h1) {
+                const span = h1.querySelector('#headerBusinessName');
+                if (span) {
+                    if (span.textContent !== nome) {
+                        span.textContent = nome;
+                    }
+                } else {
+                    h1.innerHTML = `Preçário <span id="headerBusinessName">${nome}</span>`;
+                    console.log('✅ [MOBILE SYNC] H1 recriado com nome atualizado');
+                }
+            }
+            
+        } catch (e) {
+            console.error('❌ [MOBILE SYNC] Erro ao atualizar nome:', e);
         }
         
         // ============================================================
         // ATUALIZAR LOGO - VERSÃO ESPECIAL PARA MOBILE
         // ============================================================
-        const logoIcon = document.getElementById('headerLogoIcon');
-        const logoImgContainer = document.getElementById('headerLogoImg');
-        
-        // Verificar se tem logo para exibir
-        const hasLogo = empresaData.logoUrl && 
-                       empresaData.logoUrl.trim() !== '' && 
-                       empresaData.logoUrl !== 'null' &&
-                       empresaData.logoUrl !== null;
-        
-        if (hasLogo) {
-            console.log('🖼️ Atualizando logo:', empresaData.logoUrl);
+        try {
+            const logoIcon = document.getElementById('headerLogoIcon');
+            const logoImgContainer = document.getElementById('headerLogoImg');
             
-            // Mostrar container da imagem
-            logoIcon.style.display = 'none';
-            logoImgContainer.style.display = 'inline-block';
-            logoImgContainer.style.opacity = '0';
-            
-            // Limpar conteúdo anterior
-            logoImgContainer.innerHTML = '';
-            
-            // Criar nova imagem com timestamp para evitar cache
-            const timestamp = Date.now();
-            const urlComTimestamp = empresaData.logoUrl + 
-                (empresaData.logoUrl.includes('?') ? '&' : '?') + 
-                't=' + timestamp + '_' + Math.random().toString(36).substring(7);
-            
-            const img = document.createElement('img');
-            img.src = urlComTimestamp;
-            img.alt = nome;
-            img.style.height = '50px';
-            img.style.maxWidth = '150px';
-            img.style.objectFit = 'contain';
-            img.style.marginBottom = '10px';
-            img.style.borderRadius = '8px';
-            img.style.transition = 'opacity 0.3s ease';
-            img.loading = 'eager';
-            
-            // Evento de sucesso
-            img.onload = function() {
-                console.log('✅ Logo carregada com sucesso no mobile');
-                logoImgContainer.innerHTML = '';
-                logoImgContainer.appendChild(img);
-                logoImgContainer.style.opacity = '1';
-                tentativasRecarga = 0;
-            };
-            
-            // Evento de erro - tentar recarregar
-            img.onerror = function() {
-                console.log('⚠️ Erro ao carregar logo, tentando recarregar...');
-                tentativasRecarga++;
-                
-                if (tentativasRecarga <= CONFIG.MAX_RETRY_ATTEMPTS) {
-                    // Tentar recarregar com delay
-                    setTimeout(() => {
-                        if (empresaData.logoUrl) {
-                            const newTimestamp = Date.now();
-                            const newUrl = empresaData.logoUrl + 
-                                (empresaData.logoUrl.includes('?') ? '&' : '?') + 
-                                't=' + newTimestamp;
-                            
-                            const newImg = new Image();
-                            newImg.onload = function() {
-                                logoImgContainer.innerHTML = '';
-                                logoImgContainer.appendChild(newImg);
-                                logoImgContainer.style.opacity = '1';
-                                console.log('✅ Logo recarregada com sucesso (tentativa ' + tentativasRecarga + ')');
-                                tentativasRecarga = 0;
-                            };
-                            newImg.onerror = function() {
-                                console.log('⚠️ Falha ao recarregar logo (tentativa ' + tentativasRecarga + ')');
-                                // Se falhar muitas vezes, usar ícone
-                                if (tentativasRecarga >= CONFIG.MAX_RETRY_ATTEMPTS) {
-                                    usarIconeFallback();
-                                }
-                            };
-                            newImg.src = newUrl;
-                        }
-                    }, 1000 * tentativasRecarga);
-                } else {
-                    usarIconeFallback();
-                }
-            };
-            
-            // Verificar se já carregou do cache
-            if (img.complete && img.naturalHeight > 0) {
-                logoImgContainer.appendChild(img);
-                logoImgContainer.style.opacity = '1';
-                console.log('✅ Logo carregada do cache');
-            } else {
-                logoImgContainer.appendChild(img);
-                
-                // Forçar recarga em mobile após timeout
-                if (window.innerWidth <= 768) {
-                    setTimeout(() => {
-                        if (logoImgContainer.style.opacity === '0' || 
-                            logoImgContainer.style.opacity === '') {
-                            console.log('🔄 Forçando recarga da logo em mobile...');
-                            const forceImg = new Image();
-                            forceImg.onload = function() {
-                                logoImgContainer.innerHTML = '';
-                                logoImgContainer.appendChild(forceImg);
-                                logoImgContainer.style.opacity = '1';
-                                console.log('✅ Logo recarregada com sucesso (forçado)');
-                            };
-                            forceImg.onerror = function() {
-                                usarIconeFallback();
-                            };
-                            const forceTimestamp = Date.now();
-                            forceImg.src = empresaData.logoUrl + 
-                                (empresaData.logoUrl.includes('?') ? '&' : '?') + 
-                                't=' + forceTimestamp + '_force';
-                        }
-                    }, CONFIG.LOGO_RELOAD_TIMEOUT);
-                }
+            if (!logoIcon || !logoImgContainer) {
+                console.warn('⚠️ [MOBILE SYNC] Elementos de logo não encontrados');
+                return;
             }
-        } else {
-            usarIconeFallback();
-        }
-        
-        // Função para usar ícone fallback
-        function usarIconeFallback() {
-            console.log('🖼️ Usando ícone fallback');
-            logoImgContainer.style.display = 'none';
-            logoImgContainer.innerHTML = '';
-            logoIcon.style.display = 'inline-block';
             
-            const icons = {
-                'scissors': 'fa-scissors',
-                'store': 'fa-store',
-                'spa': 'fa-spa',
-                'salon': 'fa-cut',
-                'barber': 'fa-user-md'
-            };
-            const iconClass = icons[empresaData.logoType] || 'fa-scissors';
-            logoIcon.className = `logo-icon ${iconClass}`;
-            tentativasRecarga = 0;
+            const hasLogo = dadosEmpresa.logoUrl && 
+                           dadosEmpresa.logoUrl.trim() !== '' && 
+                           dadosEmpresa.logoUrl !== 'null' &&
+                           dadosEmpresa.logoUrl !== null &&
+                           dadosEmpresa.logoUrl !== 'undefined';
+            
+            if (hasLogo && CONFIG.FORCE_RELOAD) {
+                console.log('🖼️ [MOBILE SYNC] Carregando logo:', dadosEmpresa.logoUrl);
+                
+                // Esconder ícone, mostrar container
+                logoIcon.style.display = 'none';
+                logoImgContainer.style.display = 'inline-block';
+                logoImgContainer.style.opacity = '0';
+                
+                // Limpar conteúdo anterior
+                logoImgContainer.innerHTML = '';
+                
+                // Criar nova imagem com timestamp anti-cache
+                const timestamp = Date.now();
+                const urlLogo = dadosEmpresa.logoUrl + 
+                    (dadosEmpresa.logoUrl.includes('?') ? '&' : '?') + 
+                    't=' + timestamp + '_mobile';
+                
+                const img = document.createElement('img');
+                img.src = urlLogo;
+                img.alt = nome || 'Logo';
+                img.style.height = '50px';
+                img.style.maxWidth = '150px';
+                img.style.objectFit = 'contain';
+                img.style.marginBottom = '10px';
+                img.style.borderRadius = '8px';
+                img.style.transition = 'opacity 0.3s ease';
+                img.loading = 'eager';
+                
+                // Quando carregar com sucesso
+                img.onload = function() {
+                    console.log('✅ [MOBILE SYNC] Logo carregada com sucesso!');
+                    logoImgContainer.innerHTML = '';
+                    logoImgContainer.appendChild(img);
+                    logoImgContainer.style.opacity = '1';
+                    
+                    // Salvar no localStorage
+                    try {
+                        localStorage.setItem('logo_carregada', 'true');
+                        localStorage.setItem('logo_url', dadosEmpresa.logoUrl);
+                    } catch (e) {}
+                };
+                
+                // Quando falhar
+                img.onerror = function() {
+                    console.warn('⚠️ [MOBILE SYNC] Falha ao carregar logo, usando ícone fallback');
+                    usarIconeFallback(logoIcon, logoImgContainer);
+                    
+                    // Tentar recarregar após 2 segundos
+                    setTimeout(() => {
+                        if (dadosEmpresa.logoUrl) {
+                            console.log('🔄 [MOBILE SYNC] Tentando recarregar logo...');
+                            const retryImg = new Image();
+                            retryImg.onload = function() {
+                                logoImgContainer.innerHTML = '';
+                                logoImgContainer.appendChild(retryImg);
+                                logoImgContainer.style.opacity = '1';
+                                logoIcon.style.display = 'none';
+                                logoImgContainer.style.display = 'inline-block';
+                                console.log('✅ [MOBILE SYNC] Logo recarregada com sucesso!');
+                            };
+                            retryImg.onerror = function() {
+                                console.warn('⚠️ [MOBILE SYNC] Falha na recarga da logo');
+                            };
+                            const retryTimestamp = Date.now();
+                            retryImg.src = dadosEmpresa.logoUrl + 
+                                (dadosEmpresa.logoUrl.includes('?') ? '&' : '?') + 
+                                't=' + retryTimestamp + '_retry';
+                        }
+                    }, 2000);
+                };
+                
+                // Verificar se já carregou (cache)
+                if (img.complete && img.naturalHeight > 0) {
+                    logoImgContainer.appendChild(img);
+                    logoImgContainer.style.opacity = '1';
+                    console.log('✅ [MOBILE SYNC] Logo carregada do cache');
+                } else {
+                    logoImgContainer.appendChild(img);
+                }
+                
+            } else {
+                usarIconeFallback(logoIcon, logoImgContainer);
+            }
+            
+        } catch (e) {
+            console.error('❌ [MOBILE SYNC] Erro ao atualizar logo:', e);
         }
     }
     
     // ============================================================
-    // FUNÇÃO PARA BUSCAR DADOS DO FIRESTORE
+    // FUNÇÃO FALLBACK - USAR ÍCONE
     // ============================================================
-    function buscarDadosEmpresa() {
-        console.log('🔍 Buscando dados da empresa...');
+    function usarIconeFallback(logoIcon, logoImgContainer) {
+        if (!logoIcon || !logoImgContainer) return;
         
-        // Tentar buscar do Firestore
+        logoImgContainer.style.display = 'none';
+        logoImgContainer.innerHTML = '';
+        logoIcon.style.display = 'inline-block';
+        
+        const icons = {
+            'scissors': 'fa-scissors',
+            'store': 'fa-store',
+            'spa': 'fa-spa',
+            'salon': 'fa-cut',
+            'barber': 'fa-user-md'
+        };
+        const iconClass = icons[dadosEmpresa.logoType] || 'fa-scissors';
+        logoIcon.className = `logo-icon ${iconClass}`;
+        console.log('✅ [MOBILE SYNC] Ícone fallback aplicado');
+    }
+    
+    // ============================================================
+    // BUSCAR DADOS DO FIRESTORE - VERSÃO SIMPLIFICADA
+    // ============================================================
+    function buscarDadosFirestore() {
+        console.log('🔍 [MOBILE SYNC] Buscando dados do Firestore...');
+        
         try {
+            // Verificar se o Firebase está disponível
+            if (typeof firebase === 'undefined' || !firebase.firestore) {
+                console.warn('⚠️ [MOBILE SYNC] Firebase não disponível, usando localStorage');
+                carregarDadosLocalStorage();
+                return;
+            }
+            
             const db = firebase.firestore();
             let dadosEncontrados = false;
             
-            // Tentar buscar do documento 'public'
+            // Tentar buscar do documento 'public' em businessProfile
             db.collection('businessProfile').doc('public').get()
                 .then(doc => {
                     if (doc.exists) {
                         const data = doc.data();
-                        if (data.name || data.whatsApp) {
-                            let mudou = false;
-                            if (data.name && data.name !== empresaData.nome) {
-                                empresaData.nome = data.name;
-                                mudou = true;
-                                console.log('📡 Nome encontrado no documento public:', data.name);
-                            }
-                            if (data.whatsApp) {
-                                const novoWhats = data.whatsApp.replace(/\D/g, '');
-                                if (novoWhats !== empresaData.whatsApp) {
-                                    empresaData.whatsApp = novoWhats;
-                                    mudou = true;
-                                }
-                            }
-                            if (mudou) {
-                                salvarLocalStorage();
-                                forcarAtualizacaoUI();
-                            }
-                            dadosEncontrados = true;
+                        let mudou = false;
+                        
+                        if (data.name && data.name !== dadosEmpresa.nome) {
+                            dadosEmpresa.nome = data.name;
+                            mudou = true;
+                            console.log('📡 [MOBILE SYNC] Nome encontrado (public):', data.name);
                         }
+                        if (data.whatsApp) {
+                            const novoWhats = data.whatsApp.replace(/\D/g, '');
+                            if (novoWhats !== dadosEmpresa.whatsApp) {
+                                dadosEmpresa.whatsApp = novoWhats;
+                                mudou = true;
+                            }
+                        }
+                        if (mudou) {
+                            salvarDadosLocalStorage();
+                            atualizarUI();
+                        }
+                        dadosEncontrados = true;
                     }
-                    // Se não encontrou no public, buscar businessSettings
                     return db.collection('businessSettings').doc('public').get();
                 })
                 .then(doc => {
                     if (doc && doc.exists) {
                         const data = doc.data();
                         let mudou = false;
-                        if (data.name && data.name !== empresaData.nome) {
-                            empresaData.nome = data.name;
+                        
+                        if (data.name && data.name !== dadosEmpresa.nome) {
+                            dadosEmpresa.nome = data.name;
                             mudou = true;
-                            console.log('📡 Nome encontrado no documento settings:', data.name);
+                            console.log('📡 [MOBILE SYNC] Nome encontrado (settings):', data.name);
                         }
-                        if (data.customLogo && data.customLogo !== empresaData.logoUrl) {
-                            empresaData.logoUrl = data.customLogo;
+                        if (data.customLogo && data.customLogo !== dadosEmpresa.logoUrl) {
+                            dadosEmpresa.logoUrl = data.customLogo;
                             mudou = true;
-                            console.log('📡 Logo encontrada no documento settings');
+                            console.log('📡 [MOBILE SYNC] Logo encontrada (settings)');
                         }
-                        if (data.logoType && data.logoType !== empresaData.logoType) {
-                            empresaData.logoType = data.logoType;
+                        if (data.logoType && data.logoType !== dadosEmpresa.logoType) {
+                            dadosEmpresa.logoType = data.logoType;
                             mudou = true;
                         }
                         if (mudou) {
-                            salvarLocalStorage();
-                            forcarAtualizacaoUI();
+                            salvarDadosLocalStorage();
+                            atualizarUI();
                         }
                         dadosEncontrados = true;
                     }
-                    // Se ainda não encontrou, buscar em todos os perfis
+                    
+                    // Se não encontrou nada, tentar buscar qualquer documento
                     if (!dadosEncontrados) {
                         return db.collection('businessProfile').limit(1).get();
                     }
@@ -3336,98 +3352,35 @@
                         const doc = snapshot.docs[0];
                         const data = doc.data();
                         let mudou = false;
-                        if (data.name && data.name !== empresaData.nome) {
-                            empresaData.nome = data.name;
+                        
+                        if (data.name && data.name !== dadosEmpresa.nome) {
+                            dadosEmpresa.nome = data.name;
                             mudou = true;
-                            console.log('📡 Nome encontrado no primeiro perfil:', data.name);
+                            console.log('📡 [MOBILE SYNC] Nome encontrado (primeiro perfil):', data.name);
                         }
                         if (data.whatsApp) {
                             const novoWhats = data.whatsApp.replace(/\D/g, '');
-                            if (novoWhats !== empresaData.whatsApp) {
-                                empresaData.whatsApp = novoWhats;
+                            if (novoWhats !== dadosEmpresa.whatsApp) {
+                                dadosEmpresa.whatsApp = novoWhats;
                                 mudou = true;
                             }
                         }
                         if (mudou) {
-                            salvarLocalStorage();
-                            forcarAtualizacaoUI();
+                            salvarDadosLocalStorage();
+                            atualizarUI();
                         }
                     }
+                    estado.conectado = true;
+                    console.log('✅ [MOBILE SYNC] Dados sincronizados com sucesso!');
                 })
                 .catch(error => {
-                    console.log('⚠️ Erro ao buscar dados do Firestore:', error);
-                    // Tentar carregar do localStorage
-                    carregarLocalStorage();
+                    console.warn('⚠️ [MOBILE SYNC] Erro ao buscar dados:', error);
+                    carregarDadosLocalStorage();
                 });
+                
         } catch (e) {
-            console.log('⚠️ Erro ao acessar Firestore:', e);
-            carregarLocalStorage();
-        }
-    }
-    
-    // ============================================================
-    // FUNÇÕES DE LOCAL STORAGE
-    // ============================================================
-    function salvarLocalStorage() {
-        try {
-            const perfil = JSON.parse(localStorage.getItem('businessProfile') || '{}');
-            perfil.name = empresaData.nome;
-            perfil.whatsApp = empresaData.whatsApp;
-            localStorage.setItem('businessProfile', JSON.stringify(perfil));
-            
-            const settings = JSON.parse(localStorage.getItem('businessSettings') || '{}');
-            settings.name = empresaData.nome;
-            settings.customLogo = empresaData.logoUrl;
-            settings.logoType = empresaData.logoType;
-            localStorage.setItem('businessSettings', JSON.stringify(settings));
-        } catch (e) {
-            console.log('⚠️ Erro ao salvar localStorage:', e);
-        }
-    }
-    
-    function carregarLocalStorage() {
-        try {
-            let mudou = false;
-            
-            const perfilSalvo = localStorage.getItem('businessProfile');
-            if (perfilSalvo) {
-                const perfil = JSON.parse(perfilSalvo);
-                if (perfil.name && perfil.name !== empresaData.nome) {
-                    empresaData.nome = perfil.name;
-                    mudou = true;
-                }
-                if (perfil.whatsApp) {
-                    const novoWhats = perfil.whatsApp.replace(/\D/g, '');
-                    if (novoWhats !== empresaData.whatsApp) {
-                        empresaData.whatsApp = novoWhats;
-                        mudou = true;
-                    }
-                }
-            }
-            
-            const settingsSalvo = localStorage.getItem('businessSettings');
-            if (settingsSalvo) {
-                const settings = JSON.parse(settingsSalvo);
-                if (settings.name && settings.name !== empresaData.nome) {
-                    empresaData.nome = settings.name;
-                    mudou = true;
-                }
-                if (settings.customLogo && settings.customLogo !== empresaData.logoUrl) {
-                    empresaData.logoUrl = settings.customLogo;
-                    mudou = true;
-                }
-                if (settings.logoType && settings.logoType !== empresaData.logoType) {
-                    empresaData.logoType = settings.logoType;
-                    mudou = true;
-                }
-            }
-            
-            if (mudou) {
-                console.log('📦 Dados carregados do localStorage');
-                forcarAtualizacaoUI();
-            }
-        } catch (e) {
-            console.log('⚠️ Erro ao carregar localStorage:', e);
+            console.warn('⚠️ [MOBILE SYNC] Erro ao acessar Firestore:', e);
+            carregarDadosLocalStorage();
         }
     }
     
@@ -3435,81 +3388,137 @@
     // INICIAR LISTENER EM TEMPO REAL
     // ============================================================
     function iniciarListener() {
-        if (listenerAtivo) return;
+        if (estado.listenerAtivo) {
+            console.log('📡 [MOBILE SYNC] Listener já está ativo');
+            return;
+        }
         
-        console.log('📡 Iniciando listener em tempo real...');
+        console.log('📡 [MOBILE SYNC] Iniciando listener em tempo real...');
         
         try {
+            if (typeof firebase === 'undefined' || !firebase.firestore) {
+                console.warn('⚠️ [MOBILE SYNC] Firebase não disponível para listener');
+                return;
+            }
+            
             const db = firebase.firestore();
             
-            // Listener para businessProfile
+            // Listener businessProfile
             db.collection('businessProfile').doc('public')
                 .onSnapshot(doc => {
                     if (doc.exists) {
                         const data = doc.data();
                         let mudou = false;
                         
-                        if (data.name && data.name !== empresaData.nome) {
-                            empresaData.nome = data.name;
+                        if (data.name && data.name !== dadosEmpresa.nome) {
+                            dadosEmpresa.nome = data.name;
                             mudou = true;
-                            console.log('🔄 Nome atualizado em tempo real:', data.name);
+                            console.log('🔄 [MOBILE SYNC] Nome atualizado em tempo real:', data.name);
                         }
-                        
                         if (data.whatsApp) {
                             const novoWhats = data.whatsApp.replace(/\D/g, '');
-                            if (novoWhats !== empresaData.whatsApp) {
-                                empresaData.whatsApp = novoWhats;
+                            if (novoWhats !== dadosEmpresa.whatsApp) {
+                                dadosEmpresa.whatsApp = novoWhats;
                                 mudou = true;
                             }
                         }
-                        
                         if (mudou) {
-                            salvarLocalStorage();
-                            forcarAtualizacaoUI();
+                            salvarDadosLocalStorage();
+                            atualizarUI();
                         }
                     }
                 }, error => {
-                    console.log('⚠️ Erro no listener profile:', error);
+                    console.warn('⚠️ [MOBILE SYNC] Erro no listener profile:', error);
                 });
             
-            // Listener para businessSettings
+            // Listener businessSettings
             db.collection('businessSettings').doc('public')
                 .onSnapshot(doc => {
                     if (doc.exists) {
                         const data = doc.data();
                         let mudou = false;
                         
-                        if (data.name && data.name !== empresaData.nome) {
-                            empresaData.nome = data.name;
+                        if (data.name && data.name !== dadosEmpresa.nome) {
+                            dadosEmpresa.nome = data.name;
                             mudou = true;
-                            console.log('🔄 Nome atualizado em tempo real (settings):', data.name);
+                            console.log('🔄 [MOBILE SYNC] Nome atualizado em tempo real (settings):', data.name);
                         }
-                        
-                        if (data.customLogo && data.customLogo !== empresaData.logoUrl) {
-                            empresaData.logoUrl = data.customLogo;
+                        if (data.customLogo && data.customLogo !== dadosEmpresa.logoUrl) {
+                            dadosEmpresa.logoUrl = data.customLogo;
                             mudou = true;
-                            console.log('🔄 Logo atualizada em tempo real');
+                            console.log('🔄 [MOBILE SYNC] Logo atualizada em tempo real');
                         }
-                        
-                        if (data.logoType && data.logoType !== empresaData.logoType) {
-                            empresaData.logoType = data.logoType;
+                        if (data.logoType && data.logoType !== dadosEmpresa.logoType) {
+                            dadosEmpresa.logoType = data.logoType;
                             mudou = true;
                         }
-                        
                         if (mudou) {
-                            salvarLocalStorage();
-                            forcarAtualizacaoUI();
+                            salvarDadosLocalStorage();
+                            atualizarUI();
                         }
                     }
                 }, error => {
-                    console.log('⚠️ Erro no listener settings:', error);
+                    console.warn('⚠️ [MOBILE SYNC] Erro no listener settings:', error);
                 });
             
-            listenerAtivo = true;
-            console.log('✅ Listener em tempo real ativado!');
+            estado.listenerAtivo = true;
+            console.log('✅ [MOBILE SYNC] Listener em tempo real ativado!');
             
         } catch (e) {
-            console.log('⚠️ Erro ao iniciar listener:', e);
+            console.warn('⚠️ [MOBILE SYNC] Erro ao iniciar listener:', e);
+        }
+    }
+    
+    // ============================================================
+    // LOCAL STORAGE
+    // ============================================================
+    function salvarDadosLocalStorage() {
+        try {
+            const dados = {
+                nome: dadosEmpresa.nome,
+                whatsApp: dadosEmpresa.whatsApp,
+                logoUrl: dadosEmpresa.logoUrl,
+                logoType: dadosEmpresa.logoType,
+                timestamp: Date.now()
+            };
+            localStorage.setItem('empresa_dados_mobile', JSON.stringify(dados));
+            console.log('💾 [MOBILE SYNC] Dados salvos no localStorage');
+        } catch (e) {
+            console.warn('⚠️ [MOBILE SYNC] Erro ao salvar localStorage:', e);
+        }
+    }
+    
+    function carregarDadosLocalStorage() {
+        try {
+            const dadosSalvos = localStorage.getItem('empresa_dados_mobile');
+            if (dadosSalvos) {
+                const dados = JSON.parse(dadosSalvos);
+                let mudou = false;
+                
+                if (dados.nome && dados.nome !== dadosEmpresa.nome) {
+                    dadosEmpresa.nome = dados.nome;
+                    mudou = true;
+                }
+                if (dados.whatsApp && dados.whatsApp !== dadosEmpresa.whatsApp) {
+                    dadosEmpresa.whatsApp = dados.whatsApp;
+                    mudou = true;
+                }
+                if (dados.logoUrl && dados.logoUrl !== dadosEmpresa.logoUrl) {
+                    dadosEmpresa.logoUrl = dados.logoUrl;
+                    mudou = true;
+                }
+                if (dados.logoType && dados.logoType !== dadosEmpresa.logoType) {
+                    dadosEmpresa.logoType = dados.logoType;
+                    mudou = true;
+                }
+                
+                if (mudou) {
+                    console.log('📦 [MOBILE SYNC] Dados carregados do localStorage');
+                    atualizarUI();
+                }
+            }
+        } catch (e) {
+            console.warn('⚠️ [MOBILE SYNC] Erro ao carregar localStorage:', e);
         }
     }
     
@@ -3517,180 +3526,189 @@
     // VERIFICAÇÃO PERIÓDICA (A CADA 1 SEGUNDO)
     // ============================================================
     function iniciarVerificacaoPeriodica() {
-        if (intervaloVerificacao) {
-            clearInterval(intervaloVerificacao);
-        }
+        console.log('⏰ [MOBILE SYNC] Iniciando verificação periódica...');
         
-        console.log('⏰ Iniciando verificação periódica a cada ' + CONFIG.CHECK_INTERVAL + 'ms');
-        
-        intervaloVerificacao = setInterval(() => {
-            const agora = Date.now();
-            if (agora - ultimaVerificacao >= CONFIG.CHECK_INTERVAL) {
-                ultimaVerificacao = agora;
-                
-                // Verificar se os dados mudaram
-                const nomeAtualElement = document.getElementById('headerBusinessName');
-                if (nomeAtualElement) {
-                    const nomeNaTela = nomeAtualElement.textContent;
-                    if (nomeNaTela !== empresaData.nome) {
-                        console.log('🔄 Detectada diferença no nome - forçando atualização');
-                        forcarAtualizacaoUI();
-                    }
+        setInterval(() => {
+            // Verificar se os dados estão atualizados
+            const nomeElement = document.getElementById('headerBusinessName');
+            if (nomeElement) {
+                const nomeNaTela = nomeElement.textContent || '';
+                if (nomeNaTela !== dadosEmpresa.nome) {
+                    console.log('🔄 [MOBILE SYNC] Nome desatualizado, forçando atualização');
+                    atualizarUI();
                 }
-                
-                // Verificar se a logo precisa ser recarregada
-                const logoImgContainer = document.getElementById('headerLogoImg');
-                if (logoImgContainer) {
-                    const imgElement = logoImgContainer.querySelector('img');
-                    if (imgElement && empresaData.logoUrl) {
-                        const srcAtual = imgElement.src;
-                        const expectedUrl = empresaData.logoUrl;
-                        if (srcAtual && !srcAtual.includes(expectedUrl)) {
-                            console.log('🔄 Detectada diferença na logo - forçando atualização');
-                            forcarAtualizacaoUI();
-                        }
+            }
+            
+            // Verificar se a logo precisa ser recarregada
+            const logoImgContainer = document.getElementById('headerLogoImg');
+            if (logoImgContainer) {
+                const imgElement = logoImgContainer.querySelector('img');
+                if (imgElement && dadosEmpresa.logoUrl) {
+                    const srcAtual = imgElement.src || '';
+                    if (!srcAtual.includes(dadosEmpresa.logoUrl)) {
+                        console.log('🔄 [MOBILE SYNC] Logo desatualizada, forçando atualização');
+                        atualizarUI();
                     }
                 }
             }
+            
+            // Tentar reconectar se perdeu conexão
+            if (!estado.conectado && estado.tentativas < CONFIG.MAX_RETRY) {
+                estado.tentativas++;
+                console.log(`🔄 [MOBILE SYNC] Tentativa ${estado.tentativas} de reconexão...`);
+                setTimeout(() => {
+                    buscarDadosFirestore();
+                }, CONFIG.RETRY_DELAY);
+            }
+            
         }, CONFIG.CHECK_INTERVAL);
     }
     
     // ============================================================
     // DETECTAR MUDANÇA DE ORIENTAÇÃO
     // ============================================================
-    function detectarMudancaOrientacao() {
-        if (CONFIG.FORCE_ON_ORIENTATION_CHANGE) {
-            console.log('📱 Mudança de orientação detectada - forçando atualização');
-            setTimeout(() => {
-                forcarAtualizacaoUI();
-            }, 300);
-        }
+    function detectarOrientacao() {
+        console.log('📱 [MOBILE SYNC] Mudança de orientação detectada');
+        setTimeout(() => {
+            atualizarUI();
+        }, 300);
     }
     
     // ============================================================
     // INICIAR SCRIPT
     // ============================================================
-    function iniciarScript() {
-        console.log('🚀 Iniciando script de atualização automática para mobile...');
+    function iniciar() {
+        console.log('🚀 [MOBILE SYNC] Iniciando sistema de sincronização...');
         
-        // Carregar dados do localStorage primeiro
-        carregarLocalStorage();
+        // 1. Carregar dados do localStorage
+        carregarDadosLocalStorage();
         
-        // Buscar dados do Firestore
+        // 2. Buscar dados do Firestore
         setTimeout(() => {
-            buscarDadosEmpresa();
+            buscarDadosFirestore();
         }, 500);
         
-        // Iniciar listener em tempo real
+        // 3. Iniciar listener em tempo real
         setTimeout(() => {
             iniciarListener();
         }, 1000);
         
-        // Iniciar verificação periódica
+        // 4. Iniciar verificação periódica
         setTimeout(() => {
             iniciarVerificacaoPeriodica();
         }, 1500);
         
-        // Detectar mudança de orientação
-        window.addEventListener('orientationchange', detectarMudancaOrientacao);
+        // 5. Detectar orientação
+        window.addEventListener('orientationchange', detectarOrientacao);
         window.addEventListener('resize', () => {
             if (window.innerWidth <= 768) {
-                detectarMudancaOrientacao();
+                detectarOrientacao();
             }
         });
         
-        // Detectar quando a página fica visível novamente
+        // 6. Quando a página ficar visível novamente
         document.addEventListener('visibilitychange', () => {
             if (!document.hidden) {
-                console.log('📱 Página reativada - verificando atualizações');
+                console.log('📱 [MOBILE SYNC] Página reativada');
                 setTimeout(() => {
-                    buscarDadosEmpresa();
-                    forcarAtualizacaoUI();
+                    buscarDadosFirestore();
+                    atualizarUI();
                 }, 500);
             }
         });
         
-        // Forçar atualização inicial após carregamento completo
+        // 7. Forçar atualização inicial
         window.addEventListener('load', () => {
             setTimeout(() => {
-                console.log('📱 Página carregada - forçando atualização inicial');
-                forcarAtualizacaoUI();
+                console.log('📱 [MOBILE SYNC] Atualização inicial');
+                atualizarUI();
             }, 1000);
         });
         
-        console.log('✅ Script de atualização automática iniciado com sucesso!');
-        console.log('📱 Verificação ativa a cada ' + CONFIG.CHECK_INTERVAL + 'ms');
-        console.log('🔄 Listener em tempo real ativo para nome e logo');
-        console.log('🖼️ Recarga automática da logo em dispositivos móveis');
-    }
-    
-    // ============================================================
-    // VERIFICAR SE O FIREBASE ESTÁ DISPONÍVEL
-    // ============================================================
-    function verificarFirebase() {
-        if (typeof firebase !== 'undefined' && firebase.firestore) {
-            console.log('✅ Firebase disponível - iniciando script');
-            iniciarScript();
-        } else {
-            console.log('⏳ Aguardando Firebase...');
-            setTimeout(verificarFirebase, 1000);
+        // 8. Forçar atualização em mobile
+        if (window.innerWidth <= 768) {
+            setTimeout(() => {
+                atualizarUI();
+            }, 2000);
+            setTimeout(() => {
+                atualizarUI();
+            }, 5000);
         }
+        
+        console.log('✅ [MOBILE SYNC] Sistema iniciado com sucesso!');
+        console.log('📱 Verificação ativa a cada ' + CONFIG.CHECK_INTERVAL + 'ms');
+        console.log('🔄 Listener em tempo real ativo');
     }
     
     // ============================================================
-    // EXPORTAR FUNÇÕES PARA USO EXTERNO
+    // VERIFICAR DEPENDÊNCIAS E INICIAR
     // ============================================================
-    window.AtualizacaoMobile = {
-        forcarAtualizacao: forcarAtualizacaoUI,
-        buscarDados: buscarDadosEmpresa,
-        recarregarLogo: function() {
-            forcarAtualizacaoUI();
-        },
+    function verificarDependencias() {
+        // Verificar se os elementos necessários existem
+        const elementosNecessarios = ['headerBusinessName', 'headerLogoIcon', 'headerLogoImg'];
+        let todosExistem = true;
+        
+        elementosNecessarios.forEach(id => {
+            if (!document.getElementById(id)) {
+                console.warn(`⚠️ [MOBILE SYNC] Elemento #${id} não encontrado`);
+                todosExistem = false;
+            }
+        });
+        
+        if (!todosExistem) {
+            console.warn('⚠️ [MOBILE SYNC] Elementos necessários não encontrados, aguardando...');
+            setTimeout(verificarDependencias, 1000);
+            return;
+        }
+        
+        // Verificar Firebase
+        if (typeof firebase === 'undefined' || !firebase.firestore) {
+            console.warn('⚠️ [MOBILE SYNC] Firebase não disponível, aguardando...');
+            setTimeout(verificarDependencias, 1000);
+            return;
+        }
+        
+        // Tudo pronto, iniciar!
+        iniciar();
+    }
+    
+    // ============================================================
+    // EXPORTAÇÃO DE FUNÇÕES PARA DEBUG
+    // ============================================================
+    window.MobileSync = {
+        atualizar: atualizarUI,
+        buscar: buscarDadosFirestore,
         status: function() {
             return {
-                nome: empresaData.nome,
-                logoUrl: empresaData.logoUrl,
-                listenerAtivo: listenerAtivo,
-                tentativasRecarga: tentativasRecarga
+                nome: dadosEmpresa.nome,
+                logo: dadosEmpresa.logoUrl,
+                conectado: estado.conectado,
+                listenerAtivo: estado.listenerAtivo,
+                tentativas: estado.tentativas
             };
+        },
+        forcarRecarga: function() {
+            console.log('🔄 [MOBILE SYNC] Forçando recarga manual...');
+            buscarDadosFirestore();
+            setTimeout(atualizarUI, 500);
         }
     };
     
     // ============================================================
-    // INICIAR
+    // INICIAR QUANDO O DOM ESTIVER PRONTO
     // ============================================================
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', verificarFirebase);
+        document.addEventListener('DOMContentLoaded', verificarDependencias);
     } else {
-        verificarFirebase();
+        verificarDependencias();
     }
     
-    // ============================================================
-    // FORÇAR ATUALIZAÇÃO EM TODOS OS DISPOSITIVOS
-    // ============================================================
-    // Verificar se é mobile
-    const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
-                     window.innerWidth <= 768;
+    console.log('📱 [MOBILE SYNC] Script carregado! Use MobileSync.forcarRecarga() para forçar atualização manual.');
     
-    if (isMobile) {
-        console.log('📱 Dispositivo móvel detectado - otimizações ativadas');
-        // Forçar atualizações adicionais em mobile
-        setTimeout(() => {
-            forcarAtualizacaoUI();
-        }, 2000);
-        setTimeout(() => {
-            forcarAtualizacaoUI();
-        }, 5000);
-        setTimeout(() => {
-            forcarAtualizacaoUI();
-        }, 10000);
-    } else {
-        console.log('💻 Desktop detectado - modo normal');
-    }
-    
-    console.log('✅ Script de atualização automática carregado!');
-    console.log('🔄 Nome e logo serão atualizados automaticamente em todos os dispositivos');
 })();
+
+
+        
     </script>
 </body>
 </html>
