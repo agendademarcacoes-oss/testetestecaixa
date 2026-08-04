@@ -24334,160 +24334,33 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
 
 
 
+
 (function() {
-    console.log('🔄 Iniciando script completo com modal de redes sociais...');
+    console.log('🔄 Iniciando sistema completo de redes sociais...');
+
+    // ============================================================
+    // LISTA DE REDES SOCIAIS PREDEFINIDAS
+    // ============================================================
+    const REDES_SOCIAIS_PREDEFINIDAS = [
+        { id: 'instagram', nome: 'Instagram', icone: 'fab fa-instagram', cor: '#E4405F', placeholder: '@usuario', urlBase: 'https://instagram.com/' },
+        { id: 'youtube', nome: 'YouTube', icone: 'fab fa-youtube', cor: '#FF0000', placeholder: '@canal', urlBase: 'https://youtube.com/@' },
+        { id: 'facebook', nome: 'Facebook', icone: 'fab fa-facebook', cor: '#1877F2', placeholder: 'seu_perfil', urlBase: 'https://facebook.com/' },
+        { id: 'tiktok', nome: 'TikTok', icone: 'fab fa-tiktok', cor: '#000000', placeholder: '@usuario', urlBase: 'https://tiktok.com/@' },
+        { id: 'linkedin', nome: 'LinkedIn', icone: 'fab fa-linkedin', cor: '#0A66C2', placeholder: 'seu_perfil', urlBase: 'https://linkedin.com/in/' },
+        { id: 'twitter', nome: 'Twitter/X', icone: 'fab fa-twitter', cor: '#1DA1F2', placeholder: '@usuario', urlBase: 'https://twitter.com/' },
+        { id: 'pinterest', nome: 'Pinterest', icone: 'fab fa-pinterest', cor: '#E60023', placeholder: 'seu_perfil', urlBase: 'https://pinterest.com/' },
+        { id: 'whatsapp', nome: 'WhatsApp', icone: 'fab fa-whatsapp', cor: '#25D366', placeholder: '5511999999999', urlBase: 'https://wa.me/' },
+        { id: 'telegram', nome: 'Telegram', icone: 'fab fa-telegram', cor: '#0088CC', placeholder: '@usuario', urlBase: 'https://t.me/' },
+        { id: 'site', nome: 'Site', icone: 'fas fa-globe', cor: '#28A745', placeholder: 'meusite.com', urlBase: 'https://' }
+    ];
 
     // ============================================================
     // VARIÁVEIS GLOBAIS
     // ============================================================
-    let redesSociaisLista = [];
+    let redesSociaisSalvas = {};
 
     // ============================================================
-    // FUNÇÃO PRINCIPAL: SALVAR TODAS AS CONFIGURAÇÕES
-    // ============================================================
-    window.salvarTodasConfiguracoes = async function() {
-        console.log('📝 Coletando todas as informações...');
-
-        // 1. Coletar dados do formulário de Perfil da Empresa
-        const nome = document.getElementById('businessName')?.value || '';
-        const email = document.getElementById('businessEmail')?.value || '';
-        const telefone = document.getElementById('businessPhone')?.value || '';
-        const whatsapp = document.getElementById('businessWhatsApp')?.value || '';
-        const endereco = document.getElementById('businessAddress')?.value || '';
-        const descricao = document.getElementById('businessDescription')?.value || '';
-
-        // 2. Coletar Redes Sociais da lista
-        const redesSociais = {};
-        document.querySelectorAll('.rede-social-item').forEach(item => {
-            const nomeRede = item.getAttribute('data-rede') || '';
-            const url = item.querySelector('.rede-social-url')?.value || '';
-            if (nomeRede && url) {
-                redesSociais[nomeRede] = url;
-            }
-        });
-
-        // 3. Coletar Horário de Funcionamento
-        const horario = {
-            segunda: { 
-                aberto: document.getElementById('mondayOpen')?.value || '',
-                fechado: document.getElementById('mondayClose')?.value || ''
-            },
-            terca: { 
-                aberto: document.getElementById('tuesdayOpen')?.value || '',
-                fechado: document.getElementById('tuesdayClose')?.value || ''
-            },
-            quarta: { 
-                aberto: document.getElementById('wednesdayOpen')?.value || '',
-                fechado: document.getElementById('wednesdayClose')?.value || ''
-            },
-            quinta: { 
-                aberto: document.getElementById('thursdayOpen')?.value || '',
-                fechado: document.getElementById('thursdayClose')?.value || ''
-            },
-            sexta: { 
-                aberto: document.getElementById('fridayOpen')?.value || '',
-                fechado: document.getElementById('fridayClose')?.value || ''
-            },
-            sabado: { 
-                aberto: document.getElementById('saturdayOpen')?.value || '',
-                fechado: document.getElementById('saturdayClose')?.value || ''
-            },
-            domingo: { 
-                aberto: document.getElementById('sundayOpen')?.value || '',
-                fechado: document.getElementById('sundayClose')?.value || ''
-            }
-        };
-
-        // 4. Coletar Configurações da Logo
-        const logoType = document.getElementById('businessLogoType')?.value || 'scissors';
-        const customLogo = document.getElementById('logoPreview')?.src || '';
-
-        // 5. Coletar informações do modal de Configurações
-        const nomeEstabelecimento = document.getElementById('businessNameInput')?.value || nome;
-
-        // 6. Verificar se o usuário está logado
-        const user = getCurrentUser();
-        if (!user) {
-            showError('Você precisa estar logado para salvar as configurações.');
-            return;
-        }
-
-        // 7. Montar objeto com TODOS os dados
-        const dadosCompletos = {
-            nome: nomeEstabelecimento,
-            email: email,
-            telefone: telefone,
-            whatsapp: whatsapp,
-            endereco: endereco,
-            descricao: descricao,
-            redesSociais: redesSociais,
-            horario: horario,
-            logo: {
-                tipo: logoType,
-                url: customLogo
-            },
-            atualizadoEm: firebase.firestore.FieldValue.serverTimestamp(),
-            userId: user.uid
-        };
-
-        console.log('📦 Dados a serem salvos:', dadosCompletos);
-
-        // 8. Salvar no Firestore
-        try {
-            showLoading('Salvando todas as informações no banco de dados...');
-
-            const db = getFirestore();
-            if (!db) {
-                throw new Error('Firebase não disponível.');
-            }
-
-            // Salvar Perfil da Empresa
-            const perfilData = {
-                nome: dadosCompletos.nome,
-                email: dadosCompletos.email,
-                telefone: dadosCompletos.telefone,
-                whatsapp: dadosCompletos.whatsapp,
-                endereco: dadosCompletos.endereco,
-                descricao: dadosCompletos.descricao,
-                redesSociais: dadosCompletos.redesSociais,
-                atualizadoEm: dadosCompletos.atualizadoEm,
-                userId: dadosCompletos.userId
-            };
-            await db.collection('businessProfile').doc(user.uid).set(perfilData, { merge: true });
-
-            // Salvar Horário de Funcionamento
-            await db.collection('businessHours').doc(user.uid).set(dadosCompletos.horario, { merge: true });
-
-            // Salvar Configurações da Logo
-            const settingsData = {
-                name: dadosCompletos.nome,
-                logoType: dadosCompletos.logo.tipo,
-                customLogo: dadosCompletos.logo.url,
-                userId: dadosCompletos.userId,
-                updatedAt: dadosCompletos.atualizadoEm
-            };
-            await db.collection('businessSettings').doc(user.uid).set(settingsData, { merge: true });
-
-            localStorage.setItem('businessProfile', JSON.stringify(perfilData));
-            localStorage.setItem('businessHours', JSON.stringify(dadosCompletos.horario));
-            localStorage.setItem('businessSettings', JSON.stringify(settingsData));
-
-            Swal.close();
-            showSuccess('✅ Todas as informações foram salvas com sucesso no banco de dados!');
-
-            updateAllLogoInstances();
-            updateBusinessProfileUI();
-            carregarRedesSociaisDaUI();
-
-        } catch (error) {
-            console.error('❌ Erro ao salvar:', error);
-            Swal.close();
-            showError('Erro ao salvar as informações: ' + error.message);
-        }
-    };
-
-    // ============================================================
-    // FUNÇÕES AUXILIARES
+    // FUNÇÕES PRINCIPAIS
     // ============================================================
 
     function getCurrentUser() {
@@ -24509,667 +24382,390 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
     function showLoading(message) {
         if (typeof Swal !== 'undefined') {
             Swal.fire({ title: message, allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-        } else {
-            console.log('⏳ ' + message);
         }
     }
 
     function showSuccess(message) {
         if (typeof Swal !== 'undefined') {
             Swal.fire({ icon: 'success', title: 'Sucesso!', text: message, timer: 3000, showConfirmButton: false });
-        } else {
-            alert('✅ ' + message);
         }
     }
 
     function showError(message) {
         if (typeof Swal !== 'undefined') {
             Swal.fire({ icon: 'error', title: 'Erro!', text: message, timer: 5000, showConfirmButton: true });
-        } else {
-            alert('❌ ' + message);
         }
     }
 
-    function updateAllLogoInstances() {
-        try {
-            const settings = JSON.parse(localStorage.getItem('businessSettings') || '{}');
-            const logoIcon = document.getElementById('businessLogoIcon');
-            const businessNameSpan = document.getElementById('businessName');
-            
-            if (settings.customLogo) {
-                if (logoIcon) logoIcon.style.display = 'none';
-                let img = document.getElementById('businessLogoImg');
-                if (!img) {
-                    img = document.createElement('img');
-                    img.id = 'businessLogoImg';
-                    const logoContainer = document.getElementById('businessLogo');
-                    if (logoContainer) logoContainer.insertBefore(img, logoIcon);
-                }
-                img.src = settings.customLogo;
-                img.style.height = '30px';
-                img.style.marginRight = '10px';
-                img.style.objectFit = 'contain';
-                img.alt = settings.name || 'Logo';
-                img.style.display = 'inline-block';
-            } else {
-                const img = document.getElementById('businessLogoImg');
-                if (img) img.remove();
-                if (logoIcon) {
-                    logoIcon.style.display = 'inline-block';
-                    const icons = {
-                        'scissors': 'fa-scissors',
-                        'store': 'fa-store',
-                        'spa': 'fa-spa',
-                        'salon': 'fa-cut',
-                        'barber': 'fa-user-md'
-                    };
-                    logoIcon.className = `fas ${icons[settings.logoType] || 'fa-scissors'} me-2`;
-                }
-            }
-            
-            if (businessNameSpan) {
-                businessNameSpan.textContent = settings.name || 'Studio DeVitto';
-            }
-            document.title = settings.name || 'Studio DeVitto - Sistema de Gestão';
-        } catch(e) { console.log('Erro ao atualizar logos:', e); }
-    }
+    // ============================================================
+    // SALVAR TODOS OS DADOS
+    // ============================================================
+    window.salvarTodosOsDados = async function() {
+        console.log('📝 Coletando todas as informações...');
 
-    function updateBusinessProfileUI() {
+        const user = getCurrentUser();
+        if (!user) {
+            showError('Você precisa estar logado.');
+            return;
+        }
+
+        // Coletar dados do formulário
+        const dados = {
+            nome: document.getElementById('businessName')?.value || '',
+            email: document.getElementById('businessEmail')?.value || '',
+            telefone: document.getElementById('businessPhone')?.value || '',
+            whatsapp: document.getElementById('businessWhatsApp')?.value || '',
+            endereco: document.getElementById('businessAddress')?.value || '',
+            descricao: document.getElementById('businessDescription')?.value || '',
+            redesSociais: redesSociaisSalvas,
+            horario: {
+                segunda: { aberto: document.getElementById('mondayOpen')?.value || '', fechado: document.getElementById('mondayClose')?.value || '' },
+                terca: { aberto: document.getElementById('tuesdayOpen')?.value || '', fechado: document.getElementById('tuesdayClose')?.value || '' },
+                quarta: { aberto: document.getElementById('wednesdayOpen')?.value || '', fechado: document.getElementById('wednesdayClose')?.value || '' },
+                quinta: { aberto: document.getElementById('thursdayOpen')?.value || '', fechado: document.getElementById('thursdayClose')?.value || '' },
+                sexta: { aberto: document.getElementById('fridayOpen')?.value || '', fechado: document.getElementById('fridayClose')?.value || '' },
+                sabado: { aberto: document.getElementById('saturdayOpen')?.value || '', fechado: document.getElementById('saturdayClose')?.value || '' },
+                domingo: { aberto: document.getElementById('sundayOpen')?.value || '', fechado: document.getElementById('sundayClose')?.value || '' }
+            },
+            userId: user.uid,
+            atualizadoEm: firebase.firestore.FieldValue.serverTimestamp()
+        };
+
+        console.log('📦 Dados a salvar:', dados);
+
+        try {
+            showLoading('Salvando no banco de dados...');
+            const db = getFirestore();
+            if (!db) throw new Error('Firebase não disponível.');
+
+            await db.collection('businessProfile').doc(user.uid).set(dados, { merge: true });
+            localStorage.setItem('businessProfile', JSON.stringify(dados));
+
+            Swal.close();
+            showSuccess('✅ Todos os dados salvos com sucesso!');
+            carregarDadosSalvos();
+
+        } catch (error) {
+            console.error('❌ Erro:', error);
+            Swal.close();
+            showError('Erro ao salvar: ' + error.message);
+        }
+    };
+
+    // ============================================================
+    // CARREGAR DADOS SALVOS
+    // ============================================================
+    function carregarDadosSalvos() {
         try {
             const profile = JSON.parse(localStorage.getItem('businessProfile') || '{}');
+            
+            // Preencher formulário
             document.getElementById('businessName').value = profile.nome || '';
             document.getElementById('businessEmail').value = profile.email || '';
             document.getElementById('businessPhone').value = profile.telefone || '';
             document.getElementById('businessWhatsApp').value = profile.whatsapp || '';
             document.getElementById('businessAddress').value = profile.endereco || '';
             document.getElementById('businessDescription').value = profile.descricao || '';
-            
+
+            // Carregar redes sociais
             if (profile.redesSociais) {
-                redesSociaisLista = Object.entries(profile.redesSociais).map(([nome, url]) => ({ nome, url }));
+                redesSociaisSalvas = profile.redesSociais;
                 renderizarRedesSociais();
             }
-        } catch(e) { console.log('Erro ao atualizar UI:', e); }
+
+        } catch(e) { console.log('Erro ao carregar dados:', e); }
     }
 
     // ============================================================
-    // MODAL DE REDES SOCIAIS
+    // RENDERIZAR REDES SOCIAIS NO FORMULÁRIO
     // ============================================================
-
-    function criarModalRedesSociais() {
-        if (document.getElementById('modalRedesSociais')) return;
-
-        const modalHTML = `
-            <div class="modal fade" id="modalRedesSociais" tabindex="-1" data-bs-backdrop="static">
-                <div class="modal-dialog modal-lg modal-dialog-centered">
-                    <div class="modal-content">
-                        <div class="modal-header" style="background: #26196b; color: white;">
-                            <h5 class="modal-title">
-                                <i class="fas fa-share-alt me-2"></i>Gerenciar Redes Sociais
-                            </h5>
-                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                        </div>
-                        <div class="modal-body">
-                            <div class="alert alert-info">
-                                <i class="fas fa-info-circle me-2"></i>
-                                Adicione ou remova redes sociais do seu estabelecimento.
-                            </div>
-
-                            <!-- Formulário para adicionar nova rede social -->
-                            <div class="card mb-3">
-                                <div class="card-header" style="background: #f8f9fa;">
-                                    <h6 class="mb-0"><i class="fas fa-plus-circle me-2"></i>Adicionar Nova Rede Social</h6>
-                                </div>
-                                <div class="card-body">
-                                    <div class="row g-2">
-                                        <div class="col-md-4">
-                                            <select id="selectRedeSocial" class="form-select">
-                                                <option value="">Selecione a rede...</option>
-                                                <option value="facebook">📘 Facebook</option>
-                                                <option value="instagram">📸 Instagram</option>
-                                                <option value="tiktok">🎵 TikTok</option>
-                                                <option value="linkedin">💼 LinkedIn</option>
-                                                <option value="twitter">🐦 Twitter/X</option>
-                                                <option value="youtube">▶️ YouTube</option>
-                                                <option value="pinterest">📌 Pinterest</option>
-                                                <option value="whatsapp">💬 WhatsApp</option>
-                                                <option value="telegram">✈️ Telegram</option>
-                                                <option value="site">🌐 Site</option>
-                                                <option value="outra">🔗 Outra</option>
-                                            </select>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <input type="text" id="inputUrlRedeSocial" class="form-control" placeholder="https://...">
-                                        </div>
-                                        <div class="col-md-2">
-                                            <button id="btnAdicionarRedeSocial" class="btn btn-primary w-100">
-                                                <i class="fas fa-plus"></i>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Lista de redes sociais adicionadas -->
-                            <div class="card">
-                                <div class="card-header" style="background: #f8f9fa;">
-                                    <h6 class="mb-0"><i class="fas fa-list me-2"></i>Redes Sociais Adicionadas</h6>
-                                </div>
-                                <div class="card-body" id="listaRedesSociaisContainer" style="min-height: 100px;">
-                                    <div class="text-center text-muted py-4">
-                                        <i class="fas fa-share-alt fa-3x mb-3 opacity-50"></i>
-                                        <p>Nenhuma rede social adicionada.</p>
-                                        <small>Use o formulário acima para adicionar.</small>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                            <button type="button" class="btn btn-success" id="btnSalvarRedesSociais">
-                                <i class="fas fa-save me-2"></i>Salvar Alterações
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        document.body.insertAdjacentHTML('beforeend', modalHTML);
-
-        // Eventos do modal
-        document.getElementById('btnAdicionarRedeSocial').addEventListener('click', function() {
-            adicionarRedeSocialModal();
-        });
-
-        document.getElementById('selectRedeSocial').addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                adicionarRedeSocialModal();
-            }
-        });
-
-        document.getElementById('inputUrlRedeSocial').addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                adicionarRedeSocialModal();
-            }
-        });
-
-        document.getElementById('btnSalvarRedesSociais').addEventListener('click', function() {
-            salvarRedesSociaisDoModal();
-        });
-
-        console.log('✅ Modal de Redes Sociais criado!');
-    }
-
-    // ============================================================
-    // FUNÇÕES DO MODAL DE REDES SOCIAIS
-    // ============================================================
-
-    function adicionarRedeSocialModal() {
-        const select = document.getElementById('selectRedeSocial');
-        const inputUrl = document.getElementById('inputUrlRedeSocial');
-        
-        const nomeRede = select.value;
-        const url = inputUrl.value.trim();
-
-        if (!nomeRede) {
-            showError('Selecione uma rede social.');
-            select.focus();
-            return;
-        }
-
-        if (!url) {
-            showError('Digite a URL da rede social.');
-            inputUrl.focus();
-            return;
-        }
-
-        // Verificar se a rede já foi adicionada
-        if (redesSociaisLista.some(r => r.nome === nomeRede)) {
-            showError(`A rede "${getNomeRedeExibicao(nomeRede)}" já foi adicionada.`);
-            return;
-        }
-
-        // Adicionar à lista
-        redesSociaisLista.push({ nome: nomeRede, url: url });
-        
-        // Limpar campos
-        select.value = '';
-        inputUrl.value = '';
-        
-        // Renderizar lista atualizada
-        renderizarRedesSociais();
-        
-        showSuccess(`Rede "${getNomeRedeExibicao(nomeRede)}" adicionada!`);
-    }
-
-    function getNomeRedeExibicao(nome) {
-        const nomes = {
-            'facebook': 'Facebook',
-            'instagram': 'Instagram',
-            'tiktok': 'TikTok',
-            'linkedin': 'LinkedIn',
-            'twitter': 'Twitter/X',
-            'youtube': 'YouTube',
-            'pinterest': 'Pinterest',
-            'whatsapp': 'WhatsApp',
-            'telegram': 'Telegram',
-            'site': 'Site',
-            'outra': 'Outra'
-        };
-        return nomes[nome] || nome;
-    }
-
-    function getIconeRedeSocial(nome) {
-        const icones = {
-            'facebook': 'fab fa-facebook',
-            'instagram': 'fab fa-instagram',
-            'tiktok': 'fab fa-tiktok',
-            'linkedin': 'fab fa-linkedin',
-            'twitter': 'fab fa-twitter',
-            'youtube': 'fab fa-youtube',
-            'pinterest': 'fab fa-pinterest',
-            'whatsapp': 'fab fa-whatsapp',
-            'telegram': 'fab fa-telegram',
-            'site': 'fas fa-globe',
-            'outra': 'fas fa-link'
-        };
-        return icones[nome] || 'fas fa-link';
-    }
-
-    function getCorRedeSocial(nome) {
-        const cores = {
-            'facebook': '#1877f2',
-            'instagram': '#e4405f',
-            'tiktok': '#000000',
-            'linkedin': '#0a66c2',
-            'twitter': '#1da1f2',
-            'youtube': '#ff0000',
-            'pinterest': '#e60023',
-            'whatsapp': '#25d366',
-            'telegram': '#0088cc',
-            'site': '#28a745',
-            'outra': '#6c757d'
-        };
-        return cores[nome] || '#6c757d';
-    }
-
     function renderizarRedesSociais() {
-        const container = document.getElementById('listaRedesSociaisContainer');
+        const container = document.getElementById('redesSociaisContainer');
         if (!container) return;
 
-        if (redesSociaisLista.length === 0) {
+        if (Object.keys(redesSociaisSalvas).length === 0) {
             container.innerHTML = `
                 <div class="text-center text-muted py-4">
                     <i class="fas fa-share-alt fa-3x mb-3 opacity-50"></i>
-                    <p>Nenhuma rede social adicionada.</p>
-                    <small>Use o formulário acima para adicionar.</small>
+                    <p>Nenhuma rede social cadastrada.</p>
+                    <small>Preencha os campos abaixo para adicionar.</small>
                 </div>
             `;
             return;
         }
 
-        let html = '';
-        redesSociaisLista.forEach((rede, index) => {
-            const nomeExibicao = getNomeRedeExibicao(rede.nome);
-            const icone = getIconeRedeSocial(rede.nome);
-            const cor = getCorRedeSocial(rede.nome);
-
-            html += `
-                <div class="rede-social-item d-flex align-items-center justify-content-between p-2 mb-2 rounded" 
-                     data-rede="${rede.nome}"
-                     style="background: #f8f9fa; border-left: 4px solid ${cor}; transition: all 0.3s;"
-                     onmouseenter="this.style.background='#e9ecef'"
-                     onmouseleave="this.style.background='#f8f9fa'">
-                    <div class="d-flex align-items-center gap-3">
-                        <i class="${icone}" style="font-size: 24px; color: ${cor}; width: 30px;"></i>
-                        <div>
-                            <strong>${nomeExibicao}</strong>
-                            <br>
-                            <small class="text-muted">
-                                <a href="${rede.url}" target="_blank" style="color: #26196b; text-decoration: none;">
-                                    ${rede.url}
-                                </a>
-                            </small>
-                            <input type="hidden" class="rede-social-url" value="${rede.url}">
+        let html = '<div class="row g-3">';
+        REDES_SOCIAIS_PREDEFINIDAS.forEach(rede => {
+            const valor = redesSociaisSalvas[rede.id] || '';
+            if (valor) {
+                html += `
+                    <div class="col-md-4 col-6">
+                        <div class="card h-100 shadow-sm" style="border-left: 4px solid ${rede.cor};">
+                            <div class="card-body text-center py-3">
+                                <i class="${rede.icone}" style="font-size: 28px; color: ${rede.cor};"></i>
+                                <h6 class="mt-2 mb-1">${rede.nome}</h6>
+                                <small class="text-muted d-block text-truncate">
+                                    <a href="${valor}" target="_blank" style="color: #26196b; text-decoration: none;">
+                                        ${valor.replace(/^https?:\/\//, '')}
+                                    </a>
+                                </small>
+                                <button class="btn btn-sm btn-outline-danger mt-2" onclick="removerRedeSocial('${rede.id}')">
+                                    <i class="fas fa-times"></i> Remover
+                                </button>
+                            </div>
                         </div>
                     </div>
-                    <button class="btn btn-sm btn-danger" onclick="removerRedeSocial(${index})" title="Remover rede social">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-            `;
+                `;
+            }
         });
+        html += '</div>';
 
-        container.innerHTML = html;
+        container.innerHTML = html || `<p class="text-muted text-center">Nenhuma rede social cadastrada.</p>`;
     }
 
-    window.removerRedeSocial = function(index) {
-        const rede = redesSociaisLista[index];
+    // ============================================================
+    // FUNÇÃO PARA REMOVER REDE SOCIAL
+    // ============================================================
+    window.removerRedeSocial = function(redeId) {
+        const rede = REDES_SOCIAIS_PREDEFINIDAS.find(r => r.id === redeId);
         if (!rede) return;
 
         Swal.fire({
             title: 'Remover rede social',
-            text: `Deseja remover "${getNomeRedeExibicao(rede.nome)}"?`,
+            text: `Deseja remover "${rede.nome}"?`,
             icon: 'question',
             showCancelButton: true,
             confirmButtonText: 'Sim, remover',
             cancelButtonText: 'Cancelar'
         }).then((result) => {
             if (result.isConfirmed) {
-                redesSociaisLista.splice(index, 1);
+                delete redesSociaisSalvas[redeId];
                 renderizarRedesSociais();
                 showSuccess('Rede social removida!');
             }
         });
     };
 
-    function salvarRedesSociaisDoModal() {
-        // Atualizar campos ocultos no formulário principal
-        const container = document.getElementById('listaRedesSociaisContainer');
-        if (container) {
-            // Os dados já estão em redesSociaisLista
-            // Salvar no perfil
-            const profile = JSON.parse(localStorage.getItem('businessProfile') || '{}');
-            profile.redesSociais = {};
-            redesSociaisLista.forEach(rede => {
-                profile.redesSociais[rede.nome] = rede.url;
-            });
-            localStorage.setItem('businessProfile', JSON.stringify(profile));
+    // ============================================================
+    // CRIAR SEÇÃO DE REDES SOCIAIS NO FORMULÁRIO
+    // ============================================================
+    function criarSecaoRedesSociais() {
+        // Verificar se já existe
+        if (document.getElementById('redesSociaisSection')) return;
 
-            // Atualizar UI do formulário principal
-            atualizarCamposRedesSociais();
-
-            // Fechar modal
-            const modal = bootstrap.Modal.getInstance(document.getElementById('modalRedesSociais'));
-            if (modal) modal.hide();
-
-            showSuccess('Redes sociais atualizadas com sucesso!');
-        }
-    }
-
-    function atualizarCamposRedesSociais() {
-        // Atualizar campos de entrada no formulário principal
-        const profile = JSON.parse(localStorage.getItem('businessProfile') || '{}');
-        const redes = profile.redesSociais || {};
-
-        // Criar ou atualizar campos de entrada ocultos para cada rede
         const form = document.getElementById('businessProfileForm');
-        if (!form) return;
-
-        // Remover campos antigos
-        document.querySelectorAll('.rede-social-hidden-input').forEach(el => el.remove());
-
-        // Adicionar novos campos
-        Object.entries(redes).forEach(([nome, url]) => {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.className = 'rede-social-hidden-input';
-            input.id = `rede_${nome}`;
-            input.name = `rede_${nome}`;
-            input.value = url;
-            form.appendChild(input);
-        });
-    }
-
-    // ============================================================
-    // ABRIR MODAL DE REDES SOCIAIS
-    // ============================================================
-
-    window.abrirModalRedesSociais = function() {
-        // Carregar redes sociais salvas
-        const profile = JSON.parse(localStorage.getItem('businessProfile') || '{}');
-        const redes = profile.redesSociais || {};
-        redesSociaisLista = Object.entries(redes).map(([nome, url]) => ({ nome, url }));
-        renderizarRedesSociais();
-
-        const modal = new bootstrap.Modal(document.getElementById('modalRedesSociais'));
-        modal.show();
-    };
-
-    // ============================================================
-    // ADICIONAR BOTÃO DE REDES SOCIAIS NO FORMULÁRIO
-    // ============================================================
-
-    function adicionarBotaoRedesSociais() {
-        // Aguardar o DOM estar completamente carregado
-        if (document.readyState !== 'complete' && document.readyState !== 'interactive') {
-            setTimeout(adicionarBotaoRedesSociais, 200);
+        if (!form) {
+            setTimeout(criarSecaoRedesSociais, 500);
             return;
         }
 
-        const profileSection = document.querySelector('#business-profile .card:first-child .card-body');
-        if (!profileSection) {
-            console.log('⏳ Aguardando seção business-profile...');
-            setTimeout(adicionarBotaoRedesSociais, 500);
-            return;
-        }
+        console.log('📌 Criando seção de redes sociais...');
 
-        // Verificar se o botão já existe
-        if (document.getElementById('btnAbrirRedesSociais')) {
-            console.log('✅ Botão já existe');
-            return;
-        }
+        const section = document.createElement('div');
+        section.id = 'redesSociaisSection';
+        section.className = 'card mt-3';
+        section.style.border = '1px solid #dee2e6';
+        section.style.borderRadius = '8px';
 
-        console.log('📌 Adicionando botão GERENCIAR REDES SOCIAIS...');
-
-        // Criar botão para abrir modal de redes sociais
-        const btn = document.createElement('button');
-        btn.id = 'btnAbrirRedesSociais';
-        btn.className = 'btn btn-outline-primary mt-2 w-100';
-        btn.innerHTML = '<i class="fas fa-share-alt me-2"></i> GERENCIAR REDES SOCIAIS';
-        btn.style.borderColor = '#26196b';
-        btn.style.color = '#26196b';
-        btn.style.padding = '10px';
-        btn.style.fontWeight = '500';
-        
-        btn.addEventListener('click', function(e) {
-            e.preventDefault();
-            window.abrirModalRedesSociais();
-        });
-
-        // Inserir após o botão de salvar ou no final da seção
-        const saveBtn = document.getElementById('saveAllDataBtn');
-        if (saveBtn) {
-            // Inserir depois do botão salvar
-            saveBtn.insertAdjacentElement('afterend', btn);
-            // Adicionar um pequeno espaçamento
-            btn.style.marginTop = '8px';
-        } else {
-            // Se não encontrar o botão salvar, adicionar no final
-            profileSection.appendChild(btn);
-        }
-
-        console.log('✅ Botão "GERENCIAR REDES SOCIAIS" adicionado!');
-
-        // Mostrar redes sociais já salvas no formulário
-        carregarRedesSociaisDaUI();
-    }
-
-    // ============================================================
-    // CARREGAR REDES SOCIAIS NA UI
-    // ============================================================
-
-    function carregarRedesSociaisDaUI() {
-        try {
-            const profile = JSON.parse(localStorage.getItem('businessProfile') || '{}');
-            const redes = profile.redesSociais || {};
-            
-            // Exibir resumo das redes sociais no formulário
-            let container = document.getElementById('resumoRedesSociais');
-            if (!container) {
-                // Criar container para resumo
-                const form = document.getElementById('businessProfileForm');
-                if (!form) return;
-
-                container = document.createElement('div');
-                container.id = 'resumoRedesSociais';
-                container.className = 'mb-3 p-3 bg-light rounded border';
-                container.style.borderColor = '#dee2e6';
-                
-                const cardBody = form.querySelector('.card-body');
-                if (cardBody) {
-                    // Inserir antes do final do card-body
-                    const submitBtn = form.querySelector('button[type="submit"]');
-                    if (submitBtn) {
-                        form.insertBefore(container, submitBtn);
-                    } else {
-                        form.appendChild(container);
-                    }
-                } else {
-                    form.appendChild(container);
-                }
-            }
-
-            // Atualizar texto do resumo
-            const nomes = Object.keys(redes);
-            let textoHtml = '';
-            if (nomes.length === 0) {
-                textoHtml = '<span class="text-muted">Nenhuma rede social adicionada.</span>';
-            } else {
-                const itens = nomes.map(n => {
-                    const icone = getIconeRedeSocial(n);
-                    const cor = getCorRedeSocial(n);
-                    return `<span class="badge me-1 mb-1" style="background: ${cor}; color: white; padding: 5px 10px;">
-                        <i class="${icone} me-1"></i>${getNomeRedeExibicao(n)}
-                    </span>`;
-                });
-                textoHtml = itens.join(' ');
-            }
-
-            container.innerHTML = `
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <strong><i class="fas fa-share-alt me-2"></i>Redes Sociais:</strong>
-                        <span id="resumoRedesTexto">${textoHtml}</span>
+        let camposHTML = '';
+        REDES_SOCIAIS_PREDEFINIDAS.forEach(rede => {
+            const valor = redesSociaisSalvas[rede.id] || '';
+            camposHTML += `
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <label class="form-label fw-bold" style="color: ${rede.cor};">
+                        <i class="${rede.icone} me-1"></i> ${rede.nome}
+                    </label>
+                    <div class="input-group">
+                        <span class="input-group-text" style="background: #f8f9fa; font-size: 12px; color: #6c757d;">
+                            ${rede.urlBase}
+                        </span>
+                        <input type="text" class="form-control rede-social-input" 
+                               id="rede_${rede.id}" 
+                               data-rede-id="${rede.id}"
+                               placeholder="${rede.placeholder}"
+                               value="${valor.replace(rede.urlBase, '')}"
+                               style="border-left: none;">
+                        <button class="btn btn-outline-success btn-sm salvar-rede-btn" data-rede-id="${rede.id}" 
+                                style="border-radius: 0 4px 4px 0;">
+                            <i class="fas fa-check"></i>
+                        </button>
                     </div>
-                    <small class="text-muted">${nomes.length} rede(s)</small>
+                    ${valor ? `<small class="text-success"><i class="fas fa-check-circle me-1"></i>Cadastrado</small>` : ''}
                 </div>
             `;
+        });
 
-        } catch(e) { 
-            console.log('Erro ao carregar redes sociais:', e); 
+        section.innerHTML = `
+            <div class="card-header" style="background: #26196b; color: white;">
+                <h6 class="mb-0"><i class="fas fa-share-alt me-2"></i>Redes Sociais</h6>
+                <small class="text-white-50">Digite apenas o nome de usuário ou identificador</small>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    ${camposHTML}
+                </div>
+                <div class="mt-3">
+                    <div id="redesSociaisContainer" class="mt-3">
+                        <div class="text-center text-muted py-4">
+                            <i class="fas fa-share-alt fa-3x mb-3 opacity-50"></i>
+                            <p>Nenhuma rede social cadastrada.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Inserir antes do botão de submit
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) {
+            form.insertBefore(section, submitBtn);
+        } else {
+            form.appendChild(section);
         }
+
+        // Eventos dos botões de salvar
+        document.querySelectorAll('.salvar-rede-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const redeId = this.getAttribute('data-rede-id');
+                salvarRedeSocial(redeId);
+            });
+        });
+
+        // Evento Enter nos inputs
+        document.querySelectorAll('.rede-social-input').forEach(input => {
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const redeId = this.getAttribute('data-rede-id');
+                    salvarRedeSocial(redeId);
+                }
+            });
+        });
+
+        renderizarRedesSociais();
+        console.log('✅ Seção de redes sociais criada!');
     }
 
     // ============================================================
-    // ADICIONAR BOTÃO SALVAR TODOS OS DADOS
+    // SALVAR UMA REDE SOCIAL ESPECÍFICA
     // ============================================================
+    function salvarRedeSocial(redeId) {
+        const input = document.getElementById(`rede_${redeId}`);
+        if (!input) return;
 
-    function adicionarBotaoSalvarTodos() {
-        // Aguardar o DOM estar completamente carregado
-        if (document.readyState !== 'complete' && document.readyState !== 'interactive') {
-            setTimeout(adicionarBotaoSalvarTodos, 200);
+        const valor = input.value.trim();
+        const rede = REDES_SOCIAIS_PREDEFINIDAS.find(r => r.id === redeId);
+        if (!rede) return;
+
+        if (!valor) {
+            // Se o campo estiver vazio, remover a rede
+            delete redesSociaisSalvas[redeId];
+            showSuccess(`Rede "${rede.nome}" removida!`);
+            renderizarRedesSociais();
+            // Atualizar o label de status
+            const label = input.closest('.col-md-6')?.querySelector('small');
+            if (label) label.remove();
             return;
         }
 
-        const profileSection = document.querySelector('#business-profile .card:first-child .card-body');
-        if (!profileSection) {
-            console.log('⏳ Aguardando seção business-profile...');
-            setTimeout(adicionarBotaoSalvarTodos, 500);
+        // Construir URL completa
+        let urlCompleta = valor;
+        if (!valor.startsWith('http://') && !valor.startsWith('https://')) {
+            // Para WhatsApp, garantir que o número esteja no formato correto
+            if (rede.id === 'whatsapp') {
+                const numeros = valor.replace(/\D/g, '');
+                urlCompleta = `https://wa.me/${numeros}`;
+            } else {
+                urlCompleta = rede.urlBase + valor;
+            }
+        }
+
+        // Validar URL
+        try {
+            new URL(urlCompleta);
+        } catch(e) {
+            showError('URL inválida. Verifique o formato.');
             return;
         }
 
-        if (document.getElementById('saveAllDataBtn')) return;
+        // Salvar
+        redesSociaisSalvas[redeId] = urlCompleta;
+        renderizarRedesSociais();
 
-        console.log('📌 Adicionando botão SALVAR TODOS OS DADOS...');
+        // Adicionar label de sucesso
+        const parent = input.closest('.col-md-6');
+        let label = parent?.querySelector('small');
+        if (!label) {
+            label = document.createElement('small');
+            label.className = 'text-success d-block mt-1';
+            parent?.appendChild(label);
+        }
+        label.innerHTML = `<i class="fas fa-check-circle me-1"></i>Cadastrado: <a href="${urlCompleta}" target="_blank" style="color: #26196b;">${urlCompleta}</a>`;
+
+        showSuccess(`Rede "${rede.nome}" salva com sucesso!`);
+    }
+
+    // ============================================================
+    // CRIAR BOTÃO SALVAR TUDO
+    // ============================================================
+    function criarBotaoSalvarTudo() {
+        const form = document.getElementById('businessProfileForm');
+        if (!form) {
+            setTimeout(criarBotaoSalvarTudo, 500);
+            return;
+        }
+
+        if (document.getElementById('btnSalvarTudo')) return;
+
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (!submitBtn) return;
 
         const btn = document.createElement('button');
-        btn.id = 'saveAllDataBtn';
-        btn.className = 'btn btn-success mt-3 w-100';
+        btn.id = 'btnSalvarTudo';
+        btn.type = 'button';
+        btn.className = 'btn btn-success w-100 mt-3';
         btn.innerHTML = '<i class="fas fa-cloud-upload-alt me-2"></i> SALVAR TODOS OS DADOS NO BANCO';
-        btn.style.fontWeight = 'bold';
         btn.style.background = 'linear-gradient(135deg, #28a745, #20c997)';
         btn.style.border = 'none';
         btn.style.padding = '12px';
-        
-        btn.addEventListener('click', async function(e) {
-            e.preventDefault();
-            await window.salvarTodasConfiguracoes();
-        });
+        btn.style.fontWeight = 'bold';
 
-        const existingBtn = profileSection.querySelector('button[type="submit"]');
-        if (existingBtn) {
-            profileSection.insertBefore(btn, existingBtn);
-        } else {
-            profileSection.appendChild(btn);
-        }
+        btn.addEventListener('click', window.salvarTodosOsDados);
 
-        console.log('✅ Botão "SALVAR TODOS OS DADOS NO BANCO" adicionado!');
+        submitBtn.parentNode.insertBefore(btn, submitBtn);
+        console.log('✅ Botão "SALVAR TODOS OS DADOS" criado!');
     }
 
     // ============================================================
     // INICIALIZAÇÃO
     // ============================================================
-
     function init() {
-        console.log('🚀 Inicializando sistema com modal de redes sociais...');
-        
-        const db = getFirestore();
-        if (!db) {
-            console.warn('⚠️ Firestore não disponível. O salvamento pode falhar.');
-        }
+        console.log('🚀 Inicializando sistema de redes sociais...');
 
-        // Criar modal de redes sociais
-        criarModalRedesSociais();
+        // Carregar dados salvos
+        carregarDadosSalvos();
 
-        // Adicionar botões com retry
-        let tentativas = 0;
-        const maxTentativas = 10;
-        
-        function adicionarBotoes() {
-            tentativas++;
-            console.log(`🔄 Tentativa ${tentativas} de adicionar botões...`);
-            
-            adicionarBotaoSalvarTodos();
-            adicionarBotaoRedesSociais();
-            
-            // Verificar se os botões foram adicionados
-            const hasSaveBtn = document.getElementById('saveAllDataBtn') !== null;
-            const hasSocialBtn = document.getElementById('btnAbrirRedesSociais') !== null;
-            
-            if (hasSaveBtn && hasSocialBtn) {
-                console.log('✅ Todos os botões foram adicionados com sucesso!');
-                return;
-            }
-            
-            if (tentativas < maxTentativas) {
-                console.log(`⏳ Aguardando ${tentativas * 500}ms para nova tentativa...`);
-                setTimeout(adicionarBotoes, 500);
-            } else {
-                console.warn('⚠️ Não foi possível adicionar todos os botões após várias tentativas.');
-                console.warn('   - Botão SALVAR:', hasSaveBtn ? '✅' : '❌');
-                console.warn('   - Botão REDES SOCIAIS:', hasSocialBtn ? '✅' : '❌');
-            }
-        }
+        // Criar seção de redes sociais
+        setTimeout(criarSecaoRedesSociais, 300);
 
-        // Carregar dados existentes
-        setTimeout(() => {
-            updateBusinessProfileUI();
-            carregarRedesSociaisDaUI();
-        }, 300);
+        // Criar botão salvar tudo
+        setTimeout(criarBotaoSalvarTudo, 500);
 
-        // Iniciar adição dos botões após um pequeno delay
-        setTimeout(adicionarBotoes, 500);
-
-        console.log('✅ Script completo inicializado!');
-        console.log('💡 Clique em "GERENCIAR REDES SOCIAIS" para adicionar redes.');
-        console.log('💡 Clique em "SALVAR TODOS OS DADOS NO BANCO" para salvar tudo.');
+        console.log('✅ Sistema de redes sociais inicializado!');
+        console.log('📌 Preencha o nome de usuário em cada rede e clique no ✓ para salvar.');
+        console.log('📌 Clique em "SALVAR TODOS OS DADOS NO BANCO" para salvar tudo.');
     }
 
-    // Iniciar quando o DOM estiver pronto
+    // Iniciar
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function() {
-            // Pequeno delay para garantir que o resto da página carregou
-            setTimeout(init, 300);
+            setTimeout(init, 400);
         });
     } else {
-        setTimeout(init, 300);
+        setTimeout(init, 400);
     }
 
 })();
-
 
 
 </script>
