@@ -19619,6 +19619,505 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <script>
+// ============================================================
+// SCRIPT PARA SALVAR TODOS OS DADOS DO ESTABELECIMENTO
+// ============================================================
+// Este script unifica e salva as seguintes informações no Firebase:
+// - Nome do estabelecimento
+// - Logo (tipo ou imagem)
+// - Endereço completo
+// - Redes sociais (Facebook, Instagram, TikTok, etc.)
+// - Contato (WhatsApp)
+// - Horário de funcionamento
+// ============================================================
+
+(function() {
+    console.log('🔄 Iniciando script para salvar todos os dados do estabelecimento...');
+
+    // ============================================================
+    // FUNÇÃO PRINCIPAL: SALVAR TODAS AS CONFIGURAÇÕES
+    // ============================================================
+    window.salvarTodasConfiguracoes = async function() {
+        console.log('📝 Coletando todas as informações...');
+
+        // 1. Coletar dados do formulário de Perfil da Empresa
+        const nome = document.getElementById('businessName')?.value || '';
+        const email = document.getElementById('businessEmail')?.value || '';
+        const telefone = document.getElementById('businessPhone')?.value || '';
+        const whatsapp = document.getElementById('businessWhatsApp')?.value || '';
+        const endereco = document.getElementById('businessAddress')?.value || '';
+        const descricao = document.getElementById('businessDescription')?.value || '';
+
+        // 2. Coletar Redes Sociais (campos adicionados no formulário)
+        const facebook = document.getElementById('businessFacebook')?.value || '';
+        const instagram = document.getElementById('businessInstagram')?.value || '';
+        const tiktok = document.getElementById('businessTikTok')?.value || '';
+        const linkedin = document.getElementById('businessLinkedIn')?.value || '';
+
+        // 3. Coletar Horário de Funcionamento
+        const horario = {
+            segunda: { 
+                aberto: document.getElementById('mondayOpen')?.value || '',
+                fechado: document.getElementById('mondayClose')?.value || ''
+            },
+            terca: { 
+                aberto: document.getElementById('tuesdayOpen')?.value || '',
+                fechado: document.getElementById('tuesdayClose')?.value || ''
+            },
+            quarta: { 
+                aberto: document.getElementById('wednesdayOpen')?.value || '',
+                fechado: document.getElementById('wednesdayClose')?.value || ''
+            },
+            quinta: { 
+                aberto: document.getElementById('thursdayOpen')?.value || '',
+                fechado: document.getElementById('thursdayClose')?.value || ''
+            },
+            sexta: { 
+                aberto: document.getElementById('fridayOpen')?.value || '',
+                fechado: document.getElementById('fridayClose')?.value || ''
+            },
+            sabado: { 
+                aberto: document.getElementById('saturdayOpen')?.value || '',
+                fechado: document.getElementById('saturdayClose')?.value || ''
+            },
+            domingo: { 
+                aberto: document.getElementById('sundayOpen')?.value || '',
+                fechado: document.getElementById('sundayClose')?.value || ''
+            }
+        };
+
+        // 4. Coletar Configurações da Logo (do modal)
+        const logoType = document.getElementById('businessLogoType')?.value || 'scissors';
+        const customLogo = document.getElementById('logoPreview')?.src || '';
+
+        // 5. Coletar informações do modal de Configurações (se ainda não salvou)
+        const nomeEstabelecimento = document.getElementById('businessNameInput')?.value || nome;
+
+        // 6. Verificar se o usuário está logado
+        const user = getCurrentUser();
+        if (!user) {
+            showError('Você precisa estar logado para salvar as configurações.');
+            return;
+        }
+
+        // 7. Montar objeto com TODOS os dados
+        const dadosCompletos = {
+            // Perfil da Empresa
+            nome: nomeEstabelecimento,
+            email: email,
+            telefone: telefone,
+            whatsapp: whatsapp,
+            endereco: endereco,
+            descricao: descricao,
+            
+            // Redes Sociais
+            redesSociais: {
+                facebook: facebook,
+                instagram: instagram,
+                tiktok: tiktok,
+                linkedin: linkedin
+            },
+            
+            // Horário de Funcionamento
+            horario: horario,
+            
+            // Logo
+            logo: {
+                tipo: logoType,
+                url: customLogo
+            },
+            
+            // Metadados
+            atualizadoEm: firebase.firestore.FieldValue.serverTimestamp(),
+            userId: user.uid
+        };
+
+        console.log('📦 Dados a serem salvos:', dadosCompletos);
+
+        // 8. Salvar no Firestore
+        try {
+            showLoading('Salvando todas as informações no banco de dados...');
+
+            const db = getFirestore();
+            if (!db) {
+                throw new Error('Firebase não disponível.');
+            }
+
+            // Salvar Perfil da Empresa
+            const perfilData = {
+                nome: dadosCompletos.nome,
+                email: dadosCompletos.email,
+                telefone: dadosCompletos.telefone,
+                whatsapp: dadosCompletos.whatsapp,
+                endereco: dadosCompletos.endereco,
+                descricao: dadosCompletos.descricao,
+                redesSociais: dadosCompletos.redesSociais,
+                atualizadoEm: dadosCompletos.atualizadoEm,
+                userId: dadosCompletos.userId
+            };
+            await db.collection('businessProfile').doc(user.uid).set(perfilData, { merge: true });
+
+            // Salvar Horário de Funcionamento
+            await db.collection('businessHours').doc(user.uid).set(dadosCompletos.horario, { merge: true });
+
+            // Salvar Configurações da Logo
+            const settingsData = {
+                name: dadosCompletos.nome,
+                logoType: dadosCompletos.logo.tipo,
+                customLogo: dadosCompletos.logo.url,
+                userId: dadosCompletos.userId,
+                updatedAt: dadosCompletos.atualizadoEm
+            };
+            await db.collection('businessSettings').doc(user.uid).set(settingsData, { merge: true });
+
+            // Salvar também no localStorage para backup offline
+            localStorage.setItem('businessProfile', JSON.stringify(perfilData));
+            localStorage.setItem('businessHours', JSON.stringify(dadosCompletos.horario));
+            localStorage.setItem('businessSettings', JSON.stringify(settingsData));
+
+            Swal.close();
+            showSuccess('✅ Todas as informações foram salvas com sucesso no banco de dados!');
+
+            // Atualizar todas as logos e nomes na interface
+            updateAllLogoInstances();
+            updateBusinessProfileUI();
+
+            // Notificar outras abas
+            if (window.BroadcastChannel) {
+                try {
+                    const channel = new BroadcastChannel('logo-updates');
+                    channel.postMessage({ 
+                        type: 'LOGO_UPDATED', 
+                        settings: settingsData 
+                    });
+                } catch (e) {
+                    console.log('BroadcastChannel não suportado');
+                }
+            }
+
+        } catch (error) {
+            console.error('❌ Erro ao salvar:', error);
+            Swal.close();
+            showError('Erro ao salvar as informações: ' + error.message);
+        }
+    };
+
+    // ============================================================
+    // FUNÇÕES AUXILIARES
+    // ============================================================
+
+    function getCurrentUser() {
+        try {
+            if (typeof window.currentUser !== 'undefined' && window.currentUser) {
+                return window.currentUser;
+            }
+            if (typeof currentUser !== 'undefined' && currentUser) {
+                return currentUser;
+            }
+            return null;
+        } catch(e) { return null; }
+    }
+
+    function getFirestore() {
+        try {
+            if (typeof firebase !== 'undefined' && firebase.firestore) {
+                return firebase.firestore();
+            }
+            if (typeof db !== 'undefined' && db) {
+                return db;
+            }
+            return null;
+        } catch(e) { return null; }
+    }
+
+    function showLoading(message) {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                title: message,
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+        } else {
+            console.log('⏳ ' + message);
+        }
+    }
+
+    function showSuccess(message) {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                icon: 'success',
+                title: 'Sucesso!',
+                text: message,
+                timer: 3000,
+                showConfirmButton: false
+            });
+        } else {
+            alert('✅ ' + message);
+        }
+    }
+
+    function showError(message) {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                icon: 'error',
+                title: 'Erro!',
+                text: message,
+                timer: 5000,
+                showConfirmButton: true
+            });
+        } else {
+            alert('❌ ' + message);
+        }
+    }
+
+    function updateAllLogoInstances() {
+        try {
+            const settings = JSON.parse(localStorage.getItem('businessSettings') || '{}');
+            const logoIcon = document.getElementById('businessLogoIcon');
+            const businessNameSpan = document.getElementById('businessName');
+            
+            if (settings.customLogo) {
+                if (logoIcon) logoIcon.style.display = 'none';
+                let img = document.getElementById('businessLogoImg');
+                if (!img) {
+                    img = document.createElement('img');
+                    img.id = 'businessLogoImg';
+                    const logoContainer = document.getElementById('businessLogo');
+                    if (logoContainer) logoContainer.insertBefore(img, logoIcon);
+                }
+                img.src = settings.customLogo;
+                img.style.height = '30px';
+                img.style.marginRight = '10px';
+                img.style.objectFit = 'contain';
+                img.alt = settings.name || 'Logo';
+                img.style.display = 'inline-block';
+            } else {
+                const img = document.getElementById('businessLogoImg');
+                if (img) img.remove();
+                if (logoIcon) {
+                    logoIcon.style.display = 'inline-block';
+                    const icons = {
+                        'scissors': 'fa-scissors',
+                        'store': 'fa-store',
+                        'spa': 'fa-spa',
+                        'salon': 'fa-cut',
+                        'barber': 'fa-user-md'
+                    };
+                    logoIcon.className = `fas ${icons[settings.logoType] || 'fa-scissors'} me-2`;
+                }
+            }
+            
+            if (businessNameSpan) {
+                businessNameSpan.textContent = settings.name || 'Studio DeVitto';
+            }
+            document.title = settings.name || 'Studio DeVitto - Sistema de Gestão';
+        } catch(e) { console.log('Erro ao atualizar logos:', e); }
+    }
+
+    function updateBusinessProfileUI() {
+        try {
+            const profile = JSON.parse(localStorage.getItem('businessProfile') || '{}');
+            document.getElementById('businessName').value = profile.nome || '';
+            document.getElementById('businessEmail').value = profile.email || '';
+            document.getElementById('businessPhone').value = profile.telefone || '';
+            document.getElementById('businessWhatsApp').value = profile.whatsapp || '';
+            document.getElementById('businessAddress').value = profile.endereco || '';
+            document.getElementById('businessDescription').value = profile.descricao || '';
+            
+            if (profile.redesSociais) {
+                document.getElementById('businessFacebook').value = profile.redesSociais.facebook || '';
+                document.getElementById('businessInstagram').value = profile.redesSociais.instagram || '';
+                document.getElementById('businessTikTok').value = profile.redesSociais.tiktok || '';
+                document.getElementById('businessLinkedIn').value = profile.redesSociais.linkedin || '';
+            }
+        } catch(e) { console.log('Erro ao atualizar UI:', e); }
+    }
+
+    // ============================================================
+    // ADICIONAR BOTÃO PARA SALVAR TODOS OS DADOS
+    // ============================================================
+    function addSaveAllButton() {
+        const profileSection = document.querySelector('#business-profile .card:first-child .card-body');
+        if (!profileSection) {
+            setTimeout(addSaveAllButton, 500);
+            return;
+        }
+
+        if (document.getElementById('saveAllDataBtn')) return;
+
+        const btn = document.createElement('button');
+        btn.id = 'saveAllDataBtn';
+        btn.className = 'btn btn-success mt-3 w-100';
+        btn.innerHTML = '<i class="fas fa-cloud-upload-alt me-2"></i> SALVAR TODOS OS DADOS NO BANCO';
+        btn.style.fontWeight = 'bold';
+        btn.style.background = 'linear-gradient(135deg, #28a745, #20c997)';
+        btn.style.border = 'none';
+        btn.style.padding = '12px';
+        
+        btn.addEventListener('click', async function(e) {
+            e.preventDefault();
+            await window.salvarTodasConfiguracoes();
+        });
+
+        // Inserir antes do botão "Salvar Informações" existente
+        const existingBtn = profileSection.querySelector('button[type="submit"]');
+        if (existingBtn) {
+            profileSection.insertBefore(btn, existingBtn);
+        } else {
+            profileSection.appendChild(btn);
+        }
+
+        // Adicionar campos de redes sociais ao formulário
+        addSocialMediaFields();
+
+        console.log('✅ Botão "SALVAR TODOS OS DADOS NO BANCO" adicionado!');
+    }
+
+    // ============================================================
+    // ADICIONAR CAMPOS DE REDES SOCIAIS AO FORMULÁRIO
+    // ============================================================
+    function addSocialMediaFields() {
+        const form = document.getElementById('businessProfileForm');
+        if (!form) return;
+
+        // Verificar se os campos já foram adicionados
+        if (document.getElementById('businessFacebook')) return;
+
+        // Criar a seção de Redes Sociais
+        const socialSection = document.createElement('div');
+        socialSection.className = 'card mt-3';
+        socialSection.style.background = '#f8f9fa';
+        socialSection.style.border = '1px solid #dee2e6';
+        socialSection.style.borderRadius = '8px';
+
+        socialSection.innerHTML = `
+            <div class="card-header" style="background: #26196b; color: white;">
+                <h6 class="mb-0"><i class="fas fa-share-alt me-2"></i>Redes Sociais</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="businessFacebook" class="form-label">
+                            <i class="fab fa-facebook text-primary me-1"></i> Facebook
+                        </label>
+                        <input type="text" class="form-control" id="businessFacebook" placeholder="https://facebook.com/seu_perfil">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="businessInstagram" class="form-label">
+                            <i class="fab fa-instagram text-danger me-1"></i> Instagram
+                        </label>
+                        <input type="text" class="form-control" id="businessInstagram" placeholder="https://instagram.com/seu_perfil">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="businessTikTok" class="form-label">
+                            <i class="fab fa-tiktok text-dark me-1"></i> TikTok
+                        </label>
+                        <input type="text" class="form-control" id="businessTikTok" placeholder="https://tiktok.com/@seu_perfil">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="businessLinkedIn" class="form-label">
+                            <i class="fab fa-linkedin text-primary me-1"></i> LinkedIn
+                        </label>
+                        <input type="text" class="form-control" id="businessLinkedIn" placeholder="https://linkedin.com/company/seu_perfil">
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Inserir antes do botão "Salvar Informações"
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) {
+            form.insertBefore(socialSection, submitBtn);
+        } else {
+            form.appendChild(socialSection);
+        }
+
+        // Carregar dados salvos
+        loadSocialMediaData();
+
+        console.log('✅ Campos de Redes Sociais adicionados ao formulário!');
+    }
+
+    // ============================================================
+    // CARREGAR DADOS DAS REDES SOCIAIS
+    // ============================================================
+    function loadSocialMediaData() {
+        try {
+            const profile = JSON.parse(localStorage.getItem('businessProfile') || '{}');
+            if (profile.redesSociais) {
+                document.getElementById('businessFacebook').value = profile.redesSociais.facebook || '';
+                document.getElementById('businessInstagram').value = profile.redesSociais.instagram || '';
+                document.getElementById('businessTikTok').value = profile.redesSociais.tiktok || '';
+                document.getElementById('businessLinkedIn').value = profile.redesSociais.linkedin || '';
+            }
+        } catch(e) { console.log('Erro ao carregar redes sociais:', e); }
+    }
+
+    // ============================================================
+    // INICIALIZAÇÃO
+    // ============================================================
+    function init() {
+        console.log('🚀 Inicializando salvamento de todos os dados...');
+        
+        // Verificar se o Firestore está disponível
+        const db = getFirestore();
+        if (!db) {
+            console.warn('⚠️ Firestore não disponível. O salvamento pode falhar.');
+        }
+
+        // Adicionar o botão de salvar
+        setTimeout(addSaveAllButton, 1000);
+
+        // Carregar dados existentes
+        setTimeout(() => {
+            updateBusinessProfileUI();
+            loadSocialMediaData();
+        }, 500);
+
+        console.log('✅ Script de salvamento completo inicializado!');
+        console.log('💡 Clique em "SALVAR TODOS OS DADOS NO BANCO" para salvar todas as informações.');
+    }
+
+    // ============================================================
+    // INICIAR QUANDO O DOM ESTIVER PRONTO
+    // ============================================================
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+
+})();
+</script>
+
+    
+
    
 </body>
 
