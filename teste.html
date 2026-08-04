@@ -24329,10 +24329,10 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
 
 
 
-// ============================================================
-// SCRIPT COMPLETO PARA SALVAR DADOS DO ESTABELECIMENTO
-// COM MODAL DE REDES SOCIAIS
-// ============================================================
+
+
+
+
 
 (function() {
     console.log('🔄 Iniciando script completo com modal de redes sociais...');
@@ -24727,7 +24727,7 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
 
         // Verificar se a rede já foi adicionada
         if (redesSociaisLista.some(r => r.nome === nomeRede)) {
-            showError(`A rede "${nomeRede}" já foi adicionada.`);
+            showError(`A rede "${getNomeRedeExibicao(nomeRede)}" já foi adicionada.`);
             return;
         }
 
@@ -24933,13 +24933,26 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
     // ============================================================
 
     function adicionarBotaoRedesSociais() {
+        // Aguardar o DOM estar completamente carregado
+        if (document.readyState !== 'complete' && document.readyState !== 'interactive') {
+            setTimeout(adicionarBotaoRedesSociais, 200);
+            return;
+        }
+
         const profileSection = document.querySelector('#business-profile .card:first-child .card-body');
         if (!profileSection) {
+            console.log('⏳ Aguardando seção business-profile...');
             setTimeout(adicionarBotaoRedesSociais, 500);
             return;
         }
 
-        if (document.getElementById('btnAbrirRedesSociais')) return;
+        // Verificar se o botão já existe
+        if (document.getElementById('btnAbrirRedesSociais')) {
+            console.log('✅ Botão já existe');
+            return;
+        }
+
+        console.log('📌 Adicionando botão GERENCIAR REDES SOCIAIS...');
 
         // Criar botão para abrir modal de redes sociais
         const btn = document.createElement('button');
@@ -24949,24 +24962,29 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
         btn.style.borderColor = '#26196b';
         btn.style.color = '#26196b';
         btn.style.padding = '10px';
+        btn.style.fontWeight = '500';
         
         btn.addEventListener('click', function(e) {
             e.preventDefault();
             window.abrirModalRedesSociais();
         });
 
-        // Inserir após o botão de salvar
+        // Inserir após o botão de salvar ou no final da seção
         const saveBtn = document.getElementById('saveAllDataBtn');
         if (saveBtn) {
-            profileSection.insertBefore(btn, saveBtn.nextSibling);
+            // Inserir depois do botão salvar
+            saveBtn.insertAdjacentElement('afterend', btn);
+            // Adicionar um pequeno espaçamento
+            btn.style.marginTop = '8px';
         } else {
+            // Se não encontrar o botão salvar, adicionar no final
             profileSection.appendChild(btn);
         }
 
+        console.log('✅ Botão "GERENCIAR REDES SOCIAIS" adicionado!');
+
         // Mostrar redes sociais já salvas no formulário
         carregarRedesSociaisDaUI();
-
-        console.log('✅ Botão "GERENCIAR REDES SOCIAIS" adicionado!');
     }
 
     // ============================================================
@@ -24979,44 +24997,60 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
             const redes = profile.redesSociais || {};
             
             // Exibir resumo das redes sociais no formulário
-            const container = document.getElementById('resumoRedesSociais');
+            let container = document.getElementById('resumoRedesSociais');
             if (!container) {
                 // Criar container para resumo
                 const form = document.getElementById('businessProfileForm');
                 if (!form) return;
 
-                const resumoDiv = document.createElement('div');
-                resumoDiv.id = 'resumoRedesSociais';
-                resumoDiv.className = 'mb-3 p-3 bg-light rounded';
-                resumoDiv.innerHTML = `<strong><i class="fas fa-share-alt me-2"></i>Redes Sociais:</strong> <span id="resumoRedesTexto">Nenhuma rede adicionada</span>`;
+                container = document.createElement('div');
+                container.id = 'resumoRedesSociais';
+                container.className = 'mb-3 p-3 bg-light rounded border';
+                container.style.borderColor = '#dee2e6';
                 
-                const submitBtn = form.querySelector('button[type="submit"]');
-                if (submitBtn) {
-                    form.insertBefore(resumoDiv, submitBtn);
+                const cardBody = form.querySelector('.card-body');
+                if (cardBody) {
+                    // Inserir antes do final do card-body
+                    const submitBtn = form.querySelector('button[type="submit"]');
+                    if (submitBtn) {
+                        form.insertBefore(container, submitBtn);
+                    } else {
+                        form.appendChild(container);
+                    }
                 } else {
-                    form.appendChild(resumoDiv);
+                    form.appendChild(container);
                 }
             }
 
             // Atualizar texto do resumo
-            const textoResumo = document.getElementById('resumoRedesTexto');
-            if (textoResumo) {
-                const nomes = Object.keys(redes);
-                if (nomes.length === 0) {
-                    textoResumo.textContent = 'Nenhuma rede adicionada';
-                } else {
-                    const nomesExibicao = nomes.map(n => getNomeRedeExibicao(n));
-                    textoResumo.textContent = nomesExibicao.join(', ');
-                }
+            const nomes = Object.keys(redes);
+            let textoHtml = '';
+            if (nomes.length === 0) {
+                textoHtml = '<span class="text-muted">Nenhuma rede social adicionada.</span>';
+            } else {
+                const itens = nomes.map(n => {
+                    const icone = getIconeRedeSocial(n);
+                    const cor = getCorRedeSocial(n);
+                    return `<span class="badge me-1 mb-1" style="background: ${cor}; color: white; padding: 5px 10px;">
+                        <i class="${icone} me-1"></i>${getNomeRedeExibicao(n)}
+                    </span>`;
+                });
+                textoHtml = itens.join(' ');
             }
 
-            // Atualizar lista no modal se estiver aberto
-            if (document.getElementById('listaRedesSociaisContainer')) {
-                redesSociaisLista = Object.entries(redes).map(([nome, url]) => ({ nome, url }));
-                renderizarRedesSociais();
-            }
+            container.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong><i class="fas fa-share-alt me-2"></i>Redes Sociais:</strong>
+                        <span id="resumoRedesTexto">${textoHtml}</span>
+                    </div>
+                    <small class="text-muted">${nomes.length} rede(s)</small>
+                </div>
+            `;
 
-        } catch(e) { console.log('Erro ao carregar redes sociais:', e); }
+        } catch(e) { 
+            console.log('Erro ao carregar redes sociais:', e); 
+        }
     }
 
     // ============================================================
@@ -25024,13 +25058,22 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
     // ============================================================
 
     function adicionarBotaoSalvarTodos() {
+        // Aguardar o DOM estar completamente carregado
+        if (document.readyState !== 'complete' && document.readyState !== 'interactive') {
+            setTimeout(adicionarBotaoSalvarTodos, 200);
+            return;
+        }
+
         const profileSection = document.querySelector('#business-profile .card:first-child .card-body');
         if (!profileSection) {
+            console.log('⏳ Aguardando seção business-profile...');
             setTimeout(adicionarBotaoSalvarTodos, 500);
             return;
         }
 
         if (document.getElementById('saveAllDataBtn')) return;
+
+        console.log('📌 Adicionando botão SALVAR TODOS OS DADOS...');
 
         const btn = document.createElement('button');
         btn.id = 'saveAllDataBtn';
@@ -25071,37 +25114,61 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
         // Criar modal de redes sociais
         criarModalRedesSociais();
 
-        // Adicionar botões
-        setTimeout(() => {
+        // Adicionar botões com retry
+        let tentativas = 0;
+        const maxTentativas = 10;
+        
+        function adicionarBotoes() {
+            tentativas++;
+            console.log(`🔄 Tentativa ${tentativas} de adicionar botões...`);
+            
             adicionarBotaoSalvarTodos();
             adicionarBotaoRedesSociais();
-        }, 1000);
+            
+            // Verificar se os botões foram adicionados
+            const hasSaveBtn = document.getElementById('saveAllDataBtn') !== null;
+            const hasSocialBtn = document.getElementById('btnAbrirRedesSociais') !== null;
+            
+            if (hasSaveBtn && hasSocialBtn) {
+                console.log('✅ Todos os botões foram adicionados com sucesso!');
+                return;
+            }
+            
+            if (tentativas < maxTentativas) {
+                console.log(`⏳ Aguardando ${tentativas * 500}ms para nova tentativa...`);
+                setTimeout(adicionarBotoes, 500);
+            } else {
+                console.warn('⚠️ Não foi possível adicionar todos os botões após várias tentativas.');
+                console.warn('   - Botão SALVAR:', hasSaveBtn ? '✅' : '❌');
+                console.warn('   - Botão REDES SOCIAIS:', hasSocialBtn ? '✅' : '❌');
+            }
+        }
 
         // Carregar dados existentes
         setTimeout(() => {
             updateBusinessProfileUI();
             carregarRedesSociaisDaUI();
-        }, 500);
+        }, 300);
+
+        // Iniciar adição dos botões após um pequeno delay
+        setTimeout(adicionarBotoes, 500);
 
         console.log('✅ Script completo inicializado!');
         console.log('💡 Clique em "GERENCIAR REDES SOCIAIS" para adicionar redes.');
         console.log('💡 Clique em "SALVAR TODOS OS DADOS NO BANCO" para salvar tudo.');
     }
 
+    // Iniciar quando o DOM estiver pronto
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
+        document.addEventListener('DOMContentLoaded', function() {
+            // Pequeno delay para garantir que o resto da página carregou
+            setTimeout(init, 300);
+        });
     } else {
-        init();
+        setTimeout(init, 300);
     }
 
 })();
-
-
-
-
-
-
-
 
 
 
