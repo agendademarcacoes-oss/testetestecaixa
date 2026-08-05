@@ -10,12 +10,17 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="mobile-web-app-capable" content="yes">
     
-    <!-- Open Graph para compartilhamento -->
+    <!-- Open Graph para compartilhamento (será atualizado dinamicamente) -->
     <meta property="og:title" content="Loja Studio DeVitto">
     <meta property="og:type" content="website">
     <meta property="og:url" content="">
     <meta property="og:image" content="">
     <meta property="og:description" content="Confira nossos produtos de beleza e estética.">
+    <meta property="og:site_name" content="Studio DeVitto">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Loja Studio DeVitto">
+    <meta name="twitter:description" content="Confira nossos produtos de beleza e estética.">
+    <meta name="twitter:image" content="">
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -699,7 +704,7 @@
         }
 
         /* ============================================================
-           POPUP DO PRODUTO (FOTO AMPLIADA E DESCRIÇÃO COMPLETA)
+           POPUP DO PRODUTO
            ============================================================ */
         .product-popup-overlay {
             position: fixed;
@@ -1158,7 +1163,6 @@
             .horario-item .pipe { font-size: 8px; }
         }
 
-        /* Scroll do popup */
         .product-popup-content::-webkit-scrollbar { width: 6px; }
         .product-popup-content::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
         .product-popup-content::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 10px; }
@@ -1197,14 +1201,12 @@
             
             <div class="filters-row">
                 <div class="filter-group">
-                    <!-- Botão Categoria (APENAS CATEGORIAS DE PRODUTOS) -->
                     <div class="badge-filtro" id="badgeCategoria">
                         <i class="fas fa-tag"></i>
                         <span class="label-text" id="badgeCategoriaLabel">Categoria</span>
                         <i class="fas fa-chevron-down chevron-icon"></i>
                     </div>
                     
-                    <!-- Botão Ordenação -->
                     <div class="badge-filtro sort-badge" id="badgeOrdenacao">
                         <i class="fas fa-sort sort-icon"></i>
                         <select id="ordenacaoFilter">
@@ -1228,7 +1230,6 @@
             </div>
         </div>
 
-        <!-- POPUP DO PRODUTO -->
         <div class="product-popup-overlay" id="productPopupOverlay" onclick="if(event.target===this) fecharPopupProduto()">
             <div class="product-popup-content" id="productPopupContent">
                 <button class="popup-close" onclick="fecharPopupProduto()">
@@ -1389,19 +1390,20 @@
         };
 
         // ============================================================
-        // CORES DAS CATEGORIAS DE PRODUTOS (APENAS PRODUTOS)
+        // CATEGORIAS DE PRODUTOS PADRÃO
         // ============================================================
-        const coresCategoriasProdutos = {
-            'cabelo': '#26196b',
-            'shampoo': '#D4AF37',
-            'mascara': '#8B4513',
-            'condicionador': '#C71585',
-            'pele': '#2E8B57',
-            'tintas': '#FF4500',
-            'maquiagem': '#FF69B4',
-            'acessorios': '#6A5ACD',
-            'outros': '#6c757d'
-        };
+        const CATEGORIAS_PADRAO = [
+            { id: 'todos', nome: 'Todos', cor: '#26196b' },
+            { id: 'shampoo', nome: 'Shampoo', cor: '#D4AF37' },
+            { id: 'mascara', nome: 'Máscara', cor: '#8B4513' },
+            { id: 'condicionador', nome: 'Condicionador', cor: '#C71585' },
+            { id: 'cabelo', nome: 'Cabelo', cor: '#2E8B57' },
+            { id: 'pele', nome: 'Pele', cor: '#6A5ACD' },
+            { id: 'tintas', nome: 'Tintas', cor: '#FF4500' },
+            { id: 'maquiagem', nome: 'Maquiagem', cor: '#FF69B4' },
+            { id: 'acessorios', nome: 'Acessórios', cor: '#BA55D3' },
+            { id: 'outros', nome: 'Outros', cor: '#6c757d' }
+        ];
 
         // ============================================================
         // FUNÇÃO: DETECTAR O USER_ID AUTOMATICAMENTE
@@ -1892,18 +1894,13 @@
         // ABRIR POPUPS DOS FILTROS
         // ============================================================
         document.getElementById('badgeCategoria').addEventListener('click', function() {
-            const itens = [
-                { value: '', label: 'Todas', active: categoriaFiltroId === null }
-            ];
-            todasCategorias.forEach(cat => {
-                const cor = cat.cor || '#26196b';
-                itens.push({
-                    value: cat.id,
-                    label: cat.nome,
-                    active: categoriaFiltroId === cat.id,
-                    cor: cor
-                });
-            });
+            const itens = CATEGORIAS_PADRAO.map(cat => ({
+                value: cat.id === 'todos' ? '' : cat.id,
+                label: cat.nome,
+                active: categoriaFiltroId === (cat.id === 'todos' ? null : cat.id),
+                cor: cat.cor
+            }));
+            
             abrirPopupDropdown('categoria', '<i class="fas fa-tag"></i> Selecione uma categoria', itens, function(value) {
                 categoriaFiltroId = value || null;
                 atualizarBadgeCategoria();
@@ -2051,7 +2048,7 @@
             urlInput.value = urlProduto;
             shareUrl.style.display = 'flex';
 
-            // Atualizar meta tags OG para compartilhamento
+            // Atualizar meta tags OG para compartilhamento COM IMAGEM
             atualizarMetaTags(produto);
 
             overlay.classList.add('active');
@@ -2105,20 +2102,27 @@
         }
 
         // ============================================================
-        // ATUALIZAR META TAGS PARA COMPARTILHAMENTO
+        // ATUALIZAR META TAGS PARA COMPARTILHAMENTO COM IMAGEM
         // ============================================================
         function atualizarMetaTags(produto) {
             const urlAtual = window.location.href.split('?')[0];
             const urlProduto = `${urlAtual}?produto=${produto.id}`;
             const titulo = `${produto.nome} - Loja ${empresaData.nome || 'Studio DeVitto'}`;
             const descricao = produto.descricao || `Confira ${produto.nome} na loja da ${empresaData.nome || 'Studio DeVitto'}.`;
+            
+            // IMAGEM DO PRODUTO - Buscar do banco de dados
             const imagem = produto.imagemUrl || empresaData.logoUrl || '';
+            
+            console.log('📸 Compartilhando produto com imagem:', imagem);
 
-            // Atualizar meta tags
+            // Atualizar meta tags OG
             let metaOgTitle = document.querySelector('meta[property="og:title"]');
             let metaOgDesc = document.querySelector('meta[property="og:description"]');
             let metaOgImage = document.querySelector('meta[property="og:image"]');
             let metaOgUrl = document.querySelector('meta[property="og:url"]');
+            let metaTwitterImage = document.querySelector('meta[name="twitter:image"]');
+            let metaTwitterTitle = document.querySelector('meta[name="twitter:title"]');
+            let metaTwitterDesc = document.querySelector('meta[name="twitter:description"]');
 
             if (!metaOgTitle) {
                 metaOgTitle = document.createElement('meta');
@@ -2140,11 +2144,32 @@
                 metaOgUrl.setAttribute('property', 'og:url');
                 document.head.appendChild(metaOgUrl);
             }
+            if (!metaTwitterImage) {
+                metaTwitterImage = document.createElement('meta');
+                metaTwitterImage.setAttribute('name', 'twitter:image');
+                document.head.appendChild(metaTwitterImage);
+            }
+            if (!metaTwitterTitle) {
+                metaTwitterTitle = document.createElement('meta');
+                metaTwitterTitle.setAttribute('name', 'twitter:title');
+                document.head.appendChild(metaTwitterTitle);
+            }
+            if (!metaTwitterDesc) {
+                metaTwitterDesc = document.createElement('meta');
+                metaTwitterDesc.setAttribute('name', 'twitter:description');
+                document.head.appendChild(metaTwitterDesc);
+            }
 
             metaOgTitle.setAttribute('content', titulo);
             metaOgDesc.setAttribute('content', descricao);
             metaOgImage.setAttribute('content', imagem);
             metaOgUrl.setAttribute('content', urlProduto);
+            metaTwitterImage.setAttribute('content', imagem);
+            metaTwitterTitle.setAttribute('content', titulo);
+            metaTwitterDesc.setAttribute('content', descricao);
+            
+            // Atualizar também o título da página
+            document.title = titulo;
         }
 
         // ============================================================
@@ -2205,25 +2230,53 @@
             const urlAtual = window.location.href.split('?')[0];
             const urlProduto = `${urlAtual}?produto=${produto.id}`;
             
+            // Atualizar meta tags antes de compartilhar
+            atualizarMetaTags(produto);
+            
             // Usar a Web Share API se disponível (mobile)
             if (navigator.share) {
                 navigator.share({
                     title: `${produto.nome} - Loja ${empresaData.nome || 'Studio DeVitto'}`,
                     text: `Confira ${produto.nome} na loja da ${empresaData.nome || 'Studio DeVitto'}!`,
                     url: urlProduto
-                }).catch(() => {});
+                }).catch((err) => {
+                    if (err.name !== 'AbortError') {
+                        console.log('Erro ao compartilhar:', err);
+                        // Fallback: copiar link
+                        copiarLinkParaAreaTransferencia(urlProduto);
+                    }
+                });
             } else {
                 // Fallback: copiar link
-                const input = document.createElement('input');
-                input.value = urlProduto;
-                document.body.appendChild(input);
-                input.select();
-                input.setSelectionRange(0, 99999);
-                document.execCommand('copy');
-                document.body.removeChild(input);
-                
-                alert('Link do produto copiado! Compartilhe com seus amigos.');
+                copiarLinkParaAreaTransferencia(urlProduto);
             }
+        }
+
+        // ============================================================
+        // FUNÇÃO: COPIAR LINK PARA ÁREA DE TRANSFERÊNCIA
+        // ============================================================
+        function copiarLinkParaAreaTransferencia(link) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(link).then(() => {
+                    alert('Link copiado para a área de transferência! Compartilhe com seus amigos.');
+                }).catch(() => {
+                    // Fallback
+                    copiarLinkLegado(link);
+                });
+            } else {
+                copiarLinkLegado(link);
+            }
+        }
+
+        function copiarLinkLegado(link) {
+            const input = document.createElement('input');
+            input.value = link;
+            document.body.appendChild(input);
+            input.select();
+            input.setSelectionRange(0, 99999);
+            document.execCommand('copy');
+            document.body.removeChild(input);
+            alert('Link copiado para a área de transferência! Compartilhe com seus amigos.');
         }
 
         // ============================================================
@@ -2249,9 +2302,11 @@
             }
 
             if (categoriaFiltroId) {
-                const cat = todasCategorias.find(c => c.id === categoriaFiltroId);
-                if (cat) {
-                    produtosFiltrados = produtosFiltrados.filter(p => (p.categoria || '').toLowerCase() === cat.nome.toLowerCase());
+                const cat = CATEGORIAS_PADRAO.find(c => c.id === categoriaFiltroId);
+                if (cat && cat.id !== 'todos') {
+                    produtosFiltrados = produtosFiltrados.filter(p => 
+                        (p.categoria || '').toLowerCase() === cat.nome.toLowerCase()
+                    );
                 }
             }
 
@@ -2293,13 +2348,64 @@
                 setTimeout(() => {
                     const produtoEncontrado = todosProdutos.find(p => p.id === produtoId);
                     if (produtoEncontrado) {
+                        // Atualizar meta tags antes de abrir o popup
+                        atualizarMetaTags(produtoEncontrado);
                         abrirPopupProduto(produtoId);
-                        // Limpar URL para não reabrir ao recarregar
-                        const novaUrl = window.location.href.split('?')[0];
-                        window.history.replaceState({}, document.title, novaUrl);
                     }
                 }, 500);
             }
+        }
+
+        // ============================================================
+        // CARREGAR CATEGORIAS DO FIREBASE
+        // ============================================================
+        function carregarCategorias() {
+            if (!userIdDetectado) {
+                setTimeout(carregarCategorias, 500);
+                return;
+            }
+
+            console.log('🔄 Carregando categorias de produtos...');
+            
+            // Usar categorias padrão primeiro
+            todasCategorias = [...CATEGORIAS_PADRAO];
+            atualizarBadgeCategoria();
+
+            // Tentar buscar do Firebase (categorias que são produtos)
+            db.collection('categorias')
+                .where('userId', '==', userIdDetectado)
+                .get()
+                .then((snapshot) => {
+                    const categoriasFirebase = [];
+                    snapshot.forEach(doc => {
+                        const data = doc.data();
+                        const nomeLower = (data.nome || '').toLowerCase();
+                        // Verificar se é uma categoria de produto
+                        const categoriasProdutos = ['cabelo', 'shampoo', 'mascara', 'condicionador', 'pele', 'tintas', 'maquiagem', 'acessorios', 'outros'];
+                        if (categoriasProdutos.includes(nomeLower) || data.tipo === 'produto') {
+                            categoriasFirebase.push({
+                                id: doc.id,
+                                nome: data.nome,
+                                cor: data.cor || '#26196b'
+                            });
+                        }
+                    });
+
+                    if (categoriasFirebase.length > 0) {
+                        todasCategorias = [
+                            { id: 'todos', nome: 'Todos', cor: '#26196b' },
+                            ...categoriasFirebase
+                        ];
+                        console.log('✅ Categorias carregadas do Firebase:', todasCategorias.length);
+                    } else {
+                        console.log('📋 Usando categorias padrão');
+                    }
+                    atualizarBadgeCategoria();
+                })
+                .catch((error) => {
+                    console.error('Erro ao carregar categorias:', error);
+                    // Manter categorias padrão
+                });
         }
 
         // ============================================================
@@ -2332,58 +2438,8 @@
                 return;
             }
 
-            // Carregar categorias do sistema (APENAS CATEGORIAS DE PRODUTOS)
-            db.collection('categorias')
-                .where('userId', '==', userIdDetectado)
-                .onSnapshot(snapshot => {
-                    todasCategorias = [];
-                    snapshot.forEach(doc => {
-                        const data = doc.data();
-                        if (data.nome) {
-                            // FILTRAR: Apenas categorias que existem nos produtos
-                            const nomeLower = data.nome.toLowerCase();
-                            const categoriasProdutos = ['cabelo', 'shampoo', 'mascara', 'condicionador', 'pele', 'tintas', 'maquiagem', 'acessorios', 'outros'];
-                            if (categoriasProdutos.includes(nomeLower) || data.tipo === 'produto') {
-                                todasCategorias.push({
-                                    id: doc.id,
-                                    ...data
-                                });
-                            }
-                        }
-                    });
-                    // Se não houver categorias de produtos, adicionar as padrão
-                    if (todasCategorias.length === 0) {
-                        const categoriasPadrao = [
-                            { id: 'cabelo', nome: 'Cabelo', cor: '#26196b' },
-                            { id: 'shampoo', nome: 'Shampoo', cor: '#D4AF37' },
-                            { id: 'mascara', nome: 'Máscara', cor: '#8B4513' },
-                            { id: 'condicionador', nome: 'Condicionador', cor: '#C71585' },
-                            { id: 'pele', nome: 'Pele', cor: '#2E8B57' },
-                            { id: 'tintas', nome: 'Tintas', cor: '#FF4500' },
-                            { id: 'maquiagem', nome: 'Maquiagem', cor: '#FF69B4' },
-                            { id: 'acessorios', nome: 'Acessórios', cor: '#6A5ACD' },
-                            { id: 'outros', nome: 'Outros', cor: '#6c757d' }
-                        ];
-                        todasCategorias = categoriasPadrao;
-                    }
-                    atualizarBadgeCategoria();
-                }, error => {
-                    console.error('Erro ao carregar categorias:', error);
-                    // Fallback: categorias padrão
-                    const categoriasPadrao = [
-                        { id: 'cabelo', nome: 'Cabelo', cor: '#26196b' },
-                        { id: 'shampoo', nome: 'Shampoo', cor: '#D4AF37' },
-                        { id: 'mascara', nome: 'Máscara', cor: '#8B4513' },
-                        { id: 'condicionador', nome: 'Condicionador', cor: '#C71585' },
-                        { id: 'pele', nome: 'Pele', cor: '#2E8B57' },
-                        { id: 'tintas', nome: 'Tintas', cor: '#FF4500' },
-                        { id: 'maquiagem', nome: 'Maquiagem', cor: '#FF69B4' },
-                        { id: 'acessorios', nome: 'Acessórios', cor: '#6A5ACD' },
-                        { id: 'outros', nome: 'Outros', cor: '#6c757d' }
-                    ];
-                    todasCategorias = categoriasPadrao;
-                    atualizarBadgeCategoria();
-                });
+            // Carregar categorias
+            carregarCategorias();
 
             // Carregar produtos do sistema (com listener em tempo real)
             db.collection('products')
@@ -2535,9 +2591,9 @@
         });
 
         console.log('✅ Loja carregada com DETECÇÃO AUTOMÁTICA!');
-        console.log('📌 Produtos com popup com foto ampliada e descrição completa');
-        console.log('📌 Cada produto tem um link único para compartilhamento');
-        console.log('📌 Categorias filtradas apenas para produtos (sem serviços)');
+        console.log('📌 Categorias: Todas, Shampoo, Máscara, Condicionador, Cabelo, Pele, Tintas, Maquiagem, Acessórios, Outros');
+        console.log('📌 Compartilhamento com imagem do produto via Open Graph');
+        console.log('📌 Link único por produto com descrição');
         console.log('📌 Sincronização em tempo real com o sistema de gestão');
     </script>
 </body>
