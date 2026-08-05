@@ -24336,7 +24336,7 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
 
 
 (function() {
-    console.log('🔄 Iniciando sistema completo de redes sociais...');
+    console.log('🔄 Iniciando sistema completo de redes sociais integrado...');
 
     // ============================================================
     // LISTA DE REDES SOCIAIS PREDEFINIDAS
@@ -24358,9 +24358,10 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
     // VARIÁVEIS GLOBAIS
     // ============================================================
     let redesSociaisSalvas = {};
+    let dadosCarregados = false;
 
     // ============================================================
-    // FUNÇÕES PRINCIPAIS
+    // FUNÇÕES PRINCIPAIS (USANDO O FIREBASE DO SISTEMA)
     // ============================================================
 
     function getCurrentUser() {
@@ -24398,7 +24399,121 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
     }
 
     // ============================================================
-    // SALVAR TODOS OS DADOS
+    // CARREGAR DADOS DO FIREBASE (INTEGRADO COM O SISTEMA)
+    // ============================================================
+    async function carregarDadosDoBanco() {
+        const user = getCurrentUser();
+        if (!user) {
+            console.log('⏳ Aguardando login...');
+            return;
+        }
+
+        try {
+            const db = getFirestore();
+            if (!db) {
+                console.warn('Firestore não disponível');
+                return;
+            }
+
+            console.log('📥 Carregando dados do banco...');
+            const doc = await db.collection('businessProfile').doc(user.uid).get();
+
+            if (doc.exists) {
+                const profile = doc.data();
+                console.log('📦 Dados carregados:', profile);
+
+                // Carregar redes sociais
+                if (profile.redesSociais) {
+                    redesSociaisSalvas = profile.redesSociais;
+                }
+
+                // Carregar dados do formulário
+                document.getElementById('businessName').value = profile.nome || '';
+                document.getElementById('businessEmail').value = profile.email || '';
+                document.getElementById('businessPhone').value = profile.telefone || '';
+                document.getElementById('businessWhatsApp').value = profile.whatsapp || '';
+                document.getElementById('businessAddress').value = profile.endereco || '';
+                document.getElementById('businessDescription').value = profile.descricao || '';
+
+                // Carregar horários
+                if (profile.horario) {
+                    document.getElementById('mondayOpen').value = profile.horario.segunda?.aberto || '';
+                    document.getElementById('mondayClose').value = profile.horario.segunda?.fechado || '';
+                    document.getElementById('tuesdayOpen').value = profile.horario.terca?.aberto || '';
+                    document.getElementById('tuesdayClose').value = profile.horario.terca?.fechado || '';
+                    document.getElementById('wednesdayOpen').value = profile.horario.quarta?.aberto || '';
+                    document.getElementById('wednesdayClose').value = profile.horario.quarta?.fechado || '';
+                    document.getElementById('thursdayOpen').value = profile.horario.quinta?.aberto || '';
+                    document.getElementById('thursdayClose').value = profile.horario.quinta?.fechado || '';
+                    document.getElementById('fridayOpen').value = profile.horario.sexta?.aberto || '';
+                    document.getElementById('fridayClose').value = profile.horario.sexta?.fechado || '';
+                    document.getElementById('saturdayOpen').value = profile.horario.sabado?.aberto || '';
+                    document.getElementById('saturdayClose').value = profile.horario.sabado?.fechado || '';
+                }
+
+                // Atualizar localStorage como cache
+                localStorage.setItem('businessProfile', JSON.stringify(profile));
+                dadosCarregados = true;
+
+                // Renderizar redes sociais
+                renderizarRedesSociais();
+                console.log('✅ Dados carregados com sucesso!');
+            } else {
+                console.log('📄 Nenhum dado encontrado, criando novo perfil...');
+                // Criar perfil vazio para o usuário
+                const dadosIniciais = {
+                    userId: user.uid,
+                    redesSociais: {},
+                    horario: {
+                        segunda: { aberto: '09:00', fechado: '18:00' },
+                        terca: { aberto: '09:00', fechado: '18:00' },
+                        quarta: { aberto: '09:00', fechado: '18:00' },
+                        quinta: { aberto: '09:00', fechado: '18:00' },
+                        sexta: { aberto: '09:00', fechado: '18:00' },
+                        sabado: { aberto: '09:00', fechado: '13:00' },
+                        domingo: { aberto: '', fechado: '' }
+                    },
+                    criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+                };
+                await db.collection('businessProfile').doc(user.uid).set(dadosIniciais);
+                dadosCarregados = true;
+                console.log('✅ Perfil criado com sucesso!');
+            }
+
+        } catch (error) {
+            console.error('❌ Erro ao carregar dados:', error);
+            // Tentar carregar do localStorage como fallback
+            carregarDadosDoLocalStorage();
+        }
+    }
+
+    // ============================================================
+    // CARREGAR DO LOCALSTORAGE (FALLBACK)
+    // ============================================================
+    function carregarDadosDoLocalStorage() {
+        try {
+            const profile = JSON.parse(localStorage.getItem('businessProfile') || '{}');
+            
+            document.getElementById('businessName').value = profile.nome || '';
+            document.getElementById('businessEmail').value = profile.email || '';
+            document.getElementById('businessPhone').value = profile.telefone || '';
+            document.getElementById('businessWhatsApp').value = profile.whatsapp || '';
+            document.getElementById('businessAddress').value = profile.endereco || '';
+            document.getElementById('businessDescription').value = profile.descricao || '';
+
+            if (profile.redesSociais) {
+                redesSociaisSalvas = profile.redesSociais;
+                renderizarRedesSociais();
+            }
+            dadosCarregados = true;
+            console.log('📦 Dados carregados do localStorage');
+        } catch(e) {
+            console.log('Erro ao carregar dados do localStorage:', e);
+        }
+    }
+
+    // ============================================================
+    // SALVAR DADOS NO FIREBASE (INTEGRADO COM O SISTEMA)
     // ============================================================
     window.salvarTodosOsDados = async function() {
         console.log('📝 Coletando todas as informações...');
@@ -24438,12 +24553,22 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
             const db = getFirestore();
             if (!db) throw new Error('Firebase não disponível.');
 
+            // Usar o mesmo documento do sistema
             await db.collection('businessProfile').doc(user.uid).set(dados, { merge: true });
+            
+            // Salvar no localStorage como cache
             localStorage.setItem('businessProfile', JSON.stringify(dados));
 
             Swal.close();
             showSuccess('✅ Todos os dados salvos com sucesso!');
-            carregarDadosSalvos();
+            
+            // Atualizar também as configurações do estabelecimento
+            if (typeof businessSettings !== 'undefined') {
+                businessSettings.name = dados.nome;
+                if (typeof updateBusinessLogo === 'function') {
+                    updateBusinessLogo();
+                }
+            }
 
         } catch (error) {
             console.error('❌ Erro:', error);
@@ -24451,30 +24576,6 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
             showError('Erro ao salvar: ' + error.message);
         }
     };
-
-    // ============================================================
-    // CARREGAR DADOS SALVOS
-    // ============================================================
-    function carregarDadosSalvos() {
-        try {
-            const profile = JSON.parse(localStorage.getItem('businessProfile') || '{}');
-            
-            // Preencher formulário
-            document.getElementById('businessName').value = profile.nome || '';
-            document.getElementById('businessEmail').value = profile.email || '';
-            document.getElementById('businessPhone').value = profile.telefone || '';
-            document.getElementById('businessWhatsApp').value = profile.whatsapp || '';
-            document.getElementById('businessAddress').value = profile.endereco || '';
-            document.getElementById('businessDescription').value = profile.descricao || '';
-
-            // Carregar redes sociais
-            if (profile.redesSociais) {
-                redesSociaisSalvas = profile.redesSociais;
-                renderizarRedesSociais();
-            }
-
-        } catch(e) { console.log('Erro ao carregar dados:', e); }
-    }
 
     // ============================================================
     // RENDERIZAR REDES SOCIAIS NO FORMULÁRIO
@@ -24530,28 +24631,90 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
         const rede = REDES_SOCIAIS_PREDEFINIDAS.find(r => r.id === redeId);
         if (!rede) return;
 
-        Swal.fire({
-            title: 'Remover rede social',
-            text: `Deseja remover "${rede.nome}"?`,
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonText: 'Sim, remover',
-            cancelButtonText: 'Cancelar'
-        }).then((result) => {
-            if (result.isConfirmed) {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                title: 'Remover rede social',
+                text: `Deseja remover "${rede.nome}"?`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Sim, remover',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    delete redesSociaisSalvas[redeId];
+                    renderizarRedesSociais();
+                    showSuccess('Rede social removida!');
+                }
+            });
+        } else {
+            if (confirm(`Deseja remover "${rede.nome}"?`)) {
                 delete redesSociaisSalvas[redeId];
                 renderizarRedesSociais();
-                showSuccess('Rede social removida!');
             }
-        });
+        }
     };
+
+    // ============================================================
+    // SALVAR UMA REDE SOCIAL ESPECÍFICA
+    // ============================================================
+    function salvarRedeSocial(redeId) {
+        const input = document.getElementById(`rede_${redeId}`);
+        if (!input) return;
+
+        const valor = input.value.trim();
+        const rede = REDES_SOCIAIS_PREDEFINIDAS.find(r => r.id === redeId);
+        if (!rede) return;
+
+        if (!valor) {
+            delete redesSociaisSalvas[redeId];
+            showSuccess(`Rede "${rede.nome}" removida!`);
+            renderizarRedesSociais();
+            const label = input.closest('.col-md-6')?.querySelector('small');
+            if (label) label.remove();
+            return;
+        }
+
+        let urlCompleta = valor;
+        if (!valor.startsWith('http://') && !valor.startsWith('https://')) {
+            if (rede.id === 'whatsapp') {
+                const numeros = valor.replace(/\D/g, '');
+                urlCompleta = `https://wa.me/${numeros}`;
+            } else {
+                urlCompleta = rede.urlBase + valor;
+            }
+        }
+
+        try {
+            new URL(urlCompleta);
+        } catch(e) {
+            showError('URL inválida. Verifique o formato.');
+            return;
+        }
+
+        redesSociaisSalvas[redeId] = urlCompleta;
+        renderizarRedesSociais();
+
+        const parent = input.closest('.col-md-6');
+        let label = parent?.querySelector('small');
+        if (!label) {
+            label = document.createElement('small');
+            label.className = 'text-success d-block mt-1';
+            parent?.appendChild(label);
+        }
+        label.innerHTML = `<i class="fas fa-check-circle me-1"></i>Cadastrado: <a href="${urlCompleta}" target="_blank" style="color: #26196b;">${urlCompleta}</a>`;
+
+        showSuccess(`Rede "${rede.nome}" salva com sucesso!`);
+    }
 
     // ============================================================
     // CRIAR SEÇÃO DE REDES SOCIAIS NO FORMULÁRIO
     // ============================================================
     function criarSecaoRedesSociais() {
-        // Verificar se já existe
-        if (document.getElementById('redesSociaisSection')) return;
+        if (document.getElementById('redesSociaisSection')) {
+            // Se já existe, apenas atualizar os dados
+            atualizarCamposRedesSociais();
+            return;
+        }
 
         const form = document.getElementById('businessProfileForm');
         if (!form) {
@@ -24570,6 +24733,7 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
         let camposHTML = '';
         REDES_SOCIAIS_PREDEFINIDAS.forEach(rede => {
             const valor = redesSociaisSalvas[rede.id] || '';
+            const urlDisplay = valor.replace(rede.urlBase, '');
             camposHTML += `
                 <div class="col-md-6 col-lg-4 mb-3">
                     <label class="form-label fw-bold" style="color: ${rede.cor};">
@@ -24583,7 +24747,7 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
                                id="rede_${rede.id}" 
                                data-rede-id="${rede.id}"
                                placeholder="${rede.placeholder}"
-                               value="${valor.replace(rede.urlBase, '')}"
+                               value="${urlDisplay !== valor ? urlDisplay : (valor ? valor.replace(rede.urlBase, '') : '')}"
                                style="border-left: none;">
                         <button class="btn btn-outline-success btn-sm salvar-rede-btn" data-rede-id="${rede.id}" 
                                 style="border-radius: 0 4px 4px 0;">
@@ -24615,7 +24779,6 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
             </div>
         `;
 
-        // Inserir antes do botão de submit
         const submitBtn = form.querySelector('button[type="submit"]');
         if (submitBtn) {
             form.insertBefore(section, submitBtn);
@@ -24623,7 +24786,6 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
             form.appendChild(section);
         }
 
-        // Eventos dos botões de salvar
         document.querySelectorAll('.salvar-rede-btn').forEach(btn => {
             btn.addEventListener('click', function() {
                 const redeId = this.getAttribute('data-rede-id');
@@ -24631,7 +24793,6 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
             });
         });
 
-        // Evento Enter nos inputs
         document.querySelectorAll('.rede-social-input').forEach(input => {
             input.addEventListener('keydown', function(e) {
                 if (e.key === 'Enter') {
@@ -24647,62 +24808,18 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
     }
 
     // ============================================================
-    // SALVAR UMA REDE SOCIAL ESPECÍFICA
+    // ATUALIZAR CAMPOS DE REDES SOCIAIS
     // ============================================================
-    function salvarRedeSocial(redeId) {
-        const input = document.getElementById(`rede_${redeId}`);
-        if (!input) return;
-
-        const valor = input.value.trim();
-        const rede = REDES_SOCIAIS_PREDEFINIDAS.find(r => r.id === redeId);
-        if (!rede) return;
-
-        if (!valor) {
-            // Se o campo estiver vazio, remover a rede
-            delete redesSociaisSalvas[redeId];
-            showSuccess(`Rede "${rede.nome}" removida!`);
-            renderizarRedesSociais();
-            // Atualizar o label de status
-            const label = input.closest('.col-md-6')?.querySelector('small');
-            if (label) label.remove();
-            return;
-        }
-
-        // Construir URL completa
-        let urlCompleta = valor;
-        if (!valor.startsWith('http://') && !valor.startsWith('https://')) {
-            // Para WhatsApp, garantir que o número esteja no formato correto
-            if (rede.id === 'whatsapp') {
-                const numeros = valor.replace(/\D/g, '');
-                urlCompleta = `https://wa.me/${numeros}`;
-            } else {
-                urlCompleta = rede.urlBase + valor;
+    function atualizarCamposRedesSociais() {
+        REDES_SOCIAIS_PREDEFINIDAS.forEach(rede => {
+            const input = document.getElementById(`rede_${rede.id}`);
+            if (input) {
+                const valor = redesSociaisSalvas[rede.id] || '';
+                const urlDisplay = valor.replace(rede.urlBase, '');
+                input.value = urlDisplay !== valor ? urlDisplay : (valor ? valor.replace(rede.urlBase, '') : '');
             }
-        }
-
-        // Validar URL
-        try {
-            new URL(urlCompleta);
-        } catch(e) {
-            showError('URL inválida. Verifique o formato.');
-            return;
-        }
-
-        // Salvar
-        redesSociaisSalvas[redeId] = urlCompleta;
+        });
         renderizarRedesSociais();
-
-        // Adicionar label de sucesso
-        const parent = input.closest('.col-md-6');
-        let label = parent?.querySelector('small');
-        if (!label) {
-            label = document.createElement('small');
-            label.className = 'text-success d-block mt-1';
-            parent?.appendChild(label);
-        }
-        label.innerHTML = `<i class="fas fa-check-circle me-1"></i>Cadastrado: <a href="${urlCompleta}" target="_blank" style="color: #26196b;">${urlCompleta}</a>`;
-
-        showSuccess(`Rede "${rede.nome}" salva com sucesso!`);
     }
 
     // ============================================================
@@ -24732,18 +24849,51 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
 
         btn.addEventListener('click', window.salvarTodosOsDados);
 
-        submitBtn.parentNode.insertBefore(btn, submitBtn);
+        // Inserir o botão depois do botão de submit existente
+        submitBtn.parentNode.insertBefore(btn, submitBtn.nextSibling);
         console.log('✅ Botão "SALVAR TODOS OS DADOS" criado!');
+    }
+
+    // ============================================================
+    // LISTENER PARA QUANDO O USUÁRIO LOGAR
+    // ============================================================
+    function setupAuthListener() {
+        // Verificar se já temos o listener do Firebase
+        if (typeof auth !== 'undefined' && auth.onAuthStateChanged) {
+            // Já temos um listener no sistema, apenas adicionamos o nosso
+            console.log('🔐 Usando listener de autenticação existente');
+            
+            // Verificar se já está logado
+            const user = getCurrentUser();
+            if (user) {
+                console.log('👤 Usuário já logado, carregando dados...');
+                setTimeout(carregarDadosDoBanco, 500);
+            }
+        } else {
+            // Criar nosso próprio listener
+            console.log('🔐 Criando listener de autenticação...');
+            const checkUser = setInterval(() => {
+                const user = getCurrentUser();
+                if (user && !dadosCarregados) {
+                    clearInterval(checkUser);
+                    console.log('👤 Usuário detectado, carregando dados...');
+                    carregarDadosDoBanco();
+                }
+            }, 1000);
+        }
     }
 
     // ============================================================
     // INICIALIZAÇÃO
     // ============================================================
     function init() {
-        console.log('🚀 Inicializando sistema de redes sociais...');
+        console.log('🚀 Inicializando sistema de redes sociais integrado...');
 
-        // Carregar dados salvos
-        carregarDadosSalvos();
+        // Carregar dados salvos localmente primeiro (rápido)
+        carregarDadosDoLocalStorage();
+
+        // Configurar listener de autenticação
+        setupAuthListener();
 
         // Criar seção de redes sociais
         setTimeout(criarSecaoRedesSociais, 300);
@@ -24751,10 +24901,27 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
         // Criar botão salvar tudo
         setTimeout(criarBotaoSalvarTudo, 500);
 
-        console.log('✅ Sistema de redes sociais inicializado!');
-        console.log('📌 Preencha o nome de usuário em cada rede e clique no ✓ para salvar.');
+        // Adicionar listener para quando o usuário mudar
+        if (typeof auth !== 'undefined' && auth.onAuthStateChanged) {
+            auth.onAuthStateChanged((user) => {
+                if (user) {
+                    console.log('👤 Usuário logado, carregando dados...');
+                    setTimeout(carregarDadosDoBanco, 500);
+                } else {
+                    console.log('👤 Usuário deslogado');
+                    dadosCarregados = false;
+                }
+            });
+        }
+
+        console.log('✅ Sistema de redes sociais integrado inicializado!');
+        console.log('📌 Os dados são salvos na coleção "businessProfile" do Firestore.');
         console.log('📌 Clique em "SALVAR TODOS OS DADOS NO BANCO" para salvar tudo.');
     }
+
+    // EXPOR FUNÇÕES GLOBAIS
+    window.salvarTodosOsDados = window.salvarTodosOsDados || function() {};
+    window.removerRedeSocial = window.removerRedeSocial || function() {};
 
     // Iniciar
     if (document.readyState === 'loading') {
@@ -24765,7 +24932,17 @@ console.log('✅ Sistema de agendamento com sincronização em tempo real COMPLE
         setTimeout(init, 400);
     }
 
+    console.log('✅ Script de redes sociais integrado carregado!');
 })();
+
+
+
+
+
+
+
+
+
 
 
 </script>
