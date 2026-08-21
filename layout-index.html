@@ -1,0 +1,1151 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    <title>Studio DeVitto - Sistema de Gestão</title>
+    
+    <!-- Bootstrap e Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+    
+    <style>
+        /* ============================================
+           VARIÁVEIS E RESET
+           ============================================ */
+        :root {
+            --primary-color: #26196b;
+            --secondary-color: #ffd700;
+            --accent-color: #4a3a9c;
+            --light-bg: #f8f9fa;
+            --card-radius: 12px;
+            --shadow-sm: 0 2px 8px rgba(0,0,0,0.08);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.12);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow-x: hidden;
+            width: 100%;
+            height: 100%;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--light-bg);
+        }
+
+        /* ============================================
+           NAVBAR
+           ============================================ */
+        .navbar-custom {
+            background-color: var(--primary-color);
+            padding: 10px 16px;
+            position: sticky;
+            top: 0;
+            z-index: 1050;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        .navbar-custom .navbar-brand {
+            color: white;
+            font-weight: 600;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .navbar-custom .navbar-brand i {
+            font-size: 1.3rem;
+        }
+
+        .navbar-custom .navbar-brand:hover {
+            color: var(--secondary-color);
+        }
+
+        .datetime-display {
+            color: rgba(255,255,255,0.8);
+            font-size: 0.85rem;
+            margin: 0 15px;
+        }
+
+        .navbar-custom .nav-link {
+            color: rgba(255,255,255,0.8);
+            transition: color 0.3s;
+        }
+
+        .navbar-custom .nav-link:hover {
+            color: white;
+        }
+
+        .navbar-custom .dropdown-menu {
+            background: white;
+            border-radius: 10px;
+            box-shadow: var(--shadow-md);
+            padding: 8px 0;
+        }
+
+        .navbar-custom .dropdown-item {
+            padding: 8px 20px;
+            transition: background 0.2s;
+        }
+
+        .navbar-custom .dropdown-item:hover {
+            background: var(--light-bg);
+        }
+
+        /* ============================================
+           LAYOUT PRINCIPAL
+           ============================================ */
+        .main-wrapper {
+            display: flex;
+            min-height: calc(100vh - 56px);
+            width: 100%;
+        }
+
+        /* ============================================
+           SIDEBAR (Desktop)
+           ============================================ */
+        .sidebar {
+            width: 240px;
+            min-height: 100%;
+            background: white;
+            box-shadow: 2px 0 12px rgba(0,0,0,0.06);
+            flex-shrink: 0;
+            overflow-y: auto;
+            padding: 12px 0;
+            position: sticky;
+            top: 56px;
+            height: calc(100vh - 56px);
+        }
+
+        .sidebar .nav {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            padding: 0 8px;
+        }
+
+        .sidebar .nav-link {
+            color: #444;
+            padding: 10px 16px;
+            border-radius: 10px;
+            transition: all 0.25s ease;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+        }
+
+        .sidebar .nav-link i {
+            width: 20px;
+            text-align: center;
+            font-size: 1rem;
+            color: var(--primary-color);
+            transition: color 0.25s;
+        }
+
+        .sidebar .nav-link:hover {
+            background: rgba(38, 25, 107, 0.06);
+            color: var(--primary-color);
+            transform: translateX(4px);
+        }
+
+        .sidebar .nav-link.active {
+            background: var(--primary-color);
+            color: white;
+            box-shadow: 0 4px 12px rgba(38, 25, 107, 0.25);
+        }
+
+        .sidebar .nav-link.active i {
+            color: white;
+        }
+
+        /* Divisor no menu */
+        .sidebar .nav-divider {
+            height: 1px;
+            background: #eee;
+            margin: 8px 12px;
+        }
+
+        /* ============================================
+           CONTEÚDO PRINCIPAL
+           ============================================ */
+        .content-area {
+            flex: 1;
+            padding: 16px 20px;
+            overflow-y: auto;
+            background: var(--light-bg);
+            min-height: calc(100vh - 56px);
+        }
+
+        /* ============================================
+           SEÇÕES
+           ============================================ */
+        .section-container {
+            position: relative;
+            width: 100%;
+        }
+
+        .section {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .section.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ============================================
+           CARDS MOBILE (Tela Inicial)
+           ============================================ */
+        .mobile-cards-container {
+            display: none;
+            padding: 8px 0;
+        }
+
+        .mobile-cards-container.active {
+            display: block;
+        }
+
+        .mobile-card {
+            background: white;
+            border-radius: var(--card-radius);
+            box-shadow: var(--shadow-sm);
+            padding: 18px 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            height: 100%;
+            border-left: 4px solid var(--primary-color);
+            margin-bottom: 12px;
+        }
+
+        .mobile-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .mobile-card i {
+            font-size: 1.8rem;
+            color: var(--primary-color);
+            margin-bottom: 8px;
+        }
+
+        .mobile-card h5 {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 4px;
+        }
+
+        .mobile-card p {
+            font-size: 0.7rem;
+            color: #6c757d;
+            margin-bottom: 0;
+        }
+
+        /* ============================================
+           BOTÃO HOME MOBILE
+           ============================================ */
+        .floating-home-btn {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 999;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            color: white;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            box-shadow: 0 4px 16px rgba(38, 25, 107, 0.35);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+        }
+
+        .floating-home-btn:hover {
+            transform: scale(1.08);
+            box-shadow: 0 6px 24px rgba(38, 25, 107, 0.45);
+        }
+
+        /* ============================================
+           RESPONSIVIDADE
+           ============================================ */
+
+        /* Desktop (>= 992px) */
+        @media (min-width: 992px) {
+            .mobile-cards-container {
+                display: none !important;
+            }
+            .floating-home-btn {
+                display: none !important;
+            }
+        }
+
+        /* Tablet e Mobile (< 992px) */
+        @media (max-width: 991px) {
+            .sidebar {
+                display: none !important;
+            }
+
+            .mobile-cards-container {
+                display: block !important;
+            }
+
+            .content-area {
+                padding: 12px 10px;
+            }
+
+            .floating-home-btn {
+                display: flex !important;
+            }
+
+            /* Grid de cards mobile - 2 colunas */
+            .mobile-cards-container .row {
+                display: grid !important;
+                grid-template-columns: 1fr 1fr;
+                gap: 8px;
+            }
+
+            .mobile-cards-container .col-6 {
+                width: 100% !important;
+                padding: 0 !important;
+            }
+
+            .mobile-card {
+                padding: 14px 8px;
+                margin-bottom: 0;
+            }
+
+            .mobile-card i {
+                font-size: 1.5rem;
+            }
+
+            .mobile-card h5 {
+                font-size: 0.8rem;
+            }
+
+            .navbar-custom .datetime-display {
+                display: none;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .navbar-custom .navbar-brand {
+                font-size: 0.95rem;
+            }
+            .navbar-custom .navbar-brand i {
+                font-size: 1.1rem;
+            }
+            .mobile-card {
+                padding: 12px 6px;
+            }
+            .mobile-card i {
+                font-size: 1.3rem;
+            }
+            .mobile-card h5 {
+                font-size: 0.7rem;
+            }
+            .mobile-card p {
+                font-size: 0.6rem;
+            }
+            .floating-home-btn {
+                width: 48px;
+                height: 48px;
+                font-size: 18px;
+                bottom: 16px;
+                right: 16px;
+            }
+            .content-area {
+                padding: 8px 6px;
+            }
+        }
+
+        /* ============================================
+           UTILITÁRIOS
+           ============================================ */
+        .text-primary-custom { color: var(--primary-color); }
+        .bg-primary-custom { background: var(--primary-color); }
+        .border-primary-custom { border-color: var(--primary-color); }
+
+        /* Scrollbar personalizada */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+
+        /* Card padrão */
+        .card-custom {
+            background: white;
+            border-radius: var(--card-radius);
+            box-shadow: var(--shadow-sm);
+            padding: 20px;
+            margin-bottom: 16px;
+            transition: box-shadow 0.3s;
+        }
+
+        .card-custom:hover {
+            box-shadow: var(--shadow-md);
+        }
+
+        .card-custom .card-header {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 12px;
+            margin-bottom: 16px;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        /* Badge de "Em breve" */
+        .badge-soon {
+            background: var(--secondary-color);
+            color: #000;
+            font-size: 0.6rem;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: 600;
+            margin-left: 6px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ==========================================
+    NAVBAR
+    ========================================== -->
+    <nav class="navbar navbar-custom navbar-expand-lg">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#" id="businessLogo">
+                <i class="fas fa-scissors me-2"></i>
+                <span id="businessName">Studio DeVitto</span>
+            </a>
+
+            <div class="datetime-display" id="currentDateTime">
+                <span id="currentDateTimeText"></span>
+            </div>
+
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon" style="filter: brightness(0) invert(1);"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-user-circle me-1"></i>
+                            <span id="userName">Usuário</span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="#"><i class="fas fa-cog me-2"></i>Configurações</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-danger" href="#"><i class="fas fa-sign-out-alt me-2"></i>Sair</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ==========================================
+    CONTEÚDO PRINCIPAL
+    ========================================== -->
+    <div class="main-wrapper">
+
+        <!-- ==========================================
+        SIDEBAR (Desktop)
+        ========================================== -->
+        <aside class="sidebar" id="desktopSidebar">
+            <nav class="nav flex-column" id="desktopMenu">
+                <!-- Dashboard -->
+                <a class="nav-link active" href="#" data-section="dashboard">
+                    <i class="fas fa-tachometer-alt"></i> Dashboard
+                </a>
+                <!-- Agenda -->
+                <a class="nav-link" href="#" data-section="agenda">
+                    <i class="fas fa-calendar-alt"></i> Agenda
+                </a>
+                <!-- Loja -->
+                <a class="nav-link" href="#" data-section="store">
+                    <i class="fas fa-store"></i> Loja
+                </a>
+                <!-- Caixa -->
+                <a class="nav-link" href="#" data-section="cashier">
+                    <i class="fas fa-cash-register"></i> Caixa
+                </a>
+                <!-- Estoque -->
+                <a class="nav-link" href="#" data-section="inventory">
+                    <i class="fas fa-boxes"></i> Estoque
+                </a>
+                <!-- Clientes -->
+                <a class="nav-link" href="#" data-section="clients">
+                    <i class="fas fa-users"></i> Clientes
+                </a>
+                <!-- Registros de Clientes -->
+                <a class="nav-link" href="#" data-section="client-records">
+                    <i class="fas fa-address-book"></i> Registros
+                </a>
+                <!-- Colaboradores -->
+                <a class="nav-link" href="#" data-section="collaborators">
+                    <i class="fas fa-user-friends"></i> Colaboradores
+                </a>
+                <!-- Pacotes -->
+                <a class="nav-link" href="#" data-section="packages">
+                    <i class="fas fa-box"></i> Pacotes
+                </a>
+                <!-- Controle Financeiro -->
+                <a class="nav-link" href="#" data-section="financial-control">
+                    <i class="fas fa-chart-line"></i> Financeiro
+                </a>
+                <!-- Perfil da Empresa -->
+                <a class="nav-link" href="#" data-section="business-profile">
+                    <i class="fas fa-building"></i> Empresa
+                </a>
+                <!-- Relatórios -->
+                <a class="nav-link" href="#" data-section="reports">
+                    <i class="fas fa-chart-bar"></i> Relatórios
+                </a>
+                <!-- Aniversários -->
+                <a class="nav-link" href="#" data-section="birthdays">
+                    <i class="fas fa-birthday-cake"></i> Aniversários
+                </a>
+                <!-- Clientes Inativos -->
+                <a class="nav-link" href="#" data-section="inactive-clients">
+                    <i class="fas fa-user-clock"></i> Inativos
+                </a>
+                <!-- Preçário -->
+                <a class="nav-link" href="#" data-section="precario">
+                    <i class="fas fa-list-ul"></i> Preçário
+                </a>
+                <!-- Ficha Laminessia -->
+                <a class="nav-link" href="#" data-section="laminessia">
+                    <i class="fas fa-file-medical-alt"></i> Laminessia
+                </a>
+            </nav>
+        </aside>
+
+        <!-- ==========================================
+        ÁREA DE CONTEÚDO
+        ========================================== -->
+        <main class="content-area" id="mainContent">
+
+            <!-- ==========================================
+            CARDS MOBILE (Tela Inicial)
+            ========================================== -->
+            <div class="mobile-cards-container active" id="mobileCards">
+                <div class="row">
+                    <div class="col-6">
+                        <div class="mobile-card" data-section="dashboard">
+                            <i class="fas fa-tachometer-alt"></i>
+                            <h5>Dashboard</h5>
+                            <p>Visão geral</p>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="mobile-card" data-section="agenda">
+                            <i class="fas fa-calendar-alt"></i>
+                            <h5>Agenda</h5>
+                            <p>Agendamentos</p>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="mobile-card" data-section="store">
+                            <i class="fas fa-store"></i>
+                            <h5>Loja</h5>
+                            <p>Vitrine</p>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="mobile-card" data-section="cashier">
+                            <i class="fas fa-cash-register"></i>
+                            <h5>Caixa</h5>
+                            <p>Controle de vendas</p>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="mobile-card" data-section="inventory">
+                            <i class="fas fa-boxes"></i>
+                            <h5>Estoque</h5>
+                            <p>Gerenciar produtos</p>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="mobile-card" data-section="clients">
+                            <i class="fas fa-users"></i>
+                            <h5>Clientes</h5>
+                            <p>Cadastro</p>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="mobile-card" data-section="client-records">
+                            <i class="fas fa-address-book"></i>
+                            <h5>Registros</h5>
+                            <p>Fichas</p>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="mobile-card" data-section="collaborators">
+                            <i class="fas fa-user-friends"></i>
+                            <h5>Colabor.</h5>
+                            <p>Equipe</p>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="mobile-card" data-section="packages">
+                            <i class="fas fa-box"></i>
+                            <h5>Pacotes</h5>
+                            <p>Serviços</p>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="mobile-card" data-section="financial-control">
+                            <i class="fas fa-chart-line"></i>
+                            <h5>Financeiro</h5>
+                            <p>Controle</p>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="mobile-card" data-section="business-profile">
+                            <i class="fas fa-building"></i>
+                            <h5>Empresa</h5>
+                            <p>Perfil</p>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="mobile-card" data-section="reports">
+                            <i class="fas fa-chart-bar"></i>
+                            <h5>Relatórios</h5>
+                            <p>Sistema</p>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="mobile-card" data-section="birthdays">
+                            <i class="fas fa-birthday-cake"></i>
+                            <h5>Anivers.</h5>
+                            <p>Aniversariantes</p>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="mobile-card" data-section="inactive-clients">
+                            <i class="fas fa-user-clock"></i>
+                            <h5>Inativos</h5>
+                            <p>Clientes ausentes</p>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="mobile-card" data-section="precario">
+                            <i class="fas fa-list-ul"></i>
+                            <h5>Preçário</h5>
+                            <p>Lista de serviços</p>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="mobile-card" data-section="laminessia">
+                            <i class="fas fa-file-medical-alt"></i>
+                            <h5>Laminessia</h5>
+                            <p>Avaliação estética</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==========================================
+            SEÇÕES (Cada funcionalidade terá sua seção)
+            ========================================== -->
+            <div class="section-container">
+
+                <!-- DASHBOARD -->
+                <div id="dashboard" class="section active">
+                    <div class="card-custom">
+                        <div class="card-header">
+                            <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                            <span class="badge-soon">Em construção</span>
+                        </div>
+                        <p class="text-muted">Aqui será exibido o resumo do negócio: vendas, clientes, agendamentos, etc.</p>
+                        <div class="row mt-3">
+                            <div class="col-md-3 col-6 mb-3">
+                                <div class="card-custom text-center" style="margin-bottom:0; border-left:4px solid #28a745;">
+                                    <h6 class="text-muted">Vendas Hoje</h6>
+                                    <h3 class="text-success">€ 0,00</h3>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-6 mb-3">
+                                <div class="card-custom text-center" style="margin-bottom:0; border-left:4px solid #17a2b8;">
+                                    <h6 class="text-muted">Clientes</h6>
+                                    <h3 class="text-info">0</h3>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-6 mb-3">
+                                <div class="card-custom text-center" style="margin-bottom:0; border-left:4px solid #ffc107;">
+                                    <h6 class="text-muted">Agendamentos</h6>
+                                    <h3 class="text-warning">0</h3>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-6 mb-3">
+                                <div class="card-custom text-center" style="margin-bottom:0; border-left:4px solid #dc3545;">
+                                    <h6 class="text-muted">Aniversários</h6>
+                                    <h3 class="text-danger">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AGENDA -->
+                <div id="agenda" class="section">
+                    <div class="card-custom">
+                        <div class="card-header">
+                            <i class="fas fa-calendar-alt me-2"></i>Agenda
+                            <span class="badge-soon">Em construção</span>
+                        </div>
+                        <p class="text-muted">Calendário de agendamentos, visualização por dia/semana/mês.</p>
+                        <div class="text-center py-5 text-muted">
+                            <i class="fas fa-calendar-plus fa-4x mb-3 opacity-25"></i>
+                            <p>Interface de agenda em desenvolvimento</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- LOJA -->
+                <div id="store" class="section">
+                    <div class="card-custom">
+                        <div class="card-header">
+                            <i class="fas fa-store me-2"></i>Loja
+                            <span class="badge-soon">Em construção</span>
+                        </div>
+                        <p class="text-muted">Vitrine de produtos com integração ao WhatsApp.</p>
+                        <div class="text-center py-5 text-muted">
+                            <i class="fas fa-shopping-bag fa-4x mb-3 opacity-25"></i>
+                            <p>Produtos em breve</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CAIXA -->
+                <div id="cashier" class="section">
+                    <div class="card-custom">
+                        <div class="card-header">
+                            <i class="fas fa-cash-register me-2"></i>Caixa
+                            <span class="badge-soon">Em construção</span>
+                        </div>
+                        <p class="text-muted">Registro de vendas, serviços e controle financeiro do dia.</p>
+                    </div>
+                </div>
+
+                <!-- ESTOQUE -->
+                <div id="inventory" class="section">
+                    <div class="card-custom">
+                        <div class="card-header">
+                            <i class="fas fa-boxes me-2"></i>Estoque
+                            <span class="badge-soon">Em construção</span>
+                        </div>
+                        <p class="text-muted">Gerenciamento de produtos, entrada/saída e alertas de estoque baixo.</p>
+                    </div>
+                </div>
+
+                <!-- CLIENTES -->
+                <div id="clients" class="section">
+                    <div class="card-custom">
+                        <div class="card-header">
+                            <i class="fas fa-users me-2"></i>Clientes
+                            <span class="badge-soon">Em construção</span>
+                        </div>
+                        <p class="text-muted">Cadastro, edição e visualização de clientes.</p>
+                    </div>
+                </div>
+
+                <!-- REGISTROS DE CLIENTES -->
+                <div id="client-records" class="section">
+                    <div class="card-custom">
+                        <div class="card-header">
+                            <i class="fas fa-address-book me-2"></i>Registros de Clientes
+                            <span class="badge-soon">Em construção</span>
+                        </div>
+                        <p class="text-muted">Ficha completa do cliente com histórico de serviços.</p>
+                    </div>
+                </div>
+
+                <!-- COLABORADORES -->
+                <div id="collaborators" class="section">
+                    <div class="card-custom">
+                        <div class="card-header">
+                            <i class="fas fa-user-friends me-2"></i>Colaboradores
+                            <span class="badge-soon">Em construção</span>
+                        </div>
+                        <p class="text-muted">Gestão da equipe, comissões e horários.</p>
+                    </div>
+                </div>
+
+                <!-- PACOTES -->
+                <div id="packages" class="section">
+                    <div class="card-custom">
+                        <div class="card-header">
+                            <i class="fas fa-box me-2"></i>Pacotes
+                            <span class="badge-soon">Em construção</span>
+                        </div>
+                        <p class="text-muted">Criação e gerenciamento de pacotes de serviços.</p>
+                    </div>
+                </div>
+
+                <!-- CONTROLE FINANCEIRO -->
+                <div id="financial-control" class="section">
+                    <div class="card-custom">
+                        <div class="card-header">
+                            <i class="fas fa-chart-line me-2"></i>Controle Financeiro
+                            <span class="badge-soon">Em construção</span>
+                        </div>
+                        <p class="text-muted">Despesas, receitas, salários e fluxo de caixa.</p>
+                    </div>
+                </div>
+
+                <!-- PERFIL DA EMPRESA -->
+                <div id="business-profile" class="section">
+                    <div class="card-custom">
+                        <div class="card-header">
+                            <i class="fas fa-building me-2"></i>Perfil da Empresa
+                            <span class="badge-soon">Em construção</span>
+                        </div>
+                        <p class="text-muted">Informações do estabelecimento, horários e serviços.</p>
+                    </div>
+                </div>
+
+                <!-- RELATÓRIOS -->
+                <div id="reports" class="section">
+                    <div class="card-custom">
+                        <div class="card-header">
+                            <i class="fas fa-chart-bar me-2"></i>Relatórios
+                            <span class="badge-soon">Em construção</span>
+                        </div>
+                        <p class="text-muted">Geração de relatórios em PDF por período e colaborador.</p>
+                    </div>
+                </div>
+
+                <!-- ANIVERSÁRIOS -->
+                <div id="birthdays" class="section">
+                    <div class="card-custom">
+                        <div class="card-header">
+                            <i class="fas fa-birthday-cake me-2"></i>Aniversários
+                            <span class="badge-soon">Em construção</span>
+                        </div>
+                        <p class="text-muted">Lista de aniversariantes do mês e próximos dias.</p>
+                    </div>
+                </div>
+
+                <!-- CLIENTES INATIVOS -->
+                <div id="inactive-clients" class="section">
+                    <div class="card-custom">
+                        <div class="card-header">
+                            <i class="fas fa-user-clock me-2"></i>Clientes Inativos
+                            <span class="badge-soon">Em construção</span>
+                        </div>
+                        <p class="text-muted">Clientes que não visitam há 2 meses ou mais.</p>
+                    </div>
+                </div>
+
+                <!-- PREÇÁRIO -->
+                <div id="precario" class="section">
+                    <div class="card-custom">
+                        <div class="card-header">
+                            <i class="fas fa-list-ul me-2"></i>Preçário
+                            <span class="badge-soon">Em construção</span>
+                        </div>
+                        <p class="text-muted">Lista de serviços com valores e categorias.</p>
+                    </div>
+                </div>
+
+                <!-- FICHA LAMINESSIA -->
+                <div id="laminessia" class="section">
+                    <div class="card-custom">
+                        <div class="card-header">
+                            <i class="fas fa-file-medical-alt me-2"></i>Ficha Laminessia
+                            <span class="badge-soon">Em construção</span>
+                        </div>
+                        <p class="text-muted">Avaliação estética com fotos e assinatura digital.</p>
+                    </div>
+                </div>
+
+            </div>
+            <!-- Fim section-container -->
+
+        </main>
+        <!-- Fim content-area -->
+
+    </div>
+    <!-- Fim main-wrapper -->
+
+    <!-- ==========================================
+    BOTÃO HOME MOBILE
+    ========================================== -->
+    <button class="floating-home-btn" id="mobileHomeBtn" title="Voltar ao início">
+        <i class="fas fa-home"></i>
+    </button>
+
+    <!-- ==========================================
+    SCRIPTS
+    ========================================== -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        (function() {
+            'use strict';
+
+            // ==========================================
+            // 1. DATA/HORA ATUAL
+            // ==========================================
+            function updateDateTime() {
+                const now = new Date();
+                const dateStr = now.toLocaleDateString('pt-PT');
+                const timeStr = now.toLocaleTimeString('pt-PT');
+                const el = document.getElementById('currentDateTimeText');
+                if (el) el.textContent = dateStr + ' ' + timeStr;
+            }
+            updateDateTime();
+            setInterval(updateDateTime, 1000);
+
+            // ==========================================
+            // 2. NAVEGAÇÃO - MENU DESKTOP
+            // ==========================================
+            const desktopLinks = document.querySelectorAll('#desktopMenu .nav-link');
+            const sections = document.querySelectorAll('.section');
+            const mobileCards = document.getElementById('mobileCards');
+            const mobileHomeBtn = document.getElementById('mobileHomeBtn');
+            const isMobile = () => window.innerWidth < 992;
+
+            function showSection(sectionId) {
+                // Esconder todas as seções
+                sections.forEach(s => {
+                    s.classList.remove('active');
+                    s.style.display = 'none';
+                });
+
+                // Esconder cards mobile
+                if (mobileCards) {
+                    mobileCards.classList.remove('active');
+                    mobileCards.style.display = 'none';
+                }
+
+                // Mostrar seção solicitada
+                const target = document.getElementById(sectionId);
+                if (target) {
+                    target.classList.add('active');
+                    target.style.display = 'block';
+                }
+
+                // Atualizar menu desktop
+                desktopLinks.forEach(link => {
+                    link.classList.remove('active');
+                    if (link.getAttribute('data-section') === sectionId) {
+                        link.classList.add('active');
+                    }
+                });
+
+                // Mostrar/Esconder botão home mobile
+                if (isMobile()) {
+                    mobileHomeBtn.style.display = 'flex';
+                } else {
+                    mobileHomeBtn.style.display = 'none';
+                }
+            }
+
+            // Evento: cliques no menu desktop
+            desktopLinks.forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const section = this.getAttribute('data-section');
+                    if (section) showSection(section);
+                });
+            });
+
+            // Evento: cliques nos cards mobile
+            document.querySelectorAll('.mobile-card').forEach(card => {
+                card.addEventListener('click', function() {
+                    const section = this.getAttribute('data-section');
+                    if (section) showSection(section);
+                });
+            });
+
+            // Evento: botão home mobile
+            mobileHomeBtn.addEventListener('click', function() {
+                // Mostrar cards mobile
+                if (mobileCards) {
+                    mobileCards.classList.add('active');
+                    mobileCards.style.display = 'block';
+                }
+
+                // Esconder todas as seções
+                sections.forEach(s => {
+                    s.classList.remove('active');
+                    s.style.display = 'none';
+                });
+
+                // Remover active do menu desktop
+                desktopLinks.forEach(link => link.classList.remove('active'));
+
+                // Esconder botão home
+                mobileHomeBtn.style.display = 'none';
+            });
+
+            // ==========================================
+            // 3. RESPONSIVIDADE - Inicialização
+            // ==========================================
+            function initResponsive() {
+                if (isMobile()) {
+                    // Mostrar cards mobile, esconder seções
+                    if (mobileCards) {
+                        mobileCards.classList.add('active');
+                        mobileCards.style.display = 'block';
+                    }
+                    sections.forEach(s => {
+                        s.classList.remove('active');
+                        s.style.display = 'none';
+                    });
+                    mobileHomeBtn.style.display = 'none';
+                } else {
+                    // Mostrar Dashboard por padrão no desktop
+                    if (mobileCards) {
+                        mobileCards.classList.remove('active');
+                        mobileCards.style.display = 'none';
+                    }
+                    // Se nenhuma seção estiver ativa, mostrar dashboard
+                    let hasActive = false;
+                    sections.forEach(s => {
+                        if (s.classList.contains('active')) hasActive = true;
+                    });
+                    if (!hasActive) {
+                        const dashboard = document.getElementById('dashboard');
+                        if (dashboard) {
+                            dashboard.classList.add('active');
+                            dashboard.style.display = 'block';
+                        }
+                        // Ativar link do dashboard no menu
+                        desktopLinks.forEach(link => {
+                            link.classList.remove('active');
+                            if (link.getAttribute('data-section') === 'dashboard') {
+                                link.classList.add('active');
+                            }
+                        });
+                    }
+                    mobileHomeBtn.style.display = 'none';
+                }
+            }
+
+            // Executar inicialização
+            initResponsive();
+
+            // Reagir a redimensionamento
+            let resizeTimeout;
+            window.addEventListener('resize', function() {
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(initResponsive, 250);
+            });
+
+            // ==========================================
+            // 4. LOG DE INICIALIZAÇÃO
+            // ==========================================
+            console.log('✅ Layout Index carregado com sucesso!');
+            console.log('📌 Estrutura:');
+            console.log('   - Menu lateral (Desktop) com 16 itens');
+            console.log('   - Cards mobile (16 itens)');
+            console.log('   - Sistema de navegação entre seções');
+            console.log('   - Cada seção está pronta para receber sua funcionalidade');
+            console.log('   - Responsivo: Desktop / Tablet / Mobile');
+
+            // ==========================================
+            // 5. FUNÇÃO GLOBAL PARA ADICIONAR NOVAS SEÇÕES
+            // ==========================================
+            window.addSection = function(sectionId, title, icon, content) {
+                // Verificar se a seção já existe
+                if (document.getElementById(sectionId)) {
+                    console.warn(`Seção "${sectionId}" já existe.`);
+                    return false;
+                }
+
+                // Criar a seção
+                const container = document.querySelector('.section-container');
+                if (!container) return false;
+
+                const section = document.createElement('div');
+                section.id = sectionId;
+                section.className = 'section';
+                section.innerHTML = `
+                    <div class="card-custom">
+                        <div class="card-header">
+                            <i class="${icon} me-2"></i>${title}
+                        </div>
+                        ${content || '<p class="text-muted">Conteúdo em desenvolvimento.</p>'}
+                    </div>
+                `;
+                container.appendChild(section);
+
+                // Adicionar ao menu desktop
+                const menu = document.getElementById('desktopMenu');
+                if (menu) {
+                    const link = document.createElement('a');
+                    link.className = 'nav-link';
+                    link.href = '#';
+                    link.setAttribute('data-section', sectionId);
+                    link.innerHTML = `<i class="${icon}"></i> ${title}`;
+                    link.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        showSection(sectionId);
+                    });
+                    menu.appendChild(link);
+                }
+
+                // Adicionar card mobile
+                const mobileRow = document.querySelector('#mobileCards .row');
+                if (mobileRow) {
+                    const col = document.createElement('div');
+                    col.className = 'col-6';
+                    col.innerHTML = `
+                        <div class="mobile-card" data-section="${sectionId}">
+                            <i class="${icon}"></i>
+                            <h5>${title.replace(/\s/g, '').substring(0, 12)}</h5>
+                            <p>Nova funcionalidade</p>
+                        </div>
+                    `;
+                    const card = col.querySelector('.mobile-card');
+                    card.addEventListener('click', function() {
+                        showSection(sectionId);
+                    });
+                    mobileRow.appendChild(col);
+                }
+
+                console.log(`✅ Seção "${sectionId}" adicionada com sucesso!`);
+                return true;
+            };
+
+            console.log('📌 Use window.addSection(id, titulo, icone, conteudoHTML) para adicionar novas seções.');
+            console.log('📌 Exemplo: window.addSection("minha-secao", "Minha Seção", "fas fa-star", "<p>Meu conteúdo</p>")');
+
+        })();
+    </script>
+
+</body>
+</html>
