@@ -1,0 +1,1619 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    <title>Dashboard - Studio DeVitto</title>
+    
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    
+    <style>
+        /* ============================================
+           VARIÁVEIS E ESTILOS GERAIS
+           ============================================ */
+        :root {
+            --primary-color: #26196b;
+            --secondary-color: #ffd700;
+            --accent-color: #4a3a9c;
+            --light-bg: #f8f9fa;
+            --card-radius: 12px;
+            --shadow-sm: 0 2px 8px rgba(0,0,0,0.08);
+            --shadow-md: 0 4px 16px rgba(0,0,0,0.12);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--light-bg);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .dashboard-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        /* ============================================
+           CABEÇALHO
+           ============================================ */
+        .dashboard-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+            color: white;
+            padding: 20px 25px;
+            border-radius: var(--card-radius);
+            margin-bottom: 24px;
+            box-shadow: var(--shadow-md);
+        }
+
+        .dashboard-header h1 {
+            font-weight: 700;
+            font-size: 1.6rem;
+            margin: 0;
+        }
+
+        .dashboard-header h1 i {
+            color: var(--secondary-color);
+        }
+
+        .dashboard-header .subtitle {
+            opacity: 0.8;
+            font-size: 0.9rem;
+            margin: 4px 0 0;
+        }
+
+        .dashboard-header .header-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
+        .dashboard-header .btn-refresh {
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.25);
+            color: white;
+            border-radius: 20px;
+            padding: 6px 16px;
+            font-size: 0.85rem;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .dashboard-header .btn-refresh:hover {
+            background: rgba(255,255,255,0.25);
+        }
+
+        /* ============================================
+           CARDS DE MÉTRICAS
+           ============================================ */
+        .metric-card {
+            background: white;
+            border-radius: var(--card-radius);
+            padding: 18px 20px;
+            box-shadow: var(--shadow-sm);
+            transition: all 0.3s ease;
+            height: 100%;
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .metric-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .metric-card .metric-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .metric-card .metric-icon.purple { background: var(--primary-color); }
+        .metric-card .metric-icon.green { background: #28a745; }
+        .metric-card .metric-icon.blue { background: #17a2b8; }
+        .metric-card .metric-icon.gold { background: #ffc107; }
+        .metric-card .metric-icon.red { background: #dc3545; }
+        .metric-card .metric-icon.orange { background: #fd7e14; }
+        .metric-card .metric-icon.pink { background: #e83e8c; }
+
+        .metric-card .metric-label {
+            font-size: 0.8rem;
+            color: #6c757d;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .metric-card .metric-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #2d2d2d;
+            line-height: 1.2;
+        }
+
+        .metric-card .metric-value .currency {
+            font-size: 1rem;
+            color: #6c757d;
+        }
+
+        .metric-card .metric-sub {
+            font-size: 0.75rem;
+            color: #adb5bd;
+            margin-top: 2px;
+        }
+
+        /* ============================================
+           CARDS DE DESEMPENHO DOS FUNCIONÁRIOS
+           ============================================ */
+        .funcionario-card {
+            background: white;
+            border-radius: var(--card-radius);
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+            transition: all 0.3s ease;
+            height: 100%;
+        }
+
+        .funcionario-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .funcionario-card .card-header-custom {
+            padding: 14px 16px;
+            color: white;
+            text-align: center;
+            background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+        }
+
+        .funcionario-card .card-header-custom .avatar {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid rgba(255,255,255,0.4);
+            margin-bottom: 6px;
+        }
+
+        .funcionario-card .card-header-custom .avatar-placeholder {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
+            margin: 0 auto 6px;
+            border: 3px solid rgba(255,255,255,0.3);
+        }
+
+        .funcionario-card .card-header-custom h6 {
+            margin: 0;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .funcionario-card .card-header-custom small {
+            opacity: 0.8;
+            font-size: 0.7rem;
+        }
+
+        .funcionario-card .card-body-custom {
+            padding: 12px 14px;
+        }
+
+        .funcionario-card .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            font-size: 0.8rem;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .funcionario-card .stat-row:last-child {
+            border-bottom: none;
+        }
+
+        .funcionario-card .stat-row .label {
+            color: #6c757d;
+        }
+
+        .funcionario-card .stat-row .value {
+            font-weight: 600;
+        }
+
+        .funcionario-card .stat-row .value.positive { color: #28a745; }
+        .funcionario-card .stat-row .value.negative { color: #dc3545; }
+
+        .funcionario-card .progress-custom {
+            height: 4px;
+            background: #e9ecef;
+            border-radius: 4px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+
+        .funcionario-card .progress-custom .bar {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.6s ease;
+        }
+
+        .funcionario-card .progress-custom .bar.salao { background: var(--primary-color); }
+        .funcionario-card .progress-custom .bar.comissao { background: var(--secondary-color); }
+
+        /* ============================================
+           SEÇÃO DE ANIVERSÁRIOS
+           ============================================ */
+        .birthday-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .birthday-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 12px;
+            border-bottom: 1px solid #f0f0f0;
+            transition: background 0.2s;
+            cursor: pointer;
+        }
+
+        .birthday-item:hover {
+            background: #f8f9fa;
+        }
+
+        .birthday-item .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+
+        .birthday-item .avatar-placeholder {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 16px;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+
+        .birthday-item .info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .birthday-item .info .name {
+            font-weight: 600;
+            font-size: 0.9rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .birthday-item .info .date {
+            font-size: 0.75rem;
+            color: #6c757d;
+        }
+
+        .birthday-item .badge-today {
+            background: #dc3545;
+            color: white;
+            font-size: 0.65rem;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-weight: 600;
+            animation: pulse-badge 1.5s infinite;
+        }
+
+        .birthday-item .badge-soon {
+            background: #ffc107;
+            color: #000;
+            font-size: 0.65rem;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-weight: 600;
+        }
+
+        @keyframes pulse-badge {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        /* ============================================
+           SERVIÇOS RECENTES
+           ============================================ */
+        .recent-service-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .recent-service-item:last-child {
+            border-bottom: none;
+        }
+
+        .recent-service-item .service-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .recent-service-item .service-info .name {
+            font-weight: 500;
+            font-size: 0.85rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .recent-service-item .service-info .client {
+            font-size: 0.75rem;
+            color: #6c757d;
+        }
+
+        .recent-service-item .service-value {
+            font-weight: 600;
+            color: var(--primary-color);
+            font-size: 0.9rem;
+            margin-left: 10px;
+            flex-shrink: 0;
+        }
+
+        /* ============================================
+           ALERTAS DE ESTOQUE BAIXO
+           ============================================ */
+        .stock-alert-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: #fff3cd;
+            border-radius: 8px;
+            margin-bottom: 6px;
+            border-left: 3px solid #ffc107;
+        }
+
+        .stock-alert-item .product-name {
+            font-weight: 500;
+            font-size: 0.85rem;
+        }
+
+        .stock-alert-item .stock-qty {
+            font-size: 0.75rem;
+            color: #856404;
+            font-weight: 600;
+        }
+
+        /* ============================================
+           GRÁFICO
+           ============================================ */
+        .chart-container {
+            background: white;
+            border-radius: var(--card-radius);
+            padding: 20px;
+            box-shadow: var(--shadow-sm);
+            height: 300px;
+            position: relative;
+        }
+
+        .chart-container h6 {
+            color: var(--primary-color);
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        /* ============================================
+           EMPRESA CARD (Visão Geral)
+           ============================================ */
+        .empresa-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: var(--card-radius);
+            padding: 20px 24px;
+            color: white;
+            box-shadow: var(--shadow-md);
+            margin-bottom: 20px;
+        }
+
+        .empresa-card .empresa-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .empresa-card .empresa-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+        }
+
+        .empresa-card .empresa-stat {
+            background: rgba(255,255,255,0.12);
+            border-radius: 10px;
+            padding: 12px 14px;
+            text-align: center;
+        }
+
+        .empresa-card .empresa-stat .stat-value {
+            font-size: 1.4rem;
+            font-weight: 700;
+        }
+
+        .empresa-card .empresa-stat .stat-label {
+            font-size: 0.7rem;
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        /* ============================================
+           RESPONSIVIDADE
+           ============================================ */
+        @media (max-width: 768px) {
+            body { padding: 10px; }
+            
+            .dashboard-header {
+                padding: 16px 18px;
+            }
+            .dashboard-header h1 {
+                font-size: 1.2rem;
+            }
+
+            .metric-card .metric-value {
+                font-size: 1.3rem;
+            }
+            .metric-card .metric-icon {
+                width: 36px;
+                height: 36px;
+                font-size: 1rem;
+            }
+
+            .chart-container {
+                height: 220px;
+                padding: 14px;
+            }
+
+            .empresa-card .empresa-stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .funcionario-card .card-header-custom .avatar,
+            .funcionario-card .card-header-custom .avatar-placeholder {
+                width: 44px;
+                height: 44px;
+                font-size: 18px;
+            }
+            .funcionario-card .card-header-custom h6 {
+                font-size: 0.8rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .metric-card {
+                padding: 12px 14px;
+            }
+            .metric-card .metric-value {
+                font-size: 1.1rem;
+            }
+            .metric-card .metric-label {
+                font-size: 0.65rem;
+            }
+            .empresa-card .empresa-stat .stat-value {
+                font-size: 1.1rem;
+            }
+            .dashboard-header .header-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+
+        /* ============================================
+           SCROLLBAR
+           ============================================ */
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+
+        /* ============================================
+           UTILITÁRIOS
+           ============================================ */
+        .text-truncate-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .cursor-pointer { cursor: pointer; }
+        .gap-2 { gap: 8px; }
+        .gap-3 { gap: 12px; }
+        .gap-4 { gap: 16px; }
+        .flex-wrap { flex-wrap: wrap; }
+        .align-center { align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .mt-2 { margin-top: 8px; }
+        .mt-3 { margin-top: 16px; }
+        .mt-4 { margin-top: 24px; }
+        .mb-2 { margin-bottom: 8px; }
+        .mb-3 { margin-bottom: 16px; }
+        .mb-4 { margin-bottom: 24px; }
+        .text-muted { color: #6c757d; }
+        .text-success { color: #28a745; }
+        .text-danger { color: #dc3545; }
+        .text-warning { color: #ffc107; }
+        .text-primary { color: var(--primary-color); }
+        .fw-bold { font-weight: 700; }
+        .fw-semibold { font-weight: 600; }
+        .fs-small { font-size: 0.8rem; }
+        .fs-large { font-size: 1.2rem; }
+    </style>
+</head>
+<body>
+
+<div class="dashboard-container" id="dashboardApp">
+
+    <!-- ==========================================
+    CABEÇALHO
+    ========================================== -->
+    <div class="dashboard-header">
+        <div class="d-flex flex-wrap justify-content-between align-center">
+            <div>
+                <h1><i class="fas fa-tachometer-alt me-2"></i>Dashboard</h1>
+                <p class="subtitle" id="dashboardSubtitle">Visão geral do seu negócio</p>
+            </div>
+            <div class="header-actions">
+                <span class="badge bg-light text-dark px-3 py-2" id="lastUpdateBadge">
+                    <i class="fas fa-clock me-1"></i>Atualizado agora
+                </span>
+                <button class="btn-refresh" onclick="refreshDashboard()">
+                    <i class="fas fa-sync-alt me-1"></i>Atualizar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+    CARDS DE MÉTRICAS PRINCIPAIS
+    ========================================== -->
+    <div class="row g-3 mb-4" id="metricsRow">
+        <!-- Caixa Atual -->
+        <div class="col-lg-3 col-md-6 col-12">
+            <div class="metric-card">
+                <div class="d-flex justify-content-between align-center">
+                    <div>
+                        <div class="metric-label">Caixa Atual</div>
+                        <div class="metric-value" id="currentCash">€ 0,00</div>
+                        <div class="metric-sub" id="cashierStatus">Caixa fechado</div>
+                    </div>
+                    <div class="metric-icon purple"><i class="fas fa-cash-register"></i></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vendas Hoje -->
+        <div class="col-lg-3 col-md-6 col-12">
+            <div class="metric-card" style="border-left-color: #28a745;">
+                <div class="d-flex justify-content-between align-center">
+                    <div>
+                        <div class="metric-label">Vendas Hoje</div>
+                        <div class="metric-value text-success" id="todaySales">€ 0,00</div>
+                        <div class="metric-sub" id="todayServices">0 serviços</div>
+                    </div>
+                    <div class="metric-icon green"><i class="fas fa-calendar-day"></i></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vendas Semana -->
+        <div class="col-lg-3 col-md-6 col-12">
+            <div class="metric-card" style="border-left-color: #ffc107;">
+                <div class="d-flex justify-content-between align-center">
+                    <div>
+                        <div class="metric-label">Vendas Semana</div>
+                        <div class="metric-value text-warning" id="weekSales">€ 0,00</div>
+                        <div class="metric-sub" id="weekServices">0 serviços</div>
+                    </div>
+                    <div class="metric-icon gold"><i class="fas fa-calendar-week"></i></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vendas Mês -->
+        <div class="col-lg-3 col-md-6 col-12">
+            <div class="metric-card" style="border-left-color: #17a2b8;">
+                <div class="d-flex justify-content-between align-center">
+                    <div>
+                        <div class="metric-label">Vendas Mês</div>
+                        <div class="metric-value text-info" id="monthSales">€ 0,00</div>
+                        <div class="metric-sub" id="monthServices">0 serviços</div>
+                    </div>
+                    <div class="metric-icon blue"><i class="fas fa-calendar-alt"></i></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+    SEGUNDA LINHA DE MÉTRICAS
+    ========================================== -->
+    <div class="row g-3 mb-4">
+        <!-- Produtos Vendidos Hoje -->
+        <div class="col-lg-3 col-md-6 col-12">
+            <div class="metric-card" style="border-left-color: #17a2b8;">
+                <div class="d-flex justify-content-between align-center">
+                    <div>
+                        <div class="metric-label">Produtos Hoje</div>
+                        <div class="metric-value text-info" id="todayProducts">€ 0,00</div>
+                        <div class="metric-sub" id="todayProductsCount">0 produtos</div>
+                    </div>
+                    <div class="metric-icon blue"><i class="fas fa-shopping-bag"></i></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Colaboradores -->
+        <div class="col-lg-3 col-md-6 col-12">
+            <div class="metric-card" style="border-left-color: var(--primary-color);">
+                <div class="d-flex justify-content-between align-center">
+                    <div>
+                        <div class="metric-label">Colaboradores</div>
+                        <div class="metric-value" id="totalCollaborators">0</div>
+                        <div class="metric-sub">Ativos</div>
+                    </div>
+                    <div class="metric-icon purple"><i class="fas fa-user-friends"></i></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Clientes -->
+        <div class="col-lg-3 col-md-6 col-12">
+            <div class="metric-card" style="border-left-color: #28a745;">
+                <div class="d-flex justify-content-between align-center">
+                    <div>
+                        <div class="metric-label">Clientes</div>
+                        <div class="metric-value text-success" id="totalClients">0</div>
+                        <div class="metric-sub">Cadastrados</div>
+                    </div>
+                    <div class="metric-icon green"><i class="fas fa-users"></i></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Aniversários -->
+        <div class="col-lg-3 col-md-6 col-12">
+            <div class="metric-card" style="border-left-color: #dc3545;">
+                <div class="d-flex justify-content-between align-center">
+                    <div>
+                        <div class="metric-label">Aniversários</div>
+                        <div class="metric-value text-danger" id="upcomingBirthdays">0</div>
+                        <div class="metric-sub">Próximos 7 dias</div>
+                    </div>
+                    <div class="metric-icon red"><i class="fas fa-birthday-cake"></i></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+    EMPRESA - VISÃO GERAL
+    ========================================== -->
+    <div class="empresa-card" id="empresaCard">
+        <div class="empresa-title">
+            <i class="fas fa-building me-2"></i>Visão Geral da Empresa
+        </div>
+        <div class="empresa-stats" id="empresaStats">
+            <div class="empresa-stat">
+                <div class="stat-value" id="empresaFaturamento">€ 0,00</div>
+                <div class="stat-label">Faturamento Total</div>
+            </div>
+            <div class="empresa-stat">
+                <div class="stat-value" id="empresaLucro">€ 0,00</div>
+                <div class="stat-label">Lucro Líquido</div>
+            </div>
+            <div class="empresa-stat">
+                <div class="stat-value" id="empresaComissoes">€ 0,00</div>
+                <div class="stat-label">Comissões Pagas</div>
+            </div>
+            <div class="empresa-stat">
+                <div class="stat-value" id="empresaTicket">€ 0,00</div>
+                <div class="stat-label">Ticket Médio</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+    GRÁFICO E SERVIÇOS RECENTES
+    ========================================== -->
+    <div class="row g-3 mb-4">
+        <!-- Gráfico -->
+        <div class="col-lg-8 col-md-12">
+            <div class="chart-container">
+                <h6><i class="fas fa-chart-bar me-2"></i>Vendas Mensais - Serviços vs Produtos</h6>
+                <canvas id="monthlySalesChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Serviços Recentes -->
+        <div class="col-lg-4 col-md-12">
+            <div class="card-custom" style="background:white;border-radius:var(--card-radius);padding:16px;box-shadow:var(--shadow-sm);height:100%;">
+                <h6 class="fw-bold text-primary mb-3"><i class="fas fa-clock me-2"></i>Serviços Recentes</h6>
+                <div id="recentServicesList" style="max-height:230px;overflow-y:auto;">
+                    <p class="text-muted text-center py-3">Nenhum serviço hoje.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+    ANIVERSÁRIOS PRÓXIMOS
+    ========================================== -->
+    <div class="card-custom" style="background:white;border-radius:var(--card-radius);padding:16px;box-shadow:var(--shadow-sm);margin-bottom:20px;">
+        <h6 class="fw-bold text-primary mb-3"><i class="fas fa-birthday-cake me-2"></i>Próximos Aniversários</h6>
+        <div id="upcomingBirthdaysList" class="birthday-list">
+            <p class="text-muted text-center py-3">Nenhum aniversário próximo.</p>
+        </div>
+    </div>
+
+    <!-- ==========================================
+    DESEMPENHO DOS FUNCIONÁRIOS
+    ========================================== -->
+    <div id="funcionariosContainer">
+        <h6 class="fw-bold text-primary mb-3"><i class="fas fa-user-friends me-2"></i>Desempenho dos Funcionários</h6>
+        <div class="row g-3" id="funcionariosCards">
+            <div class="col-12 text-center text-muted py-4">
+                <i class="fas fa-users fa-3x mb-3 opacity-25"></i>
+                <p>Nenhum funcionário ativo cadastrado.</p>
+                <small>Adicione colaboradores para ver o desempenho.</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+    ALERTAS DE ESTOQUE BAIXO
+    ========================================== -->
+    <div id="lowStockContainer" style="display:none;margin-top:20px;">
+        <div class="card-custom" style="background:white;border-radius:var(--card-radius);padding:16px;box-shadow:var(--shadow-sm);border-left:4px solid #dc3545;">
+            <h6 class="fw-bold text-danger mb-3"><i class="fas fa-exclamation-triangle me-2"></i>Produtos com Estoque Baixo</h6>
+            <div id="lowStockList"></div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ==========================================
+SCRIPTS
+========================================== -->
+<script>
+    // ==========================================
+    // 1. CONFIGURAÇÃO DO FIREBASE
+    // ==========================================
+    const firebaseConfig = {
+        apiKey: "AIzaSyC5ezGCOS5d-Vy2l-Gimkl_V9VmwDLZzKc",
+        authDomain: "studio-devitto-152400.firebaseapp.com",
+        projectId: "studio-devitto-152400",
+        storageBucket: "studio-devitto-152400.appspot.com",
+        messagingSenderId: "138996544906",
+        appId: "1:138996544906:web:6569bf954a00e2f7944473",
+        measurementId: "G-FCC5T13QW8"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    // ==========================================
+    // 2. VARIÁVEIS GLOBAIS
+    // ==========================================
+    let currentUser = null;
+    let allServices = [];
+    let allProductSales = [];
+    let clients = [];
+    let collaborators = [];
+    let products = [];
+    let appointments = [];
+    let currentCashier = null;
+    let todayServices = [];
+    let todayProductSales = [];
+    let myChart = null;
+
+    // ==========================================
+    // 3. INICIALIZAÇÃO
+    // ==========================================
+    document.addEventListener('DOMContentLoaded', function() {
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                currentUser = user;
+                document.getElementById('dashboardSubtitle').textContent = 
+                    `Bem-vindo(a), ${user.email}`;
+                loadAllData();
+            } else {
+                document.getElementById('dashboardSubtitle').textContent = 
+                    'Faça login para visualizar o dashboard';
+                showLoginPrompt();
+            }
+        });
+    });
+
+    // ==========================================
+    // 4. CARREGAR TODOS OS DADOS
+    // ==========================================
+    async function loadAllData() {
+        try {
+            await Promise.all([
+                loadServices(),
+                loadProductSales(),
+                loadClients(),
+                loadCollaborators(),
+                loadProducts(),
+                loadAppointments(),
+                loadCashierStatus()
+            ]);
+            updateDashboard();
+            updateLastUpdate();
+        } catch (error) {
+            console.error('Erro ao carregar dados:', error);
+            // Tentar carregar do localStorage
+            loadFromLocalStorage();
+        }
+    }
+
+    // ==========================================
+    // 5. FUNÇÕES DE CARREGAMENTO
+    // ==========================================
+    function loadServices() {
+        return new Promise((resolve) => {
+            if (!currentUser) { resolve(); return; }
+            db.collection('services')
+                .where('userId', '==', currentUser.uid)
+                .get()
+                .then(snapshot => {
+                    allServices = [];
+                    snapshot.forEach(doc => {
+                        allServices.push({ id: doc.id, ...doc.data() });
+                    });
+                    const today = new Date().toISOString().split('T')[0];
+                    todayServices = allServices.filter(s => s.date === today);
+                    saveToLocalStorage('services', allServices);
+                    resolve();
+                })
+                .catch(() => resolve());
+        });
+    }
+
+    function loadProductSales() {
+        return new Promise((resolve) => {
+            if (!currentUser) { resolve(); return; }
+            db.collection('productSales')
+                .where('userId', '==', currentUser.uid)
+                .get()
+                .then(snapshot => {
+                    allProductSales = [];
+                    snapshot.forEach(doc => {
+                        allProductSales.push({ id: doc.id, ...doc.data() });
+                    });
+                    const today = new Date().toISOString().split('T')[0];
+                    todayProductSales = allProductSales.filter(s => s.date === today);
+                    saveToLocalStorage('productSales', allProductSales);
+                    resolve();
+                })
+                .catch(() => resolve());
+        });
+    }
+
+    function loadClients() {
+        return new Promise((resolve) => {
+            if (!currentUser) { resolve(); return; }
+            db.collection('clients')
+                .where('userId', '==', currentUser.uid)
+                .get()
+                .then(snapshot => {
+                    clients = [];
+                    snapshot.forEach(doc => {
+                        clients.push({ id: doc.id, ...doc.data() });
+                    });
+                    clients.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                    saveToLocalStorage('clients', clients);
+                    resolve();
+                })
+                .catch(() => resolve());
+        });
+    }
+
+    function loadCollaborators() {
+        return new Promise((resolve) => {
+            if (!currentUser) { resolve(); return; }
+            db.collection('collaborators')
+                .where('userId', '==', currentUser.uid)
+                .get()
+                .then(snapshot => {
+                    collaborators = [];
+                    snapshot.forEach(doc => {
+                        collaborators.push({ id: doc.id, ...doc.data() });
+                    });
+                    saveToLocalStorage('collaborators', collaborators);
+                    resolve();
+                })
+                .catch(() => resolve());
+        });
+    }
+
+    function loadProducts() {
+        return new Promise((resolve) => {
+            if (!currentUser) { resolve(); return; }
+            db.collection('products')
+                .where('userId', '==', currentUser.uid)
+                .get()
+                .then(snapshot => {
+                    products = [];
+                    snapshot.forEach(doc => {
+                        products.push({ id: doc.id, ...doc.data() });
+                    });
+                    saveToLocalStorage('products', products);
+                    resolve();
+                })
+                .catch(() => resolve());
+        });
+    }
+
+    function loadAppointments() {
+        return new Promise((resolve) => {
+            if (!currentUser) { resolve(); return; }
+            db.collection('appointments')
+                .where('userId', '==', currentUser.uid)
+                .get()
+                .then(snapshot => {
+                    appointments = [];
+                    snapshot.forEach(doc => {
+                        appointments.push({ id: doc.id, ...doc.data() });
+                    });
+                    saveToLocalStorage('appointments', appointments);
+                    resolve();
+                })
+                .catch(() => resolve());
+        });
+    }
+
+    function loadCashierStatus() {
+        return new Promise((resolve) => {
+            if (!currentUser) { resolve(); return; }
+            const today = new Date().toISOString().split('T')[0];
+            db.collection('cashiers')
+                .where('date', '==', today)
+                .where('userId', '==', currentUser.uid)
+                .where('status', '==', 'open')
+                .get()
+                .then(snapshot => {
+                    if (!snapshot.empty) {
+                        currentCashier = snapshot.docs[0].data();
+                        currentCashier.id = snapshot.docs[0].id;
+                    } else {
+                        currentCashier = null;
+                    }
+                    resolve();
+                })
+                .catch(() => resolve());
+        });
+    }
+
+    // ==========================================
+    // 6. LOCALSTORAGE (OFFLINE)
+    // ==========================================
+    function saveToLocalStorage(key, data) {
+        try {
+            localStorage.setItem(`dashboard_${key}`, JSON.stringify(data));
+        } catch(e) {}
+    }
+
+    function loadFromLocalStorage() {
+        try {
+            const services = localStorage.getItem('dashboard_services');
+            if (services) allServices = JSON.parse(services);
+            const productSales = localStorage.getItem('dashboard_productSales');
+            if (productSales) allProductSales = JSON.parse(productSales);
+            const clientsData = localStorage.getItem('dashboard_clients');
+            if (clientsData) clients = JSON.parse(clientsData);
+            const collabData = localStorage.getItem('dashboard_collaborators');
+            if (collabData) collaborators = JSON.parse(collabData);
+            const productsData = localStorage.getItem('dashboard_products');
+            if (productsData) products = JSON.parse(productsData);
+            const appData = localStorage.getItem('dashboard_appointments');
+            if (appData) appointments = JSON.parse(appData);
+            
+            const today = new Date().toISOString().split('T')[0];
+            todayServices = allServices.filter(s => s.date === today);
+            todayProductSales = allProductSales.filter(s => s.date === today);
+            
+            updateDashboard();
+        } catch(e) {}
+    }
+
+    // ==========================================
+    // 7. ATUALIZAR DASHBOARD
+    // ==========================================
+    function updateDashboard() {
+        updateMetrics();
+        updateEmpresaCard();
+        updateRecentServices();
+        updateUpcomingBirthdays();
+        updateFuncionarios();
+        updateLowStockAlerts();
+        updateChart();
+    }
+
+    // ==========================================
+    // 8. MÉTRICAS
+    // ==========================================
+    function updateMetrics() {
+        // Caixa Atual
+        if (currentCashier) {
+            const todayServicesValue = todayServices.reduce((sum, s) => sum + parseFloat(s.value || 0), 0);
+            const todayProductsValue = todayProductSales.reduce((sum, s) => sum + parseFloat(s.totalValue || 0), 0);
+            const total = (currentCashier.initialValue || 0) + todayServicesValue + todayProductsValue;
+            document.getElementById('currentCash').textContent = formatCurrency(total);
+            document.getElementById('cashierStatus').textContent = '✅ Caixa aberto';
+            document.getElementById('cashierStatus').style.color = '#28a745';
+        } else {
+            document.getElementById('currentCash').textContent = '€ 0,00';
+            document.getElementById('cashierStatus').textContent = '🔒 Caixa fechado';
+            document.getElementById('cashierStatus').style.color = '#dc3545';
+        }
+
+        // Vendas Hoje - LÍQUIDO (salão)
+        let totalSalaoHoje = 0;
+        todayServices.forEach(s => {
+            totalSalaoHoje += calcularValorLiquidoSalao(s);
+        });
+        document.getElementById('todaySales').textContent = formatCurrency(totalSalaoHoje);
+        document.getElementById('todayServices').textContent = `${todayServices.length} serviços`;
+
+        // Vendas Semana - LÍQUIDO
+        const hoje = new Date();
+        const inicioSemana = new Date(hoje);
+        inicioSemana.setDate(hoje.getDate() - hoje.getDay() + (hoje.getDay() === 0 ? -6 : 1));
+        inicioSemana.setHours(0,0,0,0);
+        
+        const servicosSemana = allServices.filter(s => {
+            const data = s.timestamp?.toDate ? s.timestamp.toDate() : new Date(s.timestamp || s.date);
+            return data >= inicioSemana;
+        });
+        let totalSalaoSemana = 0;
+        servicosSemana.forEach(s => totalSalaoSemana += calcularValorLiquidoSalao(s));
+        document.getElementById('weekSales').textContent = formatCurrency(totalSalaoSemana);
+        document.getElementById('weekServices').textContent = `${servicosSemana.length} serviços`;
+
+        // Vendas Mês - LÍQUIDO
+        const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+        const servicosMes = allServices.filter(s => {
+            const data = s.timestamp?.toDate ? s.timestamp.toDate() : new Date(s.timestamp || s.date);
+            return data >= inicioMes;
+        });
+        let totalSalaoMes = 0;
+        servicosMes.forEach(s => totalSalaoMes += calcularValorLiquidoSalao(s));
+        document.getElementById('monthSales').textContent = formatCurrency(totalSalaoMes);
+        document.getElementById('monthServices').textContent = `${servicosMes.length} serviços`;
+
+        // Produtos Hoje
+        const todayProductsValue = todayProductSales.reduce((sum, s) => sum + parseFloat(s.totalValue || 0), 0);
+        document.getElementById('todayProducts').textContent = formatCurrency(todayProductsValue);
+        document.getElementById('todayProductsCount').textContent = `${todayProductSales.length} produtos`;
+
+        // Colaboradores
+        document.getElementById('totalCollaborators').textContent = collaborators.filter(c => c.active !== false).length;
+
+        // Clientes
+        document.getElementById('totalClients').textContent = clients.length;
+
+        // Aniversários
+        const upcoming = getUpcomingBirthdays();
+        document.getElementById('upcomingBirthdays').textContent = upcoming.length;
+    }
+
+    // ==========================================
+    // 9. CALCULAR VALOR LÍQUIDO DO SALÃO
+    // ==========================================
+    function calcularValorLiquidoSalao(servico) {
+        const colaborador = collaborators.find(c => c.id === servico.collaboratorId);
+        if (!colaborador) return parseFloat(servico.value || 0);
+        
+        let percentualFuncionario = 0;
+        if (servico.type === 'manual') {
+            percentualFuncionario = parseFloat(colaborador.manualPercent) || 0;
+        } else if (servico.type === 'product') {
+            percentualFuncionario = parseFloat(colaborador.productPercent) || 0;
+        }
+        
+        const valorServico = parseFloat(servico.value || 0);
+        return valorServico * ((100 - percentualFuncionario) / 100);
+    }
+
+    // ==========================================
+    // 10. EMPRESA CARD
+    // ==========================================
+    function updateEmpresaCard() {
+        let totalBruto = 0;
+        let totalComissoes = 0;
+        let totalSalao = 0;
+        let totalServicos = allServices.length;
+
+        allServices.forEach(s => {
+            const valor = parseFloat(s.value || 0);
+            totalBruto += valor;
+            
+            const colaborador = collaborators.find(c => c.id === s.collaboratorId);
+            let percentual = 0;
+            if (colaborador) {
+                if (s.type === 'manual') percentual = parseFloat(colaborador.manualPercent) || 0;
+                else if (s.type === 'product') percentual = parseFloat(colaborador.productPercent) || 0;
+            }
+            totalComissoes += valor * (percentual / 100);
+            totalSalao += valor * ((100 - percentual) / 100);
+        });
+
+        document.getElementById('empresaFaturamento').textContent = formatCurrency(totalBruto);
+        document.getElementById('empresaLucro').textContent = formatCurrency(totalSalao);
+        document.getElementById('empresaComissoes').textContent = formatCurrency(totalComissoes);
+        
+        const ticketMedio = totalServicos > 0 ? totalBruto / totalServicos : 0;
+        document.getElementById('empresaTicket').textContent = formatCurrency(ticketMedio);
+    }
+
+    // ==========================================
+    // 11. SERVIÇOS RECENTES
+    // ==========================================
+    function updateRecentServices() {
+        const container = document.getElementById('recentServicesList');
+        const recent = todayServices.slice(0, 5);
+
+        if (recent.length === 0) {
+            container.innerHTML = '<p class="text-muted text-center py-3">Nenhum serviço hoje.</p>';
+            return;
+        }
+
+        let html = '';
+        recent.forEach(service => {
+            const client = clients.find(c => c.id === service.clientId);
+            const clientName = client ? client.name : 'Cliente não encontrado';
+            const valorLiquido = calcularValorLiquidoSalao(service);
+            
+            html += `
+                <div class="recent-service-item">
+                    <div class="service-info">
+                        <div class="name">${service.description || 'Serviço'}</div>
+                        <div class="client">${clientName}</div>
+                    </div>
+                    <div class="service-value">${formatCurrency(valorLiquido)}</div>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+    }
+
+    // ==========================================
+    // 12. ANIVERSÁRIOS
+    // ==========================================
+    function getUpcomingBirthdays() {
+        const today = new Date();
+        const todayMonth = today.getMonth();
+        const todayDay = today.getDate();
+
+        return clients.filter(client => {
+            if (!client.birthdate) return false;
+            const birthdate = new Date(client.birthdate);
+            const birthMonth = birthdate.getMonth();
+            const birthDay = birthdate.getDate();
+
+            if (birthMonth === todayMonth && birthDay === todayDay) return true;
+
+            const currentYear = today.getFullYear();
+            const nextBirthday = new Date(currentYear, birthMonth, birthDay);
+            if (nextBirthday < today) nextBirthday.setFullYear(currentYear + 1);
+            
+            const daysDiff = Math.ceil((nextBirthday - today) / (1000 * 60 * 60 * 24));
+            return daysDiff <= 7 && daysDiff > 0;
+        }).sort((a, b) => {
+            const dateA = new Date(a.birthdate);
+            const dateB = new Date(b.birthdate);
+            const currentYear = today.getFullYear();
+            
+            let nextA = new Date(currentYear, dateA.getMonth(), dateA.getDate());
+            let nextB = new Date(currentYear, dateB.getMonth(), dateB.getDate());
+            if (nextA < today) nextA.setFullYear(currentYear + 1);
+            if (nextB < today) nextB.setFullYear(currentYear + 1);
+            
+            return nextA - nextB;
+        });
+    }
+
+    function updateUpcomingBirthdays() {
+        const container = document.getElementById('upcomingBirthdaysList');
+        const upcoming = getUpcomingBirthdays();
+
+        if (upcoming.length === 0) {
+            container.innerHTML = '<p class="text-muted text-center py-3">Nenhum aniversário próximo.</p>';
+            return;
+        }
+
+        const today = new Date();
+        const todayMonth = today.getMonth();
+        const todayDay = today.getDate();
+
+        let html = '';
+        upcoming.forEach(client => {
+            const birthdate = new Date(client.birthdate);
+            const birthMonth = birthdate.getMonth();
+            const birthDay = birthdate.getDate();
+            const isToday = (birthMonth === todayMonth && birthDay === todayDay);
+
+            const photoHtml = client.photoUrl ? 
+                `<img src="${client.photoUrl}" class="avatar" onerror="this.style.display='none'">` :
+                `<div class="avatar-placeholder">${(client.name || '?').charAt(0).toUpperCase()}</div>`;
+
+            html += `
+                <div class="birthday-item" onclick="showClientInfo('${client.id}')">
+                    ${photoHtml}
+                    <div class="info">
+                        <div class="name">${client.name}</div>
+                        <div class="date">${formatDate(client.birthdate)}</div>
+                    </div>
+                    <span class="${isToday ? 'badge-today' : 'badge-soon'}">
+                        ${isToday ? '🎉 HOJE!' : (birthdayDaysLeft(client.birthdate) === 1 ? 'Amanhã' : `Em ${birthdayDaysLeft(client.birthdate)} dias`)}
+                    </span>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+    }
+
+    function birthdayDaysLeft(birthdate) {
+        const today = new Date();
+        const birth = new Date(birthdate);
+        const currentYear = today.getFullYear();
+        let next = new Date(currentYear, birth.getMonth(), birth.getDate());
+        if (next < today) next.setFullYear(currentYear + 1);
+        return Math.ceil((next - today) / (1000 * 60 * 60 * 24));
+    }
+
+    // ==========================================
+    // 13. DESEMPENHO DOS FUNCIONÁRIOS
+    // ==========================================
+    function updateFuncionarios() {
+        const container = document.getElementById('funcionariosCards');
+        const ativos = collaborators.filter(c => c.active !== false);
+
+        if (ativos.length === 0) {
+            container.innerHTML = `
+                <div class="col-12 text-center text-muted py-4">
+                    <i class="fas fa-users fa-3x mb-3 opacity-25"></i>
+                    <p>Nenhum funcionário ativo cadastrado.</p>
+                    <small>Adicione colaboradores para ver o desempenho.</small>
+                </div>
+            `;
+            return;
+        }
+
+        let html = '';
+        ativos.forEach((colab, index) => {
+            const stats = calcularEstatisticasFuncionario(colab.id);
+            
+            const cores = ['#f7971e', '#bdc3c7', '#cd7f32', '#667eea', '#764ba2', '#28a745', '#17a2b8', '#dc3545'];
+            const cor = cores[index % cores.length];
+
+            const fotoHtml = colab.photoUrl ? 
+                `<img src="${colab.photoUrl}" class="avatar" onerror="this.style.display='none'">` :
+                `<div class="avatar-placeholder">${(colab.name || '?').charAt(0).toUpperCase()}</div>`;
+
+            const percSalao = 100 - (parseFloat(colab.manualPercent) || 0);
+
+            html += `
+                <div class="col-lg-4 col-md-6 col-12 mb-3">
+                    <div class="funcionario-card">
+                        <div class="card-header-custom" style="background:linear-gradient(135deg, ${cor}, ${cor}dd);">
+                            ${fotoHtml}
+                            <h6>${colab.name}</h6>
+                            <small>${colab.specialty || 'Especialidade não definida'}</small>
+                        </div>
+                        <div class="card-body-custom">
+                            <div class="stat-row">
+                                <span class="label">Comissão</span>
+                                <span class="value">${colab.manualPercent || 0}%</span>
+                            </div>
+                            <div class="stat-row">
+                                <span class="label">Salão</span>
+                                <span class="value positive">${percSalao.toFixed(0)}%</span>
+                            </div>
+                            <div class="stat-row">
+                                <span class="label">Serviços</span>
+                                <span class="value">${stats.quantidade}</span>
+                            </div>
+                            <div class="stat-row">
+                                <span class="label">Faturamento</span>
+                                <span class="value positive">${formatCurrency(stats.valorBruto)}</span>
+                            </div>
+                            <div class="stat-row">
+                                <span class="label">Comissão Recebida</span>
+                                <span class="value">${formatCurrency(stats.valorComissao)}</span>
+                            </div>
+                            <div class="stat-row" style="border-bottom:none;padding-bottom:0;">
+                                <span class="label">Salão Recebe</span>
+                                <span class="value positive">${formatCurrency(stats.valorSalao)}</span>
+                            </div>
+                            <div class="progress-custom">
+                                <div class="bar salao" style="width:${percSalao}%;"></div>
+                                <div class="bar comissao" style="width:${100-percSalao}%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+    }
+
+    function calcularEstatisticasFuncionario(colaboradorId) {
+        const servicos = allServices.filter(s => s.collaboratorId === colaboradorId);
+        let valorBruto = 0;
+        let valorComissao = 0;
+        let valorSalao = 0;
+
+        servicos.forEach(s => {
+            const v = parseFloat(s.value || 0);
+            valorBruto += v;
+            
+            const colab = collaborators.find(c => c.id === colaboradorId);
+            let perc = 0;
+            if (colab) {
+                if (s.type === 'manual') perc = parseFloat(colab.manualPercent) || 0;
+                else if (s.type === 'product') perc = parseFloat(colab.productPercent) || 0;
+            }
+            valorComissao += v * (perc / 100);
+            valorSalao += v * ((100 - perc) / 100);
+        });
+
+        return {
+            valorBruto,
+            valorComissao,
+            valorSalao,
+            quantidade: servicos.length
+        };
+    }
+
+    // ==========================================
+    // 14. ALERTAS DE ESTOQUE BAIXO
+    // ==========================================
+    function updateLowStockAlerts() {
+        const container = document.getElementById('lowStockContainer');
+        const list = document.getElementById('lowStockList');
+        
+        const lowStock = products.filter(p => p.quantity <= p.minQuantity && p.active !== false);
+
+        if (lowStock.length === 0) {
+            container.style.display = 'none';
+            return;
+        }
+
+        container.style.display = 'block';
+        let html = '';
+        lowStock.forEach(p => {
+            html += `
+                <div class="stock-alert-item">
+                    <span class="product-name">${p.name}</span>
+                    <span class="stock-qty">${p.quantity} / ${p.minQuantity} (mínimo)</span>
+                </div>
+            `;
+        });
+        list.innerHTML = html;
+    }
+
+    // ==========================================
+    // 15. GRÁFICO
+    // ==========================================
+    function updateChart() {
+        const hoje = new Date();
+        const currentYear = hoje.getFullYear();
+        const currentMonth = hoje.getMonth();
+
+        const labels = [];
+        const servicesData = [];
+        const productsData = [];
+
+        for (let i = 5; i >= 0; i--) {
+            const monthDate = new Date(currentYear, currentMonth - i, 1);
+            labels.push(monthDate.toLocaleDateString('pt-PT', { month: 'short' }));
+
+            const monthServices = allServices.filter(s => {
+                const d = s.timestamp?.toDate ? s.timestamp.toDate() : new Date(s.timestamp || s.date);
+                return d.getMonth() === monthDate.getMonth() && d.getFullYear() === monthDate.getFullYear();
+            });
+            servicesData.push(monthServices.reduce((sum, s) => sum + parseFloat(s.value || 0), 0));
+
+            const monthProducts = allProductSales.filter(s => {
+                const d = s.timestamp?.toDate ? s.timestamp.toDate() : new Date(s.timestamp || s.date);
+                return d.getMonth() === monthDate.getMonth() && d.getFullYear() === monthDate.getFullYear();
+            });
+            productsData.push(monthProducts.reduce((sum, s) => sum + parseFloat(s.totalValue || 0), 0));
+        }
+
+        const ctx = document.getElementById('monthlySalesChart').getContext('2d');
+
+        if (myChart) myChart.destroy();
+
+        myChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Serviços',
+                        data: servicesData,
+                        backgroundColor: '#26196b',
+                        borderColor: '#26196b',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    },
+                    {
+                        label: 'Produtos',
+                        data: productsData,
+                        backgroundColor: '#17a2b8',
+                        borderColor: '#17a2b8',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top', labels: { boxWidth: 12, padding: 15 } },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.dataset.label + ': ' + formatCurrency(context.raw);
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { callback: function(v) { return '€' + v; } }
+                    }
+                }
+            }
+        });
+    }
+
+    // ==========================================
+    // 16. FUNÇÕES AUXILIARES
+    // ==========================================
+    function formatCurrency(value) {
+        if (typeof value !== 'number') value = parseFloat(value) || 0;
+        return '€ ' + value.toFixed(2).replace('.', ',');
+    }
+
+    function formatDate(date) {
+        if (!date) return '';
+        if (typeof date === 'string') date = new Date(date);
+        return date.toLocaleDateString('pt-PT');
+    }
+
+    function updateLastUpdate() {
+        const now = new Date();
+        document.getElementById('lastUpdateBadge').innerHTML = 
+            `<i class="fas fa-clock me-1"></i>Atualizado ${now.toLocaleTimeString('pt-PT')}`;
+    }
+
+    // ==========================================
+    // 17. REFRESH
+    // ==========================================
+    function refreshDashboard() {
+        const btn = document.querySelector('.btn-refresh');
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Atualizando...';
+        btn.disabled = true;
+
+        loadAllData().then(() => {
+            btn.innerHTML = '<i class="fas fa-check me-1"></i>Atualizado!';
+            setTimeout(() => {
+                btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Atualizar';
+                btn.disabled = false;
+            }, 1500);
+        }).catch(() => {
+            btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Atualizar';
+            btn.disabled = false;
+        });
+    }
+
+    // ==========================================
+    // 18. FUNÇÕES DE INTERAÇÃO
+    // ==========================================
+    function showClientInfo(clientId) {
+        const client = clients.find(c => c.id === clientId);
+        if (!client) return;
+
+        Swal.fire({
+            title: client.name,
+            html: `
+                <div class="text-start">
+                    <p><strong>📞 Telefone:</strong> ${client.phone || 'Não informado'}</p>
+                    <p><strong>📧 E-mail:</strong> ${client.email || 'Não informado'}</p>
+                    <p><strong>🎂 Nascimento:</strong> ${formatDate(client.birthdate) || 'Não informado'}</p>
+                    <p><strong>📅 Cadastrado em:</strong> ${client.createdAt ? formatDate(client.createdAt) : 'Não informado'}</p>
+                </div>
+            `,
+            icon: 'info',
+            confirmButtonText: 'Fechar'
+        });
+    }
+
+    function showLoginPrompt() {
+        Swal.fire({
+            title: 'Acesso Restrito',
+            text: 'Faça login para visualizar o dashboard completo.',
+            icon: 'warning',
+            confirmButtonText: 'Ir para Login',
+            showCancelButton: true,
+            cancelButtonText: 'Cancelar'
+        }).then(result => {
+            if (result.isConfirmed) {
+                window.location.href = '/';
+            }
+        });
+    }
+
+    // ==========================================
+    // 19. EXPOR FUNÇÕES GLOBAIS
+    // ==========================================
+    window.refreshDashboard = refreshDashboard;
+    window.showClientInfo = showClientInfo;
+
+    // ==========================================
+    // 20. LOG DE INICIALIZAÇÃO
+    // ==========================================
+    console.log('✅ Dashboard carregado com sucesso!');
+    console.log('📌 Funcionalidades:');
+    console.log('   - Métricas em tempo real (Caixa, Vendas, Produtos)');
+    console.log('   - Visão geral da empresa (Faturamento, Lucro, Comissões)');
+    console.log('   - Gráfico de vendas mensais');
+    console.log('   - Serviços recentes do dia');
+    console.log('   - Próximos aniversários');
+    console.log('   - Desempenho dos funcionários');
+    console.log('   - Alertas de estoque baixo');
+    console.log('   - Integração com Firebase');
+    console.log('   - Fallback para localStorage (offline)');
+    console.log('   - Atualização automática e manual');
+
+</script>
+
+</body>
+</html>
