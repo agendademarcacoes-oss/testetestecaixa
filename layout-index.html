@@ -579,15 +579,11 @@
         }
 
         /* ============================================
-           CARDS MOBILE (Tela Inicial)
+           CARDS MOBILE (Tela Inicial) - SEMPRE VISÍVEL
            ============================================ */
         .mobile-cards-container {
-            display: none;
+            display: block !important;
             padding: 8px 0;
-        }
-
-        .mobile-cards-container.active {
-            display: block;
         }
 
         .mobile-cards-container .row {
@@ -1360,7 +1356,7 @@
             <nav class="nav flex-column" id="desktopMenu">
                 <div class="nav-label">Navegação</div>
                 
-                <a class="nav-link active" href="#" data-section="dashboard" data-system="dashboard.html" data-permissao="dashboard">
+                <a class="nav-link" href="#" data-section="dashboard" data-system="dashboard.html" data-permissao="dashboard">
                     <i class="fas fa-tachometer-alt"></i> Dashboard
                 </a>
                 <a class="nav-link" href="#" data-section="agenda" data-system="agenda.html" data-permissao="agenda">
@@ -1426,9 +1422,9 @@
         <main class="content-area" id="mainContent">
 
             <!-- ==========================================
-            CARDS MOBILE (Tela Inicial) - SEMPRE VISÍVEL NO MOBILE
+            CARDS MOBILE (Tela Inicial) - SEMPRE VISÍVEL
             ========================================== -->
-            <div class="mobile-cards-container active" id="mobileCards">
+            <div class="mobile-cards-container" id="mobileCards">
                 <div class="row">
                     <div class="col-6">
                         <div class="mobile-card" data-section="dashboard" data-system="dashboard.html" data-titulo="Dashboard" data-permissao="dashboard">
@@ -1770,7 +1766,8 @@
 
                             <div class="mb-3">
                                 <label class="form-label fw-bold">
-                                    <i class="fas fa-user-plus me-1"></i>Convidar Novo Usuário                                </label>
+                                    <i class="fas fa-user-plus me-1"></i>Convidar Novo Usuário
+                                </label>
                                 <div class="d-flex gap-2 flex-wrap">
                                     <input type="email" class="form-control" id="inviteEmail" placeholder="E-mail do colaborador" style="flex:1;min-width:200px;">
                                     <input type="text" class="form-control" id="inviteName" placeholder="Nome" style="flex:1;min-width:150px;">
@@ -2159,7 +2156,145 @@
             }
         });
 
-        // Login
+        // ==========================================
+        // 7. AUTH STATE - CORRIGIDO
+        // ==========================================
+        auth.onAuthStateChanged(function(user) {
+            if (user) {
+                currentUser = user;
+                console.log('✅ Usuário logado:', user.email);
+                verificarRolePermissoes(user.uid);
+            } else {
+                currentUser = null;
+                console.log('⚠️ Usuário não logado - Mostrando cards mobile');
+                mostrarCardsMobile();
+            }
+        });
+
+        // ==========================================
+        // 8. MOSTRAR CARDS MOBILE (CORRIGIDO)
+        // ==========================================
+        function mostrarCardsMobile() {
+            // Esconder tela de login
+            document.getElementById('loginScreen').classList.add('hidden');
+            
+            // Esconder navbar e wrapper principal (desktop)
+            document.getElementById('mainNavbar').style.display = 'none';
+            document.getElementById('mainWrapper').style.display = 'none';
+            
+            // Mostrar cards mobile
+            const cards = document.getElementById('mobileCards');
+            if (cards) {
+                cards.style.display = 'block';
+                cards.classList.add('active');
+            }
+            
+            // Esconder conteúdo do sistema
+            document.getElementById('welcomeMessage').style.display = 'none';
+            document.getElementById('systemIframeContainer').style.display = 'none';
+            
+            console.log('📱 Mobile: Cards exibidos (sem login)');
+        }
+
+        // ==========================================
+        // 9. VERIFICAR ROLE E PERMISSÕES
+        // ==========================================
+        function verificarRolePermissoes(uid) {
+            db.collection('users').doc(uid).get()
+                .then(doc => {
+                    if (doc.exists) {
+                        const data = doc.data();
+                        currentUserRole = data.role || 'funcionario';
+                        currentUserPermissions = data.permissions || { ...PERMISSOES_PADRAO };
+                        
+                        if (currentUserRole === 'admin') {
+                            Object.keys(PERMISSOES_PADRAO).forEach(key => {
+                                currentUserPermissions[key] = true;
+                            });
+                        }
+                        
+                        console.log('👤 Usuário:', currentUser.email);
+                        console.log('🔑 Role:', currentUserRole);
+                        console.log('📋 Permissões:', currentUserPermissions);
+                        
+                        mostrarSistemaMobile();
+                        carregarConfiguracoesFirebase();
+                        carregarUsuarios();
+                        carregarConvites();
+                    } else {
+                        db.collection('users').doc(uid).set({
+                            uid: uid,
+                            nome: currentUser.displayName || currentUser.email || 'Usuário',
+                            email: currentUser.email,
+                            role: 'funcionario',
+                            permissions: { ...PERMISSOES_PADRAO },
+                            status: 'ativo',
+                            criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+                        }).then(() => {
+                            currentUserRole = 'funcionario';
+                            currentUserPermissions = { ...PERMISSOES_PADRAO };
+                            mostrarSistemaMobile();
+                            carregarConfiguracoesFirebase();
+                            carregarUsuarios();
+                            carregarConvites();
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro ao verificar role:', error);
+                    currentUserRole = 'funcionario';
+                    currentUserPermissions = { ...PERMISSOES_PADRAO };
+                    mostrarSistemaMobile();
+                    carregarConfiguracoesFirebase();
+                    carregarUsuarios();
+                    carregarConvites();
+                });
+        }
+
+        // ==========================================
+        // 10. MOSTRAR SISTEMA MOBILE (CORRIGIDO)
+        // ==========================================
+        function mostrarSistemaMobile() {
+            // Esconder tela de login
+            document.getElementById('loginScreen').classList.add('hidden');
+            
+            // Mostrar navbar e wrapper principal
+            document.getElementById('mainNavbar').style.display = '';
+            document.getElementById('mainWrapper').style.display = '';
+            
+            // Mostrar cards mobile
+            const cards = document.getElementById('mobileCards');
+            if (cards) {
+                cards.style.display = 'block';
+                cards.classList.add('active');
+            }
+            
+            // Esconder conteúdo do sistema (iframe)
+            document.getElementById('welcomeMessage').style.display = 'none';
+            document.getElementById('systemIframeContainer').style.display = 'none';
+            
+            // Atualizar nome do usuário
+            document.getElementById('userName').textContent = currentUser.email || 'Usuário';
+            
+            const badge = document.getElementById('userRoleBadge');
+            if (currentUserRole === 'admin') {
+                badge.textContent = 'Admin';
+                badge.style.background = 'rgba(220,53,69,0.3)';
+                badge.style.color = '#dc3545';
+            } else {
+                badge.textContent = 'Funcionário';
+                badge.style.background = 'rgba(255,193,7,0.3)';
+                badge.style.color = '#856404';
+            }
+
+            aplicarPermissoes();
+            
+            console.log('📱 Mobile: Cards exibidos (com login)');
+        }
+
+        // ==========================================
+        // 11. LOGIN
+        // ==========================================
         document.getElementById('loginForm').addEventListener('submit', function(e) {
             e.preventDefault();
             const email = document.getElementById('loginEmail').value.trim();
@@ -2181,7 +2316,9 @@
                 });
         });
 
-        // Registro
+        // ==========================================
+        // 12. REGISTRO
+        // ==========================================
         document.getElementById('registerForm').addEventListener('submit', function(e) {
             e.preventDefault();
             const name = document.getElementById('registerName').value.trim();
@@ -2279,171 +2416,8 @@
         });
 
         // ==========================================
-        // 7. VERIFICAR SESSÃO E PERMISSÕES
+        // 13. LOGOUT
         // ==========================================
-
-        auth.onAuthStateChanged(user => {
-            if (user) {
-                currentUser = user;
-                verificarRolePermissoes(user.uid);
-            } else {
-                // Mostrar os cards mesmo sem login
-                mostrarCardsMobile();
-                console.log('📱 Usuário não logado - Cards exibidos');
-            }
-        });
-
-        function mostrarCardsMobile() {
-            // Garantir que os cards sejam exibidos no mobile
-            const isMobile = window.innerWidth < 992;
-            if (isMobile) {
-                const cards = document.getElementById('mobileCards');
-                if (cards) {
-                    cards.classList.add('active');
-                    cards.style.display = 'block';
-                }
-                document.getElementById('welcomeMessage').style.display = 'none';
-                document.getElementById('systemIframeContainer').style.display = 'none';
-                document.getElementById('mainNavbar').style.display = 'none';
-                document.getElementById('mainWrapper').style.display = 'none';
-                console.log('📱 Mobile: Cards exibidos sem login');
-            } else {
-                // Desktop: mostrar tela de login
-                document.getElementById('loginScreen').classList.remove('hidden');
-                document.getElementById('mainNavbar').style.display = 'none';
-                document.getElementById('mainWrapper').style.display = 'none';
-            }
-        }
-
-        function verificarRolePermissoes(uid) {
-            db.collection('users').doc(uid).get()
-                .then(doc => {
-                    if (doc.exists) {
-                        const data = doc.data();
-                        currentUserRole = data.role || 'funcionario';
-                        currentUserPermissions = data.permissions || { ...PERMISSOES_PADRAO };
-                        
-                        if (currentUserRole === 'admin') {
-                            Object.keys(PERMISSOES_PADRAO).forEach(key => {
-                                currentUserPermissions[key] = true;
-                            });
-                        }
-                        
-                        console.log('👤 Usuário:', currentUser.email);
-                        console.log('🔑 Role:', currentUserRole);
-                        console.log('📋 Permissões:', currentUserPermissions);
-                        
-                        mostrarSistema();
-                        carregarConfiguracoesFirebase();
-                        carregarUsuarios();
-                        carregarConvites();
-                    } else {
-                        db.collection('users').doc(uid).set({
-                            uid: uid,
-                            nome: currentUser.displayName || currentUser.email || 'Usuário',
-                            email: currentUser.email,
-                            role: 'funcionario',
-                            permissions: { ...PERMISSOES_PADRAO },
-                            status: 'ativo',
-                            criadoEm: firebase.firestore.FieldValue.serverTimestamp()
-                        }).then(() => {
-                            currentUserRole = 'funcionario';
-                            currentUserPermissions = { ...PERMISSOES_PADRAO };
-                            mostrarSistema();
-                            carregarConfiguracoesFirebase();
-                            carregarUsuarios();
-                            carregarConvites();
-                        });
-                    }
-                })
-                .catch(error => {
-                    console.error('Erro ao verificar role:', error);
-                    currentUserRole = 'funcionario';
-                    currentUserPermissions = { ...PERMISSOES_PADRAO };
-                    mostrarSistema();
-                    carregarConfiguracoesFirebase();
-                    carregarUsuarios();
-                    carregarConvites();
-                });
-        }
-
-        function mostrarLogin() {
-            document.getElementById('loginScreen').classList.remove('hidden');
-            document.getElementById('mainNavbar').style.display = 'none';
-            document.getElementById('mainWrapper').style.display = 'none';
-            document.getElementById('loginForm').reset();
-            document.getElementById('registerForm').reset();
-            document.getElementById('loginError').classList.remove('show');
-            document.getElementById('registerError').classList.remove('show');
-            document.getElementById('loginBtn').disabled = false;
-            document.getElementById('loginBtn').innerHTML = '<i class="fas fa-sign-in-alt me-2"></i>Entrar';
-            document.getElementById('registerBtn').disabled = false;
-            document.getElementById('registerBtn').innerHTML = '<i class="fas fa-user-plus me-2"></i>Criar Conta';
-            document.getElementById('loginFormContainer').style.display = 'block';
-            document.getElementById('registerFormContainer').style.display = 'none';
-            document.getElementById('loginSubtitle').textContent = 'Sistema de Gestão';
-        }
-
-        function mostrarSistema() {
-            document.getElementById('loginScreen').classList.add('hidden');
-            document.getElementById('mainNavbar').style.display = '';
-            document.getElementById('mainWrapper').style.display = '';
-
-            document.getElementById('userName').textContent = currentUser.email || 'Usuário';
-            
-            const badge = document.getElementById('userRoleBadge');
-            if (currentUserRole === 'admin') {
-                badge.textContent = 'Admin';
-                badge.style.background = 'rgba(220,53,69,0.3)';
-                badge.style.color = '#dc3545';
-            } else {
-                badge.textContent = 'Funcionário';
-                badge.style.background = 'rgba(255,193,7,0.3)';
-                badge.style.color = '#856404';
-            }
-
-            aplicarPermissoes();
-
-            // ==========================================
-            // INICIALIZAÇÃO MOBILE - GARANTIR CARDS VISÍVEIS
-            // ==========================================
-            const isMobile = window.innerWidth < 992;
-            if (isMobile) {
-                const cards = document.getElementById('mobileCards');
-                if (cards) {
-                    cards.classList.add('active');
-                    cards.style.display = 'block';
-                }
-                document.getElementById('welcomeMessage').style.display = 'none';
-                document.getElementById('systemIframeContainer').style.display = 'none';
-                console.log('📱 Mobile: Cards exibidos na tela inicial');
-            }
-
-            const ultimoSistema = localStorage.getItem('ultimo_sistema');
-            if (ultimoSistema && sistemas[ultimoSistema] && currentUserPermissions[ultimoSistema] !== false) {
-                setTimeout(() => {
-                    const isMobileView = window.innerWidth < 992;
-                    if (isMobileView) {
-                        const card = document.querySelector(`.mobile-card[data-section="${ultimoSistema}"]`);
-                        if (card && !card.classList.contains('hidden-card')) {
-                            const system = card.getAttribute('data-system');
-                            const titulo = card.getAttribute('data-titulo');
-                            carregarSistema(ultimoSistema, system, titulo);
-                        }
-                    } else {
-                        const link = document.querySelector(`.sidebar .nav-link[data-section="${ultimoSistema}"]`);
-                        if (link && !link.classList.contains('hidden-link')) {
-                            const system = link.getAttribute('data-system');
-                            const titulo = link.textContent.trim();
-                            carregarSistema(ultimoSistema, system, titulo);
-                        }
-                    }
-                }, 800);
-            }
-
-            console.log('✅ Sistema carregado para:', currentUser.email);
-        }
-
         function logout() {
             Swal.fire({
                 title: 'Sair do Sistema',
@@ -2457,7 +2431,7 @@
             }).then(result => {
                 if (result.isConfirmed) {
                     auth.signOut().then(() => {
-                        mostrarLogin();
+                        mostrarCardsMobile();
                         Swal.fire('✅ Até logo!', 'Você saiu do sistema.', 'success');
                     }).catch(error => {
                         Swal.fire('Erro', 'Erro ao sair: ' + error.message, 'error');
@@ -2467,9 +2441,8 @@
         }
 
         // ==========================================
-        // 8. PERMISSÕES
+        // 14. PERMISSÕES
         // ==========================================
-
         function aplicarPermissoes() {
             document.querySelectorAll('#desktopMenu .nav-link[data-permissao]').forEach(link => {
                 const permissao = link.getAttribute('data-permissao');
@@ -2499,9 +2472,8 @@
         }
 
         // ==========================================
-        // 9. GERENCIAR USUÁRIOS
+        // 15. GERENCIAR USUÁRIOS
         // ==========================================
-
         function abrirGerenciarUsuarios() {
             if (currentUserRole !== 'admin') {
                 Swal.fire('Acesso Negado', 'Apenas administradores podem gerenciar usuários.', 'error');
@@ -2738,9 +2710,8 @@
         }
 
         // ==========================================
-        // 10. SISTEMA DE CONVITES - COMPLETO
+        // 16. SISTEMA DE CONVITES
         // ==========================================
-
         function carregarConvites() {
             if (!currentUser) return;
 
@@ -3059,9 +3030,8 @@
         }
 
         // ==========================================
-        // 11. VERIFICAR CONVITE NA URL
+        // 17. VERIFICAR CONVITE NA URL
         // ==========================================
-
         function verificarConvite() {
             const urlParams = new URLSearchParams(window.location.search);
             const token = urlParams.get('convite');
@@ -3119,9 +3089,8 @@
         });
 
         // ==========================================
-        // 12. CONFIGURAÇÕES DO SISTEMA
+        // 18. CONFIGURAÇÕES DO SISTEMA
         // ==========================================
-
         function carregarConfiguracoesFirebase() {
             if (!currentUser) return;
 
@@ -3193,9 +3162,8 @@
         }
 
         // ==========================================
-        // 13. APLICAR CONFIGURAÇÕES
+        // 19. APLICAR CONFIGURAÇÕES
         // ==========================================
-
         function aplicarConfiguracoes() {
             const root = document.documentElement;
 
@@ -3268,9 +3236,8 @@
         }
 
         // ==========================================
-        // 14. LOGO
+        // 20. LOGO
         // ==========================================
-
         function atualizarLogo() {
             const logoIcon = document.getElementById('logoIcon');
             const logoImage = document.getElementById('logoImage');
@@ -3302,9 +3269,8 @@
         }
 
         // ==========================================
-        // 15. UPLOAD DE LOGO PARA CLOUDINARY
+        // 21. UPLOAD DE LOGO PARA CLOUDINARY
         // ==========================================
-
         function uploadLogoParaCloudinary(file) {
             return new Promise((resolve, reject) => {
                 const formData = new FormData();
@@ -3328,9 +3294,8 @@
         }
 
         // ==========================================
-        // 16. FUNÇÕES DO MODAL DE CONFIGURAÇÃO
+        // 22. FUNÇÕES DO MODAL DE CONFIGURAÇÃO
         // ==========================================
-
         function abrirConfiguracoes() {
             if (currentUserRole !== 'admin') {
                 Swal.fire('Acesso Negado', 'Apenas administradores podem acessar as configurações.', 'error');
@@ -3500,9 +3465,8 @@
         });
 
         // ==========================================
-        // 17. NOTIFICAR IFRAMES
+        // 23. NOTIFICAR IFRAMES
         // ==========================================
-
         function notificarTodosIframes() {
             const iframes = [
                 document.getElementById('systemIframe'),
@@ -3535,9 +3499,8 @@
         }
 
         // ==========================================
-        // 18. NAVEGAÇÃO E CARREGAMENTO DE SISTEMAS
+        // 24. NAVEGAÇÃO E CARREGAMENTO DE SISTEMAS
         // ==========================================
-
         const sistemas = {
             'dashboard': 'dashboard.html',
             'agenda': 'agenda.html',
@@ -3612,8 +3575,8 @@
 
                 // Esconder cards mobile
                 if (mobileCards) {
-                    mobileCards.classList.remove('active');
                     mobileCards.style.display = 'none';
+                    mobileCards.classList.remove('active');
                 }
             } else {
                 // DESKTOP: Carregar no iframe normal
@@ -3641,8 +3604,8 @@
                 });
 
                 if (mobileCards) {
-                    mobileCards.classList.remove('active');
                     mobileCards.style.display = 'none';
+                    mobileCards.classList.remove('active');
                 }
             }
 
@@ -3650,7 +3613,7 @@
         }
 
         // ==========================================
-        // 18.1 VOLTAR PARA HOME - CORRIGIDO PARA MOBILE
+        // 25. VOLTAR PARA HOME (CORRIGIDO)
         // ==========================================
         function voltarParaHome() {
             const isMobileView = window.innerWidth < 992;
@@ -3661,16 +3624,13 @@
                 mobileIframe.src = 'about:blank';
                 
                 if (mobileCards) {
-                    mobileCards.classList.add('active');
                     mobileCards.style.display = 'block';
+                    mobileCards.classList.add('active');
                 }
                 
-                // Garantir que a página de cards seja exibida
                 currentSystem = null;
                 localStorage.removeItem('ultimo_sistema');
-                
                 console.log('📱 Voltar para Home Mobile - Cards exibidos');
-                
             } else {
                 // DESKTOP: Voltar para a mensagem de boas-vindas
                 welcomeMessage.style.display = 'flex';
@@ -3680,7 +3640,6 @@
                 
                 currentSystem = null;
                 localStorage.removeItem('ultimo_sistema');
-                
                 console.log('💻 Voltar para Home Desktop - Mensagem de boas-vindas');
             }
         }
@@ -3707,6 +3666,9 @@
             return icones[sectionId] || 'cog';
         }
 
+        // ==========================================
+        // 26. EVENTOS DE CLIQUE
+        // ==========================================
         desktopLinks.forEach(link => {
             link.addEventListener('click', function(e) {
                 e.preventDefault();
@@ -3735,9 +3697,8 @@
         });
 
         // ==========================================
-        // 19. DATA/HORA
+        // 27. DATA/HORA
         // ==========================================
-
         function updateDateTime() {
             const now = new Date();
             const dateStr = now.toLocaleDateString('pt-PT');
@@ -3749,33 +3710,22 @@
         setInterval(updateDateTime, 1000);
 
         // ==========================================
-        // 20. RESPONSIVIDADE - INICIAR COM CARDS NO MOBILE
+        // 28. RESPONSIVIDADE
         // ==========================================
-
         function initResponsive() {
             const isMobile = window.innerWidth < 992;
             
             if (isMobile) {
-                // MOBILE: Iniciar com cards visíveis
+                // MOBILE: Cards sempre visíveis
                 if (mobileCards) {
-                    mobileCards.classList.add('active');
                     mobileCards.style.display = 'block';
+                    mobileCards.classList.add('active');
                 }
                 welcomeMessage.style.display = 'none';
                 iframeContainer.style.display = 'none';
-                
-                // Se não houver sistema carregado, garantir que os cards estejam visíveis
-                if (!currentSystem || !mobileOverlay.classList.contains('active')) {
-                    if (mobileCards) {
-                        mobileCards.classList.add('active');
-                        mobileCards.style.display = 'block';
-                    }
-                }
-                
                 console.log('📱 Mobile - Cards visíveis');
-                
             } else {
-                // DESKTOP: Comportamento normal
+                // DESKTOP
                 if (currentSystem) {
                     welcomeMessage.style.display = 'none';
                     iframeContainer.style.display = 'block';
@@ -3784,13 +3734,12 @@
                     iframeContainer.style.display = 'none';
                 }
                 if (mobileCards) {
-                    mobileCards.classList.remove('active');
                     mobileCards.style.display = 'none';
+                    mobileCards.classList.remove('active');
                 }
                 if (mobileOverlay.classList.contains('active')) {
                     mobileOverlay.classList.remove('active');
                 }
-                
                 console.log('💻 Desktop - Modo normal');
             }
         }
@@ -3805,9 +3754,8 @@
         });
 
         // ==========================================
-        // 21. RECEBER MENSAGENS DOS IFRAMES
+        // 29. RECEBER MENSAGENS DOS IFRAMES
         // ==========================================
-
         window.addEventListener('message', function(event) {
             if (event.data && event.data.action === 'goHome') {
                 voltarParaHome();
@@ -3835,9 +3783,8 @@
         });
 
         // ==========================================
-        // 22. INICIALIZAÇÃO
+        // 30. INICIALIZAÇÃO
         // ==========================================
-
         verificarConvite();
 
         window.addEventListener('storage', function(e) {
@@ -3853,9 +3800,8 @@
         });
 
         // ==========================================
-        // 23. FUNÇÃO PARA ADICIONAR NOVOS SISTEMAS
+        // 31. FUNÇÃO PARA ADICIONAR NOVOS SISTEMAS
         // ==========================================
-
         window.adicionarSistema = function(id, titulo, icone, arquivo, descricao) {
             sistemas[id] = arquivo;
             PERMISSOES_PADRAO[id] = true;
@@ -3914,9 +3860,8 @@
         };
 
         // ==========================================
-        // 24. LOG DE INICIALIZAÇÃO
+        // 32. LOG DE INICIALIZAÇÃO
         // ==========================================
-
         console.log('✅ Layout Index carregado com sucesso!');
         console.log('📌 PWA: Suporte a aplicativo instalável');
         console.log('📌 Zoom: Bloqueio reforçado em desktop e mobile');
@@ -3928,6 +3873,7 @@
         console.log('📱 Mobile: Sistema inicia na página de cards');
         console.log('📱 Mobile: Botão Voltar retorna para a página de cards');
         console.log('📱 Mobile: Cards são a tela inicial padrão');
+        console.log('📱 Mobile: Login não quebra a visualização dos cards');
 
     </script>
 
