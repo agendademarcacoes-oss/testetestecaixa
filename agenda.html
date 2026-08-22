@@ -1,0 +1,2660 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Agenda - Studio DeVitto</title>
+    
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+    
+    <style>
+        /* ============================================
+           VARIÁVEIS E ESTILOS GERAIS
+           ============================================ */
+        :root {
+            --primary-color: #26196b;
+            --secondary-color: #ffd700;
+            --accent-color: #4a3a9c;
+            --light-bg: #f8f9fa;
+            --card-radius: 12px;
+            --shadow-sm: 0 2px 8px rgba(0,0,0,0.08);
+            --shadow-md: 0 4px 16px rgba(0,0,0,0.12);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--light-bg);
+            min-height: 100vh;
+            padding: 0;
+            margin: 0;
+            touch-action: pan-x pan-y;
+            -ms-touch-action: pan-x pan-y;
+        }
+
+        /* ============================================
+           HEADER COM BOTÃO HOME
+           ============================================ */
+        .agenda-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+            color: white;
+            padding: 12px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: var(--shadow-md);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .agenda-header .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .agenda-header .header-left .brand-icon {
+            font-size: 1.5rem;
+            color: var(--secondary-color);
+        }
+
+        .agenda-header .header-left h1 {
+            font-weight: 700;
+            font-size: 1.2rem;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .agenda-header .header-left h1 small {
+            font-size: 0.65rem;
+            font-weight: 400;
+            opacity: 0.7;
+        }
+
+        .agenda-header .header-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .btn-home {
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            border-radius: 25px;
+            padding: 6px 14px;
+            font-size: 0.8rem;
+            transition: all 0.3s;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            text-decoration: none;
+        }
+
+        .btn-home:hover {
+            background: rgba(255,255,255,0.25);
+            transform: translateY(-2px);
+        }
+
+        .btn-home i {
+            font-size: 0.9rem;
+        }
+
+        .btn-refresh {
+            background: rgba(255,255,255,0.12);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            border-radius: 25px;
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .btn-refresh:hover {
+            background: rgba(255,255,255,0.25);
+        }
+
+        .btn-refresh:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .last-update {
+            font-size: 0.65rem;
+            opacity: 0.7;
+            color: rgba(255,255,255,0.8);
+        }
+
+        /* ============================================
+           CONTROLES DA AGENDA
+           ============================================ */
+        .agenda-controls {
+            background: white;
+            padding: 10px 16px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            position: sticky;
+            top: 56px;
+            z-index: 99;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+        }
+
+        .agenda-controls .nav-buttons {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .agenda-controls .nav-buttons button {
+            background: var(--light-bg);
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            padding: 5px 14px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #333;
+        }
+
+        .agenda-controls .nav-buttons button:hover {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        .agenda-controls .nav-buttons button.active {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        .agenda-controls .date-display {
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: var(--primary-color);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .agenda-controls .date-display i {
+            font-size: 0.8rem;
+            opacity: 0.6;
+        }
+
+        .agenda-controls .view-options {
+            display: flex;
+            gap: 4px;
+        }
+
+        .agenda-controls .view-options button {
+            background: var(--light-bg);
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 4px 10px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #333;
+        }
+
+        .agenda-controls .view-options button:hover {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        .agenda-controls .view-options button.active {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        /* ============================================
+           PROFISSIONAIS
+           ============================================ */
+        .agenda-professionals {
+            display: flex;
+            overflow-x: auto;
+            overflow-y: hidden;
+            scrollbar-width: thin;
+            background: white;
+            border-bottom: 2px solid #e0e0e0;
+            padding: 8px 0;
+            position: sticky;
+            top: 100px;
+            z-index: 98;
+            gap: 4px;
+        }
+
+        .agenda-professionals .profissional-card {
+            min-width: 160px;
+            flex: 0 0 auto;
+            text-align: center;
+            padding: 6px 10px;
+            cursor: pointer;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        .agenda-professionals .profissional-card:hover {
+            background: rgba(38,25,107,0.05);
+        }
+
+        .agenda-professionals .profissional-card.selected {
+            border-color: var(--primary-color);
+            background: rgba(38,25,107,0.08);
+        }
+
+        .agenda-professionals .profissional-card .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin: 0 auto 4px;
+            border: 2px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .agenda-professionals .profissional-card.selected .avatar {
+            border-color: var(--primary-color);
+        }
+
+        .agenda-professionals .profissional-card .avatar-placeholder {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: bold;
+            margin: 0 auto 4px;
+        }
+
+        .agenda-professionals .profissional-card .nome {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: #333;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* ============================================
+           CORPO DA AGENDA
+           ============================================ */
+        .agenda-body {
+            display: flex;
+            height: calc(100vh - 220px);
+            min-height: 400px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Coluna de Horários */
+        .agenda-time-column {
+            width: 50px;
+            min-width: 50px;
+            max-width: 50px;
+            flex-shrink: 0;
+            background: #fafafa;
+            border-right: 1px solid #e0e0e0;
+            overflow-y: auto;
+            position: sticky;
+            left: 0;
+            z-index: 90;
+        }
+
+        .agenda-time-slot {
+            height: 60px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding-top: 2px;
+            font-size: 9px;
+            color: #70757a;
+            font-weight: 500;
+            position: relative;
+        }
+
+        /* Container dos slots */
+        .agenda-slots-container {
+            flex: 1;
+            overflow-x: auto;
+            overflow-y: auto;
+            position: relative;
+            background: white;
+        }
+
+        .agenda-grid {
+            display: flex;
+            min-width: 100%;
+            height: 100%;
+        }
+
+        .agenda-day-column {
+            min-width: 200px;
+            flex: 1;
+            border-right: 1px solid #e0e0e0;
+            position: relative;
+            height: 100%;
+        }
+
+        .agenda-day-column .day-header {
+            position: sticky;
+            top: 0;
+            z-index: 5;
+            background: #f8f9fa;
+            padding: 6px 4px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 0.75rem;
+            border-bottom: 1px solid #e0e0e0;
+            color: #333;
+        }
+
+        .agenda-day-column .day-header .day-number {
+            display: block;
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
+
+        .agenda-day-column .day-header.today {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        /* Slots de 15 minutos */
+        .agenda-slot {
+            height: 15px;
+            border-bottom: 1px dotted #f0f0f0;
+            transition: background-color 0.1s ease;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .agenda-slot.hour-start {
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .agenda-slot.half-hour {
+            border-bottom: 1px dashed #e8e8e8;
+        }
+
+        .agenda-slot:hover {
+            background: rgba(38,25,107,0.06);
+        }
+
+        .agenda-slot:hover::after {
+            content: '+';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            color: var(--primary-color);
+            font-size: 12px;
+            font-weight: bold;
+            opacity: 0.4;
+        }
+
+        /* Agendamentos */
+        .agenda-appointment {
+            position: absolute;
+            left: 3px;
+            right: 3px;
+            background: linear-gradient(135deg, #26196b, #4a3a9c);
+            color: white;
+            border-radius: 6px;
+            padding: 4px 6px;
+            font-size: 10px;
+            overflow: hidden;
+            cursor: pointer;
+            z-index: 10;
+            box-shadow: 0 2px 6px rgba(38,25,107,0.2);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .agenda-appointment:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(38,25,107,0.3);
+            z-index: 15;
+        }
+
+        .agenda-appointment .appointment-time {
+            font-size: 8px;
+            opacity: 0.8;
+            margin-bottom: 1px;
+        }
+
+        .agenda-appointment .appointment-client {
+            font-weight: 600;
+            font-size: 9px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .agenda-appointment .appointment-service {
+            font-size: 8px;
+            opacity: 0.75;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .agenda-appointment.status-completed,
+        .agenda-appointment.status-cancelled {
+            background: linear-gradient(135deg, #6c757d, #495057);
+            opacity: 0.7;
+        }
+
+        .agenda-appointment.status-in_progress {
+            background: linear-gradient(135deg, #28a745, #20c997);
+        }
+
+        .agenda-appointment.status-confirmed {
+            background: linear-gradient(135deg, #17a2b8, #0d6efd);
+        }
+
+        /* Overlay de seleção */
+        .agenda-selection-overlay {
+            position: absolute;
+            background: rgba(38,25,107,0.15);
+            border: 2px solid var(--primary-color);
+            border-radius: 6px;
+            pointer-events: none;
+            z-index: 50;
+            display: none;
+        }
+
+        .agenda-selection-overlay .selection-time {
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--primary-color);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 9px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        /* Linha do tempo atual */
+        .current-time-line {
+            position: absolute;
+            left: 50px;
+            right: 0;
+            height: 2px;
+            background: #dc3545;
+            z-index: 100;
+            pointer-events: none;
+        }
+
+        .current-time-line::before {
+            content: '';
+            position: absolute;
+            left: -5px;
+            top: -4px;
+            width: 10px;
+            height: 10px;
+            background: #dc3545;
+            border-radius: 50%;
+        }
+
+        .current-time-indicator {
+            position: absolute;
+            left: 0;
+            background: #dc3545;
+            color: white;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-size: 8px;
+            font-weight: bold;
+            transform: translateY(-50%);
+            z-index: 101;
+            white-space: nowrap;
+        }
+
+        /* ============================================
+           MODAL DE AGENDAMENTO
+           ============================================ */
+        .appointment-modal .modal-content {
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        .appointment-modal .modal-header {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+        }
+
+        .appointment-modal .modal-header .btn-close {
+            filter: brightness(0) invert(1);
+        }
+
+        .appointment-modal .modal-body {
+            padding: 20px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .appointment-modal .form-label {
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: #333;
+        }
+
+        .appointment-modal .form-control:focus,
+        .appointment-modal .form-select:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.25rem rgba(38,25,107,0.15);
+        }
+
+        .selected-services-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .selected-service-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 10px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 0.85rem;
+        }
+
+        .selected-service-item .service-color {
+            width: 4px;
+            height: 24px;
+            border-radius: 2px;
+            margin-right: 10px;
+        }
+
+        .selected-service-item .service-name {
+            flex: 1;
+        }
+
+        .selected-service-item .service-price {
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        .selected-service-item .btn-remove {
+            background: none;
+            border: none;
+            color: #dc3545;
+            cursor: pointer;
+            padding: 4px 8px;
+        }
+
+        .appointment-total {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-top: 2px solid #eee;
+            margin-top: 10px;
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+
+        .appointment-total .total-value {
+            color: var(--primary-color);
+        }
+
+        /* ============================================
+           LISTA DE CLIENTES PARA SELEÇÃO
+           ============================================ */
+        .client-list-modal .modal-content {
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        .client-list-modal .modal-header {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+        }
+
+        .client-list-modal .modal-header .btn-close {
+            filter: brightness(0) invert(1);
+        }
+
+        .client-list-modal .modal-body {
+            padding: 16px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .client-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 12px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: background 0.2s;
+            border-radius: 8px;
+        }
+
+        .client-item:hover {
+            background: #f8f9fa;
+        }
+
+        .client-item .client-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-right: 12px;
+        }
+
+        .client-item .client-avatar-placeholder {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 16px;
+            margin-right: 12px;
+        }
+
+        .client-item .client-info {
+            flex: 1;
+        }
+
+        .client-item .client-info .client-name {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .client-item .client-info .client-phone {
+            font-size: 0.75rem;
+            color: #6c757d;
+        }
+
+        /* ============================================
+           LISTA DE SERVIÇOS
+           ============================================ */
+        .service-item-select {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: background 0.2s;
+            border-radius: 8px;
+        }
+
+        .service-item-select:hover {
+            background: #f8f9fa;
+        }
+
+        .service-item-select .service-color-bar {
+            width: 4px;
+            height: 24px;
+            border-radius: 2px;
+            margin-right: 12px;
+        }
+
+        .service-item-select .service-info {
+            flex: 1;
+        }
+
+        .service-item-select .service-info .service-name {
+            font-weight: 500;
+            font-size: 0.85rem;
+        }
+
+        .service-item-select .service-info .service-price {
+            font-size: 0.75rem;
+            color: #6c757d;
+        }
+
+        .service-item-select .service-check {
+            color: var(--primary-color);
+            font-size: 1.2rem;
+        }
+
+        /* ============================================
+           DATEPICKER
+           ============================================ */
+        .date-picker-modal .modal-content {
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        .date-picker-modal .modal-header {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+        }
+
+        .date-picker-modal .modal-header .btn-close {
+            filter: brightness(0) invert(1);
+        }
+
+        .date-picker-modal .modal-body {
+            padding: 16px;
+        }
+
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .calendar-header button {
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            cursor: pointer;
+            color: var(--primary-color);
+            padding: 4px 12px;
+            border-radius: 8px;
+        }
+
+        .calendar-header button:hover {
+            background: var(--light-bg);
+        }
+
+        .calendar-header .month-year {
+            font-weight: 600;
+            font-size: 1rem;
+            color: var(--primary-color);
+        }
+
+        .calendar-weekdays {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            text-align: center;
+            margin-bottom: 8px;
+        }
+
+        .calendar-weekdays div {
+            font-weight: 600;
+            font-size: 0.7rem;
+            color: #6c757d;
+            padding: 4px 0;
+        }
+
+        .calendar-days {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+        }
+
+        .calendar-day {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border-radius: 50%;
+            transition: all 0.2s;
+            font-size: 0.85rem;
+            background: transparent;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .calendar-day:hover {
+            background: var(--light-bg);
+        }
+
+        .calendar-day.selected {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .calendar-day.today {
+            border: 2px solid var(--primary-color);
+            font-weight: 700;
+        }
+
+        .calendar-day.other-month {
+            opacity: 0.3;
+        }
+
+        .calendar-day.has-appointment::after {
+            content: '';
+            width: 5px;
+            height: 5px;
+            background: var(--primary-color);
+            border-radius: 50%;
+            position: absolute;
+            bottom: 4px;
+        }
+
+        .calendar-day.has-appointment {
+            position: relative;
+        }
+
+        /* ============================================
+           RESPONSIVIDADE
+           ============================================ */
+        @media (max-width: 768px) {
+            .agenda-header {
+                padding: 10px 14px;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 6px;
+            }
+
+            .agenda-header .header-left h1 {
+                font-size: 1rem;
+            }
+
+            .agenda-controls {
+                padding: 6px 10px;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 6px;
+                top: 56px;
+            }
+
+            .agenda-controls .date-display {
+                font-size: 0.85rem;
+                justify-content: center;
+            }
+
+            .agenda-controls .nav-buttons {
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+
+            .agenda-controls .view-options {
+                justify-content: center;
+            }
+
+            .agenda-professionals {
+                top: 160px;
+                padding: 6px 0;
+            }
+
+            .agenda-professionals .profissional-card {
+                min-width: 80px;
+                padding: 4px 6px;
+            }
+
+            .agenda-professionals .profissional-card .avatar {
+                width: 32px;
+                height: 32px;
+            }
+
+            .agenda-professionals .profissional-card .avatar-placeholder {
+                width: 32px;
+                height: 32px;
+                font-size: 12px;
+            }
+
+            .agenda-professionals .profissional-card .nome {
+                font-size: 0.6rem;
+            }
+
+            .agenda-body {
+                height: calc(100vh - 280px);
+                min-height: 300px;
+            }
+
+            .agenda-time-column {
+                width: 35px;
+                min-width: 35px;
+                max-width: 35px;
+            }
+
+            .agenda-time-slot {
+                height: 60px;
+                font-size: 7px;
+                padding-top: 1px;
+            }
+
+            .agenda-day-column {
+                min-width: 140px;
+            }
+
+            .agenda-day-column .day-header {
+                font-size: 0.65rem;
+            }
+
+            .agenda-day-column .day-header .day-number {
+                font-size: 1rem;
+            }
+
+            .agenda-slot {
+                height: 15px;
+            }
+
+            .agenda-appointment {
+                padding: 3px 4px;
+                font-size: 8px;
+                left: 2px;
+                right: 2px;
+            }
+
+            .agenda-appointment .appointment-client {
+                font-size: 7px;
+            }
+
+            .agenda-appointment .appointment-service {
+                font-size: 6px;
+            }
+
+            .agenda-appointment .appointment-time {
+                font-size: 6px;
+            }
+
+            .current-time-line {
+                left: 35px;
+            }
+
+            .appointment-modal .modal-body {
+                padding: 14px;
+            }
+
+            .appointment-modal .modal-dialog {
+                margin: 10px;
+            }
+
+            .client-list-modal .modal-body {
+                padding: 12px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .agenda-header .header-left h1 {
+                font-size: 0.85rem;
+            }
+
+            .agenda-header .header-left h1 small {
+                display: none;
+            }
+
+            .agenda-controls .date-display {
+                font-size: 0.75rem;
+            }
+
+            .agenda-controls .nav-buttons button {
+                padding: 4px 10px;
+                font-size: 0.65rem;
+            }
+
+            .agenda-professionals .profissional-card {
+                min-width: 60px;
+                padding: 3px 4px;
+            }
+
+            .agenda-professionals .profissional-card .avatar {
+                width: 28px;
+                height: 28px;
+            }
+
+            .agenda-professionals .profissional-card .avatar-placeholder {
+                width: 28px;
+                height: 28px;
+                font-size: 10px;
+            }
+
+            .agenda-professionals .profissional-card .nome {
+                font-size: 0.5rem;
+            }
+
+            .agenda-day-column {
+                min-width: 100px;
+            }
+
+            .agenda-day-column .day-header {
+                font-size: 0.55rem;
+                padding: 4px 2px;
+            }
+
+            .agenda-day-column .day-header .day-number {
+                font-size: 0.8rem;
+            }
+
+            .agenda-time-column {
+                width: 28px;
+                min-width: 28px;
+                max-width: 28px;
+            }
+
+            .agenda-time-slot {
+                height: 60px;
+                font-size: 6px;
+            }
+
+            .agenda-appointment {
+                padding: 2px 3px;
+                font-size: 7px;
+                left: 1px;
+                right: 1px;
+            }
+
+            .agenda-appointment .appointment-client {
+                font-size: 6px;
+            }
+
+            .agenda-appointment .appointment-service {
+                font-size: 5px;
+            }
+
+            .agenda-appointment .appointment-time {
+                font-size: 5px;
+            }
+
+            .current-time-line {
+                left: 28px;
+            }
+        }
+
+        /* ============================================
+           SCROLLBAR
+           ============================================ */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+
+        /* ============================================
+           UTILITÁRIOS
+           ============================================ */
+        .text-primary-custom { color: var(--primary-color); }
+        .bg-primary-custom { background: var(--primary-color); }
+        .border-primary-custom { border-color: var(--primary-color); }
+        .cursor-pointer { cursor: pointer; }
+        .gap-2 { gap: 8px; }
+        .gap-3 { gap: 12px; }
+        .mt-2 { margin-top: 8px; }
+        .mt-3 { margin-top: 16px; }
+        .mt-4 { margin-top: 24px; }
+        .mb-2 { margin-bottom: 8px; }
+        .mb-3 { margin-bottom: 16px; }
+        .mb-4 { margin-bottom: 24px; }
+        .text-muted { color: #6c757d; }
+        .text-success { color: #28a745; }
+        .text-danger { color: #dc3545; }
+        .text-warning { color: #ffc107; }
+        .text-primary { color: var(--primary-color); }
+        .fw-bold { font-weight: 700; }
+        .fw-semibold { font-weight: 600; }
+        .fs-small { font-size: 0.75rem; }
+        .fs-large { font-size: 1.05rem; }
+
+        /* Loading */
+        .loading-spinner {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border: 3px solid rgba(38,25,107,0.1);
+            border-radius: 50%;
+            border-top-color: var(--primary-color);
+            animation: spin 0.8s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ==========================================
+    HEADER COM BOTÃO HOME
+    ========================================== -->
+    <header class="agenda-header" id="agendaHeader">
+        <div class="header-left">
+            <i class="fas fa-calendar-alt brand-icon"></i>
+            <h1>
+                Agenda
+                <small id="userGreeting">Carregando...</small>
+            </h1>
+        </div>
+        <div class="header-actions">
+            <span class="last-update" id="lastUpdateBadge">
+                <i class="fas fa-clock me-1"></i>Atualizado agora
+            </span>
+            <button class="btn-refresh" id="refreshBtn" onclick="refreshAgenda()">
+                <i class="fas fa-sync-alt me-1"></i>Atualizar
+            </button>
+            <button class="btn-home" onclick="goHome()">
+                <i class="fas fa-home"></i>
+                <span>Home</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- ==========================================
+    CONTROLES DA AGENDA
+    ========================================== -->
+    <div class="agenda-controls" id="agendaControls">
+        <div class="nav-buttons">
+            <button onclick="navegarAgenda(-1)" title="Anterior">
+                <i class="fas fa-chevron-left"></i>
+            </button>
+            <button onclick="irParaHoje()" class="active">Hoje</button>
+            <button onclick="navegarAgenda(1)" title="Próximo">
+                <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+
+        <div class="date-display" id="dateDisplay" onclick="abrirDatePicker()">
+            <span id="dateDisplayText">Carregando...</span>
+            <i class="fas fa-chevron-down"></i>
+        </div>
+
+        <div class="view-options">
+            <button class="active" data-view="day" onclick="mudarVisualizacao('day')">Dia</button>
+            <button data-view="3days" onclick="mudarVisualizacao('3days')">3 dias</button>
+            <button data-view="week" onclick="mudarVisualizacao('week')">Semana</button>
+        </div>
+    </div>
+
+    <!-- ==========================================
+    PROFISSIONAIS
+    ========================================== -->
+    <div class="agenda-professionals" id="agendaProfessionals">
+        <div class="text-muted text-center p-3 w-100">Carregando colaboradores...</div>
+    </div>
+
+    <!-- ==========================================
+    CORPO DA AGENDA
+    ========================================== -->
+    <div class="agenda-body" id="agendaBody">
+        <!-- Coluna de Horários -->
+        <div class="agenda-time-column" id="agendaTimeColumn">
+            <!-- Preenchido pelo JS -->
+        </div>
+
+        <!-- Slots de Agendamento -->
+        <div class="agenda-slots-container" id="agendaSlotsContainer">
+            <div class="agenda-grid" id="agendaGrid">
+                <!-- Preenchido pelo JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+    MODAL DE AGENDAMENTO
+    ========================================== -->
+    <div class="modal fade appointment-modal" id="appointmentModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="appointmentModalTitle">
+                        <i class="fas fa-calendar-plus me-2"></i>Novo Agendamento
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="appointmentForm">
+                        <input type="hidden" id="appointmentId">
+                        <input type="hidden" id="appointmentData">
+                        <input type="hidden" id="appointmentHora">
+
+                        <!-- Cliente -->
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <i class="fas fa-user me-1"></i>Cliente *
+                            </label>
+                            <div class="d-flex gap-2">
+                                <input type="text" class="form-control" id="clienteSearch" 
+                                       placeholder="Digite para buscar cliente..." readonly
+                                       onclick="abrirSelecionarCliente()">
+                                <button type="button" class="btn btn-outline-primary" onclick="abrirSelecionarCliente()">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                                <button type="button" class="btn btn-success" onclick="abrirNovoCliente()">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                            <input type="hidden" id="selectedClientId">
+                            <input type="hidden" id="selectedClientName">
+                            <div id="clientSelectedInfo" style="display:none;" class="mt-2 p-2 bg-light rounded">
+                                <div class="d-flex align-items-center">
+                                    <div id="clientSelectedAvatar" class="me-2" style="width:30px;height:30px;border-radius:50%;background:var(--primary-color);color:white;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:14px;"></div>
+                                    <div>
+                                        <div id="clientSelectedName" class="fw-semibold"></div>
+                                        <div id="clientSelectedPhone" class="text-muted fs-small"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Data e Hora -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">
+                                    <i class="fas fa-calendar me-1"></i>Data *
+                                </label>
+                                <input type="date" class="form-control" id="appointmentDate" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">
+                                    <i class="fas fa-clock me-1"></i>Hora *
+                                </label>
+                                <input type="time" class="form-control" id="appointmentTime" required step="900">
+                            </div>
+                        </div>
+
+                        <!-- Serviços -->
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <i class="fas fa-cut me-1"></i>Serviços
+                            </label>
+                            <div class="d-flex gap-2 mb-2">
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="abrirSelecionarServico()">
+                                    <i class="fas fa-plus me-1"></i>Adicionar Serviço
+                                </button>
+                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="limparServicos()">
+                                    <i class="fas fa-trash me-1"></i>Limpar
+                                </button>
+                            </div>
+                            <div class="selected-services-list" id="selectedServicesList">
+                                <p class="text-muted text-center py-2" style="font-size:0.85rem;">Nenhum serviço adicionado</p>
+                            </div>
+                        </div>
+
+                        <!-- Colaborador -->
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <i class="fas fa-user-tie me-1"></i>Profissional *
+                            </label>
+                            <select class="form-select" id="appointmentCollaborator" required>
+                                <option value="">Selecione um profissional</option>
+                            </select>
+                        </div>
+
+                        <!-- Observações -->
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <i class="fas fa-sticky-note me-1"></i>Observações
+                            </label>
+                            <textarea class="form-control" id="appointmentNotes" rows="2" placeholder="Observações adicionais..."></textarea>
+                        </div>
+
+                        <!-- Status -->
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <i class="fas fa-tag me-1"></i>Status
+                            </label>
+                            <select class="form-select" id="appointmentStatus">
+                                <option value="scheduled">📅 Agendado</option>
+                                <option value="confirmed">✅ Confirmado</option>
+                                <option value="in_progress">✂️ Em atendimento</option>
+                                <option value="completed">🏁 Concluído</option>
+                                <option value="cancelled">❌ Cancelado</option>
+                                <option value="no_show">👤 Não compareceu</option>
+                            </select>
+                        </div>
+
+                        <!-- Totais -->
+                        <div class="appointment-total">
+                            <span>Total</span>
+                            <span class="total-value" id="appointmentTotal">€ 0,00</span>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger" id="deleteAppointmentBtn" style="display:none;">
+                        <i class="fas fa-trash me-1"></i>Excluir
+                    </button>
+                    <button type="button" class="btn btn-primary" id="saveAppointmentBtn">
+                        <i class="fas fa-save me-1"></i>Salvar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+    MODAL DE SELEÇÃO DE CLIENTES
+    ========================================== -->
+    <div class="modal fade client-list-modal" id="clientListModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-users me-2"></i>Selecionar Cliente
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <input type="text" class="form-control" id="clientSearchList" 
+                               placeholder="Buscar cliente por nome, telefone ou e-mail..." 
+                               oninput="filtrarClientesLista()">
+                    </div>
+                    <div id="clientListContainer">
+                        <div class="text-center text-muted py-4">
+                            <div class="loading-spinner mb-2"></div>
+                            <p>Carregando clientes...</p>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <button class="btn btn-success w-100" onclick="abrirNovoCliente()">
+                            <i class="fas fa-user-plus me-2"></i>Cadastrar Novo Cliente
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+    MODAL DE SELEÇÃO DE SERVIÇOS
+    ========================================== -->
+    <div class="modal fade client-list-modal" id="serviceListModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-cut me-2"></i>Selecionar Serviço
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <input type="text" class="form-control" id="serviceSearchList" 
+                               placeholder="Buscar serviço..." 
+                               oninput="filtrarServicosLista()">
+                    </div>
+                    <div id="serviceListContainer">
+                        <div class="text-center text-muted py-4">
+                            <div class="loading-spinner mb-2"></div>
+                            <p>Carregando serviços...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+    MODAL DE DATEPICKER
+    ========================================== -->
+    <div class="modal fade date-picker-modal" id="datePickerModal" tabindex="-1">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-calendar-alt me-2"></i>Selecionar Data
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="calendarContainer">
+                        <!-- Preenchido pelo JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+    MODAL DE NOVO CLIENTE (SIMPLES)
+    ========================================== -->
+    <div class="modal fade" id="novoClienteModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header" style="background:var(--primary-color);color:white;">
+                    <h5 class="modal-title">
+                        <i class="fas fa-user-plus me-2"></i>Novo Cliente
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="novoClienteForm">
+                        <div class="mb-3">
+                            <label class="form-label">Nome *</label>
+                            <input type="text" class="form-control" id="novoClienteNome" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Telefone</label>
+                            <input type="text" class="form-control" id="novoClienteTelefone" placeholder="+351">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">E-mail</label>
+                            <input type="email" class="form-control" id="novoClienteEmail">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Data de Nascimento</label>
+                            <input type="date" class="form-control" id="novoClienteNascimento">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="salvarNovoClienteBtn">
+                        <i class="fas fa-save me-1"></i>Salvar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+    SCRIPTS
+    ========================================== -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // ==========================================
+        // 1. CONFIGURAÇÃO DO FIREBASE
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyC5ezGCOS5d-Vy2l-Gimkl_V9VmwDLZzKc",
+            authDomain: "studio-devitto-152400.firebaseapp.com",
+            projectId: "studio-devitto-152400",
+            storageBucket: "studio-devitto-152400.appspot.com",
+            messagingSenderId: "138996544906",
+            appId: "1:138996544906:web:6569bf954a00e2f7944473",
+            measurementId: "G-FCC5T13QW8"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // ==========================================
+        // 2. VARIÁVEIS GLOBAIS
+        // ==========================================
+        let currentUser = null;
+        let currentDate = new Date();
+        let currentView = 'day';
+        let selectedCollaboratorId = null;
+        let appointments = [];
+        let collaborators = [];
+        let clients = [];
+        let companyServices = [];
+        let selectedServices = [];
+        let editingAppointmentId = null;
+        let isMobile = false;
+
+        // ==========================================
+        // 3. FUNÇÃO HOME
+        // ==========================================
+        function goHome() {
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage({ action: 'goHome' }, '*');
+            } else {
+                window.location.href = 'layout-index.html';
+            }
+        }
+
+        // ==========================================
+        // 4. INICIALIZAÇÃO
+        // ==========================================
+        document.addEventListener('DOMContentLoaded', function() {
+            verificarMobile();
+            
+            auth.onAuthStateChanged(user => {
+                if (user) {
+                    currentUser = user;
+                    document.getElementById('userGreeting').textContent = `👋 ${user.email}`;
+                    carregarDados();
+                } else {
+                    document.getElementById('userGreeting').textContent = '⚠️ Não autenticado';
+                    mostrarLoginPrompt();
+                }
+            });
+
+            // Receber configurações da página principal
+            window.addEventListener('message', function(event) {
+                if (event.data && event.data.type === 'configUpdated') {
+                    const config = event.data.config;
+                    if (config.corPrimaria) {
+                        document.documentElement.style.setProperty('--primary-color', config.corPrimaria);
+                        document.documentElement.style.setProperty('--accent-color', config.corPrimaria + '99');
+                    }
+                }
+                if (event.data && event.data.action === 'goHome') {
+                    goHome();
+                }
+            });
+
+            // Solicitar configurações
+            window.parent.postMessage({ type: 'getConfig' }, '*');
+
+            // Eventos do modal
+            document.getElementById('saveAppointmentBtn').addEventListener('click', salvarAgendamento);
+            document.getElementById('deleteAppointmentBtn').addEventListener('click', excluirAgendamento);
+            document.getElementById('salvarNovoClienteBtn').addEventListener('click', salvarNovoCliente);
+
+            // Atualizar data/hora
+            atualizarUltimaAtualizacao();
+            setInterval(atualizarUltimaAtualizacao, 30000);
+        });
+
+        // ==========================================
+        // 5. VERIFICAR MOBILE
+        // ==========================================
+        function verificarMobile() {
+            isMobile = window.innerWidth < 768;
+            window.addEventListener('resize', function() {
+                isMobile = window.innerWidth < 768;
+            });
+        }
+
+        // ==========================================
+        // 6. CARREGAR DADOS
+        // ==========================================
+        async function carregarDados() {
+            try {
+                await Promise.all([
+                    carregarClientes(),
+                    carregarColaboradores(),
+                    carregarServicos(),
+                    carregarAgendamentos()
+                ]);
+                renderizarAgenda();
+                atualizarUltimaAtualizacao();
+            } catch (error) {
+                console.error('Erro ao carregar dados:', error);
+                Swal.fire('Erro', 'Erro ao carregar dados: ' + error.message, 'error');
+            }
+        }
+
+        function carregarClientes() {
+            return new Promise((resolve) => {
+                if (!currentUser) { resolve(); return; }
+                db.collection('clients')
+                    .where('userId', '==', currentUser.uid)
+                    .get()
+                    .then(snapshot => {
+                        clients = [];
+                        snapshot.forEach(doc => {
+                            clients.push({ id: doc.id, ...doc.data() });
+                        });
+                        clients.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                        resolve();
+                    })
+                    .catch(() => resolve());
+            });
+        }
+
+        function carregarColaboradores() {
+            return new Promise((resolve) => {
+                if (!currentUser) { resolve(); return; }
+                db.collection('collaborators')
+                    .where('userId', '==', currentUser.uid)
+                    .get()
+                    .then(snapshot => {
+                        collaborators = [];
+                        snapshot.forEach(doc => {
+                            const data = doc.data();
+                            if (data.active !== false) {
+                                collaborators.push({ id: doc.id, ...data });
+                            }
+                        });
+                        collaborators.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                        if (collaborators.length > 0 && !selectedCollaboratorId) {
+                            selectedCollaboratorId = collaborators[0].id;
+                        }
+                        resolve();
+                    })
+                    .catch(() => resolve());
+            });
+        }
+
+        function carregarServicos() {
+            return new Promise((resolve) => {
+                if (!currentUser) { resolve(); return; }
+                db.collection('companyServices')
+                    .where('userId', '==', currentUser.uid)
+                    .get()
+                    .then(snapshot => {
+                        companyServices = [];
+                        snapshot.forEach(doc => {
+                            companyServices.push({ id: doc.id, ...doc.data() });
+                        });
+                        resolve();
+                    })
+                    .catch(() => resolve());
+            });
+        }
+
+        function carregarAgendamentos() {
+            return new Promise((resolve) => {
+                if (!currentUser) { resolve(); return; }
+                db.collection('appointments')
+                    .where('userId', '==', currentUser.uid)
+                    .get()
+                    .then(snapshot => {
+                        appointments = [];
+                        snapshot.forEach(doc => {
+                            appointments.push({ id: doc.id, ...doc.data() });
+                        });
+                        resolve();
+                    })
+                    .catch(() => resolve());
+            });
+        }
+
+        // ==========================================
+        // 7. RENDERIZAR AGENDA
+        // ==========================================
+        function renderizarAgenda() {
+            renderizarProfissionais();
+            renderizarColunaHorarios();
+            renderizarGrade();
+            atualizarDisplayData();
+            desenharLinhaAtual();
+        }
+
+        // ==========================================
+        // 8. RENDERIZAR PROFISSIONAIS
+        // ==========================================
+        function renderizarProfissionais() {
+            const container = document.getElementById('agendaProfessionals');
+            container.innerHTML = '';
+
+            if (collaborators.length === 0) {
+                container.innerHTML = `
+                    <div class="text-muted text-center p-3 w-100" style="font-size:0.85rem;">
+                        <i class="fas fa-user-tie fa-2x mb-2 opacity-25 d-block"></i>
+                        Nenhum colaborador ativo encontrado.
+                    </div>
+                `;
+                return;
+            }
+
+            collaborators.forEach(collab => {
+                const card = document.createElement('div');
+                card.className = 'profissional-card';
+                if (collab.id === selectedCollaboratorId) {
+                    card.classList.add('selected');
+                }
+                card.setAttribute('data-id', collab.id);
+
+                const photoHtml = collab.photoUrl ?
+                    `<img src="${collab.photoUrl}" class="avatar" onerror="this.style.display='none'">` :
+                    `<div class="avatar-placeholder">${(collab.name || '?').charAt(0).toUpperCase()}</div>`;
+
+                card.innerHTML = `
+                    ${photoHtml}
+                    <div class="nome">${collab.name}</div>
+                `;
+
+                card.addEventListener('click', function() {
+                    document.querySelectorAll('.profissional-card').forEach(c => c.classList.remove('selected'));
+                    this.classList.add('selected');
+                    selectedCollaboratorId = collab.id;
+                    renderizarGrade();
+                });
+
+                container.appendChild(card);
+            });
+        }
+
+        // ==========================================
+        // 9. RENDERIZAR COLUNA DE HORÁRIOS
+        // ==========================================
+        function renderizarColunaHorarios() {
+            const container = document.getElementById('agendaTimeColumn');
+            container.innerHTML = '';
+
+            for (let hour = 0; hour < 24; hour++) {
+                const slot = document.createElement('div');
+                slot.className = 'agenda-time-slot';
+                slot.textContent = `${hour.toString().padStart(2, '0')}:00`;
+                container.appendChild(slot);
+            }
+        }
+
+        // ==========================================
+        // 10. RENDERIZAR GRADE
+        // ==========================================
+        function renderizarGrade() {
+            const container = document.getElementById('agendaGrid');
+            container.innerHTML = '';
+
+            const datas = obterDatasVisualizacao();
+            const colaboradoresFiltrados = collaborators.filter(c => 
+                c.id === selectedCollaboratorId || !selectedCollaboratorId
+            );
+
+            if (colaboradoresFiltrados.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-muted p-4 w-100">
+                        <i class="fas fa-calendar-times fa-3x mb-2 opacity-25 d-block"></i>
+                        Selecione um profissional
+                    </div>
+                `;
+                return;
+            }
+
+            // Para cada colaborador
+            colaboradoresFiltrados.forEach(collab => {
+                const column = document.createElement('div');
+                column.className = 'agenda-day-column';
+                column.setAttribute('data-collaborator-id', collab.id);
+
+                // Cabeçalho do dia (apenas para visualização semana)
+                if (currentView !== 'day') {
+                    const header = document.createElement('div');
+                    header.className = 'day-header';
+                    const date = datas[0] || currentDate;
+                    const isToday = date.toDateString() === new Date().toISOString().split('T')[0];
+                    if (isToday) header.classList.add('today');
+                    header.innerHTML = `
+                        <span class="day-number">${date.getDate()}</span>
+                        ${date.toLocaleDateString('pt-PT', { weekday: 'short' })}
+                    `;
+                    column.appendChild(header);
+                }
+
+                // Slots de 15 minutos
+                for (let hour = 0; hour < 24; hour++) {
+                    for (let quarter = 0; quarter < 4; quarter++) {
+                        const slot = document.createElement('div');
+                        slot.className = 'agenda-slot';
+                        if (quarter === 0) slot.classList.add('hour-start');
+                        if (quarter === 2) slot.classList.add('half-hour');
+                        
+                        const minutes = quarter * 15;
+                        slot.setAttribute('data-hour', hour);
+                        slot.setAttribute('data-quarter', quarter);
+                        slot.setAttribute('data-minutes', minutes);
+                        slot.setAttribute('data-date', datas[0].toISOString().split('T')[0]);
+                        slot.setAttribute('data-collaborator-id', collab.id);
+
+                        slot.addEventListener('click', function() {
+                            const date = this.getAttribute('data-date');
+                            const hour = parseInt(this.getAttribute('data-hour'));
+                            const minutes = parseInt(this.getAttribute('data-minutes'));
+                            abrirNovoAgendamento(date, hour, minutes, collab.id);
+                        });
+
+                        column.appendChild(slot);
+                    }
+                }
+
+                container.appendChild(column);
+            });
+
+            // Renderizar agendamentos
+            renderizarAgendamentos();
+        }
+
+        // ==========================================
+        // 11. OBTER DATAS DA VISUALIZAÇÃO
+        // ==========================================
+        function obterDatasVisualizacao() {
+            const datas = [];
+            const data = new Date(currentDate);
+
+            if (currentView === 'day') {
+                datas.push(new Date(data));
+            } else if (currentView === '3days') {
+                for (let i = 0; i < 3; i++) {
+                    const d = new Date(data);
+                    d.setDate(data.getDate() + i);
+                    datas.push(d);
+                }
+            } else if (currentView === 'week') {
+                const diaSemana = data.getDay();
+                const diff = diaSemana === 0 ? -6 : 1 - diaSemana;
+                const inicioSemana = new Date(data);
+                inicioSemana.setDate(data.getDate() + diff);
+                for (let i = 0; i < 7; i++) {
+                    const d = new Date(inicioSemana);
+                    d.setDate(inicioSemana.getDate() + i);
+                    datas.push(d);
+                }
+            }
+
+            return datas;
+        }
+
+        // ==========================================
+        // 12. RENDERIZAR AGENDAMENTOS
+        // ==========================================
+        function renderizarAgendamentos() {
+            // Remover agendamentos antigos
+            document.querySelectorAll('.agenda-appointment').forEach(el => el.remove());
+
+            const datas = obterDatasVisualizacao();
+            const dataStr = datas[0].toISOString().split('T')[0];
+
+            appointments.forEach(app => {
+                if (app.date !== dataStr) return;
+                if (app.collaboratorId !== selectedCollaboratorId && selectedCollaboratorId) return;
+
+                const column = document.querySelector(`.agenda-day-column[data-collaborator-id="${app.collaboratorId}"]`);
+                if (!column) return;
+
+                const startHour = parseInt(app.startTime.split(':')[0]);
+                const startMinute = parseInt(app.startTime.split(':')[1]);
+                const duration = app.duration || 60;
+                const topPosition = (startHour * 60 + startMinute) / 15 * 15;
+                const height = duration / 15 * 15;
+
+                const appointmentEl = document.createElement('div');
+                appointmentEl.className = 'agenda-appointment';
+                appointmentEl.setAttribute('data-appointment-id', app.id);
+                appointmentEl.style.top = `${topPosition}px`;
+                appointmentEl.style.height = `${Math.max(height, 30)}px`;
+
+                // Cor baseada no status
+                if (app.status === 'completed' || app.status === 'cancelled') {
+                    appointmentEl.classList.add('status-completed');
+                } else if (app.status === 'in_progress') {
+                    appointmentEl.classList.add('status-in_progress');
+                } else if (app.status === 'confirmed') {
+                    appointmentEl.classList.add('status-confirmed');
+                }
+
+                const client = clients.find(c => c.id === app.clientId);
+                const clientName = client ? client.name : app.clientName || 'Cliente';
+
+                appointmentEl.innerHTML = `
+                    <div class="appointment-time">${app.startTime} - ${app.endTime || ''}</div>
+                    <div class="appointment-client">${clientName}</div>
+                    <div class="appointment-service">${app.serviceName || 'Serviço'}</div>
+                `;
+
+                appointmentEl.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const id = this.getAttribute('data-appointment-id');
+                    const appointment = appointments.find(a => a.id === id);
+                    if (appointment) {
+                        editarAgendamento(appointment);
+                    }
+                });
+
+                column.appendChild(appointmentEl);
+            });
+        }
+
+        // ==========================================
+        // 13. ATUALIZAR DISPLAY DA DATA
+        // ==========================================
+        function atualizarDisplayData() {
+            const el = document.getElementById('dateDisplayText');
+            const options = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' };
+            el.textContent = currentDate.toLocaleDateString('pt-PT', options);
+        }
+
+        // ==========================================
+        // 14. LINHA DO TEMPO ATUAL
+        // ==========================================
+        function desenharLinhaAtual() {
+            const container = document.getElementById('agendaSlotsContainer');
+            const existingLine = container.querySelector('.current-time-line');
+            const existingIndicator = container.querySelector('.current-time-indicator');
+            if (existingLine) existingLine.remove();
+            if (existingIndicator) existingIndicator.remove();
+
+            const now = new Date();
+            const today = new Date().toISOString().split('T')[0];
+            const currentDateStr = currentDate.toISOString().split('T')[0];
+
+            // Só mostrar a linha se for o dia atual
+            if (today !== currentDateStr) return;
+
+            const currentHour = now.getHours();
+            const currentMinute = now.getMinutes();
+            const totalMinutes = currentHour * 60 + currentMinute;
+            const topPosition = (totalMinutes / 15) * 15;
+
+            const line = document.createElement('div');
+            line.className = 'current-time-line';
+            line.style.top = `${topPosition}px`;
+            container.appendChild(line);
+
+            const indicator = document.createElement('div');
+            indicator.className = 'current-time-indicator';
+            indicator.style.top = `${topPosition}px`;
+            indicator.textContent = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`;
+            container.appendChild(indicator);
+        }
+
+        // ==========================================
+        // 15. NAVEGAÇÃO
+        // ==========================================
+        function navegarAgenda(direcao) {
+            if (currentView === 'day') {
+                currentDate.setDate(currentDate.getDate() + direcao);
+            } else if (currentView === '3days') {
+                currentDate.setDate(currentDate.getDate() + direcao * 3);
+            } else if (currentView === 'week') {
+                currentDate.setDate(currentDate.getDate() + direcao * 7);
+            }
+            renderizarAgenda();
+        }
+
+        function irParaHoje() {
+            currentDate = new Date();
+            renderizarAgenda();
+        }
+
+        function mudarVisualizacao(view) {
+            currentView = view;
+            document.querySelectorAll('.view-options button').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.getAttribute('data-view') === view) {
+                    btn.classList.add('active');
+                }
+            });
+            renderizarAgenda();
+        }
+
+        // ==========================================
+        // 16. DATEPICKER
+        // ==========================================
+        function abrirDatePicker() {
+            const modal = new bootstrap.Modal(document.getElementById('datePickerModal'));
+            modal.show();
+            renderizarCalendario();
+        }
+
+        function renderizarCalendario() {
+            const container = document.getElementById('calendarContainer');
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+
+            const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 
+                               'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+            let html = `
+                <div class="calendar-header">
+                    <button onclick="mudarMesCalendario(-1)"><i class="fas fa-chevron-left"></i></button>
+                    <span class="month-year">${monthNames[month]} ${year}</span>
+                    <button onclick="mudarMesCalendario(1)"><i class="fas fa-chevron-right"></i></button>
+                </div>
+                <div class="calendar-weekdays">
+                    <div>Dom</div><div>Seg</div><div>Ter</div><div>Qua</div>
+                    <div>Qui</div><div>Sex</div><div>Sáb</div>
+                </div>
+                <div class="calendar-days">
+            `;
+
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const today = new Date();
+            const todayStr = today.toISOString().split('T')[0];
+            const currentDateStr = currentDate.toISOString().split('T')[0];
+
+            for (let i = 0; i < firstDay; i++) {
+                html += `<div class="calendar-day other-month"></div>`;
+            }
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateObj = new Date(year, month, day);
+                const dateStr = dateObj.toISOString().split('T')[0];
+                const isToday = dateStr === todayStr;
+                const isSelected = dateStr === currentDateStr;
+                const hasAppointment = appointments.some(a => a.date === dateStr);
+
+                html += `
+                    <div class="calendar-day ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''} ${hasAppointment ? 'has-appointment' : ''}"
+                         onclick="selecionarDataCalendario('${dateStr}')">
+                        ${day}
+                    </div>
+                `;
+            }
+
+            html += `</div>`;
+            container.innerHTML = html;
+        }
+
+        function mudarMesCalendario(direcao) {
+            currentDate.setMonth(currentDate.getMonth() + direcao);
+            renderizarCalendario();
+        }
+
+        function selecionarDataCalendario(dateStr) {
+            const [year, month, day] = dateStr.split('-').map(Number);
+            currentDate = new Date(year, month - 1, day);
+            const modal = bootstrap.Modal.getInstance(document.getElementById('datePickerModal'));
+            if (modal) modal.hide();
+            renderizarAgenda();
+        }
+
+        // ==========================================
+        // 17. ABRIR NOVO AGENDAMENTO
+        // ==========================================
+        function abrirNovoAgendamento(date, hour, minutes, collaboratorId) {
+            editingAppointmentId = null;
+            document.getElementById('appointmentId').value = '';
+            document.getElementById('appointmentModalTitle').textContent = '📅 Novo Agendamento';
+            document.getElementById('deleteAppointmentBtn').style.display = 'none';
+            
+            // Resetar formulário
+            document.getElementById('appointmentForm').reset();
+            selectedServices = [];
+            document.getElementById('selectedClientId').value = '';
+            document.getElementById('clientSelectedInfo').style.display = 'none';
+            document.getElementById('clientSearch').value = '';
+            document.getElementById('appointmentNotes').value = '';
+            document.getElementById('appointmentStatus').value = 'scheduled';
+            
+            // Data
+            const dateObj = new Date(date);
+            document.getElementById('appointmentDate').value = dateObj.toISOString().split('T')[0];
+            
+            // Hora
+            const timeStr = `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+            document.getElementById('appointmentTime').value = timeStr;
+            
+            // Colaborador
+            if (collaboratorId) {
+                document.getElementById('appointmentCollaborator').value = collaboratorId;
+            }
+            
+            // Preencher colaboradores no select
+            preencherSelectColaboradores();
+            
+            // Atualizar lista de serviços
+            atualizarListaServicosSelecionados();
+            atualizarTotal();
+            
+            const modal = new bootstrap.Modal(document.getElementById('appointmentModal'));
+            modal.show();
+        }
+
+        // ==========================================
+        // 18. EDITAR AGENDAMENTO
+        // ==========================================
+        function editarAgendamento(appointment) {
+            editingAppointmentId = appointment.id;
+            document.getElementById('appointmentId').value = appointment.id;
+            document.getElementById('appointmentModalTitle').textContent = '✏️ Editar Agendamento';
+            document.getElementById('deleteAppointmentBtn').style.display = 'inline-block';
+
+            // Cliente
+            const client = clients.find(c => c.id === appointment.clientId);
+            if (client) {
+                document.getElementById('selectedClientId').value = client.id;
+                document.getElementById('clientSelectedInfo').style.display = 'block';
+                document.getElementById('clientSelectedName').textContent = client.name;
+                document.getElementById('clientSelectedPhone').textContent = client.phone || 'Sem telefone';
+                const avatar = document.getElementById('clientSelectedAvatar');
+                if (client.photoUrl) {
+                    avatar.innerHTML = `<img src="${client.photoUrl}" style="width:30px;height:30px;border-radius:50%;object-fit:cover;">`;
+                } else {
+                    avatar.textContent = (client.name || '?').charAt(0).toUpperCase();
+                    avatar.style.background = 'var(--primary-color)';
+                }
+                document.getElementById('clientSearch').value = client.name;
+            }
+
+            // Data e Hora
+            document.getElementById('appointmentDate').value = appointment.date || '';
+            document.getElementById('appointmentTime').value = appointment.startTime || '';
+
+            // Serviços
+            selectedServices = appointment.services || [];
+            atualizarListaServicosSelecionados();
+
+            // Colaborador
+            preencherSelectColaboradores();
+            if (appointment.collaboratorId) {
+                document.getElementById('appointmentCollaborator').value = appointment.collaboratorId;
+            }
+
+            // Observações
+            document.getElementById('appointmentNotes').value = appointment.notes || '';
+
+            // Status
+            document.getElementById('appointmentStatus').value = appointment.status || 'scheduled';
+
+            atualizarTotal();
+
+            const modal = new bootstrap.Modal(document.getElementById('appointmentModal'));
+            modal.show();
+        }
+
+        // ==========================================
+        // 19. PREENCHER SELECT DE COLABORADORES
+        // ==========================================
+        function preencherSelectColaboradores() {
+            const select = document.getElementById('appointmentCollaborator');
+            select.innerHTML = '<option value="">Selecione um profissional</option>';
+            
+            collaborators.forEach(c => {
+                const option = document.createElement('option');
+                option.value = c.id;
+                option.textContent = c.name;
+                select.appendChild(option);
+            });
+        }
+
+        // ==========================================
+        // 20. SELECIONAR CLIENTE
+        // ==========================================
+        function abrirSelecionarCliente() {
+            const modal = new bootstrap.Modal(document.getElementById('clientListModal'));
+            modal.show();
+            carregarClientesLista();
+        }
+
+        function carregarClientesLista() {
+            const container = document.getElementById('clientListContainer');
+            
+            if (clients.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-users fa-3x mb-3 opacity-25"></i>
+                        <p>Nenhum cliente cadastrado.</p>
+                        <button class="btn btn-sm btn-success" onclick="abrirNovoCliente()">
+                            <i class="fas fa-user-plus me-1"></i>Cadastrar Cliente
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            clients.forEach(client => {
+                const avatarHtml = client.photoUrl ?
+                    `<img src="${client.photoUrl}" class="client-avatar" onerror="this.style.display='none'">` :
+                    `<div class="client-avatar-placeholder">${(client.name || '?').charAt(0).toUpperCase()}</div>`;
+
+                html += `
+                    <div class="client-item" onclick="selecionarClienteLista('${client.id}', '${client.name.replace(/'/g, "\\'")}', '${client.phone || ''}', '${client.photoUrl || ''}')">
+                        ${avatarHtml}
+                        <div class="client-info">
+                            <div class="client-name">${client.name}</div>
+                            <div class="client-phone">${client.phone || 'Sem telefone'}</div>
+                        </div>
+                        <i class="fas fa-chevron-right text-muted"></i>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function filtrarClientesLista() {
+            const searchTerm = document.getElementById('clientSearchList').value.toLowerCase();
+            const items = document.querySelectorAll('.client-item');
+            items.forEach(item => {
+                const name = item.querySelector('.client-name')?.textContent?.toLowerCase() || '';
+                const phone = item.querySelector('.client-phone')?.textContent?.toLowerCase() || '';
+                const match = name.includes(searchTerm) || phone.includes(searchTerm);
+                item.style.display = match ? '' : 'none';
+            });
+        }
+
+        function selecionarClienteLista(id, name, phone, photoUrl) {
+            document.getElementById('selectedClientId').value = id;
+            document.getElementById('selectedClientName').value = name;
+            document.getElementById('clientSearch').value = name;
+            document.getElementById('clientSelectedInfo').style.display = 'block';
+            document.getElementById('clientSelectedName').textContent = name;
+            document.getElementById('clientSelectedPhone').textContent = phone || 'Sem telefone';
+            
+            const avatar = document.getElementById('clientSelectedAvatar');
+            if (photoUrl) {
+                avatar.innerHTML = `<img src="${photoUrl}" style="width:30px;height:30px;border-radius:50%;object-fit:cover;">`;
+            } else {
+                avatar.textContent = name.charAt(0).toUpperCase();
+                avatar.style.background = 'var(--primary-color)';
+            }
+
+            const modal = bootstrap.Modal.getInstance(document.getElementById('clientListModal'));
+            if (modal) modal.hide();
+        }
+
+        // ==========================================
+        // 21. NOVO CLIENTE
+        // ==========================================
+        function abrirNovoCliente() {
+            const modal = new bootstrap.Modal(document.getElementById('novoClienteModal'));
+            modal.show();
+            document.getElementById('novoClienteForm').reset();
+        }
+
+        function salvarNovoCliente() {
+            const nome = document.getElementById('novoClienteNome').value.trim();
+            const telefone = document.getElementById('novoClienteTelefone').value.trim();
+            const email = document.getElementById('novoClienteEmail').value.trim();
+            const nascimento = document.getElementById('novoClienteNascimento').value;
+
+            if (!nome) {
+                Swal.fire('Erro', 'Digite o nome do cliente.', 'error');
+                return;
+            }
+
+            const clientData = {
+                name: nome,
+                phone: telefone || '',
+                email: email || '',
+                birthdate: nascimento || '',
+                userId: currentUser.uid,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            db.collection('clients').add(clientData)
+                .then(docRef => {
+                    const newClient = { id: docRef.id, ...clientData };
+                    clients.push(newClient);
+                    clients.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                    
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('novoClienteModal'));
+                    if (modal) modal.hide();
+
+                    // Selecionar automaticamente
+                    document.getElementById('selectedClientId').value = docRef.id;
+                    document.getElementById('selectedClientName').value = nome;
+                    document.getElementById('clientSearch').value = nome;
+                    document.getElementById('clientSelectedInfo').style.display = 'block';
+                    document.getElementById('clientSelectedName').textContent = nome;
+                    document.getElementById('clientSelectedPhone').textContent = telefone || 'Sem telefone';
+                    const avatar = document.getElementById('clientSelectedAvatar');
+                    avatar.textContent = nome.charAt(0).toUpperCase();
+                    avatar.style.background = 'var(--primary-color)';
+
+                    Swal.fire('✅ Cliente cadastrado!', '', 'success');
+                })
+                .catch(error => {
+                    Swal.fire('Erro', 'Erro ao cadastrar cliente: ' + error.message, 'error');
+                });
+        }
+
+        // ==========================================
+        // 22. SELEÇÃO DE SERVIÇOS
+        // ==========================================
+        function abrirSelecionarServico() {
+            const modal = new bootstrap.Modal(document.getElementById('serviceListModal'));
+            modal.show();
+            carregarServicosLista();
+        }
+
+        function carregarServicosLista() {
+            const container = document.getElementById('serviceListContainer');
+            
+            const servicos = companyServices.length > 0 ? companyServices : [
+                { id: 'corte', name: 'Corte' },
+                { id: 'coloração', name: 'Coloração' },
+                { id: 'hidratação', name: 'Hidratação' },
+                { id: 'escova', name: 'Escova' },
+                { id: 'manicure', name: 'Manicure' },
+                { id: 'pedicure', name: 'Pedicure' },
+                { id: 'maquiagem', name: 'Maquiagem' },
+                { id: 'depilação', name: 'Depilação' }
+            ];
+
+            if (servicos.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-cut fa-3x mb-3 opacity-25"></i>
+                        <p>Nenhum serviço cadastrado.</p>
+                        <button class="btn btn-sm btn-primary" onclick="irParaServicos()">
+                            <i class="fas fa-plus me-1"></i>Cadastrar Serviços
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            const cores = ['#26196b', '#e74c3c', '#27ae60', '#f39c12', '#2980b9', '#8e44ad', '#1abc9c', '#e67e22'];
+            
+            servicos.forEach((servico, index) => {
+                const isSelected = selectedServices.some(s => s.id === servico.id);
+                const cor = cores[index % cores.length];
+
+                html += `
+                    <div class="service-item-select" onclick="toggleServicoSelecao('${servico.id}', '${servico.name.replace(/'/g, "\\'")}')">
+                        <div class="service-color-bar" style="background:${cor};"></div>
+                        <div class="service-info">
+                            <div class="service-name">${servico.name}</div>
+                            <div class="service-price">${servico.price ? `€ ${servico.price.toFixed(2)}` : ''}</div>
+                        </div>
+                        <div class="service-check">
+                            ${isSelected ? '<i class="fas fa-check-circle text-success"></i>' : ''}
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function filtrarServicosLista() {
+            const searchTerm = document.getElementById('serviceSearchList').value.toLowerCase();
+            const items = document.querySelectorAll('.service-item-select');
+            items.forEach(item => {
+                const name = item.querySelector('.service-name')?.textContent?.toLowerCase() || '';
+                item.style.display = name.includes(searchTerm) ? '' : 'none';
+            });
+        }
+
+        function toggleServicoSelecao(id, name) {
+            const index = selectedServices.findIndex(s => s.id === id);
+            if (index === -1) {
+                selectedServices.push({ id, name });
+            } else {
+                selectedServices.splice(index, 1);
+            }
+            atualizarListaServicosSelecionados();
+            atualizarTotal();
+            carregarServicosLista();
+        }
+
+        function limparServicos() {
+            selectedServices = [];
+            atualizarListaServicosSelecionados();
+            atualizarTotal();
+        }
+
+        function atualizarListaServicosSelecionados() {
+            const container = document.getElementById('selectedServicesList');
+            
+            if (selectedServices.length === 0) {
+                container.innerHTML = '<p class="text-muted text-center py-2" style="font-size:0.85rem;">Nenhum serviço adicionado</p>';
+                return;
+            }
+
+            const cores = ['#26196b', '#e74c3c', '#27ae60', '#f39c12', '#2980b9', '#8e44ad', '#1abc9c', '#e67e22'];
+            let html = '';
+            selectedServices.forEach((servico, index) => {
+                const cor = cores[index % cores.length];
+                html += `
+                    <div class="selected-service-item">
+                        <div class="service-color" style="background:${cor};"></div>
+                        <div class="service-name">${servico.name}</div>
+                        <div class="service-price">${servico.price ? `€ ${servico.price.toFixed(2)}` : ''}</div>
+                        <button class="btn-remove" onclick="removerServicoSelecionado('${servico.id}')">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function removerServicoSelecionado(id) {
+            selectedServices = selectedServices.filter(s => s.id !== id);
+            atualizarListaServicosSelecionados();
+            atualizarTotal();
+        }
+
+        function irParaServicos() {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('serviceListModal'));
+            if (modal) modal.hide();
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage({ action: 'irParaEmpresa' }, '*');
+            }
+        }
+
+        // ==========================================
+        // 23. ATUALIZAR TOTAL
+        // ==========================================
+        function atualizarTotal() {
+            const total = selectedServices.reduce((sum, s) => sum + (s.price || 0), 0);
+            document.getElementById('appointmentTotal').textContent = `€ ${total.toFixed(2).replace('.', ',')}`;
+        }
+
+        // ==========================================
+        // 24. SALVAR AGENDAMENTO
+        // ==========================================
+        function salvarAgendamento() {
+            const clientId = document.getElementById('selectedClientId').value;
+            const date = document.getElementById('appointmentDate').value;
+            const time = document.getElementById('appointmentTime').value;
+            const collaboratorId = document.getElementById('appointmentCollaborator').value;
+            const notes = document.getElementById('appointmentNotes').value;
+            const status = document.getElementById('appointmentStatus').value;
+            const appointmentId = document.getElementById('appointmentId').value;
+
+            if (!clientId) {
+                Swal.fire('Aviso', 'Selecione um cliente.', 'warning');
+                return;
+            }
+
+            if (!date || !time) {
+                Swal.fire('Aviso', 'Preencha data e hora.', 'warning');
+                return;
+            }
+
+            if (!collaboratorId) {
+                Swal.fire('Aviso', 'Selecione um profissional.', 'warning');
+                return;
+            }
+
+            if (selectedServices.length === 0) {
+                Swal.fire('Aviso', 'Adicione pelo menos um serviço.', 'warning');
+                return;
+            }
+
+            const client = clients.find(c => c.id === clientId);
+            const serviceNames = selectedServices.map(s => s.name).join(', ');
+            const totalDuration = selectedServices.length * 30; // 30 min por serviço
+            const totalValue = selectedServices.reduce((sum, s) => sum + (s.price || 0), 0);
+
+            // Calcular hora de fim
+            const [startHour, startMinute] = time.split(':').map(Number);
+            const totalMinutes = startHour * 60 + startMinute + totalDuration;
+            const endHour = Math.floor(totalMinutes / 60) % 24;
+            const endMinute = totalMinutes % 60;
+            const endTime = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
+
+            const appointmentData = {
+                clientId: clientId,
+                clientName: client ? client.name : 'Cliente',
+                clientPhone: client ? client.phone || '' : '',
+                date: date,
+                startTime: time,
+                endTime: endTime,
+                duration: totalDuration,
+                services: selectedServices,
+                serviceName: serviceNames,
+                total: totalValue,
+                collaboratorId: collaboratorId,
+                notes: notes,
+                status: status || 'scheduled',
+                userId: currentUser.uid,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            let promise;
+            if (appointmentId) {
+                promise = db.collection('appointments').doc(appointmentId).update(appointmentData);
+            } else {
+                appointmentData.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+                promise = db.collection('appointments').add(appointmentData);
+            }
+
+            Swal.fire({
+                title: 'Salvando...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            promise
+                .then(() => {
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('appointmentModal'));
+                    if (modal) modal.hide();
+                    return carregarAgendamentos();
+                })
+                .then(() => {
+                    renderizarAgenda();
+                    Swal.fire({
+                        icon: 'success',
+                        title: '✅ Agendamento salvo!',
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                })
+                .catch(error => {
+                    Swal.fire('Erro', 'Erro ao salvar agendamento: ' + error.message, 'error');
+                });
+        }
+
+        // ==========================================
+        // 25. EXCLUIR AGENDAMENTO
+        // ==========================================
+        function excluirAgendamento() {
+            const appointmentId = document.getElementById('appointmentId').value;
+            if (!appointmentId) return;
+
+            Swal.fire({
+                title: 'Excluir Agendamento?',
+                text: 'Esta ação não pode ser desfeita.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                confirmButtonText: 'Sim, excluir',
+                cancelButtonText: 'Cancelar'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    db.collection('appointments').doc(appointmentId).delete()
+                        .then(() => {
+                            const modal = bootstrap.Modal.getInstance(document.getElementById('appointmentModal'));
+                            if (modal) modal.hide();
+                            return carregarAgendamentos();
+                        })
+                        .then(() => {
+                            renderizarAgenda();
+                            Swal.fire('✅ Agendamento excluído!', '', 'success');
+                        })
+                        .catch(error => {
+                            Swal.fire('Erro', 'Erro ao excluir: ' + error.message, 'error');
+                        });
+                }
+            });
+        }
+
+        // ==========================================
+        // 26. REFRESH
+        // ==========================================
+        function refreshAgenda() {
+            const btn = document.getElementById('refreshBtn');
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Carregando...';
+            btn.disabled = true;
+
+            carregarDados().then(() => {
+                btn.innerHTML = '<i class="fas fa-check me-1"></i>Atualizado!';
+                setTimeout(() => {
+                    btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Atualizar';
+                    btn.disabled = false;
+                }, 1500);
+                Swal.fire('✅ Agenda atualizada!', '', 'success');
+            }).catch(() => {
+                btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Atualizar';
+                btn.disabled = false;
+            });
+        }
+
+        // ==========================================
+        // 27. ATUALIZAR ÚLTIMA ATUALIZAÇÃO
+        // ==========================================
+        function atualizarUltimaAtualizacao() {
+            const now = new Date();
+            const el = document.getElementById('lastUpdateBadge');
+            if (el) {
+                el.innerHTML = `<i class="fas fa-clock me-1"></i>Atualizado ${now.toLocaleTimeString('pt-PT')}`;
+            }
+        }
+
+        // ==========================================
+        // 28. MOSTRAR LOGIN PROMPT
+        // ==========================================
+        function mostrarLoginPrompt() {
+            Swal.fire({
+                title: 'Acesso Restrito',
+                text: 'Faça login para visualizar a agenda.',
+                icon: 'warning',
+                confirmButtonText: 'Ir para Login',
+                showCancelButton: true,
+                cancelButtonText: 'Cancelar'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    window.location.href = '/login.html';
+                }
+            });
+        }
+
+        // ==========================================
+        // 29. EXPOR FUNÇÕES GLOBAIS
+        // ==========================================
+        window.goHome = goHome;
+        window.refreshAgenda = refreshAgenda;
+        window.navegarAgenda = navegarAgenda;
+        window.irParaHoje = irParaHoje;
+        window.mudarVisualizacao = mudarVisualizacao;
+        window.abrirDatePicker = abrirDatePicker;
+        window.mudarMesCalendario = mudarMesCalendario;
+        window.selecionarDataCalendario = selecionarDataCalendario;
+        window.abrirSelecionarCliente = abrirSelecionarCliente;
+        window.abrirNovoCliente = abrirNovoCliente;
+        window.salvarNovoCliente = salvarNovoCliente;
+        window.filtrarClientesLista = filtrarClientesLista;
+        window.selecionarClienteLista = selecionarClienteLista;
+        window.abrirSelecionarServico = abrirSelecionarServico;
+        window.filtrarServicosLista = filtrarServicosLista;
+        window.toggleServicoSelecao = toggleServicoSelecao;
+        window.removerServicoSelecionado = removerServicoSelecionado;
+        window.limparServicos = limparServicos;
+
+        // ==========================================
+        // 30. LOG DE INICIALIZAÇÃO
+        // ==========================================
+        console.log('✅ Agenda carregada com sucesso!');
+        console.log('📌 Funcionalidades:');
+        console.log('   - Visualização por Dia, 3 dias e Semana');
+        console.log('   - Seleção de profissional');
+        console.log('   - Criação e edição de agendamentos');
+        console.log('   - Seleção de clientes');
+        console.log('   - Adição de serviços');
+        console.log('   - DatePicker para navegação');
+        console.log('   - Linha do tempo atual');
+        console.log('   - Responsivo para mobile');
+
+    </script>
+</body>
+</html>
