@@ -37,7 +37,7 @@
         }
 
         /* ============================================
-           HEADER COM BOTÃO HOME
+           HEADER COM BOTÃO HOME - IGUAL AO SEGUNDO CÓDIGO
            ============================================ */
         .agenda-header {
             background: linear-gradient(135deg, #26196b, #4a3a9c);
@@ -53,6 +53,7 @@
             flex-wrap: wrap;
             gap: 4px;
             min-height: 44px;
+            transition: background 0.3s ease;
         }
 
         .agenda-header .header-left {
@@ -122,6 +123,11 @@
             background: rgba(255,255,255,0.25);
         }
 
+        .btn-refresh:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
         .last-update {
             font-size: 0.5rem;
             opacity: 0.7;
@@ -132,6 +138,14 @@
             font-size: 0.6rem;
             opacity: 0.7;
             color: rgba(255,255,255,0.8);
+        }
+
+        #headerLogoImg {
+            height: 24px;
+            width: 24px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-right: 4px;
         }
 
         /* ============================================
@@ -146,7 +160,7 @@
         }
 
         /* ============================================
-           BARRA DE NAVEGAÇÃO - FIXA
+           BARRA DE NAVEGAÇÃO
            ============================================ */
         .agenda-nav-bar {
             display: flex;
@@ -228,7 +242,7 @@
         }
 
         /* ============================================
-           PERFIS DOS COLABORADORES - COM SCROLL
+           PERFIS DOS COLABORADORES
            ============================================ */
         .agenda-professionals {
             display: flex;
@@ -314,7 +328,7 @@
         }
 
         /* ============================================
-           CONTEÚDO DA AGENDA - SCROLL
+           CONTEÚDO DA AGENDA - SCROLL VERTICAL SINCRONIZADO
            ============================================ */
         .agenda-content {
             flex: 1;
@@ -325,7 +339,7 @@
         }
 
         /* ============================================
-           COLUNA DE HORÁRIOS - FIXA
+           COLUNA DE HORÁRIOS - SINCRONIZADA COM SCROLL
            ============================================ */
         .agenda-time-column {
             flex-shrink: 0;
@@ -334,11 +348,14 @@
             max-width: 50px;
             background: #fafafa;
             border-right: 1px solid #e0e0e0;
-            position: sticky;
-            left: 0;
+            position: relative;
             z-index: 90;
-            align-self: flex-start;
             overflow: hidden;
+        }
+
+        .agenda-time-column-inner {
+            position: relative;
+            width: 100%;
         }
 
         .agenda-time-slot {
@@ -390,7 +407,7 @@
         }
 
         /* ============================================
-           SLOTS DE 15 MINUTOS - ALTURA FIXA
+           SLOTS DE 15 MINUTOS
            ============================================ */
         .agenda-slot-quarter {
             height: 15px !important;
@@ -429,7 +446,7 @@
         }
 
         /* ============================================
-           AGENDAMENTOS - POSIÇÃO ABSOLUTA
+           AGENDAMENTOS
            ============================================ */
         .agenda-appointment {
             position: absolute;
@@ -477,7 +494,7 @@
         }
 
         /* ============================================
-           LINHA VERMELHA DA HORA ATUAL
+           LINHA VERMELHA
            ============================================ */
         .current-time-line-global {
             position: absolute;
@@ -713,7 +730,7 @@
         }
 
         /* ============================================
-           RESPONSIVIDADE CORRIGIDA
+           RESPONSIVIDADE
            ============================================ */
         
         /* DESKTOP */
@@ -791,6 +808,10 @@
             }
             .current-time-line-global {
                 left: 60px;
+            }
+            #headerLogoImg {
+                height: 30px;
+                width: 30px;
             }
         }
 
@@ -888,7 +909,6 @@
                 left: 40px !important;
             }
             
-            /* GARANTIR SCROLL HORIZONTAL NO MOBILE */
             .agenda-slots-container {
                 overflow-x: auto !important;
                 overflow-y: auto !important;
@@ -910,6 +930,10 @@
             .agenda-professionals .empty-header-placeholder {
                 width: 40px !important;
                 min-width: 40px !important;
+            }
+            #headerLogoImg {
+                height: 20px;
+                width: 20px;
             }
         }
 
@@ -1006,6 +1030,10 @@
                 width: 34px !important;
                 min-width: 34px !important;
             }
+            #headerLogoImg {
+                height: 18px;
+                width: 18px;
+            }
         }
 
         /* ============================================
@@ -1044,13 +1072,16 @@
 <body>
 
     <!-- ==========================================
-    HEADER COM BOTÃO HOME
+    HEADER COM BOTÃO HOME - IGUAL AO SEGUNDO CÓDIGO
     ========================================== -->
     <header class="agenda-header" id="agendaHeader">
         <div class="header-left">
-            <i class="fas fa-calendar-alt brand-icon"></i>
+            <div id="headerLogoContainer">
+                <i class="fas fa-calendar-alt brand-icon" id="headerLogoIcon"></i>
+                <img id="headerLogoImg" style="display:none;" alt="Logo">
+            </div>
             <h1>
-                Agenda
+                <span id="headerSystemName">Agenda</span>
                 <small id="userGreeting">Carregando...</small>
             </h1>
         </div>
@@ -1109,12 +1140,16 @@
         </div>
 
         <!-- ==========================================
-        CONTEÚDO DA AGENDA
+        CONTEÚDO DA AGENDA - COM SCROLL SINCRONIZADO
         ========================================== -->
         <div class="agenda-content" id="agendaContent">
             
-            <!-- Coluna de Horários -->
-            <div class="agenda-time-column" id="agendaTimeColumn"></div>
+            <!-- Coluna de Horários - SINCRONIZADA VERTICALMENTE -->
+            <div class="agenda-time-column" id="agendaTimeColumn">
+                <div class="agenda-time-column-inner" id="agendaTimeColumnInner">
+                    <!-- Horários serão preenchidos dinamicamente -->
+                </div>
+            </div>
 
             <!-- Grade de Agendamentos -->
             <div class="agenda-slots-container" id="agendaSlotsContainer">
@@ -1293,11 +1328,129 @@
         let currentCalendarMonth = new Date().getMonth();
         let editingAppointmentId = null;
         let editingServices = [];
+        let businessSettings = { name: 'Agenda', logoType: 'calendar', customLogo: null };
 
         // ==========================================
-        // 3. INICIALIZAÇÃO
+        // 3. CANAL DE COMUNICAÇÃO
+        // ==========================================
+        let broadcastChannel = null;
+
+        function initBroadcastChannel() {
+            try {
+                if (window.BroadcastChannel) {
+                    broadcastChannel = new BroadcastChannel('agenda-sync');
+                    broadcastChannel.onmessage = function(event) {
+                        if (event.data && event.data.type === 'configUpdated') {
+                            console.log('📡 Configuração recebida via BroadcastChannel:', event.data.config);
+                            aplicarConfiguracoes(event.data.config);
+                        }
+                        if (event.data && event.data.type === 'dataUpdated') {
+                            console.log('📡 Dados atualizados via BroadcastChannel');
+                            carregarDados();
+                        }
+                    };
+                    console.log('✅ BroadcastChannel iniciado');
+                }
+            } catch(e) {
+                console.warn('⚠️ BroadcastChannel não suportado:', e);
+            }
+        }
+
+        function broadcastConfigUpdate(config) {
+            if (broadcastChannel) {
+                try {
+                    broadcastChannel.postMessage({ type: 'configUpdated', config: config });
+                } catch(e) {}
+            }
+        }
+
+        function broadcastDataUpdate() {
+            if (broadcastChannel) {
+                try {
+                    broadcastChannel.postMessage({ type: 'dataUpdated' });
+                } catch(e) {}
+            }
+        }
+
+        // ==========================================
+        // 4. CARREGAR CONFIGURAÇÕES
+        // ==========================================
+        function carregarConfiguracoesSistema() {
+            try {
+                const config = localStorage.getItem('systemConfig');
+                if (config) {
+                    const parsed = JSON.parse(config);
+                    aplicarConfiguracoes(parsed);
+                }
+                // Também verificar businessSettings
+                const settings = localStorage.getItem('businessSettings');
+                if (settings) {
+                    const parsed = JSON.parse(settings);
+                    businessSettings = { ...businessSettings, ...parsed };
+                    aplicarConfiguracoes(businessSettings);
+                }
+            } catch(e) {
+                console.warn('Erro ao carregar configurações:', e);
+            }
+        }
+
+        function aplicarConfiguracoes(config) {
+            if (!config) return;
+            console.log('🎨 Aplicando configurações:', config);
+
+            // Cor primária
+            if (config.corPrimaria) {
+                const header = document.getElementById('agendaHeader');
+                if (header) {
+                    header.style.background = `linear-gradient(135deg, ${config.corPrimaria}, ${config.corPrimaria}99)`;
+                }
+                document.documentElement.style.setProperty('--primary-color', config.corPrimaria);
+            }
+
+            // Nome do sistema
+            if (config.nome) {
+                document.title = config.nome + ' - Agenda';
+                const systemName = document.getElementById('headerSystemName');
+                if (systemName) systemName.textContent = config.nome;
+            }
+
+            // Logo
+            if (config.logo || config.customLogo) {
+                const logoUrl = config.logo || config.customLogo;
+                const icon = document.getElementById('headerLogoIcon');
+                const img = document.getElementById('headerLogoImg');
+                if (logoUrl) {
+                    icon.style.display = 'none';
+                    img.style.display = 'inline-block';
+                    img.src = logoUrl;
+                    img.onerror = function() {
+                        img.style.display = 'none';
+                        icon.style.display = 'inline-block';
+                    };
+                } else {
+                    icon.style.display = 'inline-block';
+                    img.style.display = 'none';
+                }
+            }
+
+            // Cor da data
+            if (config.corPrimaria) {
+                const dateDisplay = document.getElementById('agendaDateDisplay');
+                if (dateDisplay) {
+                    dateDisplay.style.color = config.corPrimaria;
+                }
+            }
+
+            localStorage.setItem('systemConfig', JSON.stringify(config));
+        }
+
+        // ==========================================
+        // 5. INICIALIZAÇÃO
         // ==========================================
         document.addEventListener('DOMContentLoaded', function() {
+            initBroadcastChannel();
+            carregarConfiguracoesSistema();
+
             auth.onAuthStateChanged(user => {
                 if (user) {
                     currentUser = user;
@@ -1369,7 +1522,6 @@
                 excluirAgendamento(editingAppointmentId);
             });
 
-            // Fechar autocomplete
             document.addEventListener('click', function(e) {
                 if (!e.target.closest('.autocomplete-container')) {
                     document.getElementById('editClientAutocompleteList').classList.remove('active');
@@ -1386,8 +1538,9 @@
                 updateCurrentTimeLine();
             }, 60000);
 
-            // Garantir scroll horizontal
+            // Configurar sincronização de scroll
             setTimeout(function() {
+                setupScrollSync();
                 const container = document.getElementById('agendaSlotsContainer');
                 if (container) {
                     container.style.overflowX = 'auto';
@@ -1399,12 +1552,11 @@
                     profRow.style.overflowX = 'auto';
                     profRow.style.webkitOverflowScrolling = 'touch';
                 }
-                syncAgendaScroll();
             }, 200);
         });
 
         // ==========================================
-        // 4. HOME
+        // 6. HOME
         // ==========================================
         function goHome() {
             if (window.parent && window.parent !== window) {
@@ -1415,7 +1567,7 @@
         }
 
         // ==========================================
-        // 5. CARREGAR DADOS
+        // 7. CARREGAR DADOS
         // ==========================================
         async function carregarDados() {
             try {
@@ -1426,6 +1578,7 @@
                 ]);
                 renderAgenda();
                 atualizarUltimaAtualizacao();
+                broadcastDataUpdate();
             } catch (error) {
                 console.error('Erro ao carregar dados:', error);
                 carregarDoLocalStorage();
@@ -1508,7 +1661,7 @@
         }
 
         // ==========================================
-        // 6. RENDERIZAR AGENDA
+        // 8. RENDERIZAR AGENDA
         // ==========================================
         function renderAgenda() {
             updateAgendaProfessionals();
@@ -1516,7 +1669,7 @@
             renderAgendaGrid();
             renderAppointments();
             updateAgendaDateDisplay();
-            syncAgendaScroll();
+            setupScrollSync();
             setTimeout(updateCurrentTimeLine, 50);
         }
 
@@ -1527,7 +1680,58 @@
         }
 
         // ==========================================
-        // 7. ATUALIZAR PERFIS
+        // 9. CONFIGURAR SINCRONIZAÇÃO DE SCROLL
+        // ==========================================
+        function setupScrollSync() {
+            const timeColumn = document.getElementById('agendaTimeColumn');
+            const slotsContainer = document.getElementById('agendaSlotsContainer');
+            const profRow = document.getElementById('agendaProfessionals');
+
+            if (!timeColumn || !slotsContainer) return;
+
+            // Remover listeners antigos para evitar duplicação
+            const newTimeColumn = timeColumn.cloneNode(true);
+            timeColumn.parentNode.replaceChild(newTimeColumn, timeColumn);
+            
+            const newSlotsContainer = slotsContainer.cloneNode(true);
+            slotsContainer.parentNode.replaceChild(newSlotsContainer, slotsContainer);
+
+            const updatedTimeColumn = document.getElementById('agendaTimeColumn');
+            const updatedSlotsContainer = document.getElementById('agendaSlotsContainer');
+            const updatedProfRow = document.getElementById('agendaProfessionals');
+
+            // SINCRONIZAÇÃO VERTICAL: coluna de horas segue o scroll da agenda
+            updatedSlotsContainer.addEventListener('scroll', function() {
+                updatedTimeColumn.scrollTop = this.scrollTop;
+            });
+
+            // SINCRONIZAÇÃO HORIZONTAL: perfis seguem a agenda
+            if (updatedProfRow) {
+                updatedSlotsContainer.addEventListener('scroll', function() {
+                    updatedProfRow.scrollLeft = this.scrollLeft;
+                });
+
+                updatedProfRow.addEventListener('scroll', function() {
+                    updatedSlotsContainer.scrollLeft = this.scrollLeft;
+                });
+            }
+
+            // Garantir overflow em todos os dispositivos
+            if (updatedSlotsContainer) {
+                updatedSlotsContainer.style.overflowX = 'auto';
+                updatedSlotsContainer.style.overflowY = 'auto';
+                updatedSlotsContainer.style.webkitOverflowScrolling = 'touch';
+            }
+            if (updatedProfRow) {
+                updatedProfRow.style.overflowX = 'auto';
+                updatedProfRow.style.webkitOverflowScrolling = 'touch';
+            }
+
+            console.log('✅ Scroll sincronizado: coluna de horas + perfis + agenda');
+        }
+
+        // ==========================================
+        // 10. ATUALIZAR PERFIS
         // ==========================================
         function updateAgendaProfessionals() {
             const container = document.getElementById('agendaProfessionals');
@@ -1611,30 +1815,33 @@
         }
 
         // ==========================================
-        // 8. RENDERIZAR HORÁRIOS
+        // 11. RENDERIZAR HORÁRIOS
         // ==========================================
         function renderTimeColumn() {
             const container = document.getElementById('agendaTimeColumn');
-            container.innerHTML = '';
+            const inner = document.getElementById('agendaTimeColumnInner');
+            if (!inner) return;
+            inner.innerHTML = '';
 
             for (let hour = 0; hour < 24; hour++) {
                 const slot = document.createElement('div');
                 slot.className = 'agenda-time-slot';
                 slot.setAttribute('data-hour', hour);
                 slot.innerHTML = `<span>${hour.toString().padStart(2, '0')}:00</span>`;
-                container.appendChild(slot);
+                inner.appendChild(slot);
             }
         }
 
         // ==========================================
-        // 9. LINHA VERMELHA
+        // 12. LINHA VERMELHA
         // ==========================================
         function updateCurrentTimeLine() {
             const now = new Date();
             const currentHour = now.getHours();
             const currentMinute = now.getMinutes();
             
-            const topPosition = (currentHour * 60) + currentMinute;
+            const slotHeight = getSlotHeight();
+            const topPosition = ((currentHour * 60) + currentMinute) * (slotHeight / 15);
             const currentTimeStr = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`;
 
             if (topPosition < 0 || topPosition > 1440) return;
@@ -1644,7 +1851,7 @@
             const timeLine = document.createElement('div');
             timeLine.className = 'current-time-line-global';
             
-            const timeColumnWidth = window.innerWidth <= 480 ? 34 : (window.innerWidth <= 991 ? 40 : 60);
+            const timeColumnWidth = getTimeColumnWidth();
             timeLine.style.cssText = `
                 position: absolute;
                 left: ${timeColumnWidth}px;
@@ -1695,8 +1902,20 @@
             }
         }
 
+        function getSlotHeight() {
+            if (window.innerWidth <= 480) return 10;
+            if (window.innerWidth <= 991) return 12;
+            return 15;
+        }
+
+        function getTimeColumnWidth() {
+            if (window.innerWidth <= 480) return 34;
+            if (window.innerWidth <= 991) return 40;
+            return 60;
+        }
+
         // ==========================================
-        // 10. RENDERIZAR GRADE
+        // 13. RENDERIZAR GRADE
         // ==========================================
         function renderAgendaGrid() {
             const container = document.getElementById('agendaGrid');
@@ -1725,6 +1944,7 @@
             }
 
             const currentDateStr = currentAgendaDate.toISOString().split('T')[0];
+            const slotHeight = getSlotHeight();
 
             activeCollaborators.forEach(collaborator => {
                 const dayColumn = document.createElement('div');
@@ -1732,8 +1952,7 @@
                 dayColumn.setAttribute('data-date', currentDateStr);
                 dayColumn.setAttribute('data-collaborator-id', collaborator.id);
 
-                // Altura total = 24h * 60min = 1440px (assumindo 1px por minuto)
-                // Cada slot de 15min = 15px
+                // ALTURA TOTAL: 24h * 60min = 1440px (assumindo 1px por minuto)
                 for (let hour = 0; hour < 24; hour++) {
                     for (let quarter = 0; quarter < 4; quarter++) {
                         const slot = document.createElement('div');
@@ -1763,17 +1982,22 @@
                 container.appendChild(dayColumn);
             });
 
-            setTimeout(syncAgendaScroll, 100);
+            // Garantir que a grade tenha altura total para scroll
+            const totalHeight = 1440 * (slotHeight / 15);
+            container.style.height = totalHeight + 'px';
+
+            setTimeout(setupScrollSync, 100);
         }
 
         // ==========================================
-        // 11. RENDERIZAR AGENDAMENTOS
+        // 14. RENDERIZAR AGENDAMENTOS
         // ==========================================
         function renderAppointments() {
             document.querySelectorAll('.agenda-appointment').forEach(el => el.remove());
 
             const currentDateStr = currentAgendaDate.toISOString().split('T')[0];
             const slotHeight = getSlotHeight();
+            const timeColumnWidth = getTimeColumnWidth();
 
             appointments.forEach(appointment => {
                 if (appointment.date !== currentDateStr) return;
@@ -1785,7 +2009,7 @@
                 const startMinute = parseInt(appointment.startTime.split(':')[1]);
                 const duration = appointment.duration || 60;
                 
-                // Posição em pixels: (hora * 60 + minuto) * (slotHeight / 15)
+                // Posição em pixels baseada na altura do slot
                 const topPosition = ((startHour * 60) + startMinute) * (slotHeight / 15);
                 const height = duration * (slotHeight / 15);
 
@@ -1856,12 +2080,6 @@
             setTimeout(updateCurrentTimeLine, 50);
         }
 
-        function getSlotHeight() {
-            if (window.innerWidth <= 480) return 10;
-            if (window.innerWidth <= 991) return 12;
-            return 15;
-        }
-
         function getAppointmentFontSize() {
             if (window.innerWidth <= 480) return '0.4rem';
             if (window.innerWidth <= 991) return '0.45rem';
@@ -1869,7 +2087,7 @@
         }
 
         // ==========================================
-        // 12. SELEÇÃO DE HORÁRIO
+        // 15. SELEÇÃO DE HORÁRIO
         // ==========================================
         let longPressTimer = null;
         let isLongPress = false;
@@ -2010,7 +2228,7 @@
         }
 
         // ==========================================
-        // 13. CRIAR AGENDAMENTO
+        // 16. CRIAR AGENDAMENTO
         // ==========================================
         function abrirModalCriarAgendamento(date, hour, minute, collaboratorId) {
             const clientOptions = clients.map(c => 
@@ -2164,7 +2382,7 @@
         }
 
         // ==========================================
-        // 14. SALVAR AGENDAMENTO
+        // 17. SALVAR AGENDAMENTO
         // ==========================================
         function salvarAgendamento(data) {
             if (!currentUser) {
@@ -2207,7 +2425,7 @@
         }
 
         // ==========================================
-        // 15. EDIÇÃO DE AGENDAMENTO
+        // 18. EDIÇÃO DE AGENDAMENTO
         // ==========================================
         function abrirModalEdicao(appointmentId) {
             const appointment = appointments.find(a => a.id === appointmentId);
@@ -2455,7 +2673,7 @@
         }
 
         // ==========================================
-        // 16. NAVEGAÇÃO
+        // 19. NAVEGAÇÃO
         // ==========================================
         function goToYesterday() {
             currentAgendaDate.setDate(currentAgendaDate.getDate() - 1);
@@ -2498,7 +2716,7 @@
         }
 
         // ==========================================
-        // 17. CALENDÁRIO
+        // 20. CALENDÁRIO
         // ==========================================
         function showDatePicker() {
             const modal = new bootstrap.Modal(document.getElementById('datePickerModal'));
@@ -2589,47 +2807,7 @@
         }
 
         // ==========================================
-        // 18. SINCRONIZAR SCROLL
-        // ==========================================
-        function syncAgendaScroll() {
-            const timeColumn = document.getElementById('agendaTimeColumn');
-            const slotsContainer = document.getElementById('agendaSlotsContainer');
-            const profRow = document.getElementById('agendaProfessionals');
-
-            if (!timeColumn || !slotsContainer) return;
-
-            // Sincronizar scroll vertical: horas e agenda
-            slotsContainer.addEventListener('scroll', function() {
-                timeColumn.scrollTop = this.scrollTop;
-            });
-
-            // Sincronizar scroll horizontal: perfis e agenda
-            if (profRow) {
-                slotsContainer.addEventListener('scroll', function() {
-                    profRow.scrollLeft = this.scrollLeft;
-                });
-
-                profRow.addEventListener('scroll', function() {
-                    slotsContainer.scrollLeft = this.scrollLeft;
-                });
-            }
-
-            // Garantir scroll horizontal no mobile
-            if (slotsContainer) {
-                slotsContainer.style.overflowX = 'auto';
-                slotsContainer.style.overflowY = 'auto';
-                slotsContainer.style.webkitOverflowScrolling = 'touch';
-            }
-            if (profRow) {
-                profRow.style.overflowX = 'auto';
-                profRow.style.webkitOverflowScrolling = 'touch';
-            }
-
-            console.log('✅ Scroll sincronizado');
-        }
-
-        // ==========================================
-        // 19. AUXILIARES
+        // 21. AUXILIARES
         // ==========================================
         function formatDate(date) {
             if (!date) return '';
@@ -2695,7 +2873,7 @@
         }
 
         // ==========================================
-        // 20. REFRESH
+        // 22. REFRESH
         // ==========================================
         function refreshAgenda() {
             const btn = document.getElementById('refreshBtn');
@@ -2713,6 +2891,21 @@
                 btn.disabled = false;
             });
         }
+
+        // ==========================================
+        // 23. OUVIR MUDANÇAS DE CONFIGURAÇÃO
+        // ==========================================
+        document.addEventListener('configUpdated', function(e) {
+            if (e.detail) {
+                aplicarConfiguracoes(e.detail);
+            }
+        });
+
+        // Expor função para atualizar configurações externamente
+        window.updateAgendaConfig = function(config) {
+            aplicarConfiguracoes(config);
+            broadcastConfigUpdate(config);
+        };
     </script>
 </body>
 </html>
