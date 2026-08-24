@@ -330,7 +330,7 @@
         }
 
         /* ============================================
-           CONTEÚDO DA AGENDA - SCROLL VERTICAL SINCRONIZADO
+           CONTEÚDO DA AGENDA - SCROLL SINCRONIZADO
            ============================================ */
         .agenda-content {
             flex: 1;
@@ -354,7 +354,7 @@
             left: 0;
             z-index: 90;
             overflow: hidden;
-            /* Não tem scroll próprio, acompanha o scroll do container */;
+            height: 100%;
         }
 
         .agenda-time-slot {
@@ -1004,6 +1004,101 @@
     </div>
 
     <!-- ==========================================
+    MODAL DE EDIÇÃO DE AGENDAMENTO
+    ========================================== -->
+    <div class="modal fade" id="editAppointmentModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-edit me-2"></i>Editar Agendamento
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="editAppointmentId">
+                    
+                    <!-- Cliente - Campo Digitável com Filtro -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Cliente *</label>
+                        <div class="autocomplete-container">
+                            <input type="text" class="form-control" id="editClientSearch" 
+                                   placeholder="Digite para buscar cliente..." autocomplete="off">
+                            <div class="autocomplete-list" id="editClientAutocompleteList"></div>
+                        </div>
+                        <input type="hidden" id="editSelectedClientId">
+                        <small class="text-muted">Digite o nome do cliente para filtrar a lista</small>
+                    </div>
+
+                    <!-- Data e Hora -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Data</label>
+                            <input type="date" class="form-control" id="editAppointmentDate">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Hora Início</label>
+                            <input type="time" class="form-control" id="editAppointmentTime">
+                        </div>
+                    </div>
+
+                    <!-- Colaborador -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Profissional</label>
+                        <select class="form-select" id="editCollaboratorSelect">
+                            <option value="">Selecione um profissional</option>
+                        </select>
+                    </div>
+
+                    <!-- Serviços -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Serviços</label>
+                        <div id="editServicesList" class="border rounded p-2" style="min-height:60px;max-height:200px;overflow-y:auto;">
+                            <!-- Serviços serão preenchidos dinamicamente -->
+                        </div>
+                        <div class="mt-2">
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="editNewService" placeholder="Nome do serviço">
+                                <input type="number" class="form-control" id="editNewServiceDuration" placeholder="Duração (min)" style="max-width:120px;" value="30">
+                                <button class="btn btn-primary" id="editAddServiceBtn" type="button">
+                                    <i class="fas fa-plus"></i> Adicionar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Observações -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Observações</label>
+                        <textarea class="form-control" id="editAppointmentNotes" rows="2"></textarea>
+                    </div>
+
+                    <!-- Status -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Status</label>
+                        <select class="form-select" id="editAppointmentStatus">
+                            <option value="scheduled">📅 Agendado</option>
+                            <option value="confirmed">✅ Confirmado</option>
+                            <option value="in_progress">✂️ Em atendimento</option>
+                            <option value="completed">🏁 Concluído</option>
+                            <option value="cancelled">❌ Cancelado</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger" id="editDeleteAppointmentBtn">
+                        <i class="fas fa-trash me-1"></i>Excluir
+                    </button>
+                    <button type="button" class="btn btn-primary" id="editSaveAppointmentBtn">
+                        <i class="fas fa-save me-1"></i>Salvar Alterações
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
     SCRIPTS
     ========================================== -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
@@ -1116,6 +1211,7 @@
         let selectionEndTime = null;
         let currentCalendarYear = new Date().getFullYear();
         let currentCalendarMonth = new Date().getMonth();
+        let editingAppointmentId = null;
 
         // ==========================================
         // 4. CANAL DE COMUNICAÇÃO ENTRE DISPOSITIVOS
@@ -1168,10 +1264,8 @@
         // 5. INICIALIZAÇÃO
         // ==========================================
         document.addEventListener('DOMContentLoaded', function() {
-            // Iniciar BroadcastChannel
             initBroadcastChannel();
 
-            // Verificar autenticação
             auth.onAuthStateChanged(user => {
                 if (user) {
                     currentUser = user;
@@ -1184,7 +1278,6 @@
                 }
             });
 
-            // Eventos do calendário
             document.getElementById('calendarPrevMonth').addEventListener('click', function() {
                 currentCalendarMonth--;
                 if (currentCalendarMonth < 0) {
@@ -1213,7 +1306,6 @@
                 showDatePicker();
             });
 
-            // Escutar mudanças no localStorage (sincronização entre abas)
             window.addEventListener('storage', function(e) {
                 if (e.key === 'systemConfig') {
                     try {
@@ -1228,11 +1320,9 @@
                 }
             });
 
-            // Receber configurações via postMessage
             window.addEventListener('message', function(event) {
                 if (event.data && event.data.type === 'configUpdated') {
                     aplicarConfiguracoes(event.data.config);
-                    // Replicar para outros dispositivos via BroadcastChannel
                     broadcastConfigUpdate(event.data.config);
                 }
                 if (event.data && event.data.type === 'dataUpdated') {
@@ -1240,15 +1330,50 @@
                 }
             });
 
-            // Solicitar configurações atuais
             window.parent.postMessage({ type: 'getConfig' }, '*');
 
-            // Atualizar a cada 30 segundos
             setInterval(function() {
                 if (currentUser) {
                     carregarDados();
                 }
             }, 30000);
+
+            // Eventos do modal de edição
+            document.getElementById('editAddServiceBtn').addEventListener('click', function() {
+                const serviceName = document.getElementById('editNewService').value.trim();
+                const duration = parseInt(document.getElementById('editNewServiceDuration').value) || 30;
+                if (serviceName) {
+                    adicionarServicoEdicao(serviceName, duration);
+                    document.getElementById('editNewService').value = '';
+                    document.getElementById('editNewServiceDuration').value = '30';
+                }
+            });
+
+            document.getElementById('editNewService').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    document.getElementById('editAddServiceBtn').click();
+                }
+            });
+
+            document.getElementById('editClientSearch').addEventListener('input', function() {
+                filtrarClientesEdicao(this.value);
+            });
+
+            document.getElementById('editSaveAppointmentBtn').addEventListener('click', function() {
+                salvarEdicaoAgendamento();
+            });
+
+            document.getElementById('editDeleteAppointmentBtn').addEventListener('click', function() {
+                excluirAgendamento(editingAppointmentId);
+            });
+
+            // Fechar autocomplete ao clicar fora
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.autocomplete-container')) {
+                    document.getElementById('editClientAutocompleteList').classList.remove('active');
+                }
+            });
         });
 
         // ==========================================
@@ -1271,7 +1396,6 @@
 
             console.log('🎨 Aplicando configurações na agenda:', config);
 
-            // Aplicar cor primária
             if (config.corPrimaria) {
                 document.documentElement.style.setProperty('--primary-color', config.corPrimaria);
                 document.documentElement.style.setProperty('--accent-color', config.corPrimaria + '99');
@@ -1282,12 +1406,10 @@
                 }
             }
 
-            // Aplicar nome do sistema
             if (config.nome) {
                 document.title = config.nome + ' - Agenda';
             }
 
-            // Aplicar logo
             if (config.logo) {
                 const logoContainer = document.getElementById('headerLogo');
                 if (logoContainer) {
@@ -1306,7 +1428,6 @@
                 }
             }
 
-            // Salvar no localStorage para persistência
             localStorage.setItem('systemConfig', JSON.stringify(config));
         }
 
@@ -1333,7 +1454,6 @@
                 ]);
                 renderAgenda();
                 atualizarUltimaAtualizacao();
-                // Notificar outros dispositivos
                 broadcastDataUpdate();
             } catch (error) {
                 console.error('Erro ao carregar dados:', error);
@@ -1529,7 +1649,6 @@
             const container = document.getElementById('agendaTimeColumn');
             container.innerHTML = '';
 
-            // Garantir que todas as horas sejam mostradas (00:00 às 23:00)
             for (let hour = 0; hour < 24; hour++) {
                 const slot = document.createElement('div');
                 slot.className = 'agenda-time-slot';
@@ -1601,7 +1720,6 @@
                 dayColumn.setAttribute('data-date', currentDateStr);
                 dayColumn.setAttribute('data-collaborator-id', collaborator.id);
 
-                // Criar slots de 15 minutos (00:00 às 23:45)
                 for (let hour = 0; hour < 24; hour++) {
                     for (let quarter = 0; quarter < 4; quarter++) {
                         const slot = document.createElement('div');
@@ -1700,7 +1818,7 @@
 
                         serviceEl.addEventListener('click', (e) => {
                             e.stopPropagation();
-                            showAppointmentDetails(appointment.id);
+                            abrirModalEdicao(appointment.id);
                         });
 
                         serviceEl.addEventListener('mouseenter', () => {
@@ -1762,7 +1880,7 @@
 
                     appointmentEl.addEventListener('click', (e) => {
                         e.stopPropagation();
-                        showAppointmentDetails(appointment.id);
+                        abrirModalEdicao(appointment.id);
                     });
 
                     appointmentEl.addEventListener('mouseenter', () => {
@@ -1780,7 +1898,6 @@
                 }
             });
 
-            // Atualizar linha da hora atual
             updateCurrentTimeLine();
         }
 
@@ -1925,7 +2042,7 @@
         }
 
         // ==========================================
-        // 17. MODAL CRIAR AGENDAMENTO
+        // 17. MODAL CRIAR AGENDAMENTO COM CAMPO DIGITÁVEL
         // ==========================================
         function abrirModalCriarAgendamento(date, hour, minute, collaboratorId) {
             const clientOptions = clients.map(c => 
@@ -1942,57 +2059,107 @@
                 year: 'numeric'
             });
 
+            // Criar um modal com campo de cliente digitável
             Swal.fire({
                 title: 'Novo Agendamento',
                 html: `
                     <div class="text-start">
                         <div class="mb-3">
                             <label class="form-label fw-bold">Cliente *</label>
-                            <select class="form-select" id="appointmentClientSelect">
-                                <option value="">Selecione um cliente</option>
-                                ${clientOptions}
-                            </select>
-                            <small class="text-muted">Se o cliente não estiver na lista, cadastre-o primeiro.</small>
+                            <div class="autocomplete-container">
+                                <input type="text" class="form-control" id="swalClientSearch" 
+                                       placeholder="Digite para buscar cliente..." autocomplete="off">
+                                <div class="autocomplete-list" id="swalClientAutocompleteList"></div>
+                            </div>
+                            <input type="hidden" id="swalSelectedClientId">
+                            <small class="text-muted">Digite o nome do cliente para filtrar</small>
                         </div>
                         <div class="row mb-3">
                             <div class="col-6">
                                 <label class="form-label fw-bold">Data</label>
-                                <input type="date" class="form-control" id="appointmentDate" value="${date}">
+                                <input type="date" class="form-control" id="swalAppointmentDate" value="${date}">
                             </div>
                             <div class="col-6">
                                 <label class="form-label fw-bold">Hora Início</label>
-                                <input type="time" class="form-control" id="appointmentTime" value="${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}">
+                                <input type="time" class="form-control" id="swalAppointmentTime" value="${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}">
                             </div>
                         </div>
                         <div class="mb-3">
+                            <label class="form-label fw-bold">Profissional</label>
+                            <select class="form-select" id="swalCollaboratorSelect">
+                                <option value="${collaboratorId}">${collaboratorName}</option>
+                                ${collaborators.filter(c => c.id !== collaboratorId && c.active !== false).map(c => 
+                                    `<option value="${c.id}">${c.name}</option>`
+                                ).join('')}
+                            </select>
+                        </div>
+                        <div class="mb-3">
                             <label class="form-label fw-bold">Serviço</label>
-                            <input type="text" class="form-control" id="appointmentService" placeholder="Ex: Corte, Coloração, etc.">
+                            <input type="text" class="form-control" id="swalAppointmentService" placeholder="Ex: Corte, Coloração, etc.">
                         </div>
                         <div class="mb-3">
                             <label class="form-label fw-bold">Duração (minutos)</label>
-                            <input type="number" class="form-control" id="appointmentDuration" value="60" min="15" step="15">
+                            <input type="number" class="form-control" id="swalAppointmentDuration" value="60" min="15" step="15">
                         </div>
                         <div class="mb-3">
                             <label class="form-label fw-bold">Observações</label>
-                            <textarea class="form-control" id="appointmentNotes" rows="2" placeholder="Observações adicionais..."></textarea>
-                        </div>
-                        <div class="text-muted small">
-                            <i class="fas fa-info-circle me-1"></i>
-                            Profissional: <strong>${collaboratorName}</strong>
+                            <textarea class="form-control" id="swalAppointmentNotes" rows="2" placeholder="Observações adicionais..."></textarea>
                         </div>
                     </div>
                 `,
                 showCancelButton: true,
                 confirmButtonText: 'Salvar Agendamento',
                 cancelButtonText: 'Cancelar',
-                width: '500px',
+                width: '520px',
+                didOpen: () => {
+                    // Configurar autocomplete para o campo de cliente
+                    const searchInput = document.getElementById('swalClientSearch');
+                    const list = document.getElementById('swalClientAutocompleteList');
+
+                    searchInput.addEventListener('input', function() {
+                        const searchTerm = this.value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+                        const filtered = clients.filter(c => 
+                            c.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").includes(searchTerm) ||
+                            (c.phone && c.phone.includes(searchTerm))
+                        );
+
+                        if (filtered.length === 0 || searchTerm.length < 1) {
+                            list.classList.remove('active');
+                            return;
+                        }
+
+                        let html = '';
+                        filtered.slice(0, 10).forEach(c => {
+                            html += `<div class="autocomplete-item" data-id="${c.id}" data-name="${c.name}">${c.name} ${c.phone ? `(${c.phone})` : ''}</div>`;
+                        });
+
+                        list.innerHTML = html;
+                        list.classList.add('active');
+
+                        list.querySelectorAll('.autocomplete-item').forEach(item => {
+                            item.addEventListener('click', function() {
+                                searchInput.value = this.getAttribute('data-name');
+                                document.getElementById('swalSelectedClientId').value = this.getAttribute('data-id');
+                                list.classList.remove('active');
+                            });
+                        });
+                    });
+
+                    // Fechar autocomplete ao clicar fora
+                    document.addEventListener('click', function(e) {
+                        if (!e.target.closest('.autocomplete-container')) {
+                            list.classList.remove('active');
+                        }
+                    });
+                },
                 preConfirm: () => {
-                    const clientId = document.getElementById('appointmentClientSelect').value;
-                    const dateVal = document.getElementById('appointmentDate').value;
-                    const timeVal = document.getElementById('appointmentTime').value;
-                    const serviceVal = document.getElementById('appointmentService').value.trim();
-                    const durationVal = parseInt(document.getElementById('appointmentDuration').value);
-                    const notesVal = document.getElementById('appointmentNotes').value.trim();
+                    const clientId = document.getElementById('swalSelectedClientId').value;
+                    const dateVal = document.getElementById('swalAppointmentDate').value;
+                    const timeVal = document.getElementById('swalAppointmentTime').value;
+                    const collaboratorIdVal = document.getElementById('swalCollaboratorSelect').value;
+                    const serviceVal = document.getElementById('swalAppointmentService').value.trim();
+                    const durationVal = parseInt(document.getElementById('swalAppointmentDuration').value);
+                    const notesVal = document.getElementById('swalAppointmentNotes').value.trim();
 
                     if (!clientId) {
                         Swal.showValidationMessage('Selecione um cliente');
@@ -2000,6 +2167,10 @@
                     }
                     if (!dateVal || !timeVal) {
                         Swal.showValidationMessage('Preencha data e hora');
+                        return null;
+                    }
+                    if (!collaboratorIdVal) {
+                        Swal.showValidationMessage('Selecione um profissional');
                         return null;
                     }
                     if (!serviceVal) {
@@ -2023,7 +2194,7 @@
                         duration: durationVal,
                         serviceName: serviceVal,
                         notes: notesVal,
-                        collaboratorId: collaboratorId,
+                        collaboratorId: collaboratorIdVal,
                         status: 'scheduled'
                     };
                 }
@@ -2078,119 +2249,236 @@
         }
 
         // ==========================================
-        // 19. DETALHES DO AGENDAMENTO
+        // 19. MODAL DE EDIÇÃO DE AGENDAMENTO
         // ==========================================
-        function showAppointmentDetails(appointmentId) {
+        function abrirModalEdicao(appointmentId) {
             const appointment = appointments.find(a => a.id === appointmentId);
             if (!appointment) {
                 Swal.fire('Erro', 'Agendamento não encontrado.', 'error');
                 return;
             }
 
+            editingAppointmentId = appointmentId;
+
+            // Preencher dados
+            document.getElementById('editAppointmentId').value = appointmentId;
+            document.getElementById('editAppointmentDate').value = appointment.date;
+            document.getElementById('editAppointmentTime').value = appointment.startTime;
+            document.getElementById('editAppointmentNotes').value = appointment.notes || '';
+            document.getElementById('editAppointmentStatus').value = appointment.status || 'scheduled';
+
+            // Preencher colaborador
+            const collabSelect = document.getElementById('editCollaboratorSelect');
+            collabSelect.innerHTML = '<option value="">Selecione um profissional</option>';
+            collaborators.filter(c => c.active !== false).forEach(c => {
+                const option = document.createElement('option');
+                option.value = c.id;
+                option.textContent = c.name;
+                if (c.id === appointment.collaboratorId) {
+                    option.selected = true;
+                }
+                collabSelect.appendChild(option);
+            });
+
+            // Preencher cliente (campo digitável)
             const client = clients.find(c => c.id === appointment.clientId);
-            const collaborator = collaborators.find(c => c.id === appointment.collaboratorId);
+            const clientSearch = document.getElementById('editClientSearch');
+            if (client) {
+                clientSearch.value = client.name;
+                document.getElementById('editSelectedClientId').value = client.id;
+            } else {
+                clientSearch.value = '';
+                document.getElementById('editSelectedClientId').value = '';
+            }
 
-            Swal.fire({
-                title: '📋 Detalhes do Agendamento',
-                html: `
-                    <div class="text-start">
-                        <div class="row mb-2">
-                            <div class="col-6"><strong>Cliente:</strong></div>
-                            <div class="col-6">${appointment.clientName || 'Não informado'}</div>
-                        </div>
-                        <div class="row mb-2">
-                            <div class="col-6"><strong>Contato:</strong></div>
-                            <div class="col-6">${appointment.clientPhone || 'Não informado'}</div>
-                        </div>
-                        <div class="row mb-2">
-                            <div class="col-6"><strong>Data:</strong></div>
-                            <div class="col-6">${formatDate(appointment.date)}</div>
-                        </div>
-                        <div class="row mb-2">
-                            <div class="col-6"><strong>Horário:</strong></div>
-                            <div class="col-6">${appointment.startTime} - ${appointment.endTime || ''}</div>
-                        </div>
-                        <div class="row mb-2">
-                            <div class="col-6"><strong>Serviço:</strong></div>
-                            <div class="col-6">${appointment.serviceName || 'Não informado'}</div>
-                        </div>
-                        <div class="row mb-2">
-                            <div class="col-6"><strong>Profissional:</strong></div>
-                            <div class="col-6">${collaborator ? collaborator.name : 'Não informado'}</div>
-                        </div>
-                        <div class="row mb-2">
-                            <div class="col-6"><strong>Duração:</strong></div>
-                            <div class="col-6">${appointment.duration || 60} min</div>
-                        </div>
-                        <div class="row mb-2">
-                            <div class="col-6"><strong>Status:</strong></div>
-                            <div class="col-6"><span class="badge ${appointment.status === 'confirmed' ? 'bg-success' : appointment.status === 'cancelled' ? 'bg-danger' : 'bg-warning'}">${appointment.status || 'Agendado'}</span></div>
-                        </div>
-                        ${appointment.notes ? `
-                            <div class="row mb-2">
-                                <div class="col-12"><strong>Observações:</strong></div>
-                                <div class="col-12 text-muted" style="font-size:0.85rem;">${appointment.notes}</div>
-                            </div>
-                        ` : ''}
-                        <hr>
-                        <div class="d-flex gap-2 justify-content-center flex-wrap">
-                            ${appointment.clientPhone ? `
-                                <button class="btn btn-sm btn-success" onclick="window.open('https://wa.me/${appointment.clientPhone.replace(/\D/g, '')}?text=${encodeURIComponent('Olá! Seu agendamento está confirmado para ' + formatDate(appointment.date) + ' às ' + appointment.startTime + '.')}', '_blank')">
-                                    <i class="fab fa-whatsapp me-1"></i>WhatsApp
-                                </button>
-                            ` : ''}
-                            <button class="btn btn-sm btn-danger" onclick="cancelarAgendamento('${appointment.id}')">
-                                <i class="fas fa-times me-1"></i>Cancelar
-                            </button>
-                            <button class="btn btn-sm btn-success" onclick="confirmarAgendamento('${appointment.id}')">
-                                <i class="fas fa-check me-1"></i>Confirmar
-                            </button>
-                            <button class="btn btn-sm btn-secondary" onclick="excluirAgendamento('${appointment.id}')">
-                                <i class="fas fa-trash me-1"></i>Excluir
-                            </button>
-                        </div>
-                    </div>
-                `,
-                confirmButtonText: 'Fechar',
-                showCancelButton: false,
-                width: '480px'
+            // Preencher serviços
+            const services = appointment.services || [];
+            const servicesContainer = document.getElementById('editServicesList');
+            servicesContainer.innerHTML = '';
+            services.forEach((service, index) => {
+                const div = document.createElement('div');
+                div.className = 'd-flex justify-content-between align-items-center p-1 border-bottom';
+                div.innerHTML = `
+                    <span><strong>${service.name}</strong> (${service.duration || 30} min)</span>
+                    <button class="btn btn-sm btn-danger" onclick="removerServicoEdicao(${index})">
+                        <i class="fas fa-times"></i>
+                    </button>
+                `;
+                servicesContainer.appendChild(div);
             });
+
+            // Configurar autocomplete para cliente
+            configurarAutocompleteCliente();
+
+            // Abrir modal
+            const modal = new bootstrap.Modal(document.getElementById('editAppointmentModal'));
+            modal.show();
         }
 
-        // ==========================================
-        // 20. AÇÕES DO AGENDAMENTO
-        // ==========================================
-        function confirmarAgendamento(appointmentId) {
-            Swal.fire({
-                title: 'Confirmar Agendamento',
-                text: 'Deseja confirmar este agendamento?',
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonText: 'Sim, confirmar',
-                cancelButtonText: 'Cancelar'
-            }).then(result => {
-                if (result.isConfirmed) {
-                    atualizarStatusAgendamento(appointmentId, 'confirmed');
+        function configurarAutocompleteCliente() {
+            const searchInput = document.getElementById('editClientSearch');
+            const list = document.getElementById('editClientAutocompleteList');
+
+            // Remover eventos antigos clonando
+            const newSearchInput = searchInput.cloneNode(true);
+            searchInput.parentNode.replaceChild(newSearchInput, searchInput);
+
+            const newList = list.cloneNode(true);
+            list.parentNode.replaceChild(newList, list);
+
+            const updatedSearchInput = document.getElementById('editClientSearch');
+            const updatedList = document.getElementById('editClientAutocompleteList');
+
+            updatedSearchInput.addEventListener('input', function() {
+                const searchTerm = this.value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+                const filtered = clients.filter(c => 
+                    c.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").includes(searchTerm) ||
+                    (c.phone && c.phone.includes(searchTerm))
+                );
+
+                if (filtered.length === 0 || searchTerm.length < 1) {
+                    updatedList.classList.remove('active');
+                    return;
+                }
+
+                let html = '';
+                filtered.slice(0, 10).forEach(c => {
+                    html += `<div class="autocomplete-item" data-id="${c.id}" data-name="${c.name}">${c.name} ${c.phone ? `(${c.phone})` : ''}</div>`;
+                });
+
+                updatedList.innerHTML = html;
+                updatedList.classList.add('active');
+
+                updatedList.querySelectorAll('.autocomplete-item').forEach(item => {
+                    item.addEventListener('click', function() {
+                        updatedSearchInput.value = this.getAttribute('data-name');
+                        document.getElementById('editSelectedClientId').value = this.getAttribute('data-id');
+                        updatedList.classList.remove('active');
+                    });
+                });
+            });
+
+            // Fechar autocomplete ao clicar fora
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.autocomplete-container')) {
+                    updatedList.classList.remove('active');
                 }
             });
         }
 
-        function cancelarAgendamento(appointmentId) {
-            Swal.fire({
-                title: 'Cancelar Agendamento',
-                text: 'Deseja cancelar este agendamento?',
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonText: 'Sim, cancelar',
-                cancelButtonText: 'Voltar',
-                confirmButtonColor: '#d33'
-            }).then(result => {
-                if (result.isConfirmed) {
-                    atualizarStatusAgendamento(appointmentId, 'cancelled');
-                }
-            });
+        function adicionarServicoEdicao(nome, duracao) {
+            const container = document.getElementById('editServicesList');
+            const index = container.children.length;
+
+            const div = document.createElement('div');
+            div.className = 'd-flex justify-content-between align-items-center p-1 border-bottom';
+            div.innerHTML = `
+                <span><strong>${nome}</strong> (${duracao} min)</span>
+                <button class="btn btn-sm btn-danger" onclick="removerServicoEdicao(${index})">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            container.appendChild(div);
         }
 
+        function removerServicoEdicao(index) {
+            const container = document.getElementById('editServicesList');
+            if (container.children.length > 1) {
+                container.removeChild(container.children[index]);
+            } else {
+                Swal.fire('Aviso', 'Mantenha pelo menos um serviço.', 'warning');
+            }
+        }
+        window.removerServicoEdicao = removerServicoEdicao;
+
+        function salvarEdicaoAgendamento() {
+            const appointmentId = document.getElementById('editAppointmentId').value;
+            const clientId = document.getElementById('editSelectedClientId').value;
+            const date = document.getElementById('editAppointmentDate').value;
+            const time = document.getElementById('editAppointmentTime').value;
+            const collaboratorId = document.getElementById('editCollaboratorSelect').value;
+            const notes = document.getElementById('editAppointmentNotes').value;
+            const status = document.getElementById('editAppointmentStatus').value;
+
+            // Coletar serviços
+            const serviceElements = document.querySelectorAll('#editServicesList > div');
+            const services = [];
+            serviceElements.forEach(el => {
+                const text = el.querySelector('span')?.textContent || '';
+                const match = text.match(/^(.*)\s\((\d+)\smin\)/);
+                if (match) {
+                    services.push({ name: match[1], duration: parseInt(match[2]) });
+                }
+            });
+
+            if (!clientId) {
+                Swal.fire('Erro', 'Selecione um cliente.', 'error');
+                return;
+            }
+            if (!date || !time) {
+                Swal.fire('Erro', 'Preencha data e hora.', 'error');
+                return;
+            }
+            if (!collaboratorId) {
+                Swal.fire('Erro', 'Selecione um profissional.', 'error');
+                return;
+            }
+            if (services.length === 0) {
+                Swal.fire('Erro', 'Adicione pelo menos um serviço.', 'error');
+                return;
+            }
+
+            const client = clients.find(c => c.id === clientId);
+            const [hourVal, minuteVal] = time.split(':').map(Number);
+            const totalDuration = services.reduce((sum, s) => sum + (s.duration || 30), 0);
+            const endMinutes = (hourVal * 60 + minuteVal) + totalDuration;
+            const endHour = Math.floor(endMinutes / 60) % 24;
+            const endMinute = endMinutes % 60;
+
+            const updatedData = {
+                clientId: clientId,
+                clientName: client ? client.name : 'Cliente',
+                clientPhone: client ? client.phone : '',
+                date: date,
+                startTime: time,
+                endTime: `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`,
+                duration: totalDuration,
+                services: services,
+                serviceName: services.map(s => s.name).join(', '),
+                collaboratorId: collaboratorId,
+                notes: notes,
+                status: status,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            Swal.fire({
+                title: 'Salvando alterações...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            db.collection('appointments').doc(appointmentId).update(updatedData)
+                .then(() => {
+                    const index = appointments.findIndex(a => a.id === appointmentId);
+                    if (index !== -1) {
+                        appointments[index] = { ...appointments[index], ...updatedData };
+                    }
+                    salvarNoLocalStorage('appointments', appointments);
+                    renderAgenda();
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('editAppointmentModal'));
+                    if (modal) modal.hide();
+                    Swal.close();
+                    Swal.fire('✅ Agendamento atualizado!', '', 'success');
+                })
+                .catch(error => {
+                    Swal.close();
+                    Swal.fire('Erro', 'Erro ao atualizar: ' + error.message, 'error');
+                });
+        }
+
+        // ==========================================
+        // 20. AÇÕES DO AGENDAMENTO (Simplificadas)
+        // ==========================================
         function excluirAgendamento(appointmentId) {
             Swal.fire({
                 title: 'Excluir Agendamento',
@@ -2218,6 +2506,8 @@
                             appointments = appointments.filter(a => a.id !== appointmentId);
                             salvarNoLocalStorage('appointments', appointments);
                             renderAgenda();
+                            const modal = bootstrap.Modal.getInstance(document.getElementById('editAppointmentModal'));
+                            if (modal) modal.hide();
                             Swal.close();
                             Swal.fire('✅ Agendamento excluído!', '', 'success');
                         })
@@ -2226,43 +2516,6 @@
                             Swal.fire('Erro', 'Erro ao excluir: ' + error.message, 'error');
                         });
                 }
-            });
-        }
-
-        function atualizarStatusAgendamento(appointmentId, status) {
-            if (!currentUser) {
-                Swal.fire('Erro', 'Usuário não logado.', 'error');
-                return;
-            }
-
-            Swal.fire({
-                title: 'Atualizando...',
-                allowOutsideClick: false,
-                didOpen: () => { Swal.showLoading(); }
-            });
-
-            db.collection('appointments').doc(appointmentId).update({
-                status: status,
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            })
-            .then(() => {
-                const appointment = appointments.find(a => a.id === appointmentId);
-                if (appointment) {
-                    appointment.status = status;
-                }
-                salvarNoLocalStorage('appointments', appointments);
-                renderAgenda();
-                Swal.close();
-                Swal.fire({
-                    icon: 'success',
-                    title: `✅ Agendamento ${status === 'confirmed' ? 'confirmado' : 'cancelado'}!`,
-                    timer: 2000,
-                    showConfirmButton: false
-                });
-            })
-            .catch(error => {
-                Swal.close();
-                Swal.fire('Erro', 'Erro ao atualizar: ' + error.message, 'error');
             });
         }
 
@@ -2421,12 +2674,11 @@
 
             if (!timeColumn || !scrollWrapper) return;
 
-            // Sincronizar scroll vertical: quando a agenda rolar, a coluna de horas acompanha
+            // Sincronizar scroll vertical
             scrollWrapper.addEventListener('scroll', function() {
                 timeColumn.scrollTop = this.scrollTop;
             });
 
-            // Quando a coluna de horas rolar, a agenda acompanha (para manter sincronia)
             timeColumn.addEventListener('scroll', function() {
                 scrollWrapper.scrollTop = this.scrollTop;
             });
@@ -2443,7 +2695,6 @@
                 });
             }
 
-            // Sincronizar larguras
             function syncWidths() {
                 const columns = document.querySelectorAll('.agenda-day-column');
                 const profileCards = document.querySelectorAll('.agenda-professional');
@@ -2464,7 +2715,6 @@
             window.addEventListener('resize', syncWidths);
             setTimeout(syncWidths, 100);
 
-            // Inicializar sincronia
             setTimeout(() => {
                 timeColumn.scrollTop = scrollWrapper.scrollTop;
             }, 200);
@@ -2575,7 +2825,6 @@
             }
         });
 
-        // Solicitar configurações atuais
         window.parent.postMessage({ type: 'getConfig' }, '*');
 
         // ==========================================
@@ -2587,10 +2836,7 @@
         window.goToToday = goToToday;
         window.goToTomorrow = goToTomorrow;
         window.showDatePicker = showDatePicker;
-        window.showAppointmentDetails = showAppointmentDetails;
-        window.confirmarAgendamento = confirmarAgendamento;
-        window.cancelarAgendamento = cancelarAgendamento;
-        window.excluirAgendamento = excluirAgendamento;
+        window.abrirModalEdicao = abrirModalEdicao;
 
         // ==========================================
         // 28. LOG DE INICIALIZAÇÃO
@@ -2600,15 +2846,13 @@
         console.log('   - Visualização de agendamentos por colaborador');
         console.log('   - Navegação: Ontem, Hoje, Amanhã');
         console.log('   - Calendário para selecionar data');
-        console.log('   - Criação de agendamentos (toque longo ou clique)');
+        console.log('   - Criação de agendamentos com campo digitável para cliente');
         console.log('   - Múltiplos serviços por agendamento');
-        console.log('   - Status: Agendado, Confirmado, Cancelado');
+        console.log('   - Edição completa: data, hora, colaborador, serviços');
+        console.log('   - Status: Agendado, Confirmado, Em atendimento, Concluído, Cancelado');
         console.log('   - Bloqueio de zoom em desktop e mobile');
         console.log('   - Sincronização de scroll entre horas e agenda');
-        console.log('   - Linha vermelha da hora atual');
-        console.log('   - Botão Home para voltar ao menu principal');
         console.log('   - Sincronização entre dispositivos via BroadcastChannel');
-        console.log('   - Atualização automática a cada 30 segundos');
 
     </script>
 
