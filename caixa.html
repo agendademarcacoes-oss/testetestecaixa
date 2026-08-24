@@ -1,0 +1,1629 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Caixa - Studio DeVitto</title>
+    
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    
+    <style>
+        /* ============================================
+           BLOQUEIO DE ZOOM
+           ============================================ */
+        * {
+            -webkit-touch-callout: none !important;
+            -webkit-user-select: none !important;
+            -webkit-tap-highlight-color: transparent !important;
+            -ms-touch-action: manipulation !important;
+            touch-action: manipulation !important;
+        }
+        
+        html, body {
+            touch-action: pan-x pan-y !important;
+            -ms-touch-action: pan-x pan-y !important;
+            -webkit-text-size-adjust: 100% !important;
+            -moz-text-size-adjust: 100% !important;
+            -ms-text-size-adjust: 100% !important;
+            text-size-adjust: 100% !important;
+            overflow: hidden !important;
+            height: 100% !important;
+            width: 100% !important;
+            position: fixed !important;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f8f9fa;
+            min-height: 100vh;
+            padding: 0;
+            margin: 0;
+            touch-action: pan-x pan-y !important;
+            -ms-touch-action: pan-x pan-y !important;
+            position: fixed !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* ============================================
+           HEADER COM BOTÃO HOME
+           ============================================ */
+        .caixa-header {
+            background: linear-gradient(135deg, #26196b, #4a3a9c);
+            color: white;
+            padding: 10px 16px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+            min-height: 48px;
+        }
+
+        .caixa-header .header-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .caixa-header .header-left .brand-icon {
+            font-size: 1.1rem;
+            color: #ffd700;
+        }
+
+        .caixa-header .header-left h1 {
+            font-weight: 700;
+            font-size: 1rem;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .caixa-header .header-left h1 small {
+            font-size: 0.6rem;
+            font-weight: 400;
+            opacity: 0.7;
+        }
+
+        .caixa-header .header-actions {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .btn-home {
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            border-radius: 25px;
+            padding: 5px 12px;
+            font-size: 0.75rem;
+            transition: all 0.3s;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            text-decoration: none;
+        }
+
+        .btn-home:hover {
+            background: rgba(255,255,255,0.25);
+            transform: translateY(-2px);
+        }
+
+        .btn-home i {
+            font-size: 0.8rem;
+        }
+
+        .btn-refresh {
+            background: rgba(255,255,255,0.12);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            border-radius: 25px;
+            padding: 5px 10px;
+            font-size: 0.75rem;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .btn-refresh:hover {
+            background: rgba(255,255,255,0.25);
+        }
+
+        .btn-refresh:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .last-update {
+            font-size: 0.6rem;
+            opacity: 0.7;
+            color: rgba(255,255,255,0.8);
+        }
+
+        /* ============================================
+           CONTEÚDO PRINCIPAL
+           ============================================ */
+        .caixa-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 12px 16px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            height: calc(100vh - 48px);
+        }
+
+        .card-custom {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            padding: 14px 16px;
+            margin-bottom: 12px;
+            transition: box-shadow 0.3s;
+        }
+
+        .card-custom:hover {
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+        }
+
+        .card-custom .card-header-custom {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+            margin-bottom: 12px;
+            font-weight: 600;
+            color: #26196b;
+            font-size: 0.95rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .form-label {
+            font-weight: 600;
+            color: #333;
+            font-size: 0.8rem;
+            margin-bottom: 4px;
+        }
+
+        .form-control, .form-select {
+            border-radius: 8px;
+            border: 2px solid #e9ecef;
+            padding: 8px 12px;
+            font-size: 0.85rem;
+            transition: border-color 0.3s;
+        }
+
+        .form-control:focus, .form-select:focus {
+            border-color: #26196b;
+            box-shadow: 0 0 0 0.2rem rgba(38,25,107,0.15);
+        }
+
+        /* Autocomplete */
+        .autocomplete-container {
+            position: relative;
+        }
+
+        .autocomplete-list {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            max-height: 200px;
+            overflow-y: auto;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            display: none;
+        }
+
+        .autocomplete-list.active {
+            display: block;
+        }
+
+        .autocomplete-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #f1f1f1;
+            transition: background 0.2s;
+            font-size: 0.85rem;
+        }
+
+        .autocomplete-item:hover {
+            background: #f8f9fa;
+        }
+
+        .autocomplete-item.selected {
+            background: #26196b;
+            color: white;
+        }
+
+        /* Status do Caixa */
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .status-badge.open {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-badge.closed {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        /* Venda item */
+        .sale-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 0.85rem;
+        }
+
+        .sale-item:last-child {
+            border-bottom: none;
+        }
+
+        .sale-item .sale-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .sale-item .sale-info .sale-title {
+            font-weight: 500;
+        }
+
+        .sale-item .sale-info .sale-detail {
+            font-size: 0.7rem;
+            color: #6c757d;
+        }
+
+        .sale-item .sale-value {
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-left: 8px;
+            flex-shrink: 0;
+        }
+
+        .sale-item .sale-actions {
+            display: flex;
+            gap: 4px;
+            margin-left: 8px;
+        }
+
+        /* Resumo */
+        .summary-box {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 10px 14px;
+            margin-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .summary-box .label {
+            font-size: 0.8rem;
+            color: #6c757d;
+        }
+
+        .summary-box .value {
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .summary-box .value.positive { color: #28a745; }
+        .summary-box .value.negative { color: #dc3545; }
+
+        /* ============================================
+           RESPONSIVIDADE
+           ============================================ */
+        @media (max-width: 768px) {
+            .caixa-content {
+                padding: 8px 10px;
+            }
+            .card-custom {
+                padding: 10px 12px;
+            }
+            .sale-item {
+                flex-wrap: wrap;
+            }
+            .sale-item .sale-actions {
+                margin-left: 0;
+                width: 100%;
+                justify-content: flex-end;
+                margin-top: 4px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .caixa-content {
+                padding: 4px 6px;
+            }
+            .card-custom {
+                padding: 8px 10px;
+            }
+            .card-custom .card-header-custom {
+                font-size: 0.85rem;
+                flex-wrap: wrap;
+                gap: 6px;
+            }
+            .summary-box {
+                padding: 6px 10px;
+            }
+            .summary-box .value {
+                font-size: 0.85rem;
+            }
+        }
+
+        /* ============================================
+           SCROLLBAR
+           ============================================ */
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+
+        /* ============================================
+           UTILITÁRIOS
+           ============================================ */
+        .text-primary-custom { color: #26196b; }
+        .bg-primary-custom { background: #26196b; }
+        .border-primary-custom { border-color: #26196b; }
+        .cursor-pointer { cursor: pointer; }
+        .gap-2 { gap: 6px; }
+        .gap-3 { gap: 10px; }
+        .flex-wrap { flex-wrap: wrap; }
+        .align-center { align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .mt-2 { margin-top: 6px; }
+        .mt-3 { margin-top: 12px; }
+        .mb-2 { margin-bottom: 6px; }
+        .mb-3 { margin-bottom: 12px; }
+        .text-muted { color: #6c757d; }
+        .text-success { color: #28a745; }
+        .text-danger { color: #dc3545; }
+        .fw-bold { font-weight: 700; }
+        .fw-semibold { font-weight: 600; }
+        .fs-small { font-size: 0.7rem; }
+    </style>
+</head>
+<body>
+
+    <!-- ==========================================
+    HEADER COM BOTÃO HOME
+    ========================================== -->
+    <header class="caixa-header" id="caixaHeader">
+        <div class="header-left">
+            <i class="fas fa-cash-register brand-icon"></i>
+            <h1>
+                Caixa
+                <small id="userGreeting">Carregando...</small>
+            </h1>
+        </div>
+        <div class="header-actions">
+            <span class="last-update" id="lastUpdateBadge">
+                <i class="fas fa-clock me-1"></i>Atualizado agora
+            </span>
+            <button class="btn-refresh" id="refreshBtn" onclick="recarregarDados()">
+                <i class="fas fa-sync-alt me-1"></i>Atualizar
+            </button>
+            <button class="btn-home" onclick="goHome()">
+                <i class="fas fa-home"></i>
+                <span>Home</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- ==========================================
+    CONTEÚDO PRINCIPAL
+    ========================================== -->
+    <div class="caixa-content" id="caixaContent">
+
+        <!-- ==========================================
+        STATUS DO CAIXA
+        ========================================== -->
+        <div class="card-custom">
+            <div class="card-header-custom">
+                <span><i class="fas fa-info-circle me-2"></i>Status do Caixa</span>
+                <span id="cashierStatusBadge" class="status-badge closed">🔒 Fechado</span>
+            </div>
+            <div class="row g-2 align-items-center">
+                <div class="col-md-4">
+                    <div class="summary-box">
+                        <span class="label">Caixa Atual</span>
+                        <span class="value" id="currentCash">€ 0,00</span>
+                    </div>
+                </div>
+                <div class="col-md-8">
+                    <div class="d-flex gap-2 flex-wrap justify-content-end">
+                        <button class="btn btn-sm btn-success" id="openCashierBtn">
+                            <i class="fas fa-unlock me-1"></i>Abrir Caixa
+                        </button>
+                        <button class="btn btn-sm btn-danger" id="closeCashierBtn" disabled>
+                            <i class="fas fa-lock me-1"></i>Fechar Caixa
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==========================================
+        ADICIONAR VENDA
+        ========================================== -->
+        <div class="card-custom">
+            <div class="card-header-custom">
+                <span><i class="fas fa-plus-circle me-2"></i>Nova Venda</span>
+                <span class="text-muted fs-small">Selecione o tipo</span>
+            </div>
+            
+            <ul class="nav nav-tabs nav-fill mb-3" id="saleTypeTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="service-tab" data-bs-toggle="tab" data-bs-target="#serviceTab" type="button" role="tab">
+                        <i class="fas fa-cut me-1"></i>Serviço
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="product-tab" data-bs-toggle="tab" data-bs-target="#productTab" type="button" role="tab">
+                        <i class="fas fa-box me-1"></i>Produto
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content">
+                <!-- ABa Serviço -->
+                <div class="tab-pane fade show active" id="serviceTab" role="tabpanel">
+                    <form id="serviceForm">
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <label class="form-label">Cliente *</label>
+                                <div class="autocomplete-container">
+                                    <input type="text" class="form-control" id="serviceClientSearch" 
+                                           placeholder="Digite para buscar cliente..." autocomplete="off" required>
+                                    <div class="autocomplete-list" id="serviceClientAutocomplete"></div>
+                                </div>
+                                <input type="hidden" id="serviceClientId">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Colaborador *</label>
+                                <select class="form-select" id="serviceCollaborator" required>
+                                    <option value="">Selecione</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Tipo *</label>
+                                <select class="form-select" id="serviceType" required>
+                                    <option value="">Selecione</option>
+                                    <option value="manual">Manual</option>
+                                    <option value="product">Com Produtos</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Valor (€) *</label>
+                                <input type="number" class="form-control" id="serviceValue" step="0.01" min="0" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Duração (min)</label>
+                                <input type="number" class="form-control" id="serviceDuration" value="30" min="5" step="5">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Descrição</label>
+                                <input type="text" class="form-control" id="serviceDescription" placeholder="Ex: Corte feminino">
+                            </div>
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-primary w-100" id="addServiceBtn">
+                                    <i class="fas fa-plus me-1"></i>Adicionar Serviço
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Aba Produto -->
+                <div class="tab-pane fade" id="productTab" role="tabpanel">
+                    <form id="productForm">
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <label class="form-label">Produto *</label>
+                                <div class="autocomplete-container">
+                                    <input type="text" class="form-control" id="productSearch" 
+                                           placeholder="Digite para buscar produto..." autocomplete="off" required>
+                                    <div class="autocomplete-list" id="productAutocomplete"></div>
+                                </div>
+                                <input type="hidden" id="productId">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Quantidade *</label>
+                                <input type="number" class="form-control" id="productQuantity" value="1" min="1" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Cliente (opcional)</label>
+                                <div class="autocomplete-container">
+                                    <input type="text" class="form-control" id="productClientSearch" 
+                                           placeholder="Buscar cliente..." autocomplete="off">
+                                    <div class="autocomplete-list" id="productClientAutocomplete"></div>
+                                </div>
+                                <input type="hidden" id="productClientId">
+                            </div>
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-primary w-100" id="addProductBtn">
+                                    <i class="fas fa-plus me-1"></i>Adicionar Produto
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==========================================
+        VENDAS DO DIA
+        ========================================== -->
+        <div class="card-custom">
+            <div class="card-header-custom">
+                <span><i class="fas fa-list me-2"></i>Vendas do Dia</span>
+                <button class="btn btn-sm btn-outline-secondary" id="filterSalesBtn">
+                    <i class="fas fa-filter me-1"></i>Filtrar
+                </button>
+            </div>
+            <div class="mb-2">
+                <input type="text" class="form-control form-control-sm" id="salesSearch" 
+                       placeholder="Buscar por cliente, serviço ou produto...">
+            </div>
+            <div id="salesList" style="max-height: 300px; overflow-y: auto;">
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-inbox fa-2x mb-2 opacity-25"></i>
+                    <p class="mb-0">Nenhuma venda registrada hoje.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==========================================
+        RESUMO DO DIA
+        ========================================== -->
+        <div class="card-custom">
+            <div class="card-header-custom">
+                <span><i class="fas fa-chart-pie me-2"></i>Resumo do Dia</span>
+            </div>
+            <div class="row g-2">
+                <div class="col-6 col-md-3">
+                    <div class="summary-box">
+                        <span class="label">Serviços</span>
+                        <span class="value" id="summaryServices">0</span>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="summary-box">
+                        <span class="label">Valor Serviços</span>
+                        <span class="value positive" id="summaryServicesValue">€ 0,00</span>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="summary-box">
+                        <span class="label">Produtos</span>
+                        <span class="value" id="summaryProducts">0</span>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="summary-box">
+                        <span class="label">Valor Produtos</span>
+                        <span class="value positive" id="summaryProductsValue">€ 0,00</span>
+                    </div>
+                </div>
+                <div class="col-12">
+                    <div class="summary-box" style="background:#e9ecef;">
+                        <span class="label fw-bold">Total do Dia</span>
+                        <span class="value fw-bold" id="summaryTotal">€ 0,00</span>
+                    </div>
+                </div>
+                <div class="col-12">
+                    <div class="summary-box" style="background:#fff3cd;">
+                        <span class="label fw-bold">Comissões (Colaboradores)</span>
+                        <span class="value fw-bold" id="summaryCommissions">€ 0,00</span>
+                    </div>
+                </div>
+                <div class="col-12">
+                    <div class="summary-box" style="background:#d4edda;">
+                        <span class="label fw-bold">Saldo para o Salão</span>
+                        <span class="value fw-bold positive" id="summarySalon">€ 0,00</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ==========================================
+    MODAL ABRIR CAIXA
+    ========================================== -->
+    <div class="modal fade" id="openCashierModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-unlock me-2"></i>Abrir Caixa</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Valor Inicial (€)</label>
+                        <input type="number" class="form-control" id="initialValueInput" step="0.01" min="0" value="0">
+                    </div>
+                    <div class="text-muted fs-small">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Este valor será o saldo inicial do caixa.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-success" id="confirmOpenCashierBtn">
+                        <i class="fas fa-check me-1"></i>Abrir Caixa
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+    SCRIPTS
+    ========================================== -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // ==========================================
+        // 1. CONFIGURAÇÃO DO FIREBASE
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyC5ezGCOS5d-Vy2l-Gimkl_V9VmwDLZzKc",
+            authDomain: "studio-devitto-152400.firebaseapp.com",
+            projectId: "studio-devitto-152400",
+            storageBucket: "studio-devitto-152400.appspot.com",
+            messagingSenderId: "138996544906",
+            appId: "1:138996544906:web:6569bf954a00e2f7944473",
+            measurementId: "G-FCC5T13QW8"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // ==========================================
+        // 2. VARIÁVEIS GLOBAIS
+        // ==========================================
+        let currentUser = null;
+        let currentCashier = null;
+        let todaySales = [];
+        let clients = [];
+        let products = [];
+        let collaborators = [];
+        let broadcastChannel = null;
+
+        // ==========================================
+        // 3. INICIALIZAÇÃO
+        // ==========================================
+        document.addEventListener('DOMContentLoaded', function() {
+            initBroadcastChannel();
+
+            auth.onAuthStateChanged(user => {
+                if (user) {
+                    currentUser = user;
+                    document.getElementById('userGreeting').textContent = user.email;
+                    carregarDados();
+                    carregarConfiguracoesSistema();
+                } else {
+                    document.getElementById('userGreeting').textContent = 'Não autenticado';
+                    mostrarLoginPrompt();
+                }
+            });
+
+            // Eventos
+            document.getElementById('openCashierBtn').addEventListener('click', function() {
+                abrirModalAbrirCaixa();
+            });
+
+            document.getElementById('confirmOpenCashierBtn').addEventListener('click', function() {
+                confirmarAbrirCaixa();
+            });
+
+            document.getElementById('closeCashierBtn').addEventListener('click', function() {
+                fecharCaixa();
+            });
+
+            document.getElementById('serviceForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                adicionarServico();
+            });
+
+            document.getElementById('productForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                adicionarProduto();
+            });
+
+            document.getElementById('salesSearch').addEventListener('input', function() {
+                filtrarVendas(this.value);
+            });
+
+            document.getElementById('filterSalesBtn').addEventListener('click', function() {
+                document.getElementById('salesSearch').value = '';
+                filtrarVendas('');
+                document.getElementById('salesSearch').focus();
+            });
+
+            // Autocomplete de clientes
+            document.getElementById('serviceClientSearch').addEventListener('input', function() {
+                filtrarClientes(this.value, 'serviceClientAutocomplete', 'serviceClientId');
+            });
+
+            document.getElementById('productClientSearch').addEventListener('input', function() {
+                filtrarClientes(this.value, 'productClientAutocomplete', 'productClientId');
+            });
+
+            // Autocomplete de produtos
+            document.getElementById('productSearch').addEventListener('input', function() {
+                filtrarProdutos(this.value);
+            });
+
+            // Fechar autocomplete ao clicar fora
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.autocomplete-container')) {
+                    document.querySelectorAll('.autocomplete-list').forEach(list => list.classList.remove('active'));
+                }
+            });
+
+            // Atualizar a cada 30 segundos
+            setInterval(function() {
+                if (currentUser) {
+                    carregarDados();
+                }
+            }, 30000);
+        });
+
+        // ==========================================
+        // 4. CANAL DE COMUNICAÇÃO
+        // ==========================================
+        function initBroadcastChannel() {
+            try {
+                if (window.BroadcastChannel) {
+                    broadcastChannel = new BroadcastChannel('caixa-sync');
+                    broadcastChannel.onmessage = function(event) {
+                        if (event.data && event.data.type === 'caixaUpdated') {
+                            console.log('📡 Caixa atualizado via BroadcastChannel');
+                            carregarDados();
+                        }
+                        if (event.data && event.data.type === 'configUpdated') {
+                            carregarConfiguracoesSistema();
+                        }
+                    };
+                    console.log('✅ BroadcastChannel iniciado para caixa');
+                }
+            } catch(e) {
+                console.warn('⚠️ BroadcastChannel não suportado:', e);
+            }
+        }
+
+        function broadcastCaixaUpdate() {
+            if (broadcastChannel) {
+                try {
+                    broadcastChannel.postMessage({ type: 'caixaUpdated' });
+                } catch(e) {}
+            }
+        }
+
+        // ==========================================
+        // 5. CARREGAR DADOS
+        // ==========================================
+        function carregarDados() {
+            if (!currentUser) return;
+
+            const hoje = new Date().toISOString().split('T')[0];
+
+            // Carregar clientes
+            db.collection('clients')
+                .where('userId', '==', currentUser.uid)
+                .get()
+                .then(snapshot => {
+                    clients = [];
+                    snapshot.forEach(doc => clients.push({ id: doc.id, ...doc.data() }));
+                    clients.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                })
+                .catch(err => console.error('Erro ao carregar clientes:', err));
+
+            // Carregar produtos
+            db.collection('products')
+                .where('userId', '==', currentUser.uid)
+                .get()
+                .then(snapshot => {
+                    products = [];
+                    snapshot.forEach(doc => products.push({ id: doc.id, ...doc.data() }));
+                    products.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                })
+                .catch(err => console.error('Erro ao carregar produtos:', err));
+
+            // Carregar colaboradores
+            db.collection('collaborators')
+                .where('userId', '==', currentUser.uid)
+                .where('active', '==', true)
+                .get()
+                .then(snapshot => {
+                    collaborators = [];
+                    snapshot.forEach(doc => collaborators.push({ id: doc.id, ...doc.data() }));
+                    atualizarSelectColaboradores();
+                })
+                .catch(err => console.error('Erro ao carregar colaboradores:', err));
+
+            // Carregar caixa atual
+            db.collection('cashiers')
+                .where('userId', '==', currentUser.uid)
+                .where('date', '==', hoje)
+                .where('status', '==', 'open')
+                .get()
+                .then(snapshot => {
+                    if (!snapshot.empty) {
+                        currentCashier = snapshot.docs[0].data();
+                        currentCashier.id = snapshot.docs[0].id;
+                        atualizarStatusCaixa(true);
+                    } else {
+                        currentCashier = null;
+                        atualizarStatusCaixa(false);
+                    }
+                    // Carregar vendas do dia
+                    carregarVendasDia();
+                })
+                .catch(err => console.error('Erro ao carregar caixa:', err));
+
+            carregarConfiguracoesSistema();
+            atualizarUltimaAtualizacao();
+        }
+
+        function carregarVendasDia() {
+            const hoje = new Date().toISOString().split('T')[0];
+
+            Promise.all([
+                db.collection('services')
+                    .where('userId', '==', currentUser.uid)
+                    .where('date', '==', hoje)
+                    .get(),
+                db.collection('productSales')
+                    .where('userId', '==', currentUser.uid)
+                    .where('date', '==', hoje)
+                    .get()
+            ]).then(([servicesSnap, productsSnap]) => {
+                todaySales = [];
+
+                servicesSnap.forEach(doc => {
+                    todaySales.push({ id: doc.id, ...doc.data(), tipo: 'service' });
+                });
+
+                productsSnap.forEach(doc => {
+                    todaySales.push({ id: doc.id, ...doc.data(), tipo: 'product' });
+                });
+
+                todaySales.sort((a, b) => {
+                    const da = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp || 0);
+                    const db = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp || 0);
+                    return db - da;
+                });
+
+                renderizarVendas();
+                atualizarResumo();
+            }).catch(err => console.error('Erro ao carregar vendas:', err));
+        }
+
+        function carregarConfiguracoesSistema() {
+            try {
+                const config = localStorage.getItem('systemConfig');
+                if (config) {
+                    const parsed = JSON.parse(config);
+                    if (parsed.corPrimaria) {
+                        document.documentElement.style.setProperty('--primary-color', parsed.corPrimaria);
+                        document.documentElement.style.setProperty('--accent-color', parsed.corPrimaria + '99');
+                        const header = document.getElementById('caixaHeader');
+                        if (header) {
+                            header.style.background = `linear-gradient(135deg, ${parsed.corPrimaria}, ${parsed.corPrimaria}99)`;
+                        }
+                    }
+                }
+            } catch(e) {}
+        }
+
+        function atualizarSelectColaboradores() {
+            const select = document.getElementById('serviceCollaborator');
+            select.innerHTML = '<option value="">Selecione</option>';
+            collaborators.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = c.name;
+                select.appendChild(opt);
+            });
+        }
+
+        // ==========================================
+        // 6. AUTENTICAR CLIENTE (digitação e eliminação)
+        // ==========================================
+        function filtrarClientes(searchTerm, listId, hiddenId) {
+            const list = document.getElementById(listId);
+            const normalizedSearch = searchTerm.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+
+            if (normalizedSearch.length < 1) {
+                list.classList.remove('active');
+                return;
+            }
+
+            const filtered = clients.filter(c => {
+                const nome = (c.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+                const phone = (c.phone || '').replace(/\D/g, '');
+                return nome.includes(normalizedSearch) || phone.includes(searchTerm.replace(/\D/g, ''));
+            });
+
+            if (filtered.length === 0) {
+                list.innerHTML = '<div class="autocomplete-item text-muted">Nenhum cliente encontrado</div>';
+                list.classList.add('active');
+                return;
+            }
+
+            let html = '';
+            filtered.slice(0, 10).forEach(c => {
+                html += `<div class="autocomplete-item" data-id="${c.id}" data-name="${c.name}">${c.name} ${c.phone ? `(${c.phone})` : ''}</div>`;
+            });
+
+            list.innerHTML = html;
+            list.classList.add('active');
+
+            list.querySelectorAll('.autocomplete-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    const input = this.closest('.autocomplete-container').querySelector('input');
+                    input.value = this.getAttribute('data-name');
+                    document.getElementById(hiddenId).value = this.getAttribute('data-id');
+                    list.classList.remove('active');
+                });
+            });
+        }
+
+        function filtrarProdutos(searchTerm) {
+            const list = document.getElementById('productAutocomplete');
+            const normalizedSearch = searchTerm.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+
+            if (normalizedSearch.length < 1) {
+                list.classList.remove('active');
+                return;
+            }
+
+            const filtered = products.filter(p => {
+                const nome = (p.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+                const desc = (p.description || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+                return nome.includes(normalizedSearch) || desc.includes(normalizedSearch);
+            });
+
+            if (filtered.length === 0) {
+                list.innerHTML = '<div class="autocomplete-item text-muted">Nenhum produto encontrado</div>';
+                list.classList.add('active');
+                return;
+            }
+
+            let html = '';
+            filtered.slice(0, 10).forEach(p => {
+                const estoque = p.quantity || 0;
+                html += `<div class="autocomplete-item" data-id="${p.id}" data-name="${p.name}" data-price="${p.salePrice}" data-stock="${estoque}">${p.name} - ${formatCurrency(p.salePrice)} (${estoque} und)</div>`;
+            });
+
+            list.innerHTML = html;
+            list.classList.add('active');
+
+            list.querySelectorAll('.autocomplete-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    const input = document.getElementById('productSearch');
+                    input.value = this.getAttribute('data-name');
+                    document.getElementById('productId').value = this.getAttribute('data-id');
+                    const stock = parseInt(this.getAttribute('data-stock')) || 0;
+                    const qtyInput = document.getElementById('productQuantity');
+                    qtyInput.max = stock;
+                    qtyInput.value = 1;
+                    list.classList.remove('active');
+                });
+            });
+        }
+
+        // ==========================================
+        // 7. CAIXA
+        // ==========================================
+        function abrirModalAbrirCaixa() {
+            document.getElementById('initialValueInput').value = 0;
+            const modal = new bootstrap.Modal(document.getElementById('openCashierModal'));
+            modal.show();
+        }
+
+        function confirmarAbrirCaixa() {
+            const initialValue = parseFloat(document.getElementById('initialValueInput').value) || 0;
+            if (initialValue < 0) {
+                Swal.fire('Erro', 'Valor inicial não pode ser negativo.', 'error');
+                return;
+            }
+
+            const hoje = new Date().toISOString().split('T')[0];
+
+            const cashierData = {
+                date: hoje,
+                initialValue: initialValue,
+                status: 'open',
+                openedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                userId: currentUser.uid
+            };
+
+            Swal.fire({
+                title: 'Abrindo caixa...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            db.collection('cashiers').add(cashierData)
+                .then(docRef => {
+                    currentCashier = { id: docRef.id, ...cashierData };
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('openCashierModal'));
+                    if (modal) modal.hide();
+                    atualizarStatusCaixa(true);
+                    broadcastCaixaUpdate();
+                    Swal.close();
+                    Swal.fire({
+                        icon: 'success',
+                        title: '✅ Caixa aberto!',
+                        text: `Saldo inicial: ${formatCurrency(initialValue)}`,
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                })
+                .catch(error => {
+                    Swal.close();
+                    Swal.fire('Erro', 'Erro ao abrir caixa: ' + error.message, 'error');
+                });
+        }
+
+        function fecharCaixa() {
+            if (!currentCashier) {
+                Swal.fire('Erro', 'Nenhum caixa aberto.', 'error');
+                return;
+            }
+
+            const totalServices = todaySales.filter(s => s.tipo === 'service')
+                .reduce((sum, s) => sum + parseFloat(s.value || 0), 0);
+            const totalProducts = todaySales.filter(s => s.tipo === 'product')
+                .reduce((sum, s) => sum + parseFloat(s.totalValue || 0), 0);
+            const totalSales = totalServices + totalProducts;
+            const finalValue = (currentCashier.initialValue || 0) + totalSales;
+
+            Swal.fire({
+                title: 'Fechar Caixa',
+                html: `
+                    <div class="text-start">
+                        <p><strong>Saldo Inicial:</strong> ${formatCurrency(currentCashier.initialValue)}</p>
+                        <p><strong>Total Vendas:</strong> ${formatCurrency(totalSales)}</p>
+                        <p><strong>Saldo Final:</strong> ${formatCurrency(finalValue)}</p>
+                    </div>
+                `,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Sim, fechar',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#d33'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    Swal.fire({
+                        title: 'Fechando caixa...',
+                        allowOutsideClick: false,
+                        didOpen: () => { Swal.showLoading(); }
+                    });
+
+                    db.collection('cashiers').doc(currentCashier.id).update({
+                        status: 'closed',
+                        closedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        finalValue: finalValue,
+                        totalServices: totalServices,
+                        totalProducts: totalProducts,
+                        totalSales: totalSales
+                    })
+                    .then(() => {
+                        currentCashier = null;
+                        atualizarStatusCaixa(false);
+                        broadcastCaixaUpdate();
+                        Swal.close();
+                        Swal.fire({
+                            icon: 'success',
+                            title: '✅ Caixa fechado!',
+                            text: `Saldo final: ${formatCurrency(finalValue)}`,
+                            timer: 3000,
+                            showConfirmButton: false
+                        });
+                    })
+                    .catch(error => {
+                        Swal.close();
+                        Swal.fire('Erro', 'Erro ao fechar caixa: ' + error.message, 'error');
+                    });
+                }
+            });
+        }
+
+        function atualizarStatusCaixa(isOpen) {
+            const badge = document.getElementById('cashierStatusBadge');
+            const openBtn = document.getElementById('openCashierBtn');
+            const closeBtn = document.getElementById('closeCashierBtn');
+            const serviceForm = document.getElementById('serviceForm');
+            const productForm = document.getElementById('productForm');
+
+            if (isOpen) {
+                badge.textContent = '✅ Aberto';
+                badge.className = 'status-badge open';
+                openBtn.disabled = true;
+                closeBtn.disabled = false;
+                serviceForm.querySelectorAll('input, select, button').forEach(el => el.disabled = false);
+                productForm.querySelectorAll('input, select, button').forEach(el => el.disabled = false);
+                // Atualizar caixa atual
+                document.getElementById('currentCash').textContent = formatCurrency(
+                    (currentCashier?.initialValue || 0) + 
+                    todaySales.reduce((sum, s) => sum + parseFloat(s.value || s.totalValue || 0), 0)
+                );
+            } else {
+                badge.textContent = '🔒 Fechado';
+                badge.className = 'status-badge closed';
+                openBtn.disabled = false;
+                closeBtn.disabled = true;
+                serviceForm.querySelectorAll('input, select, button').forEach(el => el.disabled = true);
+                productForm.querySelectorAll('input, select, button').forEach(el => el.disabled = true);
+                document.getElementById('currentCash').textContent = '€ 0,00';
+            }
+        }
+
+        // ==========================================
+        // 8. ADICIONAR VENDAS
+        // ==========================================
+        function adicionarServico() {
+            if (!currentCashier) {
+                Swal.fire('Erro', 'Abra o caixa antes de adicionar serviços.', 'error');
+                return;
+            }
+
+            const clientId = document.getElementById('serviceClientId').value;
+            const collaboratorId = document.getElementById('serviceCollaborator').value;
+            const type = document.getElementById('serviceType').value;
+            const value = parseFloat(document.getElementById('serviceValue').value);
+            const duration = parseInt(document.getElementById('serviceDuration').value) || 30;
+            const description = document.getElementById('serviceDescription').value.trim();
+
+            if (!clientId || !collaboratorId || !type || !value) {
+                Swal.fire('Erro', 'Preencha todos os campos obrigatórios.', 'error');
+                return;
+            }
+
+            if (value <= 0) {
+                Swal.fire('Erro', 'O valor deve ser maior que zero.', 'error');
+                return;
+            }
+
+            const hoje = new Date().toISOString().split('T')[0];
+
+            const serviceData = {
+                clientId: clientId,
+                collaboratorId: collaboratorId,
+                type: type,
+                value: value,
+                duration: duration,
+                description: description || 'Serviço',
+                date: hoje,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                userId: currentUser.uid
+            };
+
+            Swal.fire({
+                title: 'Adicionando serviço...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            db.collection('services').add(serviceData)
+                .then(() => {
+                    Swal.close();
+                    document.getElementById('serviceForm').reset();
+                    document.getElementById('serviceClientId').value = '';
+                    carregarVendasDia();
+                    broadcastCaixaUpdate();
+                    Swal.fire({
+                        icon: 'success',
+                        title: '✅ Serviço adicionado!',
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                })
+                .catch(error => {
+                    Swal.close();
+                    Swal.fire('Erro', 'Erro ao adicionar serviço: ' + error.message, 'error');
+                });
+        }
+
+        function adicionarProduto() {
+            if (!currentCashier) {
+                Swal.fire('Erro', 'Abra o caixa antes de adicionar produtos.', 'error');
+                return;
+            }
+
+            const productId = document.getElementById('productId').value;
+            const quantity = parseInt(document.getElementById('productQuantity').value);
+            const clientId = document.getElementById('productClientId').value || null;
+
+            if (!productId || !quantity || quantity < 1) {
+                Swal.fire('Erro', 'Selecione um produto e informe a quantidade.', 'error');
+                return;
+            }
+
+            const product = products.find(p => p.id === productId);
+            if (!product) {
+                Swal.fire('Erro', 'Produto não encontrado.', 'error');
+                return;
+            }
+
+            if (product.quantity < quantity) {
+                Swal.fire('Erro', `Estoque insuficiente. Disponível: ${product.quantity}`, 'error');
+                return;
+            }
+
+            const totalValue = quantity * parseFloat(product.salePrice);
+            const hoje = new Date().toISOString().split('T')[0];
+
+            const saleData = {
+                productId: productId,
+                productName: product.name,
+                quantity: quantity,
+                unitPrice: product.salePrice,
+                totalValue: totalValue,
+                clientId: clientId,
+                date: hoje,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                userId: currentUser.uid
+            };
+
+            Swal.fire({
+                title: 'Adicionando produto...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            const newQuantity = product.quantity - quantity;
+
+            db.collection('products').doc(productId).update({ quantity: newQuantity })
+                .then(() => db.collection('productSales').add(saleData))
+                .then(() => {
+                    Swal.close();
+                    document.getElementById('productForm').reset();
+                    document.getElementById('productId').value = '';
+                    document.getElementById('productClientId').value = '';
+                    document.getElementById('productSearch').value = '';
+                    carregarVendasDia();
+                    carregarDados();
+                    broadcastCaixaUpdate();
+                    Swal.fire({
+                        icon: 'success',
+                        title: '✅ Produto adicionado!',
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                })
+                .catch(error => {
+                    Swal.close();
+                    Swal.fire('Erro', 'Erro ao adicionar produto: ' + error.message, 'error');
+                });
+        }
+
+        // ==========================================
+        // 9. RENDERIZAR VENDAS
+        // ==========================================
+        function renderizarVendas(filtro = '') {
+            const container = document.getElementById('salesList');
+            let vendas = todaySales;
+
+            if (filtro) {
+                const search = filtro.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+                vendas = todaySales.filter(s => {
+                    const client = clients.find(c => c.id === s.clientId);
+                    const clientName = client ? client.name : '';
+                    const productName = s.productName || '';
+                    const desc = s.description || '';
+                    const nomeLower = (clientName + ' ' + productName + ' ' + desc)
+                        .toLowerCase()
+                        .normalize('NFD')
+                        .replace(/[\u0300-\u036f]/g, "");
+                    return nomeLower.includes(search);
+                });
+            }
+
+            if (vendas.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-inbox fa-2x mb-2 opacity-25"></i>
+                        <p class="mb-0">Nenhuma venda encontrada.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            vendas.forEach(sale => {
+                const client = clients.find(c => c.id === sale.clientId);
+                const clientName = client ? client.name : 'Cliente não encontrado';
+
+                if (sale.tipo === 'service') {
+                    const collaborator = collaborators.find(c => c.id === sale.collaboratorId);
+                    const collabName = collaborator ? collaborator.name : 'N/A';
+                    const valor = parseFloat(sale.value || 0);
+                    html += `
+                        <div class="sale-item">
+                            <div class="sale-info">
+                                <div class="sale-title"><i class="fas fa-cut text-primary me-1"></i>${sale.description || 'Serviço'}</div>
+                                <div class="sale-detail">${clientName} | ${collabName} | ${sale.type || 'manual'}</div>
+                            </div>
+                            <div class="sale-value">${formatCurrency(valor)}</div>
+                            <div class="sale-actions">
+                                <button class="btn btn-sm btn-outline-danger" onclick="excluirVenda('${sale.id}', 'service')" title="Excluir">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    const valor = parseFloat(sale.totalValue || 0);
+                    html += `
+                        <div class="sale-item">
+                            <div class="sale-info">
+                                <div class="sale-title"><i class="fas fa-box text-info me-1"></i>${sale.productName || 'Produto'}</div>
+                                <div class="sale-detail">${clientName} | ${sale.quantity || 0} und | ${formatCurrency(sale.unitPrice)}/und</div>
+                            </div>
+                            <div class="sale-value">${formatCurrency(valor)}</div>
+                            <div class="sale-actions">
+                                <button class="btn btn-sm btn-outline-danger" onclick="excluirVenda('${sale.id}', 'product')" title="Excluir">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+
+            container.innerHTML = html;
+        }
+
+        function filtrarVendas(search) {
+            renderizarVendas(search);
+        }
+
+        // ==========================================
+        // 10. EXCLUIR VENDA
+        // ==========================================
+        function excluirVenda(id, tipo) {
+            Swal.fire({
+                title: 'Excluir venda?',
+                text: 'Esta ação não pode ser desfeita.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                confirmButtonText: 'Sim, excluir',
+                cancelButtonText: 'Cancelar'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    Swal.fire({
+                        title: 'Excluindo...',
+                        allowOutsideClick: false,
+                        didOpen: () => { Swal.showLoading(); }
+                    });
+
+                    let promise;
+                    if (tipo === 'service') {
+                        promise = db.collection('services').doc(id).delete();
+                    } else {
+                        // Para produtos, restaurar estoque
+                        const sale = todaySales.find(s => s.id === id && s.tipo === 'product');
+                        if (sale) {
+                            promise = db.collection('products').doc(sale.productId).get()
+                                .then(doc => {
+                                    if (doc.exists) {
+                                        const currentQty = doc.data().quantity || 0;
+                                        return db.collection('products').doc(sale.productId).update({
+                                            quantity: currentQty + sale.quantity
+                                        });
+                                    }
+                                })
+                                .then(() => db.collection('productSales').doc(id).delete());
+                        } else {
+                            promise = db.collection('productSales').doc(id).delete();
+                        }
+                    }
+
+                    promise
+                        .then(() => {
+                            Swal.close();
+                            carregarVendasDia();
+                            carregarDados();
+                            broadcastCaixaUpdate();
+                            Swal.fire({
+                                icon: 'success',
+                                title: '✅ Venda excluída!',
+                                timer: 1500,
+                                showConfirmButton: false
+                            });
+                        })
+                        .catch(error => {
+                            Swal.close();
+                            Swal.fire('Erro', 'Erro ao excluir: ' + error.message, 'error');
+                        });
+                }
+            });
+        }
+        window.excluirVenda = excluirVenda;
+
+        // ==========================================
+        // 11. RESUMO
+        // ==========================================
+        function atualizarResumo() {
+            const services = todaySales.filter(s => s.tipo === 'service');
+            const products = todaySales.filter(s => s.tipo === 'product');
+
+            const totalServices = services.length;
+            const totalServicesValue = services.reduce((sum, s) => sum + parseFloat(s.value || 0), 0);
+            const totalProducts = products.length;
+            const totalProductsValue = products.reduce((sum, s) => sum + parseFloat(s.totalValue || 0), 0);
+            const total = totalServicesValue + totalProductsValue;
+
+            // Calcular comissões
+            let totalCommissions = 0;
+            services.forEach(s => {
+                const collab = collaborators.find(c => c.id === s.collaboratorId);
+                if (collab) {
+                    const perc = s.type === 'manual' ? 
+                        parseFloat(collab.manualPercent || 0) : 
+                        parseFloat(collab.productPercent || 0);
+                    totalCommissions += parseFloat(s.value || 0) * (perc / 100);
+                }
+            });
+
+            const totalSalon = total - totalCommissions;
+
+            document.getElementById('summaryServices').textContent = totalServices;
+            document.getElementById('summaryServicesValue').textContent = formatCurrency(totalServicesValue);
+            document.getElementById('summaryProducts').textContent = totalProducts;
+            document.getElementById('summaryProductsValue').textContent = formatCurrency(totalProductsValue);
+            document.getElementById('summaryTotal').textContent = formatCurrency(total);
+            document.getElementById('summaryCommissions').textContent = formatCurrency(totalCommissions);
+            document.getElementById('summarySalon').textContent = formatCurrency(totalSalon);
+
+            // Atualizar caixa atual
+            if (currentCashier) {
+                document.getElementById('currentCash').textContent = formatCurrency(
+                    (currentCashier.initialValue || 0) + total
+                );
+            }
+        }
+
+        // ==========================================
+        // 12. ATUALIZAR ÚLTIMA ATUALIZAÇÃO
+        // ==========================================
+        function atualizarUltimaAtualizacao() {
+            const now = new Date();
+            const el = document.getElementById('lastUpdateBadge');
+            if (el) {
+                el.innerHTML = `<i class="fas fa-clock me-1"></i>Atualizado ${now.toLocaleTimeString('pt-PT')}`;
+            }
+        }
+
+        // ==========================================
+        // 13. RECARREGAR DADOS
+        // ==========================================
+        function recarregarDados() {
+            const btn = document.getElementById('refreshBtn');
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Carregando...';
+            btn.disabled = true;
+
+            carregarDados();
+            setTimeout(() => {
+                btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Atualizar';
+                btn.disabled = false;
+                Swal.fire('✅ Dados atualizados!', '', 'success');
+            }, 1000);
+        }
+
+        // ==========================================
+        // 14. FUNÇÃO HOME
+        // ==========================================
+        function goHome() {
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage({ action: 'goHome' }, '*');
+            } else {
+                window.location.href = 'layout-index.html';
+            }
+        }
+
+        // ==========================================
+        // 15. MOSTRAR LOGIN PROMPT
+        // ==========================================
+        function mostrarLoginPrompt() {
+            Swal.fire({
+                title: 'Acesso Restrito',
+                text: 'Faça login para acessar o caixa.',
+                icon: 'warning',
+                confirmButtonText: 'Ir para Login',
+                showCancelButton: true,
+                cancelButtonText: 'Cancelar'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    window.location.href = '/login.html';
+                }
+            });
+        }
+
+        // ==========================================
+        // 16. RECEBER CONFIGURAÇÕES
+        // ==========================================
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'configUpdated') {
+                carregarConfiguracoesSistema();
+            }
+            if (event.data && event.data.type === 'caixaUpdated') {
+                carregarDados();
+            }
+        });
+
+        window.parent.postMessage({ type: 'getConfig' }, '*');
+
+        // ==========================================
+        // 17. UTILITÁRIOS
+        // ==========================================
+        function formatCurrency(value) {
+            if (typeof value !== 'number') value = parseFloat(value) || 0;
+            return '€ ' + value.toFixed(2).replace('.', ',');
+        }
+
+        // ==========================================
+        // 18. LOG DE INICIALIZAÇÃO
+        // ==========================================
+        console.log('✅ Caixa carregado com sucesso!');
+        console.log('📌 Funcionalidades:');
+        console.log('   - Abertura e fechamento de caixa');
+        console.log('   - Registro de serviços e produtos');
+        console.log('   - Pesquisa de clientes com autocomplete');
+        console.log('   - Pesquisa de produtos com autocomplete');
+        console.log('   - Lista de vendas do dia');
+        console.log('   - Resumo com comissões e saldo do salão');
+        console.log('   - Exclusão de vendas');
+        console.log('   - Sincronização em tempo real com Firebase');
+        console.log('   - Botão Home para voltar ao menu principal');
+
+    </script>
+
+</body>
+</html>
