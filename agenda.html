@@ -330,7 +330,7 @@
         }
 
         /* ============================================
-           CONTEÚDO DA AGENDA - SCROLL SINCRONIZADO
+           CONTEÚDO DA AGENDA - FIXO E SINCRONIZADO
            ============================================ */
         .agenda-content {
             flex: 1;
@@ -341,7 +341,7 @@
         }
 
         /* ============================================
-           COLUNA DE HORÁRIOS - FIXA E SINCRONIZADA
+           COLUNA DE HORÁRIOS - FIXA E NÃO ROLA
            ============================================ */
         .agenda-time-column {
             flex-shrink: 0;
@@ -355,6 +355,7 @@
             z-index: 90;
             overflow: hidden;
             height: 100%;
+            /* A coluna de horas NÃO tem scroll, é fixa */;
         }
 
         .agenda-time-slot {
@@ -372,7 +373,7 @@
         }
 
         /* ============================================
-           WRAPPER DO SCROLL - SINCRONIZA HORAS E AGENDA
+           WRAPPER DO SCROLL - SINCRONIZA TUDO
            ============================================ */
         .agenda-scroll-wrapper {
             flex: 1;
@@ -668,7 +669,7 @@
         }
 
         /* ============================================
-           MODAL DE EDIÇÃO DE AGENDAMENTO MELHORADO
+           MODAL DE EDIÇÃO DE AGENDAMENTO
            ============================================ */
         .edit-modal .modal-content {
             border-radius: 16px;
@@ -1013,16 +1014,16 @@
         </div>
 
         <!-- ==========================================
-        CONTEÚDO DA AGENDA
+        CONTEÚDO DA AGENDA - FIXO E SINCRONIZADO
         ========================================== -->
         <div class="agenda-content" id="agendaContent">
             
-            <!-- Coluna de Horários -->
+            <!-- Coluna de Horários - FIXA (não rola) -->
             <div class="agenda-time-column" id="agendaTimeColumn">
-                <!-- Horários serão preenchidos dinamicamente -->
+                <!-- Horários serão preenchidos dinamicamente (00:00 às 23:00) -->
             </div>
 
-            <!-- Wrapper do Scroll -->
+            <!-- Wrapper do Scroll - APENAS AQUI ROLA -->
             <div class="agenda-scroll-wrapper" id="agendaScrollWrapper">
                 <div class="agenda-grid-wrapper" id="agendaGridWrapper">
                     <!-- Grade será preenchida dinamicamente -->
@@ -1083,7 +1084,7 @@
     </div>
 
     <!-- ==========================================
-    MODAL DE EDIÇÃO DE AGENDAMENTO MELHORADO
+    MODAL DE EDIÇÃO DE AGENDAMENTO
     ========================================== -->
     <div class="modal fade edit-modal" id="editAppointmentModal" tabindex="-1" data-bs-backdrop="static">
         <div class="modal-dialog modal-lg modal-dialog-scrollable">
@@ -1168,16 +1169,6 @@
                             <option value="completed">🏁 Concluído</option>
                             <option value="cancelled">❌ Cancelado</option>
                         </select>
-                    </div>
-
-                    <!-- Notificação de Confirmação -->
-                    <div class="mb-3">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="editSendNotification" checked>
-                            <label class="form-check-label" for="editSendNotification">
-                                Enviar notificação de confirmação ao cliente
-                            </label>
-                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -1723,12 +1714,13 @@
         }
 
         // ==========================================
-        // 12. RENDERIZAR COLUNA DE HORÁRIOS (00:00 ÀS 23:00)
+        // 12. RENDERIZAR COLUNA DE HORÁRIOS (00:00 ÀS 23:00) - FIXA
         // ==========================================
         function renderTimeColumn() {
             const container = document.getElementById('agendaTimeColumn');
             container.innerHTML = '';
 
+            // Mostrar TODAS as horas de 00:00 às 23:00
             for (let hour = 0; hour < 24; hour++) {
                 const slot = document.createElement('div');
                 slot.className = 'agenda-time-slot';
@@ -1800,6 +1792,7 @@
                 dayColumn.setAttribute('data-date', currentDateStr);
                 dayColumn.setAttribute('data-collaborator-id', collaborator.id);
 
+                // Criar slots de 15 minutos (00:00 às 23:45)
                 for (let hour = 0; hour < 24; hour++) {
                     for (let quarter = 0; quarter < 4; quarter++) {
                         const slot = document.createElement('div');
@@ -2329,7 +2322,7 @@
         }
 
         // ==========================================
-        // 19. MODAL DE EDIÇÃO DE AGENDAMENTO MELHORADO
+        // 19. MODAL DE EDIÇÃO DE AGENDAMENTO
         // ==========================================
         function abrirModalEdicao(appointmentId) {
             const appointment = appointments.find(a => a.id === appointmentId);
@@ -2513,7 +2506,6 @@
             const collaboratorId = document.getElementById('editCollaboratorSelect').value;
             const notes = document.getElementById('editAppointmentNotes').value;
             const status = document.getElementById('editAppointmentStatus').value;
-            const sendNotification = document.getElementById('editSendNotification').checked;
 
             if (!clientId) {
                 Swal.fire('Erro', 'Selecione um cliente.', 'error');
@@ -2572,38 +2564,12 @@
                     const modal = bootstrap.Modal.getInstance(document.getElementById('editAppointmentModal'));
                     if (modal) modal.hide();
                     Swal.close();
-                    
-                    if (sendNotification && client && client.phone) {
-                        enviarConfirmacaoWhatsApp(client, updatedData);
-                    }
-                    
                     Swal.fire('✅ Agendamento atualizado!', '', 'success');
                 })
                 .catch(error => {
                     Swal.close();
                     Swal.fire('Erro', 'Erro ao atualizar: ' + error.message, 'error');
                 });
-        }
-
-        function enviarConfirmacaoWhatsApp(client, appointment) {
-            const dateStr = new Date(appointment.date + 'T00:00:00').toLocaleDateString('pt-PT', {
-                weekday: 'long',
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric'
-            });
-            
-            const message = `Olá ${client.name}! 👋\n\n` +
-                `Seu agendamento foi atualizado:\n` +
-                `📅 Data: ${dateStr}\n` +
-                `🕐 Hora: ${appointment.startTime}\n` +
-                `✂️ Serviço(s): ${appointment.serviceName}\n\n` +
-                `Aguardamos você! 😊\n` +
-                `Studio DeVitto`;
-
-            const phone = client.phone.replace(/\D/g, '');
-            const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
-            window.open(url, '_blank');
         }
 
         // ==========================================
@@ -2796,7 +2762,7 @@
         }
 
         // ==========================================
-        // 23. SINCRONIZAR SCROLL
+        // 23. SINCRONIZAR SCROLL - HORAS FIXAS, CONTEÚDO ROLA
         // ==========================================
         function syncAgendaScroll() {
             const timeColumn = document.getElementById('agendaTimeColumn');
@@ -2804,14 +2770,11 @@
 
             if (!timeColumn || !scrollWrapper) return;
 
-            scrollWrapper.addEventListener('scroll', function() {
-                timeColumn.scrollTop = this.scrollTop;
-            });
+            // A coluna de horas é FIXA (não tem scroll)
+            // O wrapper de scroll é o único que rola
+            // O conteúdo dentro do wrapper rola verticalmente
 
-            timeColumn.addEventListener('scroll', function() {
-                scrollWrapper.scrollTop = this.scrollTop;
-            });
-
+            // Sincronizar scroll horizontal
             const perfisContainer = document.getElementById('agendaProfessionals');
             if (perfisContainer) {
                 scrollWrapper.addEventListener('scroll', function() {
@@ -2823,6 +2786,7 @@
                 });
             }
 
+            // Sincronizar larguras
             function syncWidths() {
                 const columns = document.querySelectorAll('.agenda-day-column');
                 const profileCards = document.querySelectorAll('.agenda-professional');
@@ -2843,11 +2807,7 @@
             window.addEventListener('resize', syncWidths);
             setTimeout(syncWidths, 100);
 
-            setTimeout(() => {
-                timeColumn.scrollTop = scrollWrapper.scrollTop;
-            }, 200);
-
-            console.log('✅ Scroll sincronizado: horas + agenda');
+            console.log('✅ Scroll sincronizado: horas fixas, conteúdo rola');
         }
 
         // ==========================================
@@ -2971,6 +2931,8 @@
         // ==========================================
         console.log('✅ Agenda carregada com sucesso!');
         console.log('📌 Funcionalidades:');
+        console.log('   - Coluna de horas FIXA (00:00 às 23:00)');
+        console.log('   - Scroll sincronizado: horas fixas, conteúdo rola');
         console.log('   - Visualização de agendamentos por colaborador');
         console.log('   - Navegação: Ontem, Hoje, Amanhã');
         console.log('   - Calendário para selecionar data');
@@ -2979,9 +2941,7 @@
         console.log('   - Edição completa: data, hora, colaborador, serviços');
         console.log('   - Adicionar/remover serviços individualmente');
         console.log('   - Status: Agendado, Confirmado, Em atendimento, Concluído, Cancelado');
-        console.log('   - Notificação WhatsApp ao salvar alterações');
         console.log('   - Bloqueio de zoom em desktop e mobile');
-        console.log('   - Sincronização de scroll entre horas e agenda');
         console.log('   - Sincronização entre dispositivos via BroadcastChannel');
 
     </script>
