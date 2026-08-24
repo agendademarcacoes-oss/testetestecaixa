@@ -330,18 +330,20 @@
         }
 
         /* ============================================
-           CONTEÚDO DA AGENDA - FIXO E SINCRONIZADO
+           CONTEÚDO DA AGENDA - SCROLL ÚNICO
            ============================================ */
         .agenda-content {
             flex: 1;
             display: flex;
-            overflow: hidden;
+            overflow: auto;
             position: relative;
             min-height: 0;
+            touch-action: pan-y !important;
+            -ms-touch-action: pan-y !important;
         }
 
         /* ============================================
-           COLUNA DE HORÁRIOS - FIXA E NÃO ROLA
+           COLUNA DE HORÁRIOS - ROLA JUNTO COM A AGENDA
            ============================================ */
         .agenda-time-column {
             flex-shrink: 0;
@@ -353,9 +355,8 @@
             position: sticky;
             left: 0;
             z-index: 90;
-            overflow: hidden;
-            height: 100%;
-            /* A coluna de horas NÃO tem scroll, é fixa */;
+            align-self: flex-start;
+            /* Acompanha o scroll vertical da agenda */;
         }
 
         .agenda-time-slot {
@@ -373,19 +374,16 @@
         }
 
         /* ============================================
-           WRAPPER DO SCROLL - SINCRONIZA TUDO
+           GRADE DE AGENDAMENTOS - ROLA JUNTO COM AS HORAS
            ============================================ */
-        .agenda-scroll-wrapper {
+        .agenda-slots-container {
             flex: 1;
-            overflow: auto;
+            overflow: visible;
             position: relative;
-            -webkit-overflow-scrolling: touch;
+            min-height: 0;
         }
 
-        /* ============================================
-           GRADE DE AGENDAMENTOS
-           ============================================ */
-        .agenda-grid-wrapper {
+        .agenda-grid {
             display: flex;
             min-width: 100%;
             position: relative;
@@ -398,9 +396,9 @@
             position: relative;
         }
 
-        .agenda-grid-wrapper.single-column .agenda-day-column,
-        .agenda-grid-wrapper.two-columns .agenda-day-column,
-        .agenda-grid-wrapper.three-columns .agenda-day-column {
+        .agenda-grid.single-column .agenda-day-column,
+        .agenda-grid.two-columns .agenda-day-column,
+        .agenda-grid.three-columns .agenda-day-column {
             min-width: 220px;
             flex: 1;
         }
@@ -499,13 +497,12 @@
            ============================================ */
         .current-time-line-global {
             position: absolute;
-            left: 0;
+            left: 60px;
             right: 0;
             height: 2px;
             background: #dc3545;
             z-index: 100;
             pointer-events: none;
-            margin-left: 60px;
         }
 
         .current-time-line-global::before {
@@ -757,9 +754,9 @@
             .agenda-day-column {
                 min-width: 250px;
             }
-            .agenda-grid-wrapper.single-column .agenda-day-column,
-            .agenda-grid-wrapper.two-columns .agenda-day-column,
-            .agenda-grid-wrapper.three-columns .agenda-day-column {
+            .agenda-grid.single-column .agenda-day-column,
+            .agenda-grid.two-columns .agenda-day-column,
+            .agenda-grid.three-columns .agenda-day-column {
                 min-width: 250px;
                 flex: 1;
             }
@@ -792,9 +789,9 @@
             .agenda-day-column {
                 min-width: 205px;
             }
-            .agenda-grid-wrapper.single-column .agenda-day-column,
-            .agenda-grid-wrapper.two-columns .agenda-day-column,
-            .agenda-grid-wrapper.three-columns .agenda-day-column {
+            .agenda-grid.single-column .agenda-day-column,
+            .agenda-grid.two-columns .agenda-day-column,
+            .agenda-grid.three-columns .agenda-day-column {
                 min-width: 205px;
                 flex: 1;
             }
@@ -833,7 +830,7 @@
                 font-size: 0.55rem;
             }
             .current-time-line-global {
-                margin-left: 50px;
+                left: 50px;
             }
         }
 
@@ -855,9 +852,9 @@
             .agenda-day-column {
                 min-width: 185px;
             }
-            .agenda-grid-wrapper.single-column .agenda-day-column,
-            .agenda-grid-wrapper.two-columns .agenda-day-column,
-            .agenda-grid-wrapper.three-columns .agenda-day-column {
+            .agenda-grid.single-column .agenda-day-column,
+            .agenda-grid.two-columns .agenda-day-column,
+            .agenda-grid.three-columns .agenda-day-column {
                 min-width: 185px;
                 flex: 1;
             }
@@ -897,7 +894,7 @@
                 font-size: 0.5rem;
             }
             .current-time-line-global {
-                margin-left: 40px;
+                left: 40px;
             }
         }
 
@@ -1014,18 +1011,18 @@
         </div>
 
         <!-- ==========================================
-        CONTEÚDO DA AGENDA - FIXO E SINCRONIZADO
+        CONTEÚDO DA AGENDA - SCROLL ÚNICO
         ========================================== -->
         <div class="agenda-content" id="agendaContent">
             
-            <!-- Coluna de Horários - FIXA (não rola) -->
+            <!-- Coluna de Horários - ROLA JUNTO COM A AGENDA -->
             <div class="agenda-time-column" id="agendaTimeColumn">
-                <!-- Horários serão preenchidos dinamicamente (00:00 às 23:00) -->
+                <!-- Horários serão preenchidos dinamicamente -->
             </div>
 
-            <!-- Wrapper do Scroll - APENAS AQUI ROLA -->
-            <div class="agenda-scroll-wrapper" id="agendaScrollWrapper">
-                <div class="agenda-grid-wrapper" id="agendaGridWrapper">
+            <!-- Grade de Agendamentos - ROLA JUNTO COM AS HORAS -->
+            <div class="agenda-slots-container" id="agendaSlotsContainer">
+                <div class="agenda-grid" id="agendaGrid">
                     <!-- Grade será preenchida dinamicamente -->
                 </div>
                 <!-- Overlay de Seleção -->
@@ -1714,7 +1711,7 @@
         }
 
         // ==========================================
-        // 12. RENDERIZAR COLUNA DE HORÁRIOS (00:00 ÀS 23:00) - FIXA
+        // 12. RENDERIZAR COLUNA DE HORÁRIOS (00:00 ÀS 23:00)
         // ==========================================
         function renderTimeColumn() {
             const container = document.getElementById('agendaTimeColumn');
@@ -1759,7 +1756,7 @@
         // 14. RENDERIZAR GRADE DA AGENDA
         // ==========================================
         function renderAgendaGrid() {
-            const container = document.getElementById('agendaGridWrapper');
+            const container = document.getElementById('agendaGrid');
             container.innerHTML = '';
 
             const activeCollaborators = collaborators.filter(c => c.active !== false);
@@ -2646,7 +2643,7 @@
 
                 const posicaoTop = (horaAtual * 60) + minutoAtual;
 
-                const agendaContainer = document.getElementById('agendaScrollWrapper');
+                const agendaContainer = document.getElementById('agendaContent');
                 if (agendaContainer) {
                     const containerHeight = agendaContainer.clientHeight;
                     const targetPosition = Math.max(0, posicaoTop - (containerHeight / 2) + 30);
@@ -2762,27 +2759,27 @@
         }
 
         // ==========================================
-        // 23. SINCRONIZAR SCROLL - HORAS FIXAS, CONTEÚDO ROLA
+        // 23. SINCRONIZAR SCROLL - HORAS E AGENDA JUNTOS
         // ==========================================
         function syncAgendaScroll() {
             const timeColumn = document.getElementById('agendaTimeColumn');
-            const scrollWrapper = document.getElementById('agendaScrollWrapper');
+            const agendaContainer = document.getElementById('agendaContent');
 
-            if (!timeColumn || !scrollWrapper) return;
+            if (!timeColumn || !agendaContainer) return;
 
-            // A coluna de horas é FIXA (não tem scroll)
-            // O wrapper de scroll é o único que rola
-            // O conteúdo dentro do wrapper rola verticalmente
+            // A coluna de horas e a agenda usam o MESMO scroll
+            // O scroll é controlado pelo agenda-content
+            // Ambos os elementos estão dentro do mesmo container com overflow
 
             // Sincronizar scroll horizontal
             const perfisContainer = document.getElementById('agendaProfessionals');
             if (perfisContainer) {
-                scrollWrapper.addEventListener('scroll', function() {
+                agendaContainer.addEventListener('scroll', function() {
                     perfisContainer.scrollLeft = this.scrollLeft;
                 });
 
                 perfisContainer.addEventListener('scroll', function() {
-                    scrollWrapper.scrollLeft = this.scrollLeft;
+                    agendaContainer.scrollLeft = this.scrollLeft;
                 });
             }
 
@@ -2803,11 +2800,11 @@
                 }
             }
 
-            scrollWrapper.addEventListener('scroll', syncWidths);
+            agendaContainer.addEventListener('scroll', syncWidths);
             window.addEventListener('resize', syncWidths);
             setTimeout(syncWidths, 100);
 
-            console.log('✅ Scroll sincronizado: horas fixas, conteúdo rola');
+            console.log('✅ Scroll sincronizado: horas e agenda rolam juntos');
         }
 
         // ==========================================
@@ -2931,8 +2928,7 @@
         // ==========================================
         console.log('✅ Agenda carregada com sucesso!');
         console.log('📌 Funcionalidades:');
-        console.log('   - Coluna de horas FIXA (00:00 às 23:00)');
-        console.log('   - Scroll sincronizado: horas fixas, conteúdo rola');
+        console.log('   - Coluna de horas ROLA JUNTO com a agenda');
         console.log('   - Visualização de agendamentos por colaborador');
         console.log('   - Navegação: Ontem, Hoje, Amanhã');
         console.log('   - Calendário para selecionar data');
