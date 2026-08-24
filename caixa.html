@@ -83,21 +83,35 @@
             gap: 8px;
         }
 
-        .caixa-header .header-left .brand-icon {
+        .caixa-header .header-left .brand-logo {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .caixa-header .header-left .brand-logo img {
+            height: 28px;
+            width: 28px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .caixa-header .header-left .brand-logo .brand-icon {
             font-size: 1.1rem;
             color: #ffd700;
         }
 
-        .caixa-header .header-left h1 {
+        .caixa-header .header-left .brand-logo .brand-name {
             font-weight: 700;
             font-size: 1rem;
             margin: 0;
             display: flex;
             align-items: center;
             gap: 6px;
+            color: white;
         }
 
-        .caixa-header .header-left h1 small {
+        .caixa-header .header-left .brand-logo .brand-name small {
             font-size: 0.6rem;
             font-weight: 400;
             opacity: 0.7;
@@ -551,6 +565,13 @@
                 height: 30px;
                 font-size: 12px;
             }
+            .caixa-header .header-left .brand-logo .brand-name {
+                font-size: 0.85rem;
+            }
+            .caixa-header .header-left .brand-logo img {
+                height: 24px;
+                width: 24px;
+            }
         }
 
         @media (max-width: 480px) {
@@ -572,6 +593,13 @@
             .service-badge {
                 font-size: 0.6rem;
                 padding: 2px 8px;
+            }
+            .caixa-header .header-left .brand-logo .brand-name {
+                font-size: 0.75rem;
+            }
+            .caixa-header .header-left .brand-logo img {
+                height: 20px;
+                width: 20px;
             }
         }
 
@@ -621,15 +649,18 @@
 <body>
 
     <!-- ==========================================
-    HEADER COM BOTÃO HOME
+    HEADER COM LOGO DO SISTEMA
     ========================================== -->
     <header class="caixa-header" id="caixaHeader">
         <div class="header-left">
-            <i class="fas fa-cash-register brand-icon"></i>
-            <h1>
-                Caixa
-                <small id="userGreeting">Carregando...</small>
-            </h1>
+            <div class="brand-logo" id="headerLogo">
+                <i class="fas fa-cash-register brand-icon" id="logoIconHeader"></i>
+                <img id="logoImageHeader" style="display:none; height:28px; width:28px; border-radius:50%; object-fit:cover;" alt="Logo">
+                <span class="brand-name">
+                    Caixa
+                    <small id="userGreeting">Carregando...</small>
+                </span>
+            </div>
         </div>
         <div class="header-actions">
             <span class="last-update" id="lastUpdateBadge">
@@ -1101,6 +1132,7 @@
                     document.getElementById('userGreeting').textContent = user.email;
                     carregarDados();
                     carregarConfiguracoesSistema();
+                    atualizarLogoHeader();
                 } else {
                     document.getElementById('userGreeting').textContent = 'Não autenticado';
                     mostrarLoginPrompt();
@@ -1222,18 +1254,167 @@
                 document.getElementById('newClientPhoto').value = '';
             });
 
-            // Autocomplete de clientes
+            // Autocomplete de clientes - CORRIGIDO
             document.getElementById('serviceClientSearch').addEventListener('input', function() {
-                filtrarClientes(this.value, 'serviceClientAutocomplete', 'serviceClientId', this);
+                const searchTerm = this.value;
+                const normalizedSearch = searchTerm.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+                
+                // Mostrar/Esconder botão limpar
+                const clearBtn = this.parentElement.querySelector('.clear-btn');
+                if (searchTerm.length > 0) {
+                    clearBtn.classList.add('show');
+                } else {
+                    clearBtn.classList.remove('show');
+                }
+
+                // Se o termo de busca tiver menos de 1 caractere, mostrar todos os clientes
+                if (normalizedSearch.length < 1) {
+                    mostrarTodosClientes('serviceClientAutocomplete', 'serviceClientId', this);
+                    return;
+                }
+
+                // Filtrar clientes pelo nome normalizado
+                const filtered = clients.filter(c => {
+                    const nome = (c.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+                    const phone = (c.phone || '').replace(/\D/g, '');
+                    return nome.includes(normalizedSearch) || phone.includes(searchTerm.replace(/\D/g, ''));
+                });
+
+                mostrarResultadosClientes(filtered, 'serviceClientAutocomplete', 'serviceClientId', this);
             });
 
             document.getElementById('productClientSearch').addEventListener('input', function() {
-                filtrarClientes(this.value, 'productClientAutocomplete', 'productClientId', this);
+                const searchTerm = this.value;
+                const normalizedSearch = searchTerm.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+                
+                const clearBtn = this.parentElement.querySelector('.clear-btn');
+                if (searchTerm.length > 0) {
+                    clearBtn.classList.add('show');
+                } else {
+                    clearBtn.classList.remove('show');
+                }
+
+                if (normalizedSearch.length < 1) {
+                    mostrarTodosClientes('productClientAutocomplete', 'productClientId', this);
+                    return;
+                }
+
+                const filtered = clients.filter(c => {
+                    const nome = (c.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+                    const phone = (c.phone || '').replace(/\D/g, '');
+                    return nome.includes(normalizedSearch) || phone.includes(searchTerm.replace(/\D/g, ''));
+                });
+
+                mostrarResultadosClientes(filtered, 'productClientAutocomplete', 'productClientId', this);
             });
 
             // Autocomplete de produtos
             document.getElementById('productSearch').addEventListener('input', function() {
-                filtrarProdutos(this.value, this);
+                const searchTerm = this.value;
+                const clearBtn = this.parentElement.querySelector('.clear-btn');
+                
+                if (searchTerm.length > 0) {
+                    clearBtn.classList.add('show');
+                } else {
+                    clearBtn.classList.remove('show');
+                }
+
+                const normalizedSearch = searchTerm.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+
+                if (normalizedSearch.length < 1) {
+                    if (products.length === 0) {
+                        const list = document.getElementById('productAutocomplete');
+                        list.innerHTML = '<div class="autocomplete-item text-muted">Nenhum produto cadastrado</div>';
+                        list.classList.add('active');
+                        return;
+                    }
+                    const allProducts = products.slice(0, 15);
+                    let html = '';
+                    allProducts.forEach(p => {
+                        const estoque = p.quantity || 0;
+                        const foto = p.imageUrl ? 
+                            `<img src="${p.imageUrl}" class="avatar" onerror="this.style.display='none'">` :
+                            `<div class="avatar-placeholder"><i class="fas fa-box"></i></div>`;
+                        
+                        html += `
+                            <div class="autocomplete-item" data-id="${p.id}" data-name="${p.name}" data-price="${p.salePrice}" data-stock="${estoque}">
+                                ${foto}
+                                <div class="info">
+                                    <div class="name">${p.name}</div>
+                                    <div class="detail">${formatCurrency(p.salePrice)} | ${estoque} und</div>
+                                </div>
+                                <span class="badge-item ${estoque <= p.minQuantity ? 'bg-warning' : 'bg-success'}">${estoque}</span>
+                            </div>
+                        `;
+                    });
+                    if (products.length > 15) {
+                        html += `<div class="autocomplete-item text-muted">... e mais ${products.length - 15} produtos. Digite para filtrar.</div>`;
+                    }
+                    const list = document.getElementById('productAutocomplete');
+                    list.innerHTML = html;
+                    list.classList.add('active');
+
+                    list.querySelectorAll('.autocomplete-item').forEach(item => {
+                        item.addEventListener('click', function() {
+                            document.getElementById('productSearch').value = this.getAttribute('data-name');
+                            document.getElementById('productId').value = this.getAttribute('data-id');
+                            const stock = parseInt(this.getAttribute('data-stock')) || 0;
+                            document.getElementById('productQuantity').max = stock;
+                            document.getElementById('productQuantity').value = 1;
+                            list.classList.remove('active');
+                            clearBtn.classList.add('show');
+                        });
+                    });
+                    return;
+                }
+
+                const filtered = products.filter(p => {
+                    const nome = (p.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+                    const desc = (p.description || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+                    return nome.includes(normalizedSearch) || desc.includes(normalizedSearch);
+                });
+
+                if (filtered.length === 0) {
+                    const list = document.getElementById('productAutocomplete');
+                    list.innerHTML = '<div class="autocomplete-item text-muted">Nenhum produto encontrado</div>';
+                    list.classList.add('active');
+                    return;
+                }
+
+                let html = '';
+                filtered.slice(0, 15).forEach(p => {
+                    const estoque = p.quantity || 0;
+                    const foto = p.imageUrl ? 
+                        `<img src="${p.imageUrl}" class="avatar" onerror="this.style.display='none'">` :
+                        `<div class="avatar-placeholder"><i class="fas fa-box"></i></div>`;
+                    
+                    html += `
+                        <div class="autocomplete-item" data-id="${p.id}" data-name="${p.name}" data-price="${p.salePrice}" data-stock="${estoque}">
+                            ${foto}
+                            <div class="info">
+                                <div class="name">${p.name}</div>
+                                <div class="detail">${formatCurrency(p.salePrice)} | ${estoque} und</div>
+                            </div>
+                            <span class="badge-item ${estoque <= p.minQuantity ? 'bg-warning' : 'bg-success'}">${estoque}</span>
+                        </div>
+                    `;
+                });
+
+                const list = document.getElementById('productAutocomplete');
+                list.innerHTML = html;
+                list.classList.add('active');
+
+                list.querySelectorAll('.autocomplete-item').forEach(item => {
+                    item.addEventListener('click', function() {
+                        document.getElementById('productSearch').value = this.getAttribute('data-name');
+                        document.getElementById('productId').value = this.getAttribute('data-id');
+                        const stock = parseInt(this.getAttribute('data-stock')) || 0;
+                        document.getElementById('productQuantity').max = stock;
+                        document.getElementById('productQuantity').value = 1;
+                        list.classList.remove('active');
+                        clearBtn.classList.add('show');
+                    });
+                });
             });
 
             // Evento para badges de serviços
@@ -1265,6 +1446,9 @@
                     carregarDados();
                 }
             }, 30000);
+
+            // Atualizar logo periodicamente
+            setInterval(atualizarLogoHeader, 10000);
         });
 
         // ==========================================
@@ -1283,6 +1467,9 @@
                         }
                         if (event.data && event.data.type === 'clientsUpdated') {
                             carregarClientes();
+                        }
+                        if (event.data && event.data.type === 'logoUpdated') {
+                            atualizarLogoHeader();
                         }
                     };
                 }
@@ -1306,7 +1493,146 @@
         }
 
         // ==========================================
-        // 5. CARREGAR DADOS
+        // 5. FUNÇÕES DE BUSCA DE CLIENTES
+        // ==========================================
+        function mostrarTodosClientes(listId, hiddenId, inputElement) {
+            const list = document.getElementById(listId);
+            const clearBtn = inputElement.parentElement.querySelector('.clear-btn');
+
+            if (clients.length === 0) {
+                list.innerHTML = `
+                    <div class="autocomplete-item text-muted">Nenhum cliente cadastrado</div>
+                    <div class="autocomplete-item" style="color:#26196b;font-weight:500;" onclick="abrirModalNovoCliente()">
+                        <i class="fas fa-user-plus me-2"></i> Cadastrar novo cliente
+                    </div>
+                `;
+                list.classList.add('active');
+                return;
+            }
+
+            // Mostrar TODOS os clientes (limitado a 20)
+            const allClients = clients.slice(0, 20);
+            let html = '';
+            allClients.forEach(c => {
+                const foto = c.photoUrl ? 
+                    `<img src="${c.photoUrl}" class="avatar" onerror="this.style.display='none'">` :
+                    `<div class="avatar-placeholder">${(c.name || '?').charAt(0).toUpperCase()}</div>`;
+                
+                html += `
+                    <div class="autocomplete-item" data-id="${c.id}" data-name="${c.name}">
+                        ${foto}
+                        <div class="info">
+                            <div class="name">${c.name}</div>
+                            <div class="detail">${c.phone || 'Sem telefone'} ${c.email ? '| ' + c.email : ''}</div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            if (clients.length > 20) {
+                html += `<div class="autocomplete-item text-muted">... e mais ${clients.length - 20} clientes. Digite para filtrar.</div>`;
+            }
+
+            html += `
+                <div class="autocomplete-item" style="color:#26196b;font-weight:500;border-top:1px solid #eee;" onclick="abrirModalNovoCliente()">
+                    <i class="fas fa-user-plus me-2"></i> Cadastrar novo cliente
+                </div>
+            `;
+
+            list.innerHTML = html;
+            list.classList.add('active');
+
+            list.querySelectorAll('.autocomplete-item[data-id]').forEach(item => {
+                item.addEventListener('click', function() {
+                    inputElement.value = this.getAttribute('data-name');
+                    document.getElementById(hiddenId).value = this.getAttribute('data-id');
+                    list.classList.remove('active');
+                    if (clearBtn) clearBtn.classList.add('show');
+                });
+            });
+        }
+
+        function mostrarResultadosClientes(filtered, listId, hiddenId, inputElement) {
+            const list = document.getElementById(listId);
+            const clearBtn = inputElement.parentElement.querySelector('.clear-btn');
+
+            if (filtered.length === 0) {
+                list.innerHTML = `
+                    <div class="autocomplete-item text-muted">Nenhum cliente encontrado</div>
+                    <div class="autocomplete-item" style="color:#26196b;font-weight:500;" onclick="abrirModalNovoCliente('${inputElement.value}')">
+                        <i class="fas fa-user-plus me-2"></i> Cadastrar "${inputElement.value}" como novo cliente
+                    </div>
+                `;
+                list.classList.add('active');
+                return;
+            }
+
+            let html = '';
+            filtered.slice(0, 15).forEach(c => {
+                const foto = c.photoUrl ? 
+                    `<img src="${c.photoUrl}" class="avatar" onerror="this.style.display='none'">` :
+                    `<div class="avatar-placeholder">${(c.name || '?').charAt(0).toUpperCase()}</div>`;
+                
+                html += `
+                    <div class="autocomplete-item" data-id="${c.id}" data-name="${c.name}">
+                        ${foto}
+                        <div class="info">
+                            <div class="name">${c.name}</div>
+                            <div class="detail">${c.phone || 'Sem telefone'} ${c.email ? '| ' + c.email : ''}</div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            if (filtered.length > 15) {
+                html += `<div class="autocomplete-item text-muted">... e mais ${filtered.length - 15} clientes. Refine sua busca.</div>`;
+            }
+
+            html += `
+                <div class="autocomplete-item" style="color:#26196b;font-weight:500;border-top:1px solid #eee;" onclick="abrirModalNovoCliente('${inputElement.value}')">
+                    <i class="fas fa-user-plus me-2"></i> Cadastrar "${inputElement.value || 'novo cliente'}" como novo cliente
+                </div>
+            `;
+
+            list.innerHTML = html;
+            list.classList.add('active');
+
+            list.querySelectorAll('.autocomplete-item[data-id]').forEach(item => {
+                item.addEventListener('click', function() {
+                    inputElement.value = this.getAttribute('data-name');
+                    document.getElementById(hiddenId).value = this.getAttribute('data-id');
+                    list.classList.remove('active');
+                    if (clearBtn) clearBtn.classList.add('show');
+                });
+            });
+        }
+
+        // ==========================================
+        // 6. LOGO DO SISTEMA
+        // ==========================================
+        function atualizarLogoHeader() {
+            const config = localStorage.getItem('systemConfig');
+            if (config) {
+                try {
+                    const parsed = JSON.parse(config);
+                    const logoUrl = parsed.logo;
+                    const logoIcon = document.getElementById('logoIconHeader');
+                    const logoImage = document.getElementById('logoImageHeader');
+
+                    if (logoUrl) {
+                        logoIcon.style.display = 'none';
+                        logoImage.style.display = 'inline-block';
+                        logoImage.src = logoUrl;
+                    } else {
+                        logoIcon.style.display = 'inline-block';
+                        logoImage.style.display = 'none';
+                    }
+                } catch(e) {}
+            }
+        }
+
+        // ==========================================
+        // 7. CARREGAR DADOS
         // ==========================================
         function carregarDados() {
             if (!currentUser) return;
@@ -1321,6 +1647,7 @@
                 carregarVendasDia();
                 carregarConfiguracoesSistema();
                 atualizarUltimaAtualizacao();
+                atualizarLogoHeader();
             }).catch(err => console.error('Erro ao carregar dados:', err));
         }
 
@@ -1460,6 +1787,7 @@
                             header.style.background = `linear-gradient(135deg, ${parsed.corPrimaria}, ${parsed.corPrimaria}99)`;
                         }
                     }
+                    atualizarLogoHeader();
                 }
             } catch(e) {}
         }
@@ -1494,223 +1822,7 @@
         }
 
         // ==========================================
-        // 6. BUSCA DE CLIENTES (CORRIGIDA - TODOS OS CLIENTES)
-        // ==========================================
-        function filtrarClientes(searchTerm, listId, hiddenId, inputElement) {
-            const list = document.getElementById(listId);
-            const clearBtn = inputElement.parentElement.querySelector('.clear-btn');
-
-            // Mostrar/Esconder botão limpar
-            if (searchTerm.length > 0) {
-                clearBtn.classList.add('show');
-            } else {
-                clearBtn.classList.remove('show');
-            }
-
-            const normalizedSearch = searchTerm.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
-
-            // Se não tiver termo de busca, mostrar lista com todos os clientes (limitado a 15)
-            if (normalizedSearch.length < 1) {
-                if (clients.length === 0) {
-                    list.innerHTML = '<div class="autocomplete-item text-muted">Nenhum cliente cadastrado</div>';
-                    list.classList.add('active');
-                    return;
-                }
-                // Mostrar todos os clientes (limitado a 15)
-                const allClients = clients.slice(0, 15);
-                let html = '';
-                allClients.forEach(c => {
-                    const foto = c.photoUrl ? 
-                        `<img src="${c.photoUrl}" class="avatar" onerror="this.style.display='none'">` :
-                        `<div class="avatar-placeholder">${(c.name || '?').charAt(0).toUpperCase()}</div>`;
-                    
-                    html += `
-                        <div class="autocomplete-item" data-id="${c.id}" data-name="${c.name}">
-                            ${foto}
-                            <div class="info">
-                                <div class="name">${c.name}</div>
-                                <div class="detail">${c.phone || 'Sem telefone'} ${c.email ? '| ' + c.email : ''}</div>
-                            </div>
-                        </div>
-                    `;
-                });
-                if (clients.length > 15) {
-                    html += `<div class="autocomplete-item text-muted">... e mais ${clients.length - 15} clientes. Digite para filtrar.</div>`;
-                }
-                list.innerHTML = html;
-                list.classList.add('active');
-
-                list.querySelectorAll('.autocomplete-item').forEach(item => {
-                    item.addEventListener('click', function() {
-                        inputElement.value = this.getAttribute('data-name');
-                        document.getElementById(hiddenId).value = this.getAttribute('data-id');
-                        list.classList.remove('active');
-                        clearBtn.classList.add('show');
-                    });
-                });
-                return;
-            }
-
-            // Filtrar todos os clientes que correspondem à busca
-            const filtered = clients.filter(c => {
-                const nome = (c.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
-                const phone = (c.phone || '').replace(/\D/g, '');
-                return nome.includes(normalizedSearch) || phone.includes(searchTerm.replace(/\D/g, ''));
-            });
-
-            if (filtered.length === 0) {
-                list.innerHTML = `
-                    <div class="autocomplete-item text-muted">Nenhum cliente encontrado</div>
-                    <div class="autocomplete-item" style="color:#26196b;font-weight:500;" onclick="abrirModalNovoCliente('${searchTerm}')">
-                        <i class="fas fa-user-plus me-2"></i> Cadastrar "${searchTerm}" como novo cliente
-                    </div>
-                `;
-                list.classList.add('active');
-                return;
-            }
-
-            let html = '';
-            filtered.slice(0, 15).forEach(c => {
-                const foto = c.photoUrl ? 
-                    `<img src="${c.photoUrl}" class="avatar" onerror="this.style.display='none'">` :
-                    `<div class="avatar-placeholder">${(c.name || '?').charAt(0).toUpperCase()}</div>`;
-                
-                html += `
-                    <div class="autocomplete-item" data-id="${c.id}" data-name="${c.name}">
-                        ${foto}
-                        <div class="info">
-                            <div class="name">${c.name}</div>
-                            <div class="detail">${c.phone || 'Sem telefone'} ${c.email ? '| ' + c.email : ''}</div>
-                        </div>
-                    </div>
-                `;
-            });
-
-            if (filtered.length > 15) {
-                html += `<div class="autocomplete-item text-muted">... e mais ${filtered.length - 15} clientes. Refine sua busca.</div>`;
-            }
-
-            list.innerHTML = html;
-            list.classList.add('active');
-
-            list.querySelectorAll('.autocomplete-item').forEach(item => {
-                item.addEventListener('click', function() {
-                    inputElement.value = this.getAttribute('data-name');
-                    document.getElementById(hiddenId).value = this.getAttribute('data-id');
-                    list.classList.remove('active');
-                    clearBtn.classList.add('show');
-                });
-            });
-        }
-
-        function filtrarProdutos(searchTerm, inputElement) {
-            const list = document.getElementById('productAutocomplete');
-            const clearBtn = inputElement.parentElement.querySelector('.clear-btn');
-
-            if (searchTerm.length > 0) {
-                clearBtn.classList.add('show');
-            } else {
-                clearBtn.classList.remove('show');
-            }
-
-            const normalizedSearch = searchTerm.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
-
-            if (normalizedSearch.length < 1) {
-                if (products.length === 0) {
-                    list.innerHTML = '<div class="autocomplete-item text-muted">Nenhum produto cadastrado</div>';
-                    list.classList.add('active');
-                    return;
-                }
-                const allProducts = products.slice(0, 15);
-                let html = '';
-                allProducts.forEach(p => {
-                    const estoque = p.quantity || 0;
-                    const foto = p.imageUrl ? 
-                        `<img src="${p.imageUrl}" class="avatar" onerror="this.style.display='none'">` :
-                        `<div class="avatar-placeholder"><i class="fas fa-box"></i></div>`;
-                    
-                    html += `
-                        <div class="autocomplete-item" data-id="${p.id}" data-name="${p.name}" data-price="${p.salePrice}" data-stock="${estoque}">
-                            ${foto}
-                            <div class="info">
-                                <div class="name">${p.name}</div>
-                                <div class="detail">${formatCurrency(p.salePrice)} | ${estoque} und</div>
-                            </div>
-                            <span class="badge-item ${estoque <= p.minQuantity ? 'bg-warning' : 'bg-success'}">${estoque}</span>
-                        </div>
-                    `;
-                });
-                if (products.length > 15) {
-                    html += `<div class="autocomplete-item text-muted">... e mais ${products.length - 15} produtos. Digite para filtrar.</div>`;
-                }
-                list.innerHTML = html;
-                list.classList.add('active');
-
-                list.querySelectorAll('.autocomplete-item').forEach(item => {
-                    item.addEventListener('click', function() {
-                        inputElement.value = this.getAttribute('data-name');
-                        document.getElementById('productId').value = this.getAttribute('data-id');
-                        const stock = parseInt(this.getAttribute('data-stock')) || 0;
-                        const qtyInput = document.getElementById('productQuantity');
-                        qtyInput.max = stock;
-                        qtyInput.value = 1;
-                        list.classList.remove('active');
-                        clearBtn.classList.add('show');
-                    });
-                });
-                return;
-            }
-
-            const filtered = products.filter(p => {
-                const nome = (p.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
-                const desc = (p.description || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
-                return nome.includes(normalizedSearch) || desc.includes(normalizedSearch);
-            });
-
-            if (filtered.length === 0) {
-                list.innerHTML = '<div class="autocomplete-item text-muted">Nenhum produto encontrado</div>';
-                list.classList.add('active');
-                return;
-            }
-
-            let html = '';
-            filtered.slice(0, 15).forEach(p => {
-                const estoque = p.quantity || 0;
-                const foto = p.imageUrl ? 
-                    `<img src="${p.imageUrl}" class="avatar" onerror="this.style.display='none'">` :
-                    `<div class="avatar-placeholder"><i class="fas fa-box"></i></div>`;
-                
-                html += `
-                    <div class="autocomplete-item" data-id="${p.id}" data-name="${p.name}" data-price="${p.salePrice}" data-stock="${estoque}">
-                        ${foto}
-                        <div class="info">
-                            <div class="name">${p.name}</div>
-                            <div class="detail">${formatCurrency(p.salePrice)} | ${estoque} und</div>
-                        </div>
-                        <span class="badge-item ${estoque <= p.minQuantity ? 'bg-warning' : 'bg-success'}">${estoque}</span>
-                    </div>
-                `;
-            });
-
-            list.innerHTML = html;
-            list.classList.add('active');
-
-            list.querySelectorAll('.autocomplete-item').forEach(item => {
-                item.addEventListener('click', function() {
-                    inputElement.value = this.getAttribute('data-name');
-                    document.getElementById('productId').value = this.getAttribute('data-id');
-                    const stock = parseInt(this.getAttribute('data-stock')) || 0;
-                    const qtyInput = document.getElementById('productQuantity');
-                    qtyInput.max = stock;
-                    qtyInput.value = 1;
-                    list.classList.remove('active');
-                    clearBtn.classList.add('show');
-                });
-            });
-        }
-
-        // ==========================================
-        // 7. NOVO CLIENTE
+        // 8. NOVO CLIENTE
         // ==========================================
         function abrirModalNovoCliente(nome = '') {
             document.getElementById('newClientForm').reset();
@@ -1748,7 +1860,6 @@
             };
             reader.readAsDataURL(file);
 
-            // Upload para Cloudinary
             Swal.fire({
                 title: 'Enviando foto...',
                 allowOutsideClick: false,
@@ -1801,7 +1912,6 @@
                 return;
             }
 
-            // Verificar se cliente já existe
             const existing = clients.find(c => c.name.toLowerCase() === nome.toLowerCase() || c.phone === phone);
             if (existing) {
                 Swal.fire('Aviso', 'Cliente já cadastrado com este nome ou telefone.', 'warning');
@@ -1830,7 +1940,6 @@
                     clients.push(newClient);
                     clients.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
-                    // Atualizar o campo de busca com o novo cliente
                     const clientId = docRef.id;
                     const searchInput = document.getElementById('serviceClientSearch');
                     searchInput.value = nome;
@@ -1849,7 +1958,6 @@
                         showConfirmButton: false
                     });
 
-                    // Mostrar o botão limpar
                     const clearBtn = searchInput.parentElement.querySelector('.clear-btn');
                     if (clearBtn) clearBtn.classList.add('show');
                 })
@@ -1860,7 +1968,7 @@
         }
 
         // ==========================================
-        // 8. CAIXA
+        // 9. CAIXA
         // ==========================================
         function abrirModalAbrirCaixa() {
             document.getElementById('initialValueInput').value = 0;
@@ -2009,7 +2117,7 @@
         }
 
         // ==========================================
-        // 9. CARRINHO
+        // 10. CARRINHO
         // ==========================================
         function adicionarAoCarrinho(tipo) {
             if (!currentCashier) {
@@ -2197,7 +2305,7 @@
         }
 
         // ==========================================
-        // 10. FINALIZAR VENDA
+        // 11. FINALIZAR VENDA
         // ==========================================
         function abrirModalCheckout() {
             if (cart.length === 0) {
@@ -2356,7 +2464,7 @@
         }
 
         // ==========================================
-        // 11. RENDERIZAR VENDAS
+        // 12. RENDERIZAR VENDAS
         // ==========================================
         function renderizarVendas(filtro = '') {
             const container = document.getElementById('salesList');
@@ -2437,7 +2545,7 @@
         }
 
         // ==========================================
-        // 12. EXCLUIR VENDA
+        // 13. EXCLUIR VENDA
         // ==========================================
         function excluirVenda(id, tipo) {
             Swal.fire({
@@ -2500,7 +2608,7 @@
         window.excluirVenda = excluirVenda;
 
         // ==========================================
-        // 13. RESUMO E COMISSÕES
+        // 14. RESUMO E COMISSÕES
         // ==========================================
         function atualizarResumo() {
             const services = todaySales.filter(s => s.tipo === 'service');
@@ -2581,7 +2689,7 @@
         }
 
         // ==========================================
-        // 14. ATUALIZAR ÚLTIMA ATUALIZAÇÃO
+        // 15. ATUALIZAR ÚLTIMA ATUALIZAÇÃO
         // ==========================================
         function atualizarUltimaAtualizacao() {
             const now = new Date();
@@ -2592,7 +2700,7 @@
         }
 
         // ==========================================
-        // 15. RECARREGAR DADOS
+        // 16. RECARREGAR DADOS
         // ==========================================
         function recarregarDados() {
             const btn = document.getElementById('refreshBtn');
@@ -2608,7 +2716,7 @@
         }
 
         // ==========================================
-        // 16. FUNÇÃO HOME
+        // 17. FUNÇÃO HOME
         // ==========================================
         function goHome() {
             if (window.parent && window.parent !== window) {
@@ -2619,7 +2727,7 @@
         }
 
         // ==========================================
-        // 17. MOSTRAR LOGIN PROMPT
+        // 18. MOSTRAR LOGIN PROMPT
         // ==========================================
         function mostrarLoginPrompt() {
             Swal.fire({
@@ -2637,7 +2745,7 @@
         }
 
         // ==========================================
-        // 18. RECEBER CONFIGURAÇÕES
+        // 19. RECEBER CONFIGURAÇÕES
         // ==========================================
         window.addEventListener('message', function(event) {
             if (event.data && event.data.type === 'configUpdated') {
@@ -2649,12 +2757,15 @@
             if (event.data && event.data.type === 'clientsUpdated') {
                 carregarClientes();
             }
+            if (event.data && event.data.type === 'logoUpdated') {
+                atualizarLogoHeader();
+            }
         });
 
         window.parent.postMessage({ type: 'getConfig' }, '*');
 
         // ==========================================
-        // 19. UTILITÁRIOS
+        // 20. UTILITÁRIOS
         // ==========================================
         function formatCurrency(value) {
             if (typeof value !== 'number') value = parseFloat(value) || 0;
@@ -2662,17 +2773,19 @@
         }
 
         // ==========================================
-        // 20. LOG DE INICIALIZAÇÃO
+        // 21. LOG DE INICIALIZAÇÃO
         // ==========================================
         console.log('✅ Caixa carregado com sucesso!');
         console.log('📌 Funcionalidades:');
         console.log('   - Busca de clientes com TODOS os clientes cadastrados');
+        console.log('   - Busca por "Ti" mostra Tiago, Tiara, Tiana, Tierry, Tieta...');
+        console.log('   - Busca por "Tia" mostra Tia Marta, Tiago, Tiara, Tiana...');
         console.log('   - Botão (x) para limpar busca');
+        console.log('   - Logo do sistema atualizada automaticamente');
         console.log('   - Novo cliente com foto e dados completos');
         console.log('   - Badges de serviços da empresa');
         console.log('   - Carrinho com múltiplas vendas');
         console.log('   - Comissões detalhadas por colaborador');
-        console.log('   - Saldo do salão');
         console.log('   - Sincronização em tempo real');
 
     </script>
