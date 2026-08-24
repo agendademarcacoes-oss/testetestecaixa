@@ -1254,59 +1254,224 @@
                 document.getElementById('newClientPhoto').value = '';
             });
 
-            // Autocomplete de clientes - CORRIGIDO
-            document.getElementById('serviceClientSearch').addEventListener('input', function() {
-                const searchTerm = this.value;
-                const normalizedSearch = searchTerm.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
-                
-                // Mostrar/Esconder botão limpar
-                const clearBtn = this.parentElement.querySelector('.clear-btn');
-                if (searchTerm.length > 0) {
-                    clearBtn.classList.add('show');
-                } else {
-                    clearBtn.classList.remove('show');
+            // ==========================================
+            // FUNÇÃO DE BUSCA DE CLIENTES MELHORADA
+            // ==========================================
+            function configurarBuscaClientes(inputId, autocompleteId, hiddenId, clearBtnId) {
+                const input = document.getElementById(inputId);
+                const autocomplete = document.getElementById(autocompleteId);
+                const hidden = document.getElementById(hiddenId);
+                const clearBtn = document.getElementById(clearBtnId);
+
+                if (!input || !autocomplete) return;
+
+                // Função de normalização para remover acentos
+                function normalizar(texto) {
+                    return (texto || '').toLowerCase()
+                        .normalize('NFD')
+                        .replace(/[\u0300-\u036f]/g, "");
                 }
 
-                // Se o termo de busca tiver menos de 1 caractere, mostrar todos os clientes
-                if (normalizedSearch.length < 1) {
-                    mostrarTodosClientes('serviceClientAutocomplete', 'serviceClientId', this);
-                    return;
+                // Função para filtrar clientes
+                function filtrarClientes(termo) {
+                    const termoNormalizado = normalizar(termo);
+                    
+                    // Se o termo estiver vazio, mostrar todos os clientes
+                    if (!termoNormalizado) {
+                        return clients.slice(0, 20);
+                    }
+
+                    // Filtrar clientes que correspondem ao termo
+                    return clients.filter(cliente => {
+                        const nomeNormalizado = normalizar(cliente.name || '');
+                        const phone = (cliente.phone || '').replace(/\D/g, '');
+                        const email = (cliente.email || '').toLowerCase();
+                        
+                        // Verificar se o termo corresponde ao nome (com acentos)
+                        if (nomeNormalizado.includes(termoNormalizado)) {
+                            return true;
+                        }
+                        
+                        // Verificar se o termo corresponde ao telefone
+                        if (phone.includes(termo.replace(/\D/g, ''))) {
+                            return true;
+                        }
+                        
+                        // Verificar se o termo corresponde ao email
+                        if (email.includes(termoNormalizado)) {
+                            return true;
+                        }
+                        
+                        return false;
+                    }).slice(0, 20);
                 }
 
-                // Filtrar clientes pelo nome normalizado
-                const filtered = clients.filter(c => {
-                    const nome = (c.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
-                    const phone = (c.phone || '').replace(/\D/g, '');
-                    return nome.includes(normalizedSearch) || phone.includes(searchTerm.replace(/\D/g, ''));
+                // Função para renderizar resultados
+                function renderizarResultados(clientesFiltrados, termo) {
+                    const termoNormalizado = normalizar(termo);
+                    
+                    if (clientesFiltrados.length === 0) {
+                        autocomplete.innerHTML = `
+                            <div class="autocomplete-item text-muted">Nenhum cliente encontrado</div>
+                            <div class="autocomplete-item" style="color:#26196b;font-weight:500;" onclick="abrirModalNovoCliente('${termo}')">
+                                <i class="fas fa-user-plus me-2"></i> Cadastrar "${termo || 'novo cliente'}" como novo cliente
+                            </div>
+                        `;
+                        autocomplete.classList.add('active');
+                        return;
+                    }
+
+                    let html = '';
+                    clientesFiltrados.forEach(cliente => {
+                        const foto = cliente.photoUrl ? 
+                            `<img src="${cliente.photoUrl}" class="avatar" onerror="this.style.display='none'">` :
+                            `<div class="avatar-placeholder">${(cliente.name || '?').charAt(0).toUpperCase()}</div>`;
+                        
+                        html += `
+                            <div class="autocomplete-item" data-id="${cliente.id}" data-name="${cliente.name}">
+                                ${foto}
+                                <div class="info">
+                                    <div class="name">${cliente.name}</div>
+                                    <div class="detail">${cliente.phone || 'Sem telefone'} ${cliente.email ? '| ' + cliente.email : ''}</div>
+                                </div>
+                            </div>
+                        `;
+                    });
+
+                    // Adicionar opção de novo cliente
+                    if (termoNormalizado) {
+                        html += `
+                            <div class="autocomplete-item" style="color:#26196b;font-weight:500;border-top:1px solid #eee;" onclick="abrirModalNovoCliente('${termo}')">
+                                <i class="fas fa-user-plus me-2"></i> Cadastrar "${termo}" como novo cliente
+                            </div>
+                        `;
+                    } else {
+                        html += `
+                            <div class="autocomplete-item" style="color:#26196b;font-weight:500;border-top:1px solid #eee;" onclick="abrirModalNovoCliente()">
+                                <i class="fas fa-user-plus me-2"></i> Cadastrar novo cliente
+                            </div>
+                        `;
+                    }
+
+                    autocomplete.innerHTML = html;
+                    autocomplete.classList.add('active');
+
+                    // Adicionar eventos de clique
+                    autocomplete.querySelectorAll('.autocomplete-item[data-id]').forEach(item => {
+                        item.addEventListener('click', function() {
+                            input.value = this.getAttribute('data-name');
+                            hidden.value = this.getAttribute('data-id');
+                            autocomplete.classList.remove('active');
+                            if (clearBtn) clearBtn.classList.add('show');
+                            input.focus();
+                        });
+                    });
+                }
+
+                // Evento de input
+                input.addEventListener('input', function() {
+                    const termo = this.value;
+                    const termoNormalizado = normalizar(termo);
+                    
+                    // Mostrar/esconder botão limpar
+                    if (clearBtn) {
+                        if (termo.length > 0) {
+                            clearBtn.classList.add('show');
+                        } else {
+                            clearBtn.classList.remove('show');
+                        }
+                    }
+
+                    // Se não houver clientes cadastrados
+                    if (clients.length === 0) {
+                        autocomplete.innerHTML = `
+                            <div class="autocomplete-item text-muted">Nenhum cliente cadastrado</div>
+                            <div class="autocomplete-item" style="color:#26196b;font-weight:500;" onclick="abrirModalNovoCliente('${termo}')">
+                                <i class="fas fa-user-plus me-2"></i> Cadastrar "${termo || 'novo cliente'}" como novo cliente
+                            </div>
+                        `;
+                        autocomplete.classList.add('active');
+                        return;
+                    }
+
+                    // Se o termo estiver vazio, mostrar todos
+                    if (!termoNormalizado) {
+                        renderizarResultados(clients.slice(0, 20), termo);
+                        return;
+                    }
+
+                    // Filtrar e renderizar
+                    const resultados = filtrarClientes(termo);
+                    renderizarResultados(resultados, termo);
                 });
 
-                mostrarResultadosClientes(filtered, 'serviceClientAutocomplete', 'serviceClientId', this);
-            });
+                // Evento de foco - mostrar todos os clientes
+                input.addEventListener('focus', function() {
+                    if (clients.length === 0) {
+                        autocomplete.innerHTML = `
+                            <div class="autocomplete-item text-muted">Nenhum cliente cadastrado</div>
+                            <div class="autocomplete-item" style="color:#26196b;font-weight:500;" onclick="abrirModalNovoCliente()">
+                                <i class="fas fa-user-plus me-2"></i> Cadastrar novo cliente
+                            </div>
+                        `;
+                        autocomplete.classList.add('active');
+                        return;
+                    }
 
-            document.getElementById('productClientSearch').addEventListener('input', function() {
-                const searchTerm = this.value;
-                const normalizedSearch = searchTerm.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
-                
-                const clearBtn = this.parentElement.querySelector('.clear-btn');
-                if (searchTerm.length > 0) {
-                    clearBtn.classList.add('show');
-                } else {
-                    clearBtn.classList.remove('show');
-                }
+                    // Mostrar todos os clientes (limitado a 20)
+                    const todos = clients.slice(0, 20);
+                    let html = '';
+                    todos.forEach(cliente => {
+                        const foto = cliente.photoUrl ? 
+                            `<img src="${cliente.photoUrl}" class="avatar" onerror="this.style.display='none'">` :
+                            `<div class="avatar-placeholder">${(cliente.name || '?').charAt(0).toUpperCase()}</div>`;
+                        
+                        html += `
+                            <div class="autocomplete-item" data-id="${cliente.id}" data-name="${cliente.name}">
+                                ${foto}
+                                <div class="info">
+                                    <div class="name">${cliente.name}</div>
+                                    <div class="detail">${cliente.phone || 'Sem telefone'} ${cliente.email ? '| ' + cliente.email : ''}</div>
+                                </div>
+                            </div>
+                        `;
+                    });
 
-                if (normalizedSearch.length < 1) {
-                    mostrarTodosClientes('productClientAutocomplete', 'productClientId', this);
-                    return;
-                }
+                    if (clients.length > 20) {
+                        html += `<div class="autocomplete-item text-muted">... e mais ${clients.length - 20} clientes. Digite para filtrar.</div>`;
+                    }
 
-                const filtered = clients.filter(c => {
-                    const nome = (c.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
-                    const phone = (c.phone || '').replace(/\D/g, '');
-                    return nome.includes(normalizedSearch) || phone.includes(searchTerm.replace(/\D/g, ''));
+                    html += `
+                        <div class="autocomplete-item" style="color:#26196b;font-weight:500;border-top:1px solid #eee;" onclick="abrirModalNovoCliente()">
+                            <i class="fas fa-user-plus me-2"></i> Cadastrar novo cliente
+                        </div>
+                    `;
+
+                    autocomplete.innerHTML = html;
+                    autocomplete.classList.add('active');
+
+                    autocomplete.querySelectorAll('.autocomplete-item[data-id]').forEach(item => {
+                        item.addEventListener('click', function() {
+                            input.value = this.getAttribute('data-name');
+                            hidden.value = this.getAttribute('data-id');
+                            autocomplete.classList.remove('active');
+                            if (clearBtn) clearBtn.classList.add('show');
+                            input.focus();
+                        });
+                    });
                 });
 
-                mostrarResultadosClientes(filtered, 'productClientAutocomplete', 'productClientId', this);
-            });
+                // Fechar autocomplete ao perder foco (com delay para permitir clique)
+                input.addEventListener('blur', function() {
+                    setTimeout(() => {
+                        autocomplete.classList.remove('active');
+                    }, 200);
+                });
+            }
+
+            // Configurar busca de clientes para serviço e produto
+            configurarBuscaClientes('serviceClientSearch', 'serviceClientAutocomplete', 'serviceClientId', 'clearServiceClient');
+            configurarBuscaClientes('productClientSearch', 'productClientAutocomplete', 'productClientId', 'clearProductClient');
 
             // Autocomplete de produtos
             document.getElementById('productSearch').addEventListener('input', function() {
@@ -1493,122 +1658,7 @@
         }
 
         // ==========================================
-        // 5. FUNÇÕES DE BUSCA DE CLIENTES
-        // ==========================================
-        function mostrarTodosClientes(listId, hiddenId, inputElement) {
-            const list = document.getElementById(listId);
-            const clearBtn = inputElement.parentElement.querySelector('.clear-btn');
-
-            if (clients.length === 0) {
-                list.innerHTML = `
-                    <div class="autocomplete-item text-muted">Nenhum cliente cadastrado</div>
-                    <div class="autocomplete-item" style="color:#26196b;font-weight:500;" onclick="abrirModalNovoCliente()">
-                        <i class="fas fa-user-plus me-2"></i> Cadastrar novo cliente
-                    </div>
-                `;
-                list.classList.add('active');
-                return;
-            }
-
-            // Mostrar TODOS os clientes (limitado a 20)
-            const allClients = clients.slice(0, 20);
-            let html = '';
-            allClients.forEach(c => {
-                const foto = c.photoUrl ? 
-                    `<img src="${c.photoUrl}" class="avatar" onerror="this.style.display='none'">` :
-                    `<div class="avatar-placeholder">${(c.name || '?').charAt(0).toUpperCase()}</div>`;
-                
-                html += `
-                    <div class="autocomplete-item" data-id="${c.id}" data-name="${c.name}">
-                        ${foto}
-                        <div class="info">
-                            <div class="name">${c.name}</div>
-                            <div class="detail">${c.phone || 'Sem telefone'} ${c.email ? '| ' + c.email : ''}</div>
-                        </div>
-                    </div>
-                `;
-            });
-
-            if (clients.length > 20) {
-                html += `<div class="autocomplete-item text-muted">... e mais ${clients.length - 20} clientes. Digite para filtrar.</div>`;
-            }
-
-            html += `
-                <div class="autocomplete-item" style="color:#26196b;font-weight:500;border-top:1px solid #eee;" onclick="abrirModalNovoCliente()">
-                    <i class="fas fa-user-plus me-2"></i> Cadastrar novo cliente
-                </div>
-            `;
-
-            list.innerHTML = html;
-            list.classList.add('active');
-
-            list.querySelectorAll('.autocomplete-item[data-id]').forEach(item => {
-                item.addEventListener('click', function() {
-                    inputElement.value = this.getAttribute('data-name');
-                    document.getElementById(hiddenId).value = this.getAttribute('data-id');
-                    list.classList.remove('active');
-                    if (clearBtn) clearBtn.classList.add('show');
-                });
-            });
-        }
-
-        function mostrarResultadosClientes(filtered, listId, hiddenId, inputElement) {
-            const list = document.getElementById(listId);
-            const clearBtn = inputElement.parentElement.querySelector('.clear-btn');
-
-            if (filtered.length === 0) {
-                list.innerHTML = `
-                    <div class="autocomplete-item text-muted">Nenhum cliente encontrado</div>
-                    <div class="autocomplete-item" style="color:#26196b;font-weight:500;" onclick="abrirModalNovoCliente('${inputElement.value}')">
-                        <i class="fas fa-user-plus me-2"></i> Cadastrar "${inputElement.value}" como novo cliente
-                    </div>
-                `;
-                list.classList.add('active');
-                return;
-            }
-
-            let html = '';
-            filtered.slice(0, 15).forEach(c => {
-                const foto = c.photoUrl ? 
-                    `<img src="${c.photoUrl}" class="avatar" onerror="this.style.display='none'">` :
-                    `<div class="avatar-placeholder">${(c.name || '?').charAt(0).toUpperCase()}</div>`;
-                
-                html += `
-                    <div class="autocomplete-item" data-id="${c.id}" data-name="${c.name}">
-                        ${foto}
-                        <div class="info">
-                            <div class="name">${c.name}</div>
-                            <div class="detail">${c.phone || 'Sem telefone'} ${c.email ? '| ' + c.email : ''}</div>
-                        </div>
-                    </div>
-                `;
-            });
-
-            if (filtered.length > 15) {
-                html += `<div class="autocomplete-item text-muted">... e mais ${filtered.length - 15} clientes. Refine sua busca.</div>`;
-            }
-
-            html += `
-                <div class="autocomplete-item" style="color:#26196b;font-weight:500;border-top:1px solid #eee;" onclick="abrirModalNovoCliente('${inputElement.value}')">
-                    <i class="fas fa-user-plus me-2"></i> Cadastrar "${inputElement.value || 'novo cliente'}" como novo cliente
-                </div>
-            `;
-
-            list.innerHTML = html;
-            list.classList.add('active');
-
-            list.querySelectorAll('.autocomplete-item[data-id]').forEach(item => {
-                item.addEventListener('click', function() {
-                    inputElement.value = this.getAttribute('data-name');
-                    document.getElementById(hiddenId).value = this.getAttribute('data-id');
-                    list.classList.remove('active');
-                    if (clearBtn) clearBtn.classList.add('show');
-                });
-            });
-        }
-
-        // ==========================================
-        // 6. LOGO DO SISTEMA
+        // 5. LOGO DO SISTEMA
         // ==========================================
         function atualizarLogoHeader() {
             const config = localStorage.getItem('systemConfig');
@@ -1632,7 +1682,7 @@
         }
 
         // ==========================================
-        // 7. CARREGAR DADOS
+        // 6. CARREGAR DADOS
         // ==========================================
         function carregarDados() {
             if (!currentUser) return;
@@ -1822,7 +1872,7 @@
         }
 
         // ==========================================
-        // 8. NOVO CLIENTE
+        // 7. NOVO CLIENTE
         // ==========================================
         function abrirModalNovoCliente(nome = '') {
             document.getElementById('newClientForm').reset();
@@ -1968,7 +2018,7 @@
         }
 
         // ==========================================
-        // 9. CAIXA
+        // 8. CAIXA
         // ==========================================
         function abrirModalAbrirCaixa() {
             document.getElementById('initialValueInput').value = 0;
@@ -2117,7 +2167,7 @@
         }
 
         // ==========================================
-        // 10. CARRINHO
+        // 9. CARRINHO
         // ==========================================
         function adicionarAoCarrinho(tipo) {
             if (!currentCashier) {
@@ -2305,7 +2355,7 @@
         }
 
         // ==========================================
-        // 11. FINALIZAR VENDA
+        // 10. FINALIZAR VENDA
         // ==========================================
         function abrirModalCheckout() {
             if (cart.length === 0) {
@@ -2464,7 +2514,7 @@
         }
 
         // ==========================================
-        // 12. RENDERIZAR VENDAS
+        // 11. RENDERIZAR VENDAS
         // ==========================================
         function renderizarVendas(filtro = '') {
             const container = document.getElementById('salesList');
@@ -2545,7 +2595,7 @@
         }
 
         // ==========================================
-        // 13. EXCLUIR VENDA
+        // 12. EXCLUIR VENDA
         // ==========================================
         function excluirVenda(id, tipo) {
             Swal.fire({
@@ -2608,7 +2658,7 @@
         window.excluirVenda = excluirVenda;
 
         // ==========================================
-        // 14. RESUMO E COMISSÕES
+        // 13. RESUMO E COMISSÕES
         // ==========================================
         function atualizarResumo() {
             const services = todaySales.filter(s => s.tipo === 'service');
@@ -2689,7 +2739,7 @@
         }
 
         // ==========================================
-        // 15. ATUALIZAR ÚLTIMA ATUALIZAÇÃO
+        // 14. ATUALIZAR ÚLTIMA ATUALIZAÇÃO
         // ==========================================
         function atualizarUltimaAtualizacao() {
             const now = new Date();
@@ -2700,7 +2750,7 @@
         }
 
         // ==========================================
-        // 16. RECARREGAR DADOS
+        // 15. RECARREGAR DADOS
         // ==========================================
         function recarregarDados() {
             const btn = document.getElementById('refreshBtn');
@@ -2716,7 +2766,7 @@
         }
 
         // ==========================================
-        // 17. FUNÇÃO HOME
+        // 16. FUNÇÃO HOME
         // ==========================================
         function goHome() {
             if (window.parent && window.parent !== window) {
@@ -2727,7 +2777,7 @@
         }
 
         // ==========================================
-        // 18. MOSTRAR LOGIN PROMPT
+        // 17. MOSTRAR LOGIN PROMPT
         // ==========================================
         function mostrarLoginPrompt() {
             Swal.fire({
@@ -2745,7 +2795,7 @@
         }
 
         // ==========================================
-        // 19. RECEBER CONFIGURAÇÕES
+        // 18. RECEBER CONFIGURAÇÕES
         // ==========================================
         window.addEventListener('message', function(event) {
             if (event.data && event.data.type === 'configUpdated') {
@@ -2765,7 +2815,7 @@
         window.parent.postMessage({ type: 'getConfig' }, '*');
 
         // ==========================================
-        // 20. UTILITÁRIOS
+        // 19. UTILITÁRIOS
         // ==========================================
         function formatCurrency(value) {
             if (typeof value !== 'number') value = parseFloat(value) || 0;
@@ -2773,13 +2823,16 @@
         }
 
         // ==========================================
-        // 21. LOG DE INICIALIZAÇÃO
+        // 20. LOG DE INICIALIZAÇÃO
         // ==========================================
         console.log('✅ Caixa carregado com sucesso!');
         console.log('📌 Funcionalidades:');
-        console.log('   - Busca de clientes com TODOS os clientes cadastrados');
+        console.log('   - Busca de clientes com normalização de acentos');
         console.log('   - Busca por "Ti" mostra Tiago, Tiara, Tiana, Tierry, Tieta...');
         console.log('   - Busca por "Tia" mostra Tia Marta, Tiago, Tiara, Tiana...');
+        console.log('   - Busca por "Cec" mostra Cecília, Cecílio, Cecília Maria...');
+        console.log('   - Busca por "Mar" mostra Margarida, Maria, Marta...');
+        console.log('   - Busca por "Marg" mostra Margarida, Margarete...');
         console.log('   - Botão (x) para limpar busca');
         console.log('   - Logo do sistema atualizada automaticamente');
         console.log('   - Novo cliente com foto e dados completos');
