@@ -2013,6 +2013,7 @@
         let appointmentTime = { hour: 9, minute: 0 };
         let isAppointmentConfirmationOpen = false;
         let appointmentTempData = null;
+        let tempAppointmentData = { date: null, hour: null, minute: null, collaboratorId: null };
 
         // ==========================================
         // 3. INICIALIZAÇÃO
@@ -2723,7 +2724,7 @@
         }
 
         // ==========================================
-        // 14. SELEÇÃO DE HORÁRIO - ORIGINAL
+        // 14. SELEÇÃO DE HORÁRIO - CORRIGIDA COM FUNÇÃO GLOBAL
         // ==========================================
         let longPressTimer = null;
         let isLongPress = false;
@@ -2828,7 +2829,7 @@
                 const overlay = document.getElementById('agendaSelectionOverlay');
                 if (overlay) overlay.style.display = 'none';
 
-                // ABRIR TELA DE SELEÇÃO DE CLIENTE
+                // CHAMAR A FUNÇÃO GLOBAL DE ABRIR SELEÇÃO DE CLIENTE
                 abrirSelecaoCliente(date, hour, minute, collaboratorId);
             }
 
@@ -2865,11 +2866,11 @@
         }
 
         // ==========================================
-        // 15. TELA 1: SELEÇÃO DE CLIENTE
+        // 15. TELA 1: SELEÇÃO DE CLIENTE (FUNÇÃO GLOBAL)
         // ==========================================
-        let tempAppointmentData = { date: null, hour: null, minute: null, collaboratorId: null };
-
-        function abrirSelecaoCliente(date, hour, minute, collaboratorId) {
+        window.abrirSelecaoCliente = function(date, hour, minute, collaboratorId) {
+            console.log('🔄 abrirSelecaoCliente chamada!', { date, hour, minute, collaboratorId });
+            
             tempAppointmentData.date = date;
             tempAppointmentData.hour = hour;
             tempAppointmentData.minute = minute;
@@ -2922,7 +2923,7 @@
             document.getElementById('clientSelectionOverlay').classList.add('active');
             document.getElementById('clientSearchInput').value = '';
             document.getElementById('clientSearchInput').focus();
-        }
+        };
 
         function fecharSelecaoCliente() {
             document.getElementById('clientSelectionOverlay').classList.remove('active');
@@ -3038,7 +3039,9 @@
                 return;
             }
 
-            const clientServices = allServices.filter(s => s.clientId === selectedClientForAppointment.id)
+            // Usar allServices que já foi carregado
+            const allServicesList = window.allServices || [];
+            const clientServices = allServicesList.filter(s => s.clientId === selectedClientForAppointment.id)
                 .sort((a, b) => {
                     const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp || a.date || 0);
                     const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp || b.date || 0);
@@ -3083,7 +3086,7 @@
             container.innerHTML = '';
 
             // Usar serviços da empresa ou serviços padrão
-            let servicesList = companyServices && companyServices.length > 0 ? companyServices : availableServices;
+            const servicesList = window.companyServices && window.companyServices.length > 0 ? window.companyServices : window.availableServices || [];
 
             if (servicesList.length === 0) {
                 container.innerHTML = '<div class="text-center text-muted py-4">Nenhum serviço cadastrado.</div>';
@@ -3962,7 +3965,7 @@
         // ==========================================
         // 25. VARIÁVEIS DE SERVIÇOS (PADRÃO)
         // ==========================================
-        let availableServices = [
+        window.availableServices = [
             { id: 1, name: 'Corte Masculino', duration: 30, price: 15 },
             { id: 2, name: 'Corte Feminino', duration: 45, price: 25 },
             { id: 3, name: 'Coloração', duration: 90, price: 45 },
@@ -3975,8 +3978,8 @@
             { id: 10, name: 'Massagem', duration: 60, price: 50 }
         ];
 
-        let companyServices = [];
-        let allServices = [];
+        window.companyServices = [];
+        window.allServices = [];
 
         // ==========================================
         // 26. EXPOR FUNÇÕES PARA USO EXTERNO
@@ -3992,8 +3995,10 @@
         window.confirmarAgendamento = confirmarAgendamento;
         window.enviarConfirmacao = enviarConfirmacao;
         window.fecharConfirmacao = fecharConfirmacao;
+        window.abrirSelecaoCliente = abrirSelecaoCliente;
 
         console.log('✅ Agenda com criação de agendamento carregada com sucesso!');
+        console.log('📌 Para criar um agendamento: toque em qualquer horário da agenda.');
     </script>
 </body>
 </html>
