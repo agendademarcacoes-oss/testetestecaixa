@@ -330,7 +330,7 @@
         }
 
         /* ============================================
-           CONTEÚDO DA AGENDA - SCROLL ÚNICO
+           CONTEÚDO DA AGENDA
            ============================================ */
         .agenda-content {
             flex: 1;
@@ -343,7 +343,7 @@
         }
 
         /* ============================================
-           COLUNA DE HORÁRIOS - ROLA JUNTO COM A AGENDA
+           COLUNA DE HORÁRIOS
            ============================================ */
         .agenda-time-column {
             flex-shrink: 0;
@@ -408,7 +408,7 @@
         }
 
         /* ============================================
-           SLOTS DE 15 MINUTOS - ALTURA FIXA
+           SLOTS DE 15 MINUTOS - CADA SLOT = 15px
            ============================================ */
         .agenda-slot-quarter {
             height: 15px;
@@ -444,7 +444,7 @@
         }
 
         /* ============================================
-           AGENDAMENTOS
+           AGENDAMENTOS - POSIÇÃO CORRETA
            ============================================ */
         .agenda-appointment {
             position: absolute;
@@ -461,6 +461,7 @@
             box-shadow: 0 2px 8px rgba(38, 25, 107, 0.3);
             transition: transform 0.2s, box-shadow 0.2s;
             min-height: 24px;
+            /* POSIÇÃO CORRETA VIA JAVASCRIPT */;
         }
 
         .agenda-appointment:hover {
@@ -492,7 +493,7 @@
         }
 
         /* ============================================
-           LINHA VERMELHA DA HORA ATUAL - POSIÇÃO CORRETA
+           LINHA VERMELHA DA HORA ATUAL
            ============================================ */
         .current-time-line-global {
             position: absolute;
@@ -1006,16 +1007,16 @@
         </div>
 
         <!-- ==========================================
-        CONTEÚDO DA AGENDA - SCROLL ÚNICO
+        CONTEÚDO DA AGENDA
         ========================================== -->
         <div class="agenda-content" id="agendaContent">
             
-            <!-- Coluna de Horários - ROLA JUNTO COM A AGENDA -->
+            <!-- Coluna de Horários -->
             <div class="agenda-time-column" id="agendaTimeColumn">
                 <!-- Horários serão preenchidos dinamicamente -->
             </div>
 
-            <!-- Grade de Agendamentos - ROLA JUNTO COM AS HORAS -->
+            <!-- Grade de Agendamentos -->
             <div class="agenda-slots-container" id="agendaSlotsContainer">
                 <div class="agenda-grid" id="agendaGrid">
                     <!-- Grade será preenchida dinamicamente -->
@@ -1288,7 +1289,6 @@
         let currentCalendarMonth = new Date().getMonth();
         let editingAppointmentId = null;
         let editingServices = [];
-        let linhaVermelhaInterval = null;
 
         // ==========================================
         // 4. CANAL DE COMUNICAÇÃO ENTRE DISPOSITIVOS
@@ -1725,44 +1725,42 @@
         }
 
         // ==========================================
-        // 13. ATUALIZAR LINHA DA HORA ATUAL - CORRIGIDA
+        // 13. ATUALIZAR LINHA VERMELHA - CORRIGIDA
         // ==========================================
         function updateCurrentTimeLine() {
             const now = new Date();
             const currentHour = now.getHours();
             const currentMinute = now.getMinutes();
             
-            // Calcular posição em pixels: cada hora = 60px, cada minuto = 1px
+            // POSIÇÃO CORRETA: cada hora = 60px, cada minuto = 1px
             const topPosition = (currentHour * 60) + currentMinute;
             const currentTimeStr = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`;
 
-            // Verificar se a hora atual está dentro do grid (00:00 - 23:59)
+            // Verificar se está dentro do grid (00:00 - 23:59)
             if (topPosition < 0 || topPosition > 1440) {
                 console.warn('⚠️ Hora atual fora do grid:', currentTimeStr);
                 return;
             }
 
-            // Remover linha antiga se existir
-            const existingLine = document.querySelector('.current-time-line-global');
-            const existingIndicator = document.querySelector('.current-time-indicator');
-            
-            if (existingLine) existingLine.remove();
-            if (existingIndicator) existingIndicator.remove();
+            // Remover linha antiga
+            document.querySelectorAll('.current-time-line-global, .current-time-indicator').forEach(el => el.remove());
 
-            // Criar nova linha
+            // Criar linha
             const timeLine = document.createElement('div');
             timeLine.className = 'current-time-line-global';
-            timeLine.style.top = `${topPosition}px`;
-            timeLine.style.left = '60px';
-            timeLine.style.right = '0';
-            timeLine.style.height = '2px';
-            timeLine.style.background = '#dc3545';
-            timeLine.style.position = 'absolute';
-            timeLine.style.zIndex = '100';
-            timeLine.style.pointerEvents = 'none';
-            timeLine.style.display = 'block';
+            timeLine.style.cssText = `
+                position: absolute;
+                left: 60px;
+                right: 0;
+                top: ${topPosition}px;
+                height: 2px;
+                background: #dc3545;
+                z-index: 100;
+                pointer-events: none;
+                display: block;
+            `;
 
-            // Bolinha na linha
+            // Bolinha
             const dot = document.createElement('div');
             dot.style.cssText = `
                 position: absolute;
@@ -1775,7 +1773,7 @@
             `;
             timeLine.appendChild(dot);
 
-            // Indicador de hora
+            // Indicador
             const indicator = document.createElement('div');
             indicator.className = 'current-time-indicator';
             indicator.style.cssText = `
@@ -1796,12 +1794,11 @@
             `;
             indicator.textContent = currentTimeStr;
 
-            // Adicionar ao container
-            const slotsContainer = document.getElementById('agendaSlotsContainer');
-            if (slotsContainer) {
-                slotsContainer.appendChild(timeLine);
-                slotsContainer.appendChild(indicator);
-                console.log(`🟥 Linha vermelha posicionada em: ${currentTimeStr} (${topPosition}px)`);
+            const container = document.getElementById('agendaSlotsContainer');
+            if (container) {
+                container.appendChild(timeLine);
+                container.appendChild(indicator);
+                console.log(`🟥 Linha vermelha: ${currentTimeStr} (${topPosition}px)`);
             }
         }
 
@@ -1842,7 +1839,7 @@
                 dayColumn.setAttribute('data-date', currentDateStr);
                 dayColumn.setAttribute('data-collaborator-id', collaborator.id);
 
-                // Criar slots de 15 minutos - CADA SLOT TEM 15px
+                // Slots de 15 minutos - CADA SLOT = 15px
                 for (let hour = 0; hour < 24; hour++) {
                     for (let quarter = 0; quarter < 4; quarter++) {
                         const slot = document.createElement('div');
@@ -1876,9 +1873,10 @@
         }
 
         // ==========================================
-        // 15. RENDERIZAR AGENDAMENTOS - POSIÇÃO CORRETA
+        // 15. RENDERIZAR AGENDAMENTOS - POSIÇÃO CORRIGIDA
         // ==========================================
         function renderAppointments() {
+            // Remover agendamentos antigos
             document.querySelectorAll('.agenda-appointment').forEach(el => el.remove());
 
             const currentDateStr = currentAgendaDate.toISOString().split('T')[0];
@@ -1889,12 +1887,15 @@
                 const dayColumn = document.querySelector(`.agenda-day-column[data-collaborator-id="${appointment.collaboratorId}"]`);
                 if (!dayColumn) return;
 
-                // Calcular posição em minutos desde 00:00
+                // ============================================
+                // CORREÇÃO: POSIÇÃO CORRETA DO AGENDAMENTO
+                // ============================================
                 const startHour = parseInt(appointment.startTime.split(':')[0]);
                 const startMinute = parseInt(appointment.startTime.split(':')[1]);
                 const duration = appointment.duration || 60;
                 
                 // POSIÇÃO CORRETA: cada hora = 60px, cada minuto = 1px
+                // Exemplo: 11:00 = (11 * 60) + 0 = 660px
                 const topPosition = (startHour * 60) + startMinute;
                 const height = duration;
 
@@ -1902,12 +1903,26 @@
                 const totalServices = services.length;
                 const serviceName = totalServices > 0 ? services[0].name : (appointment.serviceName || 'Serviço');
 
+                // Calcular horário de fim
+                const endMinutes = (startHour * 60 + startMinute) + duration;
+                const endHour = Math.floor(endMinutes / 60) % 24;
+                const endMinute = endMinutes % 60;
+                const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
+
+                // Criar elemento do agendamento
                 const appointmentEl = document.createElement('div');
                 appointmentEl.className = 'agenda-appointment';
                 appointmentEl.setAttribute('data-appointment-id', appointment.id);
+                
+                // APLICAR POSIÇÃO CORRETA
                 appointmentEl.style.top = `${topPosition}px`;
                 appointmentEl.style.height = `${Math.max(height, 24)}px`;
+                appointmentEl.style.position = 'absolute';
+                appointmentEl.style.left = '4px';
+                appointmentEl.style.right = '4px';
+                appointmentEl.style.zIndex = '2';
 
+                // Cor baseada no status
                 let bgColor = 'linear-gradient(135deg, #26196b, #4a3a9c)';
                 if (appointment.status === 'completed' || appointment.status === 'cancelled') {
                     bgColor = 'linear-gradient(135deg, #6c757d, #495057)';
@@ -1924,18 +1939,8 @@
                 appointmentEl.style.fontSize = '0.6rem';
                 appointmentEl.style.overflow = 'hidden';
                 appointmentEl.style.cursor = 'pointer';
-                appointmentEl.style.zIndex = '2';
                 appointmentEl.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
                 appointmentEl.style.transition = 'transform 0.2s, box-shadow 0.2s';
-                appointmentEl.style.position = 'absolute';
-                appointmentEl.style.left = '4px';
-                appointmentEl.style.right = '4px';
-
-                // Calcular horário de fim
-                const endMinutes = (startHour * 60 + startMinute) + duration;
-                const endHour = Math.floor(endMinutes / 60) % 24;
-                const endMinute = endMinutes % 60;
-                const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
 
                 appointmentEl.innerHTML = `
                     <div class="agenda-appointment-time">${appointment.startTime} - ${endTimeStr}</div>
@@ -1960,9 +1965,12 @@
                 });
 
                 dayColumn.appendChild(appointmentEl);
+                
+                console.log(`✅ Agendamento: ${appointment.startTime} → ${topPosition}px (${appointment.clientName})`);
             });
 
-            updateCurrentTimeLine();
+            // Atualizar linha vermelha após renderizar
+            setTimeout(updateCurrentTimeLine, 50);
         }
 
         // ==========================================
@@ -2059,6 +2067,7 @@
             isSelectingTime = false;
 
             if (selectionStartTime && selectionEndTime) {
+                // Calcular minutos selecionados
                 const startTotal = selectionStartTime.hour * 60 + selectionStartTime.quarter * 15;
                 const endTotal = selectionEndTime.hour * 60 + selectionEndTime.quarter * 15;
                 const minTotal = Math.min(startTotal, endTotal);
@@ -2088,8 +2097,6 @@
             const endTotal = selectionEndTime.hour * 60 + selectionEndTime.quarter * 15;
             const minTotal = Math.min(startTotal, endTotal);
             const maxTotal = Math.max(startTotal, endTotal);
-            const minPos = Math.min(startTotal, endTotal);
-            const maxPos = Math.max(startTotal, endTotal);
 
             overlay.style.display = 'block';
             overlay.style.top = `${minTotal}px`;
@@ -2097,10 +2104,10 @@
             overlay.style.left = '0';
             overlay.style.right = '0';
 
-            const startHour = Math.floor(minPos / 60);
-            const startMin = minPos % 60;
-            const endHour = Math.floor(maxPos / 60);
-            const endMin = maxPos % 60;
+            const startHour = Math.floor(minTotal / 60);
+            const startMin = minTotal % 60;
+            const endHour = Math.floor(maxTotal / 60);
+            const endMin = maxTotal % 60;
 
             overlay.innerHTML = `<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(38,25,107,0.9);color:white;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:bold;white-space:nowrap;">
                 ${startHour.toString().padStart(2, '0')}:${startMin.toString().padStart(2, '0')} - ${endHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')}
@@ -2780,7 +2787,7 @@
             window.addEventListener('resize', syncWidths);
             setTimeout(syncWidths, 100);
 
-            console.log('✅ Scroll sincronizado: horas e agenda rolam juntos');
+            console.log('✅ Scroll sincronizado');
         }
 
         // ==========================================
@@ -2903,20 +2910,12 @@
         // 28. LOG DE INICIALIZAÇÃO
         // ==========================================
         console.log('✅ Agenda carregada com sucesso!');
-        console.log('📌 Funcionalidades:');
-        console.log('   - Coluna de horas ROLA JUNTO com a agenda');
-        console.log('   - Agendamentos posicionados corretamente (11:00 = 660px)');
-        console.log('   - Linha vermelha posicionada corretamente na hora atual');
-        console.log('   - Visualização de agendamentos por colaborador');
-        console.log('   - Navegação: Ontem, Hoje, Amanhã');
-        console.log('   - Calendário para selecionar data');
-        console.log('   - Criação de agendamentos com campo digitável para cliente');
-        console.log('   - Múltiplos serviços por agendamento com tags');
-        console.log('   - Edição completa: data, hora, colaborador, serviços');
-        console.log('   - Adicionar/remover serviços individualmente');
-        console.log('   - Status: Agendado, Confirmado, Em atendimento, Concluído, Cancelado');
-        console.log('   - Bloqueio de zoom em desktop e mobile');
-        console.log('   - Sincronização entre dispositivos via BroadcastChannel');
+        console.log('📌 CORREÇÕES APLICADAS:');
+        console.log('   ✅ Agendamentos posicionados corretamente (11:00 = 660px)');
+        console.log('   ✅ Linha vermelha posicionada corretamente');
+        console.log('   ✅ Cálculo: (hora * 60) + minuto = posição em pixels');
+        console.log('   ✅ Cada slot de 15 minutos = 15px');
+        console.log('   ✅ Cada hora = 60px');
 
     </script>
 
