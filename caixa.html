@@ -15,6 +15,10 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+    
+    <!-- Cloudinary SDK -->
+    <script src="https://upload-widget.cloudinary.com/global.js"></script>
     
     <style>
         /* ============================================
@@ -302,6 +306,25 @@
             flex-shrink: 0;
         }
 
+        /* Botão Novo Cliente */
+        .btn-new-client {
+            background: none;
+            border: none;
+            color: #26196b;
+            font-size: 0.75rem;
+            padding: 4px 8px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            border-radius: 6px;
+            transition: background 0.2s;
+        }
+
+        .btn-new-client:hover {
+            background: #f0f0ff;
+        }
+
         /* Input com botão limpar */
         .input-with-clear {
             position: relative;
@@ -319,6 +342,7 @@
             font-size: 0.9rem;
             display: none;
             padding: 0 4px;
+            z-index: 5;
         }
 
         .input-with-clear .clear-btn:hover {
@@ -327,6 +351,31 @@
 
         .input-with-clear .clear-btn.show {
             display: block;
+        }
+
+        /* Badges de serviços */
+        .service-badge {
+            display: inline-flex;
+            align-items: center;
+            background: #f0f0ff;
+            border: 1px solid #d0d0ff;
+            border-radius: 20px;
+            padding: 2px 10px;
+            margin: 2px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .service-badge:hover {
+            background: #e0e0ff;
+            transform: scale(1.05);
+        }
+
+        .service-badge.active {
+            background: #26196b;
+            color: white;
+            border-color: #26196b;
         }
 
         /* Status do Caixa */
@@ -520,6 +569,10 @@
             .summary-box .value {
                 font-size: 0.8rem;
             }
+            .service-badge {
+                font-size: 0.6rem;
+                padding: 2px 8px;
+            }
         }
 
         /* ============================================
@@ -693,6 +746,11 @@
                                     <div class="autocomplete-list" id="serviceClientAutocomplete"></div>
                                 </div>
                                 <input type="hidden" id="serviceClientId">
+                                <div class="mt-1">
+                                    <button type="button" class="btn-new-client" id="newClientFromService">
+                                        <i class="fas fa-user-plus"></i> Novo Cliente
+                                    </button>
+                                </div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Colaborador *</label>
@@ -718,7 +776,13 @@
                             </div>
                             <div class="col-12">
                                 <label class="form-label">Descrição</label>
-                                <input type="text" class="form-control" id="serviceDescription" placeholder="Ex: Corte feminino">
+                                <div id="serviceDescriptionContainer">
+                                    <input type="text" class="form-control" id="serviceDescription" 
+                                           placeholder="Digite o serviço ou selecione abaixo...">
+                                    <div id="serviceBadgesContainer" class="d-flex flex-wrap mt-1" style="max-height:60px;overflow-y:auto;">
+                                        <!-- Badges de serviços serão carregados aqui -->
+                                    </div>
+                                </div>
                             </div>
                             <div class="col-12">
                                 <button type="submit" class="btn btn-primary w-100" id="addServiceBtn">
@@ -764,6 +828,11 @@
                                     <div class="autocomplete-list" id="productClientAutocomplete"></div>
                                 </div>
                                 <input type="hidden" id="productClientId">
+                                <div class="mt-1">
+                                    <button type="button" class="btn-new-client" id="newClientFromProduct">
+                                        <i class="fas fa-user-plus"></i> Novo Cliente
+                                    </button>
+                                </div>
                             </div>
                             <div class="col-12">
                                 <button type="submit" class="btn btn-primary w-100" id="addProductBtn">
@@ -915,6 +984,70 @@
     </div>
 
     <!-- ==========================================
+    MODAL NOVO CLIENTE
+    ========================================== -->
+    <div class="modal fade" id="newClientModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-user-plus me-2"></i>Novo Cliente</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="newClientForm">
+                        <div class="row g-3">
+                            <div class="col-md-4 text-center">
+                                <div class="mb-3">
+                                    <label class="form-label">Foto</label>
+                                    <div class="text-center">
+                                        <img id="newClientPhotoPreview" src="#" alt="Preview" style="width:100px;height:100px;border-radius:50%;object-fit:cover;display:none;margin:0 auto 10px;border:3px solid #26196b;">
+                                        <div id="newClientPhotoPlaceholder" style="width:100px;height:100px;border-radius:50%;background:linear-gradient(135deg,#26196b,#4a3a9c);color:white;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;font-size:40px;border:3px solid #26196b;">
+                                            <i class="fas fa-user"></i>
+                                        </div>
+                                        <input type="file" id="newClientPhoto" accept="image/*" style="display:none;">
+                                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="document.getElementById('newClientPhoto').click()">
+                                            <i class="fas fa-camera me-1"></i>Foto
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" id="removeNewClientPhoto" style="display:none;">
+                                            <i class="fas fa-trash me-1"></i>Remover
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-8">
+                                <div class="row g-2">
+                                    <div class="col-12">
+                                        <label class="form-label">Nome Completo *</label>
+                                        <input type="text" class="form-control" id="newClientName" required>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label">Data Nascimento</label>
+                                        <input type="date" class="form-control" id="newClientBirthdate">
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label">Telefone/WhatsApp *</label>
+                                        <input type="text" class="form-control" id="newClientPhone" placeholder="+351" required>
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label">E-mail</label>
+                                        <input type="email" class="form-control" id="newClientEmail" placeholder="email@exemplo.com">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="saveNewClientBtn">
+                        <i class="fas fa-save me-1"></i>Salvar Cliente
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
     SCRIPTS
     ========================================== -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
@@ -933,6 +1066,11 @@
             measurementId: "G-FCC5T13QW8"
         };
 
+        const cloudinaryConfig = {
+            cloudName: "daurmyabq",
+            uploadPreset: "STUDIODEVITTO_PRESET"
+        };
+
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.firestore();
@@ -946,8 +1084,10 @@
         let clients = [];
         let products = [];
         let collaborators = [];
+        let companyServices = [];
         let broadcastChannel = null;
         let cart = [];
+        let newClientPhotoUrl = null;
 
         // ==========================================
         // 3. INICIALIZAÇÃO
@@ -1016,13 +1156,14 @@
 
             document.getElementById('clearSalesSearch').addEventListener('click', function() {
                 document.getElementById('salesSearch').value = '';
-                filtrarVendas('');
+                document.getElementById('salesSearch').dispatchEvent(new Event('input'));
                 document.getElementById('salesSearch').focus();
+                this.classList.remove('show');
             });
 
             document.getElementById('filterSalesBtn').addEventListener('click', function() {
                 document.getElementById('salesSearch').value = '';
-                filtrarVendas('');
+                document.getElementById('salesSearch').dispatchEvent(new Event('input'));
                 document.getElementById('salesSearch').focus();
             });
 
@@ -1032,6 +1173,7 @@
                 document.getElementById('serviceClientId').value = '';
                 document.getElementById('serviceClientAutocomplete').classList.remove('active');
                 document.getElementById('serviceClientSearch').focus();
+                this.classList.remove('show');
             });
 
             document.getElementById('clearProduct').addEventListener('click', function() {
@@ -1039,6 +1181,7 @@
                 document.getElementById('productId').value = '';
                 document.getElementById('productAutocomplete').classList.remove('active');
                 document.getElementById('productSearch').focus();
+                this.classList.remove('show');
             });
 
             document.getElementById('clearProductClient').addEventListener('click', function() {
@@ -1046,20 +1189,67 @@
                 document.getElementById('productClientId').value = '';
                 document.getElementById('productClientAutocomplete').classList.remove('active');
                 document.getElementById('productClientSearch').focus();
+                this.classList.remove('show');
+            });
+
+            // Eventos - Novo Cliente
+            document.getElementById('newClientFromService').addEventListener('click', function() {
+                const nome = document.getElementById('serviceClientSearch').value.trim();
+                abrirModalNovoCliente(nome);
+            });
+
+            document.getElementById('newClientFromProduct').addEventListener('click', function() {
+                const nome = document.getElementById('productClientSearch').value.trim();
+                abrirModalNovoCliente(nome);
+            });
+
+            document.getElementById('saveNewClientBtn').addEventListener('click', function() {
+                salvarNovoCliente();
+            });
+
+            document.getElementById('newClientPhoto').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    uploadFotoCliente(file);
+                }
+            });
+
+            document.getElementById('removeNewClientPhoto').addEventListener('click', function() {
+                newClientPhotoUrl = null;
+                document.getElementById('newClientPhotoPreview').style.display = 'none';
+                document.getElementById('newClientPhotoPlaceholder').style.display = 'flex';
+                document.getElementById('removeNewClientPhoto').style.display = 'none';
+                document.getElementById('newClientPhoto').value = '';
             });
 
             // Autocomplete de clientes
             document.getElementById('serviceClientSearch').addEventListener('input', function() {
-                filtrarClientes(this.value, 'serviceClientAutocomplete', 'serviceClientId');
+                filtrarClientes(this.value, 'serviceClientAutocomplete', 'serviceClientId', this);
             });
 
             document.getElementById('productClientSearch').addEventListener('input', function() {
-                filtrarClientes(this.value, 'productClientAutocomplete', 'productClientId');
+                filtrarClientes(this.value, 'productClientAutocomplete', 'productClientId', this);
             });
 
             // Autocomplete de produtos
             document.getElementById('productSearch').addEventListener('input', function() {
-                filtrarProdutos(this.value);
+                filtrarProdutos(this.value, this);
+            });
+
+            // Evento para badges de serviços
+            document.addEventListener('click', function(e) {
+                const badge = e.target.closest('.service-badge');
+                if (badge) {
+                    const serviceName = badge.getAttribute('data-service');
+                    const descInput = document.getElementById('serviceDescription');
+                    const currentValue = descInput.value.trim();
+                    if (currentValue) {
+                        descInput.value = currentValue + ', ' + serviceName;
+                    } else {
+                        descInput.value = serviceName;
+                    }
+                    descInput.focus();
+                }
             });
 
             // Fechar autocomplete ao clicar fora
@@ -1091,6 +1281,9 @@
                         if (event.data && event.data.type === 'configUpdated') {
                             carregarConfiguracoesSistema();
                         }
+                        if (event.data && event.data.type === 'clientsUpdated') {
+                            carregarClientes();
+                        }
                     };
                 }
             } catch(e) {}
@@ -1104,65 +1297,120 @@
             }
         }
 
+        function broadcastClientsUpdate() {
+            if (broadcastChannel) {
+                try {
+                    broadcastChannel.postMessage({ type: 'clientsUpdated' });
+                } catch(e) {}
+            }
+        }
+
         // ==========================================
         // 5. CARREGAR DADOS
         // ==========================================
         function carregarDados() {
             if (!currentUser) return;
 
-            const hoje = new Date().toISOString().split('T')[0];
+            Promise.all([
+                carregarClientes(),
+                carregarProdutos(),
+                carregarColaboradores(),
+                carregarServicosEmpresa(),
+                carregarCaixa()
+            ]).then(() => {
+                carregarVendasDia();
+                carregarConfiguracoesSistema();
+                atualizarUltimaAtualizacao();
+            }).catch(err => console.error('Erro ao carregar dados:', err));
+        }
 
-            db.collection('clients')
-                .where('userId', '==', currentUser.uid)
-                .get()
-                .then(snapshot => {
-                    clients = [];
-                    snapshot.forEach(doc => clients.push({ id: doc.id, ...doc.data() }));
-                    clients.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-                })
-                .catch(err => console.error('Erro ao carregar clientes:', err));
+        function carregarClientes() {
+            return new Promise((resolve) => {
+                if (!currentUser) { resolve(); return; }
+                db.collection('clients')
+                    .where('userId', '==', currentUser.uid)
+                    .get()
+                    .then(snapshot => {
+                        clients = [];
+                        snapshot.forEach(doc => clients.push({ id: doc.id, ...doc.data() }));
+                        clients.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                        resolve();
+                    })
+                    .catch(() => resolve());
+            });
+        }
 
-            db.collection('products')
-                .where('userId', '==', currentUser.uid)
-                .get()
-                .then(snapshot => {
-                    products = [];
-                    snapshot.forEach(doc => products.push({ id: doc.id, ...doc.data() }));
-                    products.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-                })
-                .catch(err => console.error('Erro ao carregar produtos:', err));
+        function carregarProdutos() {
+            return new Promise((resolve) => {
+                if (!currentUser) { resolve(); return; }
+                db.collection('products')
+                    .where('userId', '==', currentUser.uid)
+                    .get()
+                    .then(snapshot => {
+                        products = [];
+                        snapshot.forEach(doc => products.push({ id: doc.id, ...doc.data() }));
+                        products.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                        resolve();
+                    })
+                    .catch(() => resolve());
+            });
+        }
 
-            db.collection('collaborators')
-                .where('userId', '==', currentUser.uid)
-                .where('active', '==', true)
-                .get()
-                .then(snapshot => {
-                    collaborators = [];
-                    snapshot.forEach(doc => collaborators.push({ id: doc.id, ...doc.data() }));
-                    atualizarSelectColaboradores();
-                })
-                .catch(err => console.error('Erro ao carregar colaboradores:', err));
+        function carregarColaboradores() {
+            return new Promise((resolve) => {
+                if (!currentUser) { resolve(); return; }
+                db.collection('collaborators')
+                    .where('userId', '==', currentUser.uid)
+                    .where('active', '==', true)
+                    .get()
+                    .then(snapshot => {
+                        collaborators = [];
+                        snapshot.forEach(doc => collaborators.push({ id: doc.id, ...doc.data() }));
+                        atualizarSelectColaboradores();
+                        resolve();
+                    })
+                    .catch(() => resolve());
+            });
+        }
 
-            db.collection('cashiers')
-                .where('userId', '==', currentUser.uid)
-                .where('date', '==', hoje)
-                .where('status', '==', 'open')
-                .get()
-                .then(snapshot => {
-                    if (!snapshot.empty) {
-                        currentCashier = snapshot.docs[0].data();
-                        currentCashier.id = snapshot.docs[0].id;
-                        atualizarStatusCaixa(true);
-                    } else {
-                        currentCashier = null;
-                        atualizarStatusCaixa(false);
-                    }
-                    carregarVendasDia();
-                })
-                .catch(err => console.error('Erro ao carregar caixa:', err));
+        function carregarServicosEmpresa() {
+            return new Promise((resolve) => {
+                if (!currentUser) { resolve(); return; }
+                db.collection('businessProfile').doc(currentUser.uid).get()
+                    .then(doc => {
+                        if (doc.exists) {
+                            companyServices = doc.data().services || [];
+                        } else {
+                            companyServices = [];
+                        }
+                        renderizarBadgesServicos();
+                        resolve();
+                    })
+                    .catch(() => { companyServices = []; resolve(); });
+            });
+        }
 
-            carregarConfiguracoesSistema();
-            atualizarUltimaAtualizacao();
+        function carregarCaixa() {
+            return new Promise((resolve) => {
+                const hoje = new Date().toISOString().split('T')[0];
+                db.collection('cashiers')
+                    .where('userId', '==', currentUser.uid)
+                    .where('date', '==', hoje)
+                    .where('status', '==', 'open')
+                    .get()
+                    .then(snapshot => {
+                        if (!snapshot.empty) {
+                            currentCashier = snapshot.docs[0].data();
+                            currentCashier.id = snapshot.docs[0].id;
+                            atualizarStatusCaixa(true);
+                        } else {
+                            currentCashier = null;
+                            atualizarStatusCaixa(false);
+                        }
+                        resolve();
+                    })
+                    .catch(() => { currentCashier = null; atualizarStatusCaixa(false); resolve(); });
+            });
         }
 
         function carregarVendasDia() {
@@ -1227,15 +1475,79 @@
             });
         }
 
+        function renderizarBadgesServicos() {
+            const container = document.getElementById('serviceBadgesContainer');
+            container.innerHTML = '';
+
+            if (!companyServices || companyServices.length === 0) {
+                container.innerHTML = '<span class="text-muted fs-small">Nenhum serviço cadastrado na empresa.</span>';
+                return;
+            }
+
+            companyServices.forEach(service => {
+                const badge = document.createElement('span');
+                badge.className = 'service-badge';
+                badge.setAttribute('data-service', service);
+                badge.textContent = service;
+                container.appendChild(badge);
+            });
+        }
+
         // ==========================================
-        // 6. AUTENTICAR CLIENTE (com foto)
+        // 6. BUSCA DE CLIENTES (CORRIGIDA - TODOS OS CLIENTES)
         // ==========================================
-        function filtrarClientes(searchTerm, listId, hiddenId) {
+        function filtrarClientes(searchTerm, listId, hiddenId, inputElement) {
             const list = document.getElementById(listId);
+            const clearBtn = inputElement.parentElement.querySelector('.clear-btn');
+
+            // Mostrar/Esconder botão limpar
+            if (searchTerm.length > 0) {
+                clearBtn.classList.add('show');
+            } else {
+                clearBtn.classList.remove('show');
+            }
+
             const normalizedSearch = searchTerm.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
 
+            // Se não tiver termo de busca, mostrar lista com todos os clientes (limitado a 15)
             if (normalizedSearch.length < 1) {
-                list.classList.remove('active');
+                if (clients.length === 0) {
+                    list.innerHTML = '<div class="autocomplete-item text-muted">Nenhum cliente cadastrado</div>';
+                    list.classList.add('active');
+                    return;
+                }
+                // Mostrar todos os clientes (limitado a 15)
+                const allClients = clients.slice(0, 15);
+                let html = '';
+                allClients.forEach(c => {
+                    const foto = c.photoUrl ? 
+                        `<img src="${c.photoUrl}" class="avatar" onerror="this.style.display='none'">` :
+                        `<div class="avatar-placeholder">${(c.name || '?').charAt(0).toUpperCase()}</div>`;
+                    
+                    html += `
+                        <div class="autocomplete-item" data-id="${c.id}" data-name="${c.name}">
+                            ${foto}
+                            <div class="info">
+                                <div class="name">${c.name}</div>
+                                <div class="detail">${c.phone || 'Sem telefone'} ${c.email ? '| ' + c.email : ''}</div>
+                            </div>
+                        </div>
+                    `;
+                });
+                if (clients.length > 15) {
+                    html += `<div class="autocomplete-item text-muted">... e mais ${clients.length - 15} clientes. Digite para filtrar.</div>`;
+                }
+                list.innerHTML = html;
+                list.classList.add('active');
+
+                list.querySelectorAll('.autocomplete-item').forEach(item => {
+                    item.addEventListener('click', function() {
+                        inputElement.value = this.getAttribute('data-name');
+                        document.getElementById(hiddenId).value = this.getAttribute('data-id');
+                        list.classList.remove('active');
+                        clearBtn.classList.add('show');
+                    });
+                });
                 return;
             }
 
@@ -1247,13 +1559,18 @@
             });
 
             if (filtered.length === 0) {
-                list.innerHTML = '<div class="autocomplete-item text-muted">Nenhum cliente encontrado</div>';
+                list.innerHTML = `
+                    <div class="autocomplete-item text-muted">Nenhum cliente encontrado</div>
+                    <div class="autocomplete-item" style="color:#26196b;font-weight:500;" onclick="abrirModalNovoCliente('${searchTerm}')">
+                        <i class="fas fa-user-plus me-2"></i> Cadastrar "${searchTerm}" como novo cliente
+                    </div>
+                `;
                 list.classList.add('active');
                 return;
             }
 
             let html = '';
-            filtered.slice(0, 10).forEach(c => {
+            filtered.slice(0, 15).forEach(c => {
                 const foto = c.photoUrl ? 
                     `<img src="${c.photoUrl}" class="avatar" onerror="this.style.display='none'">` :
                     `<div class="avatar-placeholder">${(c.name || '?').charAt(0).toUpperCase()}</div>`;
@@ -1269,28 +1586,78 @@
                 `;
             });
 
+            if (filtered.length > 15) {
+                html += `<div class="autocomplete-item text-muted">... e mais ${filtered.length - 15} clientes. Refine sua busca.</div>`;
+            }
+
             list.innerHTML = html;
             list.classList.add('active');
 
             list.querySelectorAll('.autocomplete-item').forEach(item => {
                 item.addEventListener('click', function() {
-                    const input = this.closest('.autocomplete-container').querySelector('input');
-                    input.value = this.getAttribute('data-name');
+                    inputElement.value = this.getAttribute('data-name');
                     document.getElementById(hiddenId).value = this.getAttribute('data-id');
                     list.classList.remove('active');
-                    // Mostrar botão limpar
-                    const clearBtn = input.parentElement.querySelector('.clear-btn');
-                    if (clearBtn) clearBtn.classList.add('show');
+                    clearBtn.classList.add('show');
                 });
             });
         }
 
-        function filtrarProdutos(searchTerm) {
+        function filtrarProdutos(searchTerm, inputElement) {
             const list = document.getElementById('productAutocomplete');
+            const clearBtn = inputElement.parentElement.querySelector('.clear-btn');
+
+            if (searchTerm.length > 0) {
+                clearBtn.classList.add('show');
+            } else {
+                clearBtn.classList.remove('show');
+            }
+
             const normalizedSearch = searchTerm.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
 
             if (normalizedSearch.length < 1) {
-                list.classList.remove('active');
+                if (products.length === 0) {
+                    list.innerHTML = '<div class="autocomplete-item text-muted">Nenhum produto cadastrado</div>';
+                    list.classList.add('active');
+                    return;
+                }
+                const allProducts = products.slice(0, 15);
+                let html = '';
+                allProducts.forEach(p => {
+                    const estoque = p.quantity || 0;
+                    const foto = p.imageUrl ? 
+                        `<img src="${p.imageUrl}" class="avatar" onerror="this.style.display='none'">` :
+                        `<div class="avatar-placeholder"><i class="fas fa-box"></i></div>`;
+                    
+                    html += `
+                        <div class="autocomplete-item" data-id="${p.id}" data-name="${p.name}" data-price="${p.salePrice}" data-stock="${estoque}">
+                            ${foto}
+                            <div class="info">
+                                <div class="name">${p.name}</div>
+                                <div class="detail">${formatCurrency(p.salePrice)} | ${estoque} und</div>
+                            </div>
+                            <span class="badge-item ${estoque <= p.minQuantity ? 'bg-warning' : 'bg-success'}">${estoque}</span>
+                        </div>
+                    `;
+                });
+                if (products.length > 15) {
+                    html += `<div class="autocomplete-item text-muted">... e mais ${products.length - 15} produtos. Digite para filtrar.</div>`;
+                }
+                list.innerHTML = html;
+                list.classList.add('active');
+
+                list.querySelectorAll('.autocomplete-item').forEach(item => {
+                    item.addEventListener('click', function() {
+                        inputElement.value = this.getAttribute('data-name');
+                        document.getElementById('productId').value = this.getAttribute('data-id');
+                        const stock = parseInt(this.getAttribute('data-stock')) || 0;
+                        const qtyInput = document.getElementById('productQuantity');
+                        qtyInput.max = stock;
+                        qtyInput.value = 1;
+                        list.classList.remove('active');
+                        clearBtn.classList.add('show');
+                    });
+                });
                 return;
             }
 
@@ -1307,7 +1674,7 @@
             }
 
             let html = '';
-            filtered.slice(0, 10).forEach(p => {
+            filtered.slice(0, 15).forEach(p => {
                 const estoque = p.quantity || 0;
                 const foto = p.imageUrl ? 
                     `<img src="${p.imageUrl}" class="avatar" onerror="this.style.display='none'">` :
@@ -1330,23 +1697,170 @@
 
             list.querySelectorAll('.autocomplete-item').forEach(item => {
                 item.addEventListener('click', function() {
-                    const input = document.getElementById('productSearch');
-                    input.value = this.getAttribute('data-name');
+                    inputElement.value = this.getAttribute('data-name');
                     document.getElementById('productId').value = this.getAttribute('data-id');
                     const stock = parseInt(this.getAttribute('data-stock')) || 0;
                     const qtyInput = document.getElementById('productQuantity');
                     qtyInput.max = stock;
                     qtyInput.value = 1;
                     list.classList.remove('active');
-                    // Mostrar botão limpar
-                    const clearBtn = input.parentElement.querySelector('.clear-btn');
-                    if (clearBtn) clearBtn.classList.add('show');
+                    clearBtn.classList.add('show');
                 });
             });
         }
 
         // ==========================================
-        // 7. CAIXA
+        // 7. NOVO CLIENTE
+        // ==========================================
+        function abrirModalNovoCliente(nome = '') {
+            document.getElementById('newClientForm').reset();
+            document.getElementById('newClientName').value = nome;
+            document.getElementById('newClientPhotoPreview').style.display = 'none';
+            document.getElementById('newClientPhotoPlaceholder').style.display = 'flex';
+            document.getElementById('removeNewClientPhoto').style.display = 'none';
+            newClientPhotoUrl = null;
+            document.getElementById('newClientPhoto').value = '';
+
+            const modal = new bootstrap.Modal(document.getElementById('newClientModal'));
+            modal.show();
+
+            setTimeout(() => {
+                document.getElementById('newClientName').focus();
+                if (nome) {
+                    document.getElementById('newClientName').select();
+                }
+            }, 300);
+        }
+
+        function uploadFotoCliente(file) {
+            if (!file) return;
+            if (!file.type.match('image.*')) {
+                Swal.fire('Erro', 'Por favor, selecione uma imagem válida.', 'error');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('newClientPhotoPreview').src = e.target.result;
+                document.getElementById('newClientPhotoPreview').style.display = 'block';
+                document.getElementById('newClientPhotoPlaceholder').style.display = 'none';
+                document.getElementById('removeNewClientPhoto').style.display = 'inline-block';
+            };
+            reader.readAsDataURL(file);
+
+            // Upload para Cloudinary
+            Swal.fire({
+                title: 'Enviando foto...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('upload_preset', cloudinaryConfig.uploadPreset);
+
+            fetch(`https://api.cloudinary.com/v1_1/${cloudinaryConfig.cloudName}/image/upload`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.secure_url) {
+                    newClientPhotoUrl = data.secure_url;
+                    Swal.close();
+                } else {
+                    throw new Error('Erro no upload');
+                }
+            })
+            .catch(error => {
+                Swal.close();
+                Swal.fire('Erro', 'Erro ao enviar foto: ' + error.message, 'error');
+                newClientPhotoUrl = null;
+                document.getElementById('newClientPhotoPreview').style.display = 'none';
+                document.getElementById('newClientPhotoPlaceholder').style.display = 'flex';
+                document.getElementById('removeNewClientPhoto').style.display = 'none';
+                document.getElementById('newClientPhoto').value = '';
+            });
+        }
+
+        function salvarNovoCliente() {
+            const nome = document.getElementById('newClientName').value.trim();
+            const birthdate = document.getElementById('newClientBirthdate').value;
+            const phone = document.getElementById('newClientPhone').value.trim();
+            const email = document.getElementById('newClientEmail').value.trim();
+
+            if (!nome) {
+                Swal.fire('Erro', 'Digite o nome do cliente.', 'error');
+                document.getElementById('newClientName').focus();
+                return;
+            }
+
+            if (!phone) {
+                Swal.fire('Erro', 'Digite o telefone/WhatsApp do cliente.', 'error');
+                document.getElementById('newClientPhone').focus();
+                return;
+            }
+
+            // Verificar se cliente já existe
+            const existing = clients.find(c => c.name.toLowerCase() === nome.toLowerCase() || c.phone === phone);
+            if (existing) {
+                Swal.fire('Aviso', 'Cliente já cadastrado com este nome ou telefone.', 'warning');
+                return;
+            }
+
+            const clientData = {
+                name: nome,
+                birthdate: birthdate || null,
+                phone: phone,
+                email: email || '',
+                photoUrl: newClientPhotoUrl || null,
+                userId: currentUser.uid,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            Swal.fire({
+                title: 'Salvando cliente...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            db.collection('clients').add(clientData)
+                .then(docRef => {
+                    const newClient = { id: docRef.id, ...clientData };
+                    clients.push(newClient);
+                    clients.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+                    // Atualizar o campo de busca com o novo cliente
+                    const clientId = docRef.id;
+                    const searchInput = document.getElementById('serviceClientSearch');
+                    searchInput.value = nome;
+                    document.getElementById('serviceClientId').value = clientId;
+
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('newClientModal'));
+                    if (modal) modal.hide();
+
+                    broadcastClientsUpdate();
+                    Swal.close();
+                    Swal.fire({
+                        icon: 'success',
+                        title: '✅ Cliente cadastrado!',
+                        text: `${nome} foi adicionado à lista.`,
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+
+                    // Mostrar o botão limpar
+                    const clearBtn = searchInput.parentElement.querySelector('.clear-btn');
+                    if (clearBtn) clearBtn.classList.add('show');
+                })
+                .catch(error => {
+                    Swal.close();
+                    Swal.fire('Erro', 'Erro ao salvar cliente: ' + error.message, 'error');
+                });
+        }
+
+        // ==========================================
+        // 8. CAIXA
         // ==========================================
         function abrirModalAbrirCaixa() {
             document.getElementById('initialValueInput').value = 0;
@@ -1495,7 +2009,7 @@
         }
 
         // ==========================================
-        // 8. CARRINHO
+        // 9. CARRINHO
         // ==========================================
         function adicionarAoCarrinho(tipo) {
             if (!currentCashier) {
@@ -1540,6 +2054,7 @@
                 document.getElementById('serviceClientId').value = '';
                 document.getElementById('serviceClientSearch').value = '';
                 document.getElementById('serviceClientAutocomplete').classList.remove('active');
+                document.getElementById('serviceDescription').value = '';
 
                 atualizarCarrinho();
                 Swal.fire({
@@ -1682,7 +2197,7 @@
         }
 
         // ==========================================
-        // 9. FINALIZAR VENDA
+        // 10. FINALIZAR VENDA
         // ==========================================
         function abrirModalCheckout() {
             if (cart.length === 0) {
@@ -1805,7 +2320,6 @@
                     };
                     promises.push(db.collection('productSales').add(saleData));
                     
-                    // Atualizar estoque
                     const product = products.find(p => p.id === item.productId);
                     if (product) {
                         const newQty = product.quantity - item.quantity;
@@ -1842,7 +2356,7 @@
         }
 
         // ==========================================
-        // 10. RENDERIZAR VENDAS
+        // 11. RENDERIZAR VENDAS
         // ==========================================
         function renderizarVendas(filtro = '') {
             const container = document.getElementById('salesList');
@@ -1923,7 +2437,7 @@
         }
 
         // ==========================================
-        // 11. EXCLUIR VENDA
+        // 12. EXCLUIR VENDA
         // ==========================================
         function excluirVenda(id, tipo) {
             Swal.fire({
@@ -1986,7 +2500,7 @@
         window.excluirVenda = excluirVenda;
 
         // ==========================================
-        // 12. RESUMO E COMISSÕES
+        // 13. RESUMO E COMISSÕES
         // ==========================================
         function atualizarResumo() {
             const services = todaySales.filter(s => s.tipo === 'service');
@@ -2067,7 +2581,7 @@
         }
 
         // ==========================================
-        // 13. ATUALIZAR ÚLTIMA ATUALIZAÇÃO
+        // 14. ATUALIZAR ÚLTIMA ATUALIZAÇÃO
         // ==========================================
         function atualizarUltimaAtualizacao() {
             const now = new Date();
@@ -2078,7 +2592,7 @@
         }
 
         // ==========================================
-        // 14. RECARREGAR DADOS
+        // 15. RECARREGAR DADOS
         // ==========================================
         function recarregarDados() {
             const btn = document.getElementById('refreshBtn');
@@ -2094,7 +2608,7 @@
         }
 
         // ==========================================
-        // 15. FUNÇÃO HOME
+        // 16. FUNÇÃO HOME
         // ==========================================
         function goHome() {
             if (window.parent && window.parent !== window) {
@@ -2105,7 +2619,7 @@
         }
 
         // ==========================================
-        // 16. MOSTRAR LOGIN PROMPT
+        // 17. MOSTRAR LOGIN PROMPT
         // ==========================================
         function mostrarLoginPrompt() {
             Swal.fire({
@@ -2123,7 +2637,7 @@
         }
 
         // ==========================================
-        // 17. RECEBER CONFIGURAÇÕES
+        // 18. RECEBER CONFIGURAÇÕES
         // ==========================================
         window.addEventListener('message', function(event) {
             if (event.data && event.data.type === 'configUpdated') {
@@ -2132,12 +2646,15 @@
             if (event.data && event.data.type === 'caixaUpdated') {
                 carregarDados();
             }
+            if (event.data && event.data.type === 'clientsUpdated') {
+                carregarClientes();
+            }
         });
 
         window.parent.postMessage({ type: 'getConfig' }, '*');
 
         // ==========================================
-        // 18. UTILITÁRIOS
+        // 19. UTILITÁRIOS
         // ==========================================
         function formatCurrency(value) {
             if (typeof value !== 'number') value = parseFloat(value) || 0;
@@ -2145,18 +2662,17 @@
         }
 
         // ==========================================
-        // 19. LOG DE INICIALIZAÇÃO
+        // 20. LOG DE INICIALIZAÇÃO
         // ==========================================
         console.log('✅ Caixa carregado com sucesso!');
         console.log('📌 Funcionalidades:');
-        console.log('   - Abertura e fechamento de caixa');
+        console.log('   - Busca de clientes com TODOS os clientes cadastrados');
+        console.log('   - Botão (x) para limpar busca');
+        console.log('   - Novo cliente com foto e dados completos');
+        console.log('   - Badges de serviços da empresa');
         console.log('   - Carrinho com múltiplas vendas');
-        console.log('   - Busca de clientes com foto (digitação e eliminação)');
-        console.log('   - Busca de produtos com foto');
-        console.log('   - Botão (x) para limpar campos');
         console.log('   - Comissões detalhadas por colaborador');
         console.log('   - Saldo do salão');
-        console.log('   - Exclusão de vendas');
         console.log('   - Sincronização em tempo real');
 
     </script>
