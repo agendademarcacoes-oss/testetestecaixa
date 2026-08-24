@@ -17,6 +17,9 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
     
+    <!-- Cloudinary SDK -->
+    <script src="https://upload-widget.cloudinary.com/global.js"></script>
+    
     <style>
         /* ============================================
            BLOQUEIO DE ZOOM
@@ -56,7 +59,7 @@
         }
 
         /* ============================================
-           HEADER COM BOTÃO HOME
+           HEADER COM BOTÃO HOME E LOGO
            ============================================ */
         .empresa-header {
             background: linear-gradient(135deg, #26196b, #4a3a9c);
@@ -80,7 +83,20 @@
             gap: 8px;
         }
 
-        .empresa-header .header-left .brand-icon {
+        .empresa-header .header-left .brand-logo {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .empresa-header .header-left .brand-logo img {
+            height: 28px;
+            width: 28px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .empresa-header .header-left .brand-logo .brand-icon {
             font-size: 1.1rem;
             color: #ffd700;
         }
@@ -213,7 +229,7 @@
             box-shadow: 0 0 0 0.25rem rgba(38,25,107,0.15);
         }
 
-        .service-tag {
+        .service-tag, .social-tag {
             display: inline-flex;
             align-items: center;
             background: #f0f0ff;
@@ -224,15 +240,27 @@
             font-size: 0.85rem;
         }
 
-        .service-tag .remove-service {
+        .service-tag .remove-service,
+        .social-tag .remove-social {
             margin-left: 6px;
             cursor: pointer;
             color: #dc3545;
             font-weight: bold;
         }
 
-        .service-tag .remove-service:hover {
+        .service-tag .remove-service:hover,
+        .social-tag .remove-social:hover {
             color: #a71d2a;
+        }
+
+        .social-tag a {
+            color: #26196b;
+            text-decoration: none;
+            margin-right: 4px;
+        }
+
+        .social-tag a:hover {
+            text-decoration: underline;
         }
 
         .business-hours-row {
@@ -289,6 +317,48 @@
             color: #dc3545;
         }
 
+        .business-hours-row .copy-hours-btn {
+            background: none;
+            border: none;
+            color: #26196b;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .business-hours-row .copy-hours-btn:hover {
+            color: #4a3a9c;
+        }
+
+        /* Logo upload */
+        .logo-preview-container {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .logo-preview {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #26196b;
+            background: white;
+        }
+
+        .logo-preview-placeholder {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #26196b, #4a3a9c);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            border: 3px solid #26196b;
+        }
+
         /* ============================================
            RESPONSIVIDADE
            ============================================ */
@@ -314,6 +384,15 @@
             .card-custom {
                 padding: 14px 16px;
             }
+            .logo-preview {
+                width: 60px;
+                height: 60px;
+            }
+            .logo-preview-placeholder {
+                width: 60px;
+                height: 60px;
+                font-size: 24px;
+            }
         }
 
         @media (max-width: 480px) {
@@ -329,6 +408,15 @@
             }
             .business-hours-row .day-label {
                 font-size: 0.75rem;
+            }
+            .logo-preview {
+                width: 50px;
+                height: 50px;
+            }
+            .logo-preview-placeholder {
+                width: 50px;
+                height: 50px;
+                font-size: 20px;
             }
         }
 
@@ -378,11 +466,14 @@
 <body>
 
     <!-- ==========================================
-    HEADER COM BOTÃO HOME
+    HEADER COM BOTÃO HOME E LOGO
     ========================================== -->
     <header class="empresa-header" id="empresaHeader">
         <div class="header-left">
-            <i class="fas fa-building brand-icon"></i>
+            <div class="brand-logo" id="headerLogo">
+                <i class="fas fa-building brand-icon" id="logoIconHeader"></i>
+                <img id="logoImageHeader" style="display:none; height:28px; width:28px; border-radius:50%; object-fit:cover;" alt="Logo">
+            </div>
             <h1>
                 Empresa
                 <small id="userGreeting">Carregando...</small>
@@ -447,6 +538,34 @@
         </div>
 
         <!-- ==========================================
+        LOGO DO SISTEMA
+        ========================================== -->
+        <div class="card-custom">
+            <div class="card-header-custom">
+                <span><i class="fas fa-image me-2"></i>Logo do Sistema</span>
+                <span class="text-muted fs-small">A logo aparece em todo o sistema</span>
+            </div>
+            <div class="logo-preview-container">
+                <div id="logoPreviewArea">
+                    <div class="logo-preview-placeholder" id="logoPlaceholder">
+                        <i class="fas fa-scissors"></i>
+                    </div>
+                    <img class="logo-preview" id="logoPreviewImage" style="display:none;" alt="Logo">
+                </div>
+                <div>
+                    <button class="btn btn-sm btn-outline-primary" id="uploadLogoBtn">
+                        <i class="fas fa-upload me-1"></i>Enviar Logo
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" id="removeLogoBtn">
+                        <i class="fas fa-trash me-1"></i>Remover
+                    </button>
+                    <input type="file" id="logoFileInput" accept="image/*" style="display:none;">
+                    <div class="text-muted fs-small mt-1">Formatos: PNG, JPG, SVG. Tamanho recomendado: 200x200px.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==========================================
         SERVIÇOS
         ========================================== -->
         <div class="card-custom">
@@ -471,14 +590,50 @@
         </div>
 
         <!-- ==========================================
+        REDES SOCIAIS
+        ========================================== -->
+        <div class="card-custom">
+            <div class="card-header-custom">
+                <span><i class="fas fa-share-alt me-2"></i>Redes Sociais</span>
+                <button class="btn btn-sm btn-primary" id="addSocialBtn">
+                    <i class="fas fa-plus me-1"></i>Adicionar
+                </button>
+            </div>
+            <div id="socialContainer" class="d-flex flex-wrap" style="min-height:40px;">
+                <!-- Redes sociais serão exibidas como tags -->
+                <span class="text-muted" style="font-size:0.9rem;">Nenhuma rede social adicionada.</span>
+            </div>
+            <div class="mt-2">
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <input type="text" class="form-control" id="newSocialName" placeholder="Nome (Ex: Instagram)">
+                    </div>
+                    <div class="col-md-5">
+                        <input type="url" class="form-control" id="newSocialUrl" placeholder="Link (Ex: https://instagram.com/...)">
+                    </div>
+                    <div class="col-md-1">
+                        <button class="btn btn-outline-primary w-100" id="addSocialConfirmBtn" type="button">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==========================================
         HORÁRIO DE FUNCIONAMENTO
         ========================================== -->
         <div class="card-custom">
             <div class="card-header-custom">
                 <span><i class="fas fa-clock me-2"></i>Horário de Funcionamento</span>
-                <button class="btn btn-sm btn-outline-secondary" id="resetHoursBtn">
-                    <i class="fas fa-undo me-1"></i>Restaurar Padrão
-                </button>
+                <div>
+                    <button class="btn btn-sm btn-outline-secondary me-2" id="copyHoursBtn">
+                        <i class="fas fa-copy me-1"></i>Copiar Horário
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" id="resetHoursBtn">
+                        <i class="fas fa-undo me-1"></i>Restaurar Padrão
+                    </button>
+                </div>
             </div>
             <div id="businessHoursContainer">
                 <!-- Dias serão preenchidos dinamicamente -->
@@ -494,6 +649,40 @@
             </button>
         </div>
 
+    </div>
+
+    <!-- ==========================================
+    MODAL DE CÓPIA DE HORÁRIOS
+    ========================================== -->
+    <div class="modal fade" id="copyHoursModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-copy me-2"></i>Copiar Horário</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted">Selecione os dias para os quais deseja copiar o horário de <strong id="copySourceDayLabel"></strong>.</p>
+                    <div id="copyDaysCheckboxes">
+                        <!-- Checkboxes serão gerados dinamicamente -->
+                    </div>
+                    <div class="mt-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="copyAllDaysCheck">
+                            <label class="form-check-label" for="copyAllDaysCheck">
+                                Selecionar todos
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="confirmCopyHoursBtn">
+                        <i class="fas fa-check me-1"></i>Copiar
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- ==========================================
@@ -515,6 +704,11 @@
             measurementId: "G-FCC5T13QW8"
         };
 
+        const cloudinaryConfig = {
+            cloudName: "daurmyabq",
+            uploadPreset: "STUDIODEVITTO_PRESET"
+        };
+
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.firestore();
@@ -531,6 +725,7 @@
             endereco: '',
             descricao: '',
             servicos: [],
+            sociais: [],
             horario: {
                 segunda: { aberto: true, abertura: '09:00', fechamento: '18:00' },
                 terca: { aberto: true, abertura: '09:00', fechamento: '18:00' },
@@ -542,6 +737,7 @@
             }
         };
         let broadcastChannel = null;
+        let copySourceDay = null;
 
         // ==========================================
         // 3. INICIALIZAÇÃO
@@ -554,13 +750,14 @@
                     currentUser = user;
                     document.getElementById('userGreeting').textContent = user.email;
                     carregarDados();
+                    carregarConfiguracoesSistema();
                 } else {
                     document.getElementById('userGreeting').textContent = 'Não autenticado';
                     mostrarLoginPrompt();
                 }
             });
 
-            // Eventos
+            // Eventos - Serviços
             document.getElementById('addServiceBtn').addEventListener('click', function() {
                 document.getElementById('newServiceInput').focus();
             });
@@ -576,6 +773,60 @@
                 }
             });
 
+            // Eventos - Redes Sociais
+            document.getElementById('addSocialBtn').addEventListener('click', function() {
+                document.getElementById('newSocialName').focus();
+            });
+
+            document.getElementById('addSocialConfirmBtn').addEventListener('click', function() {
+                adicionarSocial();
+            });
+
+            document.getElementById('newSocialName').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    document.getElementById('newSocialUrl').focus();
+                }
+            });
+
+            document.getElementById('newSocialUrl').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    adicionarSocial();
+                }
+            });
+
+            // Eventos - Logo
+            document.getElementById('uploadLogoBtn').addEventListener('click', function() {
+                document.getElementById('logoFileInput').click();
+            });
+
+            document.getElementById('logoFileInput').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    uploadLogo(file);
+                }
+            });
+
+            document.getElementById('removeLogoBtn').addEventListener('click', function() {
+                removerLogo();
+            });
+
+            // Eventos - Copiar Horários
+            document.getElementById('copyHoursBtn').addEventListener('click', function() {
+                abrirModalCopiaHorarios();
+            });
+
+            document.getElementById('confirmCopyHoursBtn').addEventListener('click', function() {
+                confirmarCopiaHorarios();
+            });
+
+            document.getElementById('copyAllDaysCheck').addEventListener('change', function() {
+                const checkboxes = document.querySelectorAll('#copyDaysCheckboxes .form-check-input');
+                checkboxes.forEach(cb => cb.checked = this.checked);
+            });
+
+            // Eventos - Salvar
             document.getElementById('saveEmpresaBtn').addEventListener('click', function() {
                 salvarEmpresa();
             });
@@ -593,6 +844,9 @@
 
             // Sincronizar configurações do sistema
             carregarConfiguracoesSistema();
+
+            // Atualizar logo periodicamente
+            setInterval(atualizarLogoHeader, 10000);
         });
 
         // ==========================================
@@ -611,6 +865,10 @@
                             console.log('📡 Configurações atualizadas via BroadcastChannel');
                             carregarConfiguracoesSistema();
                         }
+                        if (event.data && event.data.type === 'logoUpdated') {
+                            console.log('📡 Logo atualizada via BroadcastChannel');
+                            atualizarLogoHeader();
+                        }
                     };
                     console.log('✅ BroadcastChannel iniciado para empresa');
                 }
@@ -622,9 +880,7 @@
         function broadcastEmpresaUpdate() {
             if (broadcastChannel) {
                 try {
-                    broadcastChannel.postMessage({
-                        type: 'empresaUpdated'
-                    });
+                    broadcastChannel.postMessage({ type: 'empresaUpdated' });
                 } catch(e) {}
             }
         }
@@ -632,9 +888,15 @@
         function broadcastConfigUpdate() {
             if (broadcastChannel) {
                 try {
-                    broadcastChannel.postMessage({
-                        type: 'configUpdated'
-                    });
+                    broadcastChannel.postMessage({ type: 'configUpdated' });
+                } catch(e) {}
+            }
+        }
+
+        function broadcastLogoUpdate() {
+            if (broadcastChannel) {
+                try {
+                    broadcastChannel.postMessage({ type: 'logoUpdated' });
                 } catch(e) {}
             }
         }
@@ -645,7 +907,6 @@
         function carregarDados() {
             if (!currentUser) return;
 
-            // Carregar perfil da empresa
             db.collection('businessProfile').doc(currentUser.uid).get()
                 .then(doc => {
                     if (doc.exists) {
@@ -657,17 +918,16 @@
                         empresaData.endereco = data.address || '';
                         empresaData.descricao = data.description || '';
                         empresaData.servicos = data.services || [];
+                        empresaData.sociais = data.social || [];
                     }
                     preencherFormulario();
                 })
                 .catch(err => console.error('Erro ao carregar perfil:', err));
 
-            // Carregar horários
             db.collection('businessHours').doc(currentUser.uid).get()
                 .then(doc => {
                     if (doc.exists) {
                         const data = doc.data();
-                        // Mesclar com os padrões
                         Object.keys(empresaData.horario).forEach(dia => {
                             if (data[dia]) {
                                 empresaData.horario[dia] = {
@@ -682,9 +942,7 @@
                 })
                 .catch(err => console.error('Erro ao carregar horários:', err));
 
-            // Carregar configurações do sistema (logo, cor, etc.)
             carregarConfiguracoesSistema();
-
             atualizarUltimaAtualizacao();
         }
 
@@ -701,9 +959,8 @@
                             header.style.background = `linear-gradient(135deg, ${parsed.corPrimaria}, ${parsed.corPrimaria}99)`;
                         }
                     }
-                    if (parsed.logo) {
-                        // Atualizar logo se desejar
-                    }
+                    // Atualizar logo
+                    atualizarLogoHeader();
                 }
             } catch(e) {}
         }
@@ -716,12 +973,125 @@
             document.getElementById('empresaEndereco').value = empresaData.endereco;
             document.getElementById('empresaDescricao').value = empresaData.descricao;
             renderizarServicos();
+            renderizarSocias();
             document.getElementById('statusBadge').textContent = '✅ Carregado';
             document.getElementById('statusBadge').className = 'badge bg-success';
         }
 
         // ==========================================
-        // 6. SERVIÇOS
+        // 6. LOGO
+        // ==========================================
+        function atualizarLogoHeader() {
+            const config = localStorage.getItem('systemConfig');
+            if (config) {
+                const parsed = JSON.parse(config);
+                const logoUrl = parsed.logo;
+                const logoIcon = document.getElementById('logoIconHeader');
+                const logoImage = document.getElementById('logoImageHeader');
+                const previewImage = document.getElementById('logoPreviewImage');
+                const placeholder = document.getElementById('logoPlaceholder');
+
+                if (logoUrl) {
+                    logoIcon.style.display = 'none';
+                    logoImage.style.display = 'inline-block';
+                    logoImage.src = logoUrl;
+                    previewImage.style.display = 'inline-block';
+                    previewImage.src = logoUrl;
+                    placeholder.style.display = 'none';
+                } else {
+                    logoIcon.style.display = 'inline-block';
+                    logoImage.style.display = 'none';
+                    previewImage.style.display = 'none';
+                    placeholder.style.display = 'flex';
+                }
+            }
+        }
+
+        function uploadLogo(file) {
+            if (!file) return;
+            if (!file.type.match('image.*')) {
+                Swal.fire('Erro', 'Por favor, selecione uma imagem válida.', 'error');
+                return;
+            }
+
+            Swal.fire({
+                title: 'Enviando logo...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('upload_preset', cloudinaryConfig.uploadPreset);
+
+            fetch(`https://api.cloudinary.com/v1_1/${cloudinaryConfig.cloudName}/image/upload`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.secure_url) {
+                    const logoUrl = data.secure_url;
+                    // Salvar no sistema
+                    const config = localStorage.getItem('systemConfig') ? JSON.parse(localStorage.getItem('systemConfig')) : {};
+                    config.logo = logoUrl;
+                    localStorage.setItem('systemConfig', JSON.stringify(config));
+
+                    // Salvar no Firebase também
+                    if (currentUser) {
+                        db.collection('systemConfig').doc('global').set(config, { merge: true })
+                            .catch(err => console.error('Erro ao salvar logo no Firebase:', err));
+                    }
+
+                    atualizarLogoHeader();
+                    broadcastLogoUpdate();
+                    Swal.close();
+                    Swal.fire({
+                        icon: 'success',
+                        title: '✅ Logo atualizada!',
+                        text: 'A logo foi atualizada em todo o sistema.',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                } else {
+                    throw new Error('Erro no upload');
+                }
+            })
+            .catch(error => {
+                Swal.close();
+                Swal.fire('Erro', 'Erro ao enviar logo: ' + error.message, 'error');
+                console.error(error);
+            });
+        }
+
+        function removerLogo() {
+            Swal.fire({
+                title: 'Remover Logo',
+                text: 'Deseja remover a logo do sistema?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Sim, remover',
+                cancelButtonText: 'Cancelar'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    const config = localStorage.getItem('systemConfig') ? JSON.parse(localStorage.getItem('systemConfig')) : {};
+                    config.logo = null;
+                    localStorage.setItem('systemConfig', JSON.stringify(config));
+
+                    if (currentUser) {
+                        db.collection('systemConfig').doc('global').set(config, { merge: true })
+                            .catch(err => console.error('Erro ao remover logo no Firebase:', err));
+                    }
+
+                    atualizarLogoHeader();
+                    broadcastLogoUpdate();
+                    Swal.fire('Logo removida', 'A logo padrão foi restaurada.', 'info');
+                }
+            });
+        }
+
+        // ==========================================
+        // 7. SERVIÇOS
         // ==========================================
         function renderizarServicos() {
             const container = document.getElementById('servicesContainer');
@@ -770,7 +1140,76 @@
         window.removerServico = removerServico;
 
         // ==========================================
-        // 7. HORÁRIOS
+        // 8. REDES SOCIAIS
+        // ==========================================
+        function renderizarSocias() {
+            const container = document.getElementById('socialContainer');
+            container.innerHTML = '';
+
+            if (!empresaData.sociais || empresaData.sociais.length === 0) {
+                container.innerHTML = '<span class="text-muted" style="font-size:0.9rem;">Nenhuma rede social adicionada.</span>';
+                return;
+            }
+
+            empresaData.sociais.forEach((social, index) => {
+                const tag = document.createElement('span');
+                tag.className = 'social-tag';
+                tag.innerHTML = `
+                    <a href="${social.url}" target="_blank" rel="noopener noreferrer">${social.nome}</a>
+                    <span class="remove-social" onclick="removerSocial(${index})" title="Remover">×</span>
+                `;
+                container.appendChild(tag);
+            });
+        }
+
+        function adicionarSocial() {
+            const nomeInput = document.getElementById('newSocialName');
+            const urlInput = document.getElementById('newSocialUrl');
+            const nome = nomeInput.value.trim();
+            const url = urlInput.value.trim();
+
+            if (!nome) {
+                Swal.fire('Aviso', 'Digite o nome da rede social.', 'warning');
+                nomeInput.focus();
+                return;
+            }
+            if (!url) {
+                Swal.fire('Aviso', 'Digite o link da rede social.', 'warning');
+                urlInput.focus();
+                return;
+            }
+
+            // Validar URL
+            try {
+                new URL(url);
+            } catch(e) {
+                Swal.fire('Erro', 'URL inválida. Use o formato: https://...', 'error');
+                urlInput.focus();
+                return;
+            }
+
+            if (!empresaData.sociais) empresaData.sociais = [];
+            if (empresaData.sociais.some(s => s.nome.toLowerCase() === nome.toLowerCase())) {
+                Swal.fire('Aviso', 'Esta rede social já foi adicionada.', 'warning');
+                nomeInput.focus();
+                return;
+            }
+
+            empresaData.sociais.push({ nome, url });
+            renderizarSocias();
+            nomeInput.value = '';
+            urlInput.value = '';
+            nomeInput.focus();
+        }
+
+        function removerSocial(index) {
+            empresaData.sociais.splice(index, 1);
+            renderizarSocias();
+        }
+        window.removerSocial = removerSocial;
+
+        // ==========================================
+        // 9. HORÁRIOS
         // ==========================================
         function renderizarHorarios() {
             const container = document.getElementById('businessHoursContainer');
@@ -821,9 +1260,18 @@
                     const toText = document.createElement('span');
                     toText.textContent = 'às';
 
+                    const copyBtn = document.createElement('button');
+                    copyBtn.className = 'copy-hours-btn';
+                    copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
+                    copyBtn.title = 'Copiar horário para outros dias';
+                    copyBtn.addEventListener('click', function() {
+                        abrirModalCopiaHorarios(dia.key);
+                    });
+
                     inputs.appendChild(openInput);
                     inputs.appendChild(toText);
                     inputs.appendChild(closeInput);
+                    inputs.appendChild(copyBtn);
 
                     const toggleBtn = document.createElement('button');
                     toggleBtn.className = 'toggle-closed';
@@ -857,6 +1305,118 @@
             });
         }
 
+        // ==========================================
+        // 10. CÓPIA DE HORÁRIOS
+        // ==========================================
+        function abrirModalCopiaHorarios(diaKey) {
+            if (!diaKey) {
+                // Se não for chamado de um dia específico, pegar o primeiro dia aberto
+                const primeiroDia = Object.keys(empresaData.horario).find(key => empresaData.horario[key].aberto);
+                if (!primeiroDia) {
+                    Swal.fire('Aviso', 'Nenhum dia com horário aberto para copiar.', 'warning');
+                    return;
+                }
+                diaKey = primeiroDia;
+            }
+
+            copySourceDay = diaKey;
+            const diaLabel = getDiaLabel(diaKey);
+            document.getElementById('copySourceDayLabel').textContent = diaLabel;
+
+            // Gerar checkboxes
+            const container = document.getElementById('copyDaysCheckboxes');
+            container.innerHTML = '';
+            const dias = [
+                { key: 'segunda', label: 'Segunda-feira' },
+                { key: 'terca', label: 'Terça-feira' },
+                { key: 'quarta', label: 'Quarta-feira' },
+                { key: 'quinta', label: 'Quinta-feira' },
+                { key: 'sexta', label: 'Sexta-feira' },
+                { key: 'sabado', label: 'Sábado' },
+                { key: 'domingo', label: 'Domingo' }
+            ];
+
+            dias.forEach(dia => {
+                if (dia.key === diaKey) return; // Não incluir o dia de origem
+                const div = document.createElement('div');
+                div.className = 'form-check';
+                div.innerHTML = `
+                    <input class="form-check-input" type="checkbox" id="copyDay_${dia.key}" value="${dia.key}">
+                    <label class="form-check-label" for="copyDay_${dia.key}">${dia.label}</label>
+                `;
+                container.appendChild(div);
+            });
+
+            // Resetar "Selecionar todos"
+            document.getElementById('copyAllDaysCheck').checked = false;
+
+            const modal = new bootstrap.Modal(document.getElementById('copyHoursModal'));
+            modal.show();
+        }
+
+        function confirmarCopiaHorarios() {
+            if (!copySourceDay) {
+                Swal.fire('Erro', 'Nenhum dia de origem selecionado.', 'error');
+                return;
+            }
+
+            const checkboxes = document.querySelectorAll('#copyDaysCheckboxes .form-check-input:checked');
+            if (checkboxes.length === 0) {
+                Swal.fire('Aviso', 'Selecione pelo menos um dia para copiar.', 'warning');
+                return;
+            }
+
+            const sourceHorario = empresaData.horario[copySourceDay];
+            if (!sourceHorario || !sourceHorario.aberto) {
+                Swal.fire('Erro', 'O dia de origem não possui horário aberto.', 'error');
+                return;
+            }
+
+            const diasSelecionados = [];
+            checkboxes.forEach(cb => diasSelecionados.push(cb.value));
+
+            // Confirmar com o usuário
+            const diasNomes = diasSelecionados.map(key => getDiaLabel(key)).join(', ');
+            Swal.fire({
+                title: 'Copiar Horário?',
+                html: `
+                    <p>Copiar horário de <strong>${getDiaLabel(copySourceDay)}</strong> (${sourceHorario.abertura} - ${sourceHorario.fechamento}) para:</p>
+                    <p><strong>${diasNomes}</strong></p>
+                `,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Sim, copiar',
+                cancelButtonText: 'Cancelar'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    diasSelecionados.forEach(dia => {
+                        empresaData.horario[dia] = {
+                            aberto: sourceHorario.aberto,
+                            abertura: sourceHorario.abertura,
+                            fechamento: sourceHorario.fechamento
+                        };
+                    });
+                    renderizarHorarios();
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('copyHoursModal'));
+                    if (modal) modal.hide();
+                    Swal.fire('✅ Horários copiados!', '', 'success');
+                }
+            });
+        }
+
+        function getDiaLabel(key) {
+            const mapa = {
+                'segunda': 'Segunda-feira',
+                'terca': 'Terça-feira',
+                'quarta': 'Quarta-feira',
+                'quinta': 'Quinta-feira',
+                'sexta': 'Sexta-feira',
+                'sabado': 'Sábado',
+                'domingo': 'Domingo'
+            };
+            return mapa[key] || key;
+        }
+
         function resetarHorarios() {
             const padrao = {
                 segunda: { aberto: true, abertura: '09:00', fechamento: '18:00' },
@@ -873,7 +1433,7 @@
         }
 
         // ==========================================
-        // 8. SALVAR EMPRESA
+        // 11. SALVAR EMPRESA
         // ==========================================
         function salvarEmpresa() {
             if (!currentUser) {
@@ -881,7 +1441,6 @@
                 return;
             }
 
-            // Coletar dados do formulário
             const nome = document.getElementById('empresaNome').value.trim();
             const email = document.getElementById('empresaEmail').value.trim();
             const telefone = document.getElementById('empresaTelefone').value.trim();
@@ -895,20 +1454,16 @@
                 return;
             }
 
-            // Coletar serviços
             const servicos = empresaData.servicos || [];
-
-            // Coletar horários
+            const sociais = empresaData.sociais || [];
             const horario = empresaData.horario;
 
-            // Mostrar loading
             Swal.fire({
                 title: 'Salvando...',
                 allowOutsideClick: false,
                 didOpen: () => { Swal.showLoading(); }
             });
 
-            // Salvar perfil
             const profileData = {
                 name: nome,
                 email: email,
@@ -917,12 +1472,12 @@
                 address: endereco,
                 description: descricao,
                 services: servicos,
+                social: sociais,
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
             };
 
             db.collection('businessProfile').doc(currentUser.uid).set(profileData, { merge: true })
                 .then(() => {
-                    // Salvar horários
                     const hoursData = {};
                     Object.keys(horario).forEach(dia => {
                         hoursData[dia] = {
@@ -932,19 +1487,14 @@
                         };
                     });
                     hoursData.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
-
                     return db.collection('businessHours').doc(currentUser.uid).set(hoursData, { merge: true });
                 })
                 .then(() => {
-                    // Atualizar localStorage para sincronização
-                    const config = {
-                        nome: nome,
-                        logo: localStorage.getItem('systemConfig') ? JSON.parse(localStorage.getItem('systemConfig')).logo : null,
-                        corPrimaria: localStorage.getItem('systemConfig') ? JSON.parse(localStorage.getItem('systemConfig')).corPrimaria : '#26196b'
-                    };
+                    // Atualizar localStorage
+                    const config = localStorage.getItem('systemConfig') ? JSON.parse(localStorage.getItem('systemConfig')) : {};
+                    config.nome = nome;
                     localStorage.setItem('systemConfig', JSON.stringify(config));
 
-                    // Notificar outras abas
                     broadcastEmpresaUpdate();
                     broadcastConfigUpdate();
 
@@ -967,7 +1517,7 @@
         }
 
         // ==========================================
-        // 9. ATUALIZAR ÚLTIMA ATUALIZAÇÃO
+        // 12. ATUALIZAR ÚLTIMA ATUALIZAÇÃO
         // ==========================================
         function atualizarUltimaAtualizacao() {
             const now = new Date();
@@ -978,7 +1528,7 @@
         }
 
         // ==========================================
-        // 10. RECARREGAR DADOS
+        // 13. RECARREGAR DADOS
         // ==========================================
         function recarregarDados() {
             const btn = document.getElementById('refreshBtn');
@@ -994,7 +1544,7 @@
         }
 
         // ==========================================
-        // 11. FUNÇÃO HOME
+        // 14. FUNÇÃO HOME
         // ==========================================
         function goHome() {
             if (window.parent && window.parent !== window) {
@@ -1005,7 +1555,7 @@
         }
 
         // ==========================================
-        // 12. MOSTRAR LOGIN PROMPT
+        // 15. MOSTRAR LOGIN PROMPT
         // ==========================================
         function mostrarLoginPrompt() {
             Swal.fire({
@@ -1023,7 +1573,7 @@
         }
 
         // ==========================================
-        // 13. RECEBER CONFIGURAÇÕES DO SISTEMA
+        // 16. RECEBER CONFIGURAÇÕES DO SISTEMA
         // ==========================================
         window.addEventListener('message', function(event) {
             if (event.data && event.data.type === 'configUpdated') {
@@ -1032,18 +1582,23 @@
             if (event.data && event.data.type === 'empresaUpdated') {
                 carregarDados();
             }
+            if (event.data && event.data.type === 'logoUpdated') {
+                atualizarLogoHeader();
+            }
         });
 
         window.parent.postMessage({ type: 'getConfig' }, '*');
 
         // ==========================================
-        // 14. LOG DE INICIALIZAÇÃO
+        // 17. LOG DE INICIALIZAÇÃO
         // ==========================================
         console.log('✅ Empresa carregada com sucesso!');
         console.log('📌 Funcionalidades:');
         console.log('   - Gerenciamento de informações da empresa');
         console.log('   - Lista de serviços (adicionar/remover)');
-        console.log('   - Horário de funcionamento por dia');
+        console.log('   - Redes sociais (adicionar/remover)');
+        console.log('   - Horário de funcionamento com cópia entre dias');
+        console.log('   - Logo do sistema (upload/remover)');
         console.log('   - Sincronização em tempo real com Firebase');
         console.log('   - Atualização automática via BroadcastChannel');
         console.log('   - Botão Home para voltar ao menu principal');
@@ -1052,6 +1607,3 @@
 
 </body>
 </html>
-
-
-
