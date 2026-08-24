@@ -659,9 +659,22 @@
                 }
             });
 
-            // Evento de busca
-            document.getElementById('clientSearchInput').addEventListener('input', function() {
-                filtrarClientes(this.value);
+            // ==========================================
+            // EVENTO DE BUSCA - CORRIGIDO
+            // ==========================================
+            const searchInput = document.getElementById('clientSearchInput');
+            
+            searchInput.addEventListener('input', function() {
+                const searchTerm = this.value;
+                console.log('🔍 Buscando por:', searchTerm);
+                filtrarClientes(searchTerm);
+            });
+
+            // Fechar autocomplete ao clicar fora
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.autocomplete-container')) {
+                    document.getElementById('clientAutocompleteList').classList.remove('active');
+                }
             });
 
             // Evento de salvar notas
@@ -841,13 +854,13 @@
         }
 
         // ==========================================
-        // 7. FILTRAR CLIENTES (POR ELIMINAÇÃO)
+        // 7. FILTRAR CLIENTES (CORRIGIDO)
         // ==========================================
         function filtrarClientes(searchTerm) {
             const list = document.getElementById('clientAutocompleteList');
-            const normalizedSearch = searchTerm.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
-
-            if (normalizedSearch.length === 0) {
+            
+            // Se não houver termo de busca, mostrar todos
+            if (!searchTerm || searchTerm.trim().length === 0) {
                 list.classList.remove('active');
                 clientesFiltrados = [...clientes];
                 renderizarListaClientes();
@@ -855,23 +868,35 @@
                 return;
             }
 
+            const normalizedSearch = searchTerm.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+            const searchNumbers = searchTerm.replace(/\D/g, '');
+
             const filtered = clientes.filter(c => {
                 const nome = (c.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
                 const phone = (c.phone || '').replace(/\D/g, '');
                 const email = (c.email || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
-                const search = normalizedSearch.replace(/\D/g, '');
 
-                return nome.includes(normalizedSearch) ||
-                       phone.includes(search) ||
-                       email.includes(normalizedSearch);
+                // Verifica se algum campo corresponde
+                const matchNome = nome.includes(normalizedSearch);
+                const matchPhone = phone.includes(searchNumbers);
+                const matchEmail = email.includes(normalizedSearch);
+
+                return matchNome || matchPhone || matchEmail;
             });
 
-            // Mostrar sugestões no autocomplete (até 5)
+            console.log(`🔍 Encontrados ${filtered.length} clientes para "${searchTerm}"`);
+
+            // Atualizar lista filtrada
+            clientesFiltrados = filtered;
+            renderizarListaClientes();
+            atualizarContagemClientes();
+
+            // Mostrar autocomplete com sugestões (até 8)
             if (filtered.length > 0 && filtered.length <= 10) {
                 let html = '';
                 filtered.slice(0, 10).forEach(c => {
                     const fotoHtml = c.photoUrl ? 
-                        `<img src="${c.photoUrl}" style="width:30px;height:30px;border-radius:50%;object-fit:cover;margin-right:8px;">` :
+                        `<img src="${c.photoUrl}" style="width:30px;height:30px;border-radius:50%;object-fit:cover;margin-right:8px;" onerror="this.style.display='none'">` :
                         `<span style="display:inline-block;width:30px;height:30px;border-radius:50%;background:#26196b;color:white;text-align:center;line-height:30px;font-size:14px;margin-right:8px;">${(c.name || '?').charAt(0).toUpperCase()}</span>`;
                     html += `
                         <div class="autocomplete-item" data-id="${c.id}">
@@ -883,7 +908,8 @@
                 list.classList.add('active');
 
                 list.querySelectorAll('.autocomplete-item').forEach(item => {
-                    item.addEventListener('click', function() {
+                    item.addEventListener('click', function(e) {
+                        e.stopPropagation();
                         const id = this.getAttribute('data-id');
                         const cliente = clientes.find(c => c.id === id);
                         if (cliente) {
@@ -896,10 +922,6 @@
             } else {
                 list.classList.remove('active');
             }
-
-            clientesFiltrados = filtered;
-            renderizarListaClientes();
-            atualizarContagemClientes();
         }
 
         // ==========================================
@@ -1008,7 +1030,7 @@
 
             // Foto do cliente
             const fotoHtml = cliente.photoUrl ? 
-                `<img src="${cliente.photoUrl}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid #26196b;margin-bottom:10px;">` : 
+                `<img src="${cliente.photoUrl}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid #26196b;margin-bottom:10px;" onerror="this.style.display='none'">` : 
                 `<div style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#26196b,#4a3a9c);color:white;display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto 10px;border:3px solid #26196b;">${(cliente.name || '?').charAt(0).toUpperCase()}</div>`;
 
             // Estatísticas
@@ -1337,7 +1359,7 @@
         // ==========================================
         console.log('✅ Registros carregados com sucesso!');
         console.log('📌 Funcionalidades:');
-        console.log('   - Lista de clientes com busca por eliminação');
+        console.log('   - Lista de clientes com busca por eliminação em tempo real');
         console.log('   - Ficha completa do cliente');
         console.log('   - Histórico de serviços');
         console.log('   - Notas e observações (edição)');
