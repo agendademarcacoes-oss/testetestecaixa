@@ -1,0 +1,1353 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Registros de Clientes - Studio DeVitto</title>
+    
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+    
+    <style>
+        /* ============================================
+           BLOQUEIO DE ZOOM
+           ============================================ */
+        * {
+            -webkit-touch-callout: none !important;
+            -webkit-user-select: none !important;
+            -webkit-tap-highlight-color: transparent !important;
+            -ms-touch-action: manipulation !important;
+            touch-action: manipulation !important;
+        }
+        
+        html, body {
+            touch-action: pan-x pan-y !important;
+            -ms-touch-action: pan-x pan-y !important;
+            -webkit-text-size-adjust: 100% !important;
+            -moz-text-size-adjust: 100% !important;
+            -ms-text-size-adjust: 100% !important;
+            text-size-adjust: 100% !important;
+            overflow: hidden !important;
+            height: 100% !important;
+            width: 100% !important;
+            position: fixed !important;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f8f9fa;
+            min-height: 100vh;
+            padding: 0;
+            margin: 0;
+            touch-action: pan-x pan-y !important;
+            -ms-touch-action: pan-x pan-y !important;
+            position: fixed !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* ============================================
+           HEADER COM BOTÃO HOME E LOGO
+           ============================================ */
+        .registros-header {
+            background: linear-gradient(135deg, #26196b, #4a3a9c);
+            color: white;
+            padding: 10px 16px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+            min-height: 48px;
+        }
+
+        .registros-header .header-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .registros-header .header-left .brand-logo {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .registros-header .header-left .brand-logo img {
+            height: 28px;
+            width: 28px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .registros-header .header-left .brand-logo .brand-icon {
+            font-size: 1.1rem;
+            color: #ffd700;
+        }
+
+        .registros-header .header-left h1 {
+            font-weight: 700;
+            font-size: 1rem;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .registros-header .header-left h1 small {
+            font-size: 0.6rem;
+            font-weight: 400;
+            opacity: 0.7;
+        }
+
+        .registros-header .header-actions {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .btn-home {
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            border-radius: 25px;
+            padding: 5px 12px;
+            font-size: 0.75rem;
+            transition: all 0.3s;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            text-decoration: none;
+        }
+
+        .btn-home:hover {
+            background: rgba(255,255,255,0.25);
+            transform: translateY(-2px);
+        }
+
+        .btn-home i {
+            font-size: 0.8rem;
+        }
+
+        .btn-refresh {
+            background: rgba(255,255,255,0.12);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            border-radius: 25px;
+            padding: 5px 10px;
+            font-size: 0.75rem;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .btn-refresh:hover {
+            background: rgba(255,255,255,0.25);
+        }
+
+        .btn-refresh:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .last-update {
+            font-size: 0.6rem;
+            opacity: 0.7;
+            color: rgba(255,255,255,0.8);
+        }
+
+        /* ============================================
+           CONTEÚDO PRINCIPAL
+           ============================================ */
+        .registros-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 16px 20px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            height: calc(100vh - 48px);
+        }
+
+        .card-custom {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            padding: 18px 20px;
+            margin-bottom: 16px;
+            transition: box-shadow 0.3s;
+        }
+
+        .card-custom:hover {
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+        }
+
+        .card-custom .card-header-custom {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 12px;
+            margin-bottom: 16px;
+            font-weight: 600;
+            color: #26196b;
+            font-size: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .form-label {
+            font-weight: 600;
+            color: #333;
+            font-size: 0.85rem;
+        }
+
+        .form-control, .form-select {
+            border-radius: 8px;
+            border: 2px solid #e9ecef;
+            padding: 10px 14px;
+            font-size: 0.9rem;
+            transition: border-color 0.3s;
+        }
+
+        .form-control:focus, .form-select:focus {
+            border-color: #26196b;
+            box-shadow: 0 0 0 0.25rem rgba(38,25,107,0.15);
+        }
+
+        /* ============================================
+           LISTA DE CLIENTES
+           ============================================ */
+        .client-list-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 14px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: background 0.2s;
+            border-radius: 8px;
+        }
+
+        .client-list-item:hover {
+            background: #f8f9fa;
+        }
+
+        .client-list-item .client-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-right: 12px;
+            flex-shrink: 0;
+            border: 2px solid #26196b;
+        }
+
+        .client-list-item .client-avatar-placeholder {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #26196b, #4a3a9c);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: bold;
+            margin-right: 12px;
+            flex-shrink: 0;
+            border: 2px solid #26196b;
+        }
+
+        .client-list-item .client-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .client-list-item .client-info .name {
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .client-list-item .client-info .details {
+            font-size: 0.8rem;
+            color: #6c757d;
+        }
+
+        .client-list-item .client-badge {
+            flex-shrink: 0;
+            margin-left: 8px;
+        }
+
+        .client-list-item .client-actions {
+            display: flex;
+            gap: 4px;
+            flex-shrink: 0;
+            margin-left: 8px;
+        }
+
+        /* ============================================
+           FICHA DO CLIENTE
+           ============================================ */
+        .ficha-section {
+            margin-bottom: 16px;
+        }
+
+        .ficha-section .section-title {
+            font-weight: 600;
+            color: #26196b;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .ficha-field {
+            display: flex;
+            padding: 6px 0;
+            border-bottom: 1px solid #f8f9fa;
+            font-size: 0.85rem;
+        }
+
+        .ficha-field .label {
+            font-weight: 600;
+            color: #6c757d;
+            width: 100px;
+            flex-shrink: 0;
+        }
+
+        .ficha-field .value {
+            color: #333;
+            flex: 1;
+        }
+
+        .ficha-field .value .tag {
+            display: inline-block;
+            background: #f0f0ff;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            margin: 2px;
+        }
+
+        .service-history-item {
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 0.85rem;
+        }
+
+        .service-history-item:last-child {
+            border-bottom: none;
+        }
+
+        .service-history-item .service-date {
+            color: #6c757d;
+            font-size: 0.75rem;
+        }
+
+        .service-history-item .service-value {
+            font-weight: 600;
+            color: #28a745;
+        }
+
+        /* ============================================
+           RESPONSIVIDADE
+           ============================================ */
+        @media (max-width: 768px) {
+            .registros-content {
+                padding: 12px 14px;
+            }
+            .card-custom {
+                padding: 14px 16px;
+            }
+            .client-list-item {
+                padding: 10px 12px;
+            }
+            .client-list-item .client-avatar,
+            .client-list-item .client-avatar-placeholder {
+                width: 36px;
+                height: 36px;
+                font-size: 14px;
+            }
+            .ficha-field .label {
+                width: 80px;
+                font-size: 0.8rem;
+            }
+            .ficha-field .value {
+                font-size: 0.8rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .registros-content {
+                padding: 8px 10px;
+            }
+            .card-custom {
+                padding: 12px 14px;
+            }
+            .client-list-item {
+                flex-wrap: wrap;
+                gap: 6px;
+            }
+            .client-list-item .client-actions {
+                width: 100%;
+                justify-content: flex-end;
+            }
+            .ficha-field {
+                flex-direction: column;
+                padding: 8px 0;
+            }
+            .ficha-field .label {
+                width: 100%;
+                font-size: 0.75rem;
+            }
+            .ficha-field .value {
+                font-size: 0.85rem;
+            }
+        }
+
+        /* ============================================
+           SCROLLBAR
+           ============================================ */
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+
+        /* ============================================
+           UTILITÁRIOS
+           ============================================ */
+        .text-primary-custom { color: #26196b; }
+        .bg-primary-custom { background: #26196b; }
+        .border-primary-custom { border-color: #26196b; }
+        .cursor-pointer { cursor: pointer; }
+        .gap-2 { gap: 6px; }
+        .gap-3 { gap: 10px; }
+        .flex-wrap { flex-wrap: wrap; }
+        .align-center { align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .mt-2 { margin-top: 6px; }
+        .mt-3 { margin-top: 12px; }
+        .mb-2 { margin-bottom: 6px; }
+        .mb-3 { margin-bottom: 12px; }
+        .text-muted { color: #6c757d; }
+        .text-success { color: #28a745; }
+        .text-danger { color: #dc3545; }
+        .fw-bold { font-weight: 700; }
+        .fw-semibold { font-weight: 600; }
+        .fs-small { font-size: 0.7rem; }
+
+        /* Autocomplete */
+        .autocomplete-container {
+            position: relative;
+        }
+
+        .autocomplete-list {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            max-height: 200px;
+            overflow-y: auto;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            display: none;
+        }
+
+        .autocomplete-list.active {
+            display: block;
+        }
+
+        .autocomplete-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #f1f1f1;
+            transition: background 0.2s;
+        }
+
+        .autocomplete-item:hover {
+            background: #f8f9fa;
+        }
+
+        .autocomplete-item.selected {
+            background: #26196b;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ==========================================
+    HEADER COM BOTÃO HOME E LOGO
+    ========================================== -->
+    <header class="registros-header" id="registrosHeader">
+        <div class="header-left">
+            <div class="brand-logo" id="headerLogo">
+                <i class="fas fa-address-book brand-icon" id="logoIconHeader"></i>
+                <img id="logoImageHeader" style="display:none; height:28px; width:28px; border-radius:50%; object-fit:cover;" alt="Logo">
+            </div>
+            <h1>
+                Registros
+                <small id="userGreeting">Carregando...</small>
+            </h1>
+        </div>
+        <div class="header-actions">
+            <span class="last-update" id="lastUpdateBadge">
+                <i class="fas fa-clock me-1"></i>Atualizado agora
+            </span>
+            <button class="btn-refresh" id="refreshBtn" onclick="recarregarDados()">
+                <i class="fas fa-sync-alt me-1"></i>Atualizar
+            </button>
+            <button class="btn-home" onclick="goHome()">
+                <i class="fas fa-home"></i>
+                <span>Home</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- ==========================================
+    CONTEÚDO PRINCIPAL
+    ========================================== -->
+    <div class="registros-content" id="registrosContent">
+
+        <!-- ==========================================
+        LISTA DE CLIENTES COM BUSCA
+        ========================================== -->
+        <div class="card-custom">
+            <div class="card-header-custom">
+                <span><i class="fas fa-search me-2"></i>Clientes</span>
+                <span id="clientCount" class="badge bg-primary">0 clientes</span>
+            </div>
+            <div class="mb-3">
+                <div class="autocomplete-container">
+                    <input type="text" class="form-control" id="clientSearchInput" 
+                           placeholder="Digite o nome, telefone ou e-mail do cliente..." autocomplete="off">
+                    <div class="autocomplete-list" id="clientAutocompleteList"></div>
+                </div>
+            </div>
+            <div id="clientListContainer" style="max-height: 400px; overflow-y: auto;">
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-users fa-3x mb-3 opacity-25"></i>
+                    <p>Carregando clientes...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==========================================
+        FICHA DO CLIENTE
+        ========================================== -->
+        <div class="card-custom" id="fichaClienteCard">
+            <div class="card-header-custom">
+                <span><i class="fas fa-id-card me-2"></i>Ficha do Cliente</span>
+                <span id="fichaStatus" class="badge bg-secondary">Selecione um cliente</span>
+            </div>
+            <div id="fichaContent">
+                <div class="text-center text-muted py-5">
+                    <i class="fas fa-user fa-4x mb-3 opacity-25"></i>
+                    <p>Selecione um cliente na lista ao lado para visualizar sua ficha completa.</p>
+                    <small>Clique em um cliente para ver todos os detalhes.</small>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ==========================================
+    MODAL DE EDIÇÃO DE NOTAS DO CLIENTE
+    ========================================== -->
+    <div class="modal fade" id="notasModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-sticky-note me-2"></i>Notas do Cliente</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="notasClientId">
+                    <div class="mb-3">
+                        <label for="clientNotesText" class="form-label">Notas e Observações</label>
+                        <textarea class="form-control" id="clientNotesText" rows="6" 
+                                  placeholder="Ex: Alergias, preferências, produtos usados, observações importantes..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="saveNotesBtn">
+                        <i class="fas fa-save me-1"></i>Salvar Notas
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+    SCRIPTS
+    ========================================== -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // ==========================================
+        // 1. CONFIGURAÇÃO DO FIREBASE
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyC5ezGCOS5d-Vy2l-Gimkl_V9VmwDLZzKc",
+            authDomain: "studio-devitto-152400.firebaseapp.com",
+            projectId: "studio-devitto-152400",
+            storageBucket: "studio-devitto-152400.appspot.com",
+            messagingSenderId: "138996544906",
+            appId: "1:138996544906:web:6569bf954a00e2f7944473",
+            measurementId: "G-FCC5T13QW8"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // ==========================================
+        // 2. VARIÁVEIS GLOBAIS
+        // ==========================================
+        let currentUser = null;
+        let clientes = [];
+        let clientesFiltrados = [];
+        let colaboradores = [];
+        let servicos = [];
+        let notasClientes = {};
+        let clienteSelecionado = null;
+        let broadcastChannel = null;
+
+        // ==========================================
+        // 3. INICIALIZAÇÃO
+        // ==========================================
+        document.addEventListener('DOMContentLoaded', function() {
+            initBroadcastChannel();
+
+            auth.onAuthStateChanged(user => {
+                if (user) {
+                    currentUser = user;
+                    document.getElementById('userGreeting').textContent = user.email;
+                    carregarDados();
+                    carregarConfiguracoesSistema();
+                } else {
+                    document.getElementById('userGreeting').textContent = 'Não autenticado';
+                    mostrarLoginPrompt();
+                }
+            });
+
+            // Evento de busca
+            document.getElementById('clientSearchInput').addEventListener('input', function() {
+                filtrarClientes(this.value);
+            });
+
+            // Evento de salvar notas
+            document.getElementById('saveNotesBtn').addEventListener('click', function() {
+                salvarNotas();
+            });
+
+            // Atualizar a cada 30 segundos
+            setInterval(function() {
+                if (currentUser) {
+                    carregarDados();
+                }
+            }, 30000);
+
+            // Sincronizar configurações do sistema
+            carregarConfiguracoesSistema();
+
+            // Atualizar logo periodicamente
+            setInterval(atualizarLogoHeader, 10000);
+        });
+
+        // ==========================================
+        // 4. CANAL DE COMUNICAÇÃO
+        // ==========================================
+        function initBroadcastChannel() {
+            try {
+                if (window.BroadcastChannel) {
+                    broadcastChannel = new BroadcastChannel('registros-sync');
+                    broadcastChannel.onmessage = function(event) {
+                        if (event.data && event.data.type === 'registrosUpdated') {
+                            console.log('📡 Dados dos registros atualizados via BroadcastChannel');
+                            carregarDados();
+                        }
+                        if (event.data && event.data.type === 'configUpdated') {
+                            console.log('📡 Configurações atualizadas via BroadcastChannel');
+                            carregarConfiguracoesSistema();
+                        }
+                        if (event.data && event.data.type === 'logoUpdated') {
+                            console.log('📡 Logo atualizada via BroadcastChannel');
+                            atualizarLogoHeader();
+                        }
+                    };
+                    console.log('✅ BroadcastChannel iniciado para registros');
+                }
+            } catch(e) {
+                console.warn('⚠️ BroadcastChannel não suportado:', e);
+            }
+        }
+
+        function broadcastRegistrosUpdate() {
+            if (broadcastChannel) {
+                try {
+                    broadcastChannel.postMessage({ type: 'registrosUpdated' });
+                } catch(e) {}
+            }
+        }
+
+        // ==========================================
+        // 5. CARREGAR DADOS
+        // ==========================================
+        async function carregarDados() {
+            if (!currentUser) return;
+
+            try {
+                // Carregar clientes
+                const clientesSnap = await db.collection('clients')
+                    .where('userId', '==', currentUser.uid)
+                    .get();
+                clientes = [];
+                clientesSnap.forEach(doc => {
+                    clientes.push({ id: doc.id, ...doc.data() });
+                });
+                clientes.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+                // Carregar colaboradores
+                const collabSnap = await db.collection('collaborators')
+                    .where('userId', '==', currentUser.uid)
+                    .where('active', '==', true)
+                    .get();
+                colaboradores = [];
+                collabSnap.forEach(doc => {
+                    colaboradores.push({ id: doc.id, ...doc.data() });
+                });
+
+                // Carregar serviços
+                const servicosSnap = await db.collection('services')
+                    .where('userId', '==', currentUser.uid)
+                    .get();
+                servicos = [];
+                servicosSnap.forEach(doc => {
+                    servicos.push({ id: doc.id, ...doc.data() });
+                });
+
+                // Carregar notas dos clientes
+                const notasSnap = await db.collection('clientNotes')
+                    .where('userId', '==', currentUser.uid)
+                    .get();
+                notasClientes = {};
+                notasSnap.forEach(doc => {
+                    const data = doc.data();
+                    notasClientes[data.clientId] = {
+                        id: doc.id,
+                        notes: data.notes || ''
+                    };
+                });
+
+                // Atualizar UI
+                clientesFiltrados = [...clientes];
+                renderizarListaClientes();
+                atualizarContagemClientes();
+                atualizarUltimaAtualizacao();
+
+                // Se havia um cliente selecionado, atualizar a ficha
+                if (clienteSelecionado) {
+                    const atualizado = clientes.find(c => c.id === clienteSelecionado.id);
+                    if (atualizado) {
+                        clienteSelecionado = atualizado;
+                        renderizarFicha(clienteSelecionado);
+                    } else {
+                        clienteSelecionado = null;
+                        document.getElementById('fichaContent').innerHTML = `
+                            <div class="text-center text-muted py-5">
+                                <i class="fas fa-user fa-4x mb-3 opacity-25"></i>
+                                <p>Selecione um cliente na lista ao lado para visualizar sua ficha completa.</p>
+                            </div>
+                        `;
+                        document.getElementById('fichaStatus').textContent = 'Selecione um cliente';
+                        document.getElementById('fichaStatus').className = 'badge bg-secondary';
+                    }
+                }
+
+                console.log(`✅ ${clientes.length} clientes, ${colaboradores.length} colaboradores, ${servicos.length} serviços carregados`);
+            } catch (error) {
+                console.error('Erro ao carregar dados:', error);
+                Swal.fire('Erro', 'Erro ao carregar dados: ' + error.message, 'error');
+            }
+        }
+
+        function carregarConfiguracoesSistema() {
+            try {
+                const config = localStorage.getItem('systemConfig');
+                if (config) {
+                    const parsed = JSON.parse(config);
+                    if (parsed.corPrimaria) {
+                        document.documentElement.style.setProperty('--primary-color', parsed.corPrimaria);
+                        document.documentElement.style.setProperty('--accent-color', parsed.corPrimaria + '99');
+                        const header = document.getElementById('registrosHeader');
+                        if (header) {
+                            header.style.background = `linear-gradient(135deg, ${parsed.corPrimaria}, ${parsed.corPrimaria}99)`;
+                        }
+                    }
+                    atualizarLogoHeader();
+                }
+            } catch(e) {}
+        }
+
+        // ==========================================
+        // 6. LOGO
+        // ==========================================
+        function atualizarLogoHeader() {
+            const config = localStorage.getItem('systemConfig');
+            if (config) {
+                const parsed = JSON.parse(config);
+                const logoUrl = parsed.logo;
+                const logoIcon = document.getElementById('logoIconHeader');
+                const logoImage = document.getElementById('logoImageHeader');
+
+                if (logoUrl) {
+                    logoIcon.style.display = 'none';
+                    logoImage.style.display = 'inline-block';
+                    logoImage.src = logoUrl;
+                } else {
+                    logoIcon.style.display = 'inline-block';
+                    logoImage.style.display = 'none';
+                }
+            }
+        }
+
+        // ==========================================
+        // 7. FILTRAR CLIENTES (POR ELIMINAÇÃO)
+        // ==========================================
+        function filtrarClientes(searchTerm) {
+            const list = document.getElementById('clientAutocompleteList');
+            const normalizedSearch = searchTerm.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+
+            if (normalizedSearch.length === 0) {
+                list.classList.remove('active');
+                clientesFiltrados = [...clientes];
+                renderizarListaClientes();
+                atualizarContagemClientes();
+                return;
+            }
+
+            const filtered = clientes.filter(c => {
+                const nome = (c.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+                const phone = (c.phone || '').replace(/\D/g, '');
+                const email = (c.email || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+                const search = normalizedSearch.replace(/\D/g, '');
+
+                return nome.includes(normalizedSearch) ||
+                       phone.includes(search) ||
+                       email.includes(normalizedSearch);
+            });
+
+            // Mostrar sugestões no autocomplete (até 5)
+            if (filtered.length > 0 && filtered.length <= 10) {
+                let html = '';
+                filtered.slice(0, 10).forEach(c => {
+                    const fotoHtml = c.photoUrl ? 
+                        `<img src="${c.photoUrl}" style="width:30px;height:30px;border-radius:50%;object-fit:cover;margin-right:8px;">` :
+                        `<span style="display:inline-block;width:30px;height:30px;border-radius:50%;background:#26196b;color:white;text-align:center;line-height:30px;font-size:14px;margin-right:8px;">${(c.name || '?').charAt(0).toUpperCase()}</span>`;
+                    html += `
+                        <div class="autocomplete-item" data-id="${c.id}">
+                            ${fotoHtml} ${c.name} ${c.phone ? `(${c.phone})` : ''}
+                        </div>
+                    `;
+                });
+                list.innerHTML = html;
+                list.classList.add('active');
+
+                list.querySelectorAll('.autocomplete-item').forEach(item => {
+                    item.addEventListener('click', function() {
+                        const id = this.getAttribute('data-id');
+                        const cliente = clientes.find(c => c.id === id);
+                        if (cliente) {
+                            document.getElementById('clientSearchInput').value = cliente.name;
+                            list.classList.remove('active');
+                            selecionarCliente(cliente);
+                        }
+                    });
+                });
+            } else {
+                list.classList.remove('active');
+            }
+
+            clientesFiltrados = filtered;
+            renderizarListaClientes();
+            atualizarContagemClientes();
+        }
+
+        // ==========================================
+        // 8. RENDERIZAR LISTA DE CLIENTES
+        // ==========================================
+        function renderizarListaClientes() {
+            const container = document.getElementById('clientListContainer');
+
+            if (clientesFiltrados.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-search fa-3x mb-3 opacity-25"></i>
+                        <p>Nenhum cliente encontrado.</p>
+                        <small>Verifique o termo de busca ou cadastre novos clientes.</small>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            clientesFiltrados.forEach(cliente => {
+                const isSelected = clienteSelecionado && clienteSelecionado.id === cliente.id;
+                const photoHtml = cliente.photoUrl ? 
+                    `<img src="${cliente.photoUrl}" class="client-avatar" onerror="this.style.display='none'">` : 
+                    `<div class="client-avatar-placeholder">${(cliente.name || '?').charAt(0).toUpperCase()}</div>`;
+
+                const ultimoServico = getUltimoServico(cliente.id);
+                const totalServicos = servicos.filter(s => s.clientId === cliente.id).length;
+
+                html += `
+                    <div class="client-list-item ${isSelected ? 'bg-light' : ''}" 
+                         onclick="selecionarCliente('${cliente.id}')"
+                         style="${isSelected ? 'border-left:4px solid #26196b;' : ''}">
+                        ${photoHtml}
+                        <div class="client-info">
+                            <div class="name">${cliente.name || 'Sem nome'}</div>
+                            <div class="details">
+                                ${cliente.phone || 'Sem telefone'} 
+                                ${cliente.email ? `| ${cliente.email}` : ''}
+                                ${ultimoServico ? `| Último: ${ultimoServico}` : '| Nunca atendido'}
+                            </div>
+                        </div>
+                        <div class="client-badge">
+                            <span class="badge ${totalServicos > 0 ? 'bg-success' : 'bg-secondary'}">
+                                ${totalServicos} serviços
+                            </span>
+                        </div>
+                        <div class="client-actions">
+                            <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); editarNotas('${cliente.id}')" title="Editar notas">
+                                <i class="fas fa-sticky-note"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); excluirCliente('${cliente.id}')" title="Excluir cliente">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function atualizarContagemClientes() {
+            document.getElementById('clientCount').textContent = `${clientesFiltrados.length} clientes`;
+        }
+
+        // ==========================================
+        // 9. SELECIONAR CLIENTE
+        // ==========================================
+        function selecionarCliente(clienteId) {
+            if (typeof clienteId === 'string') {
+                const cliente = clientes.find(c => c.id === clienteId);
+                if (!cliente) return;
+                clienteSelecionado = cliente;
+            } else if (typeof clienteId === 'object') {
+                clienteSelecionado = clienteId;
+            } else {
+                return;
+            }
+
+            document.getElementById('clientSearchInput').value = clienteSelecionado.name || '';
+            document.getElementById('clientAutocompleteList').classList.remove('active');
+            renderizarListaClientes();
+            renderizarFicha(clienteSelecionado);
+        }
+        window.selecionarCliente = selecionarCliente;
+
+        // ==========================================
+        // 10. RENDERIZAR FICHA DO CLIENTE
+        // ==========================================
+        function renderizarFicha(cliente) {
+            const content = document.getElementById('fichaContent');
+            document.getElementById('fichaStatus').textContent = `👤 ${cliente.name}`;
+            document.getElementById('fichaStatus').className = 'badge bg-primary';
+
+            const servicosCliente = servicos
+                .filter(s => s.clientId === cliente.id)
+                .sort((a, b) => {
+                    const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp || a.date || 0);
+                    const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp || b.date || 0);
+                    return dateB - dateA;
+                });
+
+            const totalGasto = servicosCliente.reduce((sum, s) => sum + parseFloat(s.value || 0), 0);
+            const nota = notasClientes[cliente.id]?.notes || '';
+
+            // Foto do cliente
+            const fotoHtml = cliente.photoUrl ? 
+                `<img src="${cliente.photoUrl}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid #26196b;margin-bottom:10px;">` : 
+                `<div style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#26196b,#4a3a9c);color:white;display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto 10px;border:3px solid #26196b;">${(cliente.name || '?').charAt(0).toUpperCase()}</div>`;
+
+            // Estatísticas
+            const ultimoServico = servicosCliente.length > 0 ? formatDate(servicosCliente[0].date) : 'Nunca';
+            const primeiroServico = servicosCliente.length > 0 ? formatDate(servicosCliente[servicosCliente.length - 1].date) : 'Nunca';
+
+            // Serviços recentes (últimos 5)
+            const servicosRecentes = servicosCliente.slice(0, 5);
+
+            let servicosHtml = '';
+            if (servicosRecentes.length > 0) {
+                servicosRecentes.forEach(s => {
+                    const colaborador = colaboradores.find(c => c.id === s.collaboratorId);
+                    const data = s.date ? formatDate(s.date) : 'Data não informada';
+                    servicosHtml += `
+                        <div class="service-history-item">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <strong>${s.description || 'Serviço'}</strong>
+                                    ${colaborador ? `<span class="text-muted">por ${colaborador.name}</span>` : ''}
+                                    <div class="service-date">${data}</div>
+                                </div>
+                                <div class="service-value">${formatCurrency(s.value)}</div>
+                            </div>
+                        </div>
+                    `;
+                });
+            } else {
+                servicosHtml = '<p class="text-muted text-center py-3">Nenhum serviço registrado para este cliente.</p>';
+            }
+
+            content.innerHTML = `
+                <div class="row">
+                    <div class="col-md-4 text-center">
+                        ${fotoHtml}
+                        <h5 class="mb-1">${cliente.name}</h5>
+                        <p class="text-muted small">${cliente.phone || 'Sem telefone'}</p>
+                        <p class="text-muted small">${cliente.email || 'Sem e-mail'}</p>
+                        <p class="text-muted small">${cliente.birthdate ? `Nascimento: ${formatDate(cliente.birthdate)}` : ''}</p>
+                        <div class="mt-2">
+                            <button class="btn btn-sm btn-outline-primary" onclick="editarNotas('${cliente.id}')">
+                                <i class="fas fa-sticky-note me-1"></i>Notas
+                            </button>
+                            <button class="btn btn-sm btn-outline-success" onclick="window.open('https://wa.me/${cliente.phone ? cliente.phone.replace(/\D/g, '') : ''}?text=Olá ${encodeURIComponent(cliente.name)}!', '_blank')" ${!cliente.phone ? 'disabled' : ''}>
+                                <i class="fab fa-whatsapp me-1"></i>WhatsApp
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-8">
+                        <div class="ficha-section">
+                            <div class="section-title">📊 Resumo</div>
+                            <div class="ficha-field">
+                                <span class="label">Total de Serviços</span>
+                                <span class="value">${servicosCliente.length}</span>
+                            </div>
+                            <div class="ficha-field">
+                                <span class="label">Valor Total Gasto</span>
+                                <span class="value text-success fw-bold">${formatCurrency(totalGasto)}</span>
+                            </div>
+                            <div class="ficha-field">
+                                <span class="label">Primeiro Atendimento</span>
+                                <span class="value">${primeiroServico}</span>
+                            </div>
+                            <div class="ficha-field">
+                                <span class="label">Último Atendimento</span>
+                                <span class="value">${ultimoServico}</span>
+                            </div>
+                        </div>
+
+                        <div class="ficha-section">
+                            <div class="section-title">📝 Notas</div>
+                            <div class="ficha-field">
+                                <span class="value ${!nota ? 'text-muted' : ''}">
+                                    ${nota || 'Nenhuma nota cadastrada.'}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="ficha-section">
+                            <div class="section-title">📋 Últimos Serviços</div>
+                            ${servicosHtml}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ==========================================
+        // 11. FUNÇÕES DE NOTAS
+        // ==========================================
+        function editarNotas(clientId) {
+            const cliente = clientes.find(c => c.id === clientId);
+            if (!cliente) return;
+
+            document.getElementById('notasClientId').value = clientId;
+            document.getElementById('clientNotesText').value = notasClientes[clientId]?.notes || '';
+
+            const modal = new bootstrap.Modal(document.getElementById('notasModal'));
+            modal.show();
+        }
+        window.editarNotas = editarNotas;
+
+        function salvarNotas() {
+            const clientId = document.getElementById('notasClientId').value;
+            const notes = document.getElementById('clientNotesText').value.trim();
+
+            if (!clientId) {
+                Swal.fire('Erro', 'Cliente não identificado.', 'error');
+                return;
+            }
+
+            const cliente = clientes.find(c => c.id === clientId);
+            if (!cliente) {
+                Swal.fire('Erro', 'Cliente não encontrado.', 'error');
+                return;
+            }
+
+            Swal.fire({
+                title: 'Salvando notas...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            const noteData = {
+                clientId: clientId,
+                notes: notes,
+                userId: currentUser.uid,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            let promise;
+            if (notasClientes[clientId] && notasClientes[clientId].id) {
+                promise = db.collection('clientNotes').doc(notasClientes[clientId].id).update(noteData);
+            } else {
+                noteData.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+                promise = db.collection('clientNotes').add(noteData);
+            }
+
+            promise
+                .then((docRef) => {
+                    if (!notasClientes[clientId] || !notasClientes[clientId].id) {
+                        notasClientes[clientId] = {
+                            id: docRef.id,
+                            notes: notes
+                        };
+                    } else {
+                        notasClientes[clientId].notes = notes;
+                    }
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('notasModal'));
+                    if (modal) modal.hide();
+                    Swal.close();
+                    Swal.fire('✅ Notas salvas!', '', 'success');
+                    if (clienteSelecionado && clienteSelecionado.id === clientId) {
+                        renderizarFicha(clienteSelecionado);
+                    }
+                })
+                .catch(error => {
+                    Swal.close();
+                    Swal.fire('Erro', 'Erro ao salvar notas: ' + error.message, 'error');
+                    console.error(error);
+                });
+        }
+
+        // ==========================================
+        // 12. EXCLUIR CLIENTE
+        // ==========================================
+        function excluirCliente(clientId) {
+            const cliente = clientes.find(c => c.id === clientId);
+            if (!cliente) return;
+
+            const temServicos = servicos.some(s => s.clientId === clientId);
+            if (temServicos) {
+                Swal.fire('Aviso', 'Este cliente possui serviços vinculados. Não é possível excluí-lo.', 'warning');
+                return;
+            }
+
+            Swal.fire({
+                title: 'Excluir Cliente',
+                text: `Tem certeza que deseja excluir ${cliente.name}? Esta ação não pode ser desfeita.`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Sim, excluir',
+                cancelButtonText: 'Cancelar'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    Swal.fire({
+                        title: 'Excluindo...',
+                        allowOutsideClick: false,
+                        didOpen: () => { Swal.showLoading(); }
+                    });
+
+                    db.collection('clients').doc(clientId).delete()
+                        .then(() => {
+                            // Remover notas também
+                            if (notasClientes[clientId] && notasClientes[clientId].id) {
+                                db.collection('clientNotes').doc(notasClientes[clientId].id).delete().catch(() => {});
+                            }
+                            clientes = clientes.filter(c => c.id !== clientId);
+                            clientesFiltrados = clientesFiltrados.filter(c => c.id !== clientId);
+                            if (clienteSelecionado && clienteSelecionado.id === clientId) {
+                                clienteSelecionado = null;
+                                document.getElementById('fichaContent').innerHTML = `
+                                    <div class="text-center text-muted py-5">
+                                        <i class="fas fa-user fa-4x mb-3 opacity-25"></i>
+                                        <p>Selecione um cliente na lista ao lado para visualizar sua ficha completa.</p>
+                                    </div>
+                                `;
+                                document.getElementById('fichaStatus').textContent = 'Selecione um cliente';
+                                document.getElementById('fichaStatus').className = 'badge bg-secondary';
+                            }
+                            renderizarListaClientes();
+                            atualizarContagemClientes();
+                            Swal.close();
+                            Swal.fire('✅ Cliente excluído!', '', 'success');
+                            broadcastRegistrosUpdate();
+                        })
+                        .catch(error => {
+                            Swal.close();
+                            Swal.fire('Erro', 'Erro ao excluir cliente: ' + error.message, 'error');
+                            console.error(error);
+                        });
+                }
+            });
+        }
+        window.excluirCliente = excluirCliente;
+
+        // ==========================================
+        // 13. FUNÇÕES AUXILIARES
+        // ==========================================
+        function getUltimoServico(clientId) {
+            const servicosCliente = servicos.filter(s => s.clientId === clientId);
+            if (servicosCliente.length === 0) return null;
+            const sorted = servicosCliente.sort((a, b) => {
+                const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp || a.date || 0);
+                const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp || b.date || 0);
+                return dateB - dateA;
+            });
+            return formatDate(sorted[0].date);
+        }
+
+        function formatDate(date) {
+            if (!date) return '';
+            if (typeof date === 'string') date = new Date(date);
+            return date.toLocaleDateString('pt-PT');
+        }
+
+        function formatCurrency(value) {
+            if (typeof value !== 'number') value = parseFloat(value) || 0;
+            return '€ ' + value.toFixed(2).replace('.', ',');
+        }
+
+        function atualizarUltimaAtualizacao() {
+            const now = new Date();
+            const el = document.getElementById('lastUpdateBadge');
+            if (el) {
+                el.innerHTML = `<i class="fas fa-clock me-1"></i>Atualizado ${now.toLocaleTimeString('pt-PT')}`;
+            }
+        }
+
+        // ==========================================
+        // 14. RECARREGAR DADOS
+        // ==========================================
+        function recarregarDados() {
+            const btn = document.getElementById('refreshBtn');
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Carregando...';
+            btn.disabled = true;
+
+            carregarDados();
+            setTimeout(() => {
+                btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Atualizar';
+                btn.disabled = false;
+                Swal.fire('✅ Dados atualizados!', '', 'success');
+            }, 1000);
+        }
+
+        // ==========================================
+        // 15. FUNÇÃO HOME
+        // ==========================================
+        function goHome() {
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage({ action: 'goHome' }, '*');
+            } else {
+                window.location.href = 'layout-index.html';
+            }
+        }
+
+        // ==========================================
+        // 16. MOSTRAR LOGIN PROMPT
+        // ==========================================
+        function mostrarLoginPrompt() {
+            Swal.fire({
+                title: 'Acesso Restrito',
+                text: 'Faça login para visualizar os registros.',
+                icon: 'warning',
+                confirmButtonText: 'Ir para Login',
+                showCancelButton: true,
+                cancelButtonText: 'Cancelar'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    window.location.href = '/login.html';
+                }
+            });
+        }
+
+        // ==========================================
+        // 17. RECEBER CONFIGURAÇÕES
+        // ==========================================
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'configUpdated') {
+                carregarConfiguracoesSistema();
+            }
+            if (event.data && event.data.type === 'registrosUpdated') {
+                carregarDados();
+            }
+            if (event.data && event.data.type === 'logoUpdated') {
+                atualizarLogoHeader();
+            }
+        });
+
+        window.parent.postMessage({ type: 'getConfig' }, '*');
+
+        // ==========================================
+        // 18. LOG DE INICIALIZAÇÃO
+        // ==========================================
+        console.log('✅ Registros carregados com sucesso!');
+        console.log('📌 Funcionalidades:');
+        console.log('   - Lista de clientes com busca por eliminação');
+        console.log('   - Ficha completa do cliente');
+        console.log('   - Histórico de serviços');
+        console.log('   - Notas e observações (edição)');
+        console.log('   - Estatísticas: total gasto, serviços, etc.');
+        console.log('   - Integração com WhatsApp');
+        console.log('   - Sincronização em tempo real com Firebase');
+        console.log('   - Atualização automática via BroadcastChannel');
+        console.log('   - Botão Home para voltar ao menu principal');
+
+    </script>
+
+</body>
+</html>
