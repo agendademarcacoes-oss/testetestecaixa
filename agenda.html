@@ -2724,12 +2724,494 @@
         }
 
         // ==========================================
-        // 14. SELEÇÃO DE HORÁRIO - CORRIGIDA COM FUNÇÃO GLOBAL
+        // 14. SELEÇÃO DE HORÁRIO - CORRIGIDA
         // ==========================================
         let longPressTimer = null;
         let isLongPress = false;
         let touchStartY = 0;
 
+        // FUNÇÃO GLOBAL PARA ABRIR SELEÇÃO DE CLIENTE
+        window.abrirSelecaoCliente = function(date, hour, minute, collaboratorId) {
+            console.log('🔄 abrirSelecaoCliente chamada!', { date, hour, minute, collaboratorId });
+            
+            tempAppointmentData.date = date;
+            tempAppointmentData.hour = hour;
+            tempAppointmentData.minute = minute;
+            tempAppointmentData.collaboratorId = collaboratorId;
+
+            const dateObj = new Date(date);
+            appointmentDate = dateObj;
+            appointmentTime.hour = hour;
+            appointmentTime.minute = minute;
+
+            selectedClientForAppointment = null;
+            selectedServicesForAppointment = [];
+
+            const container = document.getElementById('clientListContainer');
+            container.innerHTML = '';
+
+            if (clients.length === 0) {
+                container.innerHTML = '<div class="text-center text-muted py-4">Nenhum cliente cadastrado. Clique em "Cadastrar novo cliente".</div>';
+            } else {
+                clients.forEach(client => {
+                    const div = document.createElement('div');
+                    div.className = 'client-list-item';
+                    
+                    const avatarHtml = client.photoUrl ? 
+                        `<img src="${client.photoUrl}" alt="${client.name}">` : 
+                        client.name.charAt(0).toUpperCase();
+                    
+                    div.innerHTML = `
+                        <div class="avatar">${avatarHtml}</div>
+                        <div class="info">
+                            <div class="name">${client.name}</div>
+                            <div class="phone">${client.phone || 'Sem telefone'}</div>
+                        </div>
+                        <span class="badge-status">${client.phone ? '📱' : ''}</span>
+                    `;
+                    
+                    div.addEventListener('click', function() {
+                        selectedClientForAppointment = client;
+                        window.abrirSelecaoServico();
+                    });
+                    
+                    container.appendChild(div);
+                });
+            }
+
+            document.getElementById('clientSelectionOverlay').classList.add('active');
+            document.getElementById('clientSearchInput').value = '';
+            document.getElementById('clientSearchInput').focus();
+        };
+
+        // FUNÇÃO GLOBAL PARA ABRIR SELEÇÃO DE SERVIÇO
+        window.abrirSelecaoServico = function() {
+            document.getElementById('clientSelectionOverlay').classList.remove('active');
+            document.getElementById('serviceSelectionOverlay').classList.add('active');
+
+            window.carregarServicosRecentes();
+            window.carregarTodosServicos();
+
+            document.getElementById('serviceSearchInput').value = '';
+            document.getElementById('serviceSearchInput').focus();
+        };
+
+        // FUNÇÃO GLOBAL PARA ABRIR SALVAR AGENDAMENTO
+        window.abrirSalvarAgendamento = function() {
+            document.getElementById('serviceSelectionOverlay').classList.remove('active');
+            document.getElementById('appointmentSaveOverlay').classList.add('active');
+            window.atualizarTelaSalvarAgendamento();
+        };
+
+        // ==========================================
+        // 15. FUNÇÕES DAS TELAS (GLOBAIS)
+        // ==========================================
+        window.fecharSelecaoCliente = function() {
+            document.getElementById('clientSelectionOverlay').classList.remove('active');
+            tempAppointmentData = { date: null, hour: null, minute: null, collaboratorId: null };
+        };
+
+        window.fecharSelecaoServico = function() {
+            document.getElementById('serviceSelectionOverlay').classList.remove('active');
+            window.abrirSelecaoCliente(tempAppointmentData.date, tempAppointmentData.hour, tempAppointmentData.minute, tempAppointmentData.collaboratorId);
+        };
+
+        window.fecharSalvarAgendamento = function() {
+            document.getElementById('appointmentSaveOverlay').classList.remove('active');
+            selectedClientForAppointment = null;
+            selectedServicesForAppointment = [];
+        };
+
+        window.carregarServicosRecentes = function() {
+            const container = document.getElementById('recentServicesContainer');
+            container.innerHTML = '';
+
+            if (!selectedClientForAppointment || !selectedClientForAppointment.id) {
+                container.innerHTML = '<div class="text-muted" style="font-size:0.8rem;">Nenhum serviço recente</div>';
+                return;
+            }
+
+            const allServicesList = window.allServices || [];
+            const clientServices = allServicesList.filter(s => s.clientId === selectedClientForAppointment.id)
+                .sort((a, b) => {
+                    const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp || a.date || 0);
+                    const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp || b.date || 0);
+                    return dateB - dateA;
+                })
+                .slice(0, 10);
+
+            if (clientServices.length === 0) {
+                container.innerHTML = '<div class="text-muted" style="font-size:0.8rem;">Nenhum serviço recente</div>';
+                return;
+            }
+
+            clientServices.forEach(service => {
+                const collaborator = collaborators.find(c => c.id === service.collaboratorId);
+                const collaboratorName = collaborator ? collaborator.name : 'Colaborador';
+                const serviceDate = service.timestamp?.toDate ? service.timestamp.toDate() : new Date(service.timestamp || service.date || 0);
+
+                const card = document.createElement('div');
+                card.className = 'recent-service-card';
+                card.innerHTML = `
+                    <div class="service-name">${service.description || 'Serviço'}</div>
+                    <div class="service-date">${formatDate(serviceDate)}</div>
+                    <div class="service-collaborator">👤 ${collaboratorName}</div>
+                    <div class="service-price">${formatCurrency(service.value)}</div>
+                `;
+                card.addEventListener('click', function() {
+                    const serviceToAdd = {
+                        id: service.id || 'temp_' + Date.now(),
+                        name: service.description || 'Serviço',
+                        price: parseFloat(service.value) || 0,
+                        duration: 30
+                    };
+                    selectedServicesForAppointment.push(serviceToAdd);
+                    window.abrirSalvarAgendamento();
+                });
+                container.appendChild(card);
+            });
+        };
+
+        window.carregarTodosServicos = function() {
+            const container = document.getElementById('allServicesContainer');
+            container.innerHTML = '';
+
+            const servicesList = window.availableServices || [];
+
+            if (servicesList.length === 0) {
+                container.innerHTML = '<div class="text-center text-muted py-4">Nenhum serviço cadastrado.</div>';
+                return;
+            }
+
+            servicesList.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+            servicesList.forEach(service => {
+                const div = document.createElement('div');
+                div.className = 'service-list-item';
+                div.innerHTML = `
+                    <div class="color-bar" style="background:#26196b;"></div>
+                    <div class="info">
+                        <div class="name">${service.name}</div>
+                    </div>
+                    <div class="price">${service.price ? formatCurrency(service.price) : ''}</div>
+                `;
+                div.addEventListener('click', function() {
+                    const serviceToAdd = {
+                        id: service.id || 'temp_' + Date.now(),
+                        name: service.name,
+                        price: service.price || 0,
+                        duration: 30
+                    };
+                    selectedServicesForAppointment.push(serviceToAdd);
+                    window.abrirSalvarAgendamento();
+                });
+                container.appendChild(div);
+            });
+        };
+
+        window.atualizarTelaSalvarAgendamento = function() {
+            const dateObj = appointmentDate;
+            const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+            const dateString = dateObj.toLocaleDateString('pt-PT', options);
+            document.getElementById('appointmentDateDisplay').textContent = dateString.charAt(0).toUpperCase() + dateString.slice(1);
+            document.getElementById('appointmentTimeDisplay').textContent = 
+                `${appointmentTime.hour.toString().padStart(2, '0')}:${appointmentTime.minute.toString().padStart(2, '0')}`;
+            document.getElementById('appointmentDateTimeValue').textContent = 
+                `${dateString.charAt(0).toUpperCase() + dateString.slice(1)} - ${appointmentTime.hour.toString().padStart(2, '0')}:${appointmentTime.minute.toString().padStart(2, '0')}`;
+
+            const avatar = document.getElementById('appointmentClientAvatar');
+            const name = document.getElementById('appointmentClientName');
+            const contact = document.getElementById('appointmentClientContact');
+
+            if (selectedClientForAppointment) {
+                if (selectedClientForAppointment.photoUrl) {
+                    avatar.innerHTML = `<img src="${selectedClientForAppointment.photoUrl}" alt="${selectedClientForAppointment.name}">`;
+                } else {
+                    avatar.textContent = selectedClientForAppointment.name.charAt(0).toUpperCase();
+                }
+                name.textContent = selectedClientForAppointment.name;
+                contact.textContent = selectedClientForAppointment.phone || 'Sem contato';
+            } else {
+                avatar.textContent = '?';
+                name.textContent = 'Cliente não selecionado';
+                contact.textContent = 'Sem contato';
+            }
+
+            const container = document.getElementById('selectedServicesContainer');
+            container.innerHTML = '';
+
+            if (selectedServicesForAppointment.length === 0) {
+                container.innerHTML = '<div class="text-muted text-center py-2">Nenhum serviço selecionado</div>';
+            } else {
+                selectedServicesForAppointment.forEach((service, index) => {
+                    const div = document.createElement('div');
+                    div.className = 'selected-service-item';
+                    div.innerHTML = `
+                        <span class="name">${service.name}</span>
+                        <div>
+                            <span class="price">${formatCurrency(service.price)}</span>
+                            <button class="remove-btn" onclick="window.removerServicoSelecionado(${index})">×</button>
+                        </div>
+                    `;
+                    container.appendChild(div);
+                });
+            }
+
+            const total = selectedServicesForAppointment.reduce((sum, s) => sum + (parseFloat(s.price) || 0), 0);
+            document.getElementById('appointmentTotalValue').textContent = formatCurrency(total);
+        };
+
+        window.removerServicoSelecionado = function(index) {
+            selectedServicesForAppointment.splice(index, 1);
+            window.atualizarTelaSalvarAgendamento();
+        };
+
+        window.adicionarMaisServicos = function() {
+            document.getElementById('appointmentSaveOverlay').classList.remove('active');
+            document.getElementById('serviceSelectionOverlay').classList.add('active');
+            document.getElementById('serviceSearchInput').value = '';
+            document.getElementById('serviceSearchInput').focus();
+            window.carregarTodosServicos();
+            window.carregarServicosRecentes();
+        };
+
+        window.ligarCliente = function() {
+            if (selectedClientForAppointment && selectedClientForAppointment.phone) {
+                window.open(`tel:${selectedClientForAppointment.phone}`, '_blank');
+            } else {
+                Swal.fire('Aviso', 'Cliente não possui telefone cadastrado.', 'warning');
+            }
+        };
+
+        window.whatsappCliente = function() {
+            if (selectedClientForAppointment && selectedClientForAppointment.phone) {
+                const phone = selectedClientForAppointment.phone.replace(/\D/g, '');
+                window.open(`https://wa.me/${phone}`, '_blank');
+            } else {
+                Swal.fire('Aviso', 'Cliente não possui telefone cadastrado.', 'warning');
+            }
+        };
+
+        window.solicitarAvaliacaoGoogle = function() {
+            const reviewLink = 'https://g.page/r/CebJa41iu0E6EAE/review';
+            if (selectedClientForAppointment && selectedClientForAppointment.phone) {
+                const message = `Olá ${selectedClientForAppointment.name}! ✨\n\nSeu atendimento foi concluído com sucesso! Gostaríamos muito de saber sua opinião sobre o serviço prestado.\n\n⭐ Por favor, dedique 1 minuto para nos avaliar no Google:\n${reviewLink}\n\nSua avaliação é muito importante para nós! 💙\n\nEquipe ${businessSettings.name || 'Studio DeVitto'}`;
+                const phone = selectedClientForAppointment.phone.replace(/\D/g, '');
+                window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+            } else {
+                navigator.clipboard.writeText(reviewLink);
+                Swal.fire('Link copiado!', 'Link de avaliação copiado para a área de transferência.', 'success');
+            }
+        };
+
+        window.adicionarNota = function() {
+            Swal.fire({
+                title: 'Adicionar Nota',
+                input: 'textarea',
+                inputPlaceholder: 'Digite sua nota aqui...',
+                showCancelButton: true,
+                confirmButtonText: 'Salvar',
+                cancelButtonText: 'Cancelar'
+            }).then(result => {
+                if (result.isConfirmed && result.value) {
+                    appointmentTempData = { ...appointmentTempData, nota: result.value };
+                    Swal.fire('Nota adicionada!', '', 'success');
+                }
+            });
+        };
+
+        window.checkoutAgendamento = function() {
+            Swal.fire({
+                title: 'Checkout',
+                text: 'Funcionalidade de checkout em desenvolvimento.',
+                icon: 'info',
+                confirmButtonText: 'OK'
+            });
+        };
+
+        window.confirmarAgendamento = function() {
+            if (!selectedClientForAppointment) {
+                Swal.fire('Erro', 'Selecione um cliente.', 'error');
+                return;
+            }
+
+            if (selectedServicesForAppointment.length === 0) {
+                Swal.fire('Erro', 'Selecione pelo menos um serviço.', 'error');
+                return;
+            }
+
+            const total = selectedServicesForAppointment.reduce((sum, s) => sum + (parseFloat(s.price) || 0), 0);
+            const servicesNames = selectedServicesForAppointment.map(s => s.name).join(', ');
+            const dateStr = appointmentDate.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+            const timeStr = `${appointmentTime.hour.toString().padStart(2, '0')}:${appointmentTime.minute.toString().padStart(2, '0')}`;
+
+            appointmentTempData = {
+                client: selectedClientForAppointment,
+                services: selectedServicesForAppointment,
+                date: appointmentDate,
+                time: appointmentTime,
+                dateStr: dateStr,
+                timeStr: timeStr,
+                total: total,
+                servicesNames: servicesNames
+            };
+
+            const details = document.getElementById('confirmationDetails');
+            details.innerHTML = `
+                <div class="row"><span class="label">Cliente:</span><span class="value">${selectedClientForAppointment.name}</span></div>
+                <div class="row"><span class="label">Data:</span><span class="value">${dateStr}</span></div>
+                <div class="row"><span class="label">Hora:</span><span class="value">${timeStr}</span></div>
+                <div class="row"><span class="label">Serviços:</span><span class="value">${servicesNames}</span></div>
+                <div class="row"><span class="label">Total:</span><span class="value" style="color:#28a745;font-weight:700;">${formatCurrency(total)}</span></div>
+            `;
+
+            document.getElementById('confirmationPopup').classList.add('active');
+            isAppointmentConfirmationOpen = true;
+        };
+
+        window.fecharConfirmacao = function() {
+            document.getElementById('confirmationPopup').classList.remove('active');
+            isAppointmentConfirmationOpen = false;
+        };
+
+        window.enviarConfirmacao = function(metodo) {
+            if (!appointmentTempData) return;
+
+            const data = appointmentTempData;
+            const client = data.client;
+            const dateStr = data.dateStr;
+            const timeStr = data.timeStr;
+            const servicesNames = data.servicesNames;
+            const total = data.total;
+
+            const mensagem = 
+                `Olá ${client.name}! 👋\n\n` +
+                `Seu agendamento foi CONFIRMADO:\n` +
+                `📅 Data: ${dateStr}\n` +
+                `🕐 Hora: ${timeStr}\n` +
+                `✂️ Serviço(s): ${servicesNames}\n` +
+                `💰 Total: ${formatCurrency(total)}\n\n` +
+                `Aguardamos você! 😊\n` +
+                `${businessSettings.name || 'Studio DeVitto'}`;
+
+            let url = '';
+            const phone = client.phone || '';
+            const email = client.email || '';
+
+            switch(metodo) {
+                case 'whatsapp':
+                    if (!phone) { Swal.fire('Erro', 'Cliente não possui telefone para WhatsApp.', 'error'); return; }
+                    url = `https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(mensagem)}`;
+                    break;
+                case 'sms':
+                    if (!phone) { Swal.fire('Erro', 'Cliente não possui telefone para SMS.', 'error'); return; }
+                    url = `sms:${phone.replace(/\D/g, '')}?body=${encodeURIComponent(mensagem)}`;
+                    break;
+                case 'email':
+                    if (!email) { Swal.fire('Erro', 'Cliente não possui e-mail cadastrado.', 'error'); return; }
+                    const assunto = encodeURIComponent('Confirmação de Agendamento');
+                    url = `mailto:${email}?subject=${assunto}&body=${encodeURIComponent(mensagem)}`;
+                    break;
+                case 'none':
+                    break;
+                default:
+                    return;
+            }
+
+            window.fecharConfirmacao();
+            window.salvarAgendamentoCompleto();
+
+            if (url && metodo !== 'none') {
+                window.open(url, '_blank');
+                Swal.fire('✅ Mensagem enviada!', `Confirmação enviada via ${metodo.toUpperCase()}`, 'success');
+            } else if (metodo === 'none') {
+                Swal.fire('✅ Agendamento salvo!', 'Agendamento salvo sem envio de confirmação.', 'success');
+            }
+        };
+
+        window.salvarAgendamentoCompleto = function() {
+            if (!currentUser) {
+                Swal.fire('Erro', 'Usuário não logado.', 'error');
+                return;
+            }
+
+            if (!selectedClientForAppointment || selectedServicesForAppointment.length === 0) {
+                Swal.fire('Erro', 'Cliente ou serviços não selecionados.', 'error');
+                return;
+            }
+
+            const totalDuration = selectedServicesForAppointment.reduce((sum, s) => sum + (s.duration || 30), 0);
+            const startMinutes = appointmentTime.hour * 60 + appointmentTime.minute;
+            const endMinutes = startMinutes + totalDuration;
+            const endHour = Math.floor(endMinutes / 60) % 24;
+            const endMinute = endMinutes % 60;
+
+            const collaboratorId = selectedCollaboratorId || (collaborators.length > 0 ? collaborators[0].id : null);
+
+            const appointmentData = {
+                clientId: selectedClientForAppointment.id || null,
+                clientName: selectedClientForAppointment.name,
+                clientPhone: selectedClientForAppointment.phone || '',
+                date: appointmentDate.toISOString().split('T')[0],
+                startTime: `${appointmentTime.hour.toString().padStart(2, '0')}:${appointmentTime.minute.toString().padStart(2, '0')}`,
+                endTime: `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`,
+                duration: totalDuration,
+                services: selectedServicesForAppointment.map(s => ({ 
+                    id: s.id || null, 
+                    name: s.name, 
+                    price: s.price, 
+                    duration: s.duration || 30 
+                })),
+                serviceName: selectedServicesForAppointment.map(s => s.name).join(', '),
+                total: selectedServicesForAppointment.reduce((sum, s) => sum + (parseFloat(s.price) || 0), 0),
+                userId: currentUser.uid,
+                collaboratorId: collaboratorId,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                status: 'scheduled',
+                reminder24h: true,
+                notes: appointmentTempData?.nota || '',
+                color: '#26196b'
+            };
+
+            Swal.fire({
+                title: 'Salvando agendamento...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            db.collection('appointments').add(appointmentData)
+                .then((docRef) => {
+                    const newAppointment = { id: docRef.id, ...appointmentData, createdAt: new Date() };
+                    appointments.push(newAppointment);
+                    salvarNoLocalStorage('appointments', appointments);
+                    
+                    window.fecharSalvarAgendamento();
+                    window.fecharConfirmacao();
+                    
+                    renderAgenda();
+                    
+                    Swal.close();
+                    Swal.fire({
+                        icon: 'success',
+                        title: '✅ Agendamento salvo!',
+                        text: `Agendamento para ${selectedClientForAppointment.name} em ${appointmentDate.toLocaleDateString('pt-PT')} às ${appointmentTime.hour.toString().padStart(2, '0')}:${appointmentTime.minute.toString().padStart(2, '0')}`,
+                        timer: 3000,
+                        showConfirmButton: false
+                    });
+
+                    selectedClientForAppointment = null;
+                    selectedServicesForAppointment = [];
+                    appointmentTempData = null;
+                })
+                .catch(error => {
+                    Swal.close();
+                    Swal.fire('Erro', 'Erro ao salvar agendamento: ' + error.message, 'error');
+                });
+        };
+
+        // ==========================================
+        // 16. startTimeSelection ORIGINAL
+        // ==========================================
         function startTimeSelection(e) {
             const slot = e.target.closest('.agenda-slot-quarter');
             if (!slot) return;
@@ -2829,8 +3311,7 @@
                 const overlay = document.getElementById('agendaSelectionOverlay');
                 if (overlay) overlay.style.display = 'none';
 
-                // CHAMAR A FUNÇÃO GLOBAL DE ABRIR SELEÇÃO DE CLIENTE
-                abrirSelecaoCliente(date, hour, minute, collaboratorId);
+                window.abrirSelecaoCliente(date, hour, minute, collaboratorId);
             }
 
             selectionStartTime = null;
@@ -2866,70 +3347,8 @@
         }
 
         // ==========================================
-        // 15. TELA 1: SELEÇÃO DE CLIENTE (FUNÇÃO GLOBAL)
+        // 17. FUNÇÕES AUXILIARES
         // ==========================================
-        window.abrirSelecaoCliente = function(date, hour, minute, collaboratorId) {
-            console.log('🔄 abrirSelecaoCliente chamada!', { date, hour, minute, collaboratorId });
-            
-            tempAppointmentData.date = date;
-            tempAppointmentData.hour = hour;
-            tempAppointmentData.minute = minute;
-            tempAppointmentData.collaboratorId = collaboratorId;
-
-            // Definir data/hora do agendamento
-            const dateObj = new Date(date);
-            appointmentDate = dateObj;
-            appointmentTime.hour = hour;
-            appointmentTime.minute = minute;
-
-            // Limpar seleções anteriores
-            selectedClientForAppointment = null;
-            selectedServicesForAppointment = [];
-
-            // Preencher lista de clientes
-            const container = document.getElementById('clientListContainer');
-            container.innerHTML = '';
-
-            if (clients.length === 0) {
-                container.innerHTML = '<div class="text-center text-muted py-4">Nenhum cliente cadastrado. Clique em "Cadastrar novo cliente".</div>';
-            } else {
-                clients.forEach(client => {
-                    const div = document.createElement('div');
-                    div.className = 'client-list-item';
-                    
-                    const avatarHtml = client.photoUrl ? 
-                        `<img src="${client.photoUrl}" alt="${client.name}">` : 
-                        client.name.charAt(0).toUpperCase();
-                    
-                    div.innerHTML = `
-                        <div class="avatar">${avatarHtml}</div>
-                        <div class="info">
-                            <div class="name">${client.name}</div>
-                            <div class="phone">${client.phone || 'Sem telefone'}</div>
-                        </div>
-                        <span class="badge-status">${client.phone ? '📱' : ''}</span>
-                    `;
-                    
-                    div.addEventListener('click', function() {
-                        selectedClientForAppointment = client;
-                        abrirSelecaoServico();
-                    });
-                    
-                    container.appendChild(div);
-                });
-            }
-
-            // Mostrar overlay
-            document.getElementById('clientSelectionOverlay').classList.add('active');
-            document.getElementById('clientSearchInput').value = '';
-            document.getElementById('clientSearchInput').focus();
-        };
-
-        function fecharSelecaoCliente() {
-            document.getElementById('clientSelectionOverlay').classList.remove('active');
-            tempAppointmentData = { date: null, hour: null, minute: null, collaboratorId: null };
-        }
-
         function filtrarClientesBusca(searchTerm) {
             const container = document.getElementById('clientListContainer');
             const items = container.querySelectorAll('.client-list-item');
@@ -2943,9 +3362,28 @@
             });
         }
 
+        function filtrarServicosBusca(searchTerm) {
+            const container = document.getElementById('allServicesContainer');
+            const items = container.querySelectorAll('.service-list-item');
+            const term = searchTerm.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+
+            items.forEach(item => {
+                const name = item.querySelector('.name').textContent.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+                const show = name.includes(term);
+                item.style.display = show ? 'flex' : 'none';
+            });
+
+            const recentContainer = document.getElementById('recentServicesContainer');
+            const recentItems = recentContainer.querySelectorAll('.recent-service-card');
+            recentItems.forEach(item => {
+                const name = item.querySelector('.service-name').textContent.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+                const show = name.includes(term);
+                item.style.display = show ? '' : 'none';
+            });
+        }
+
         function abrirCadastroCliente() {
-            fecharSelecaoCliente();
-            // Abrir modal de cadastro de cliente (usando o existente)
+            window.fecharSelecaoCliente();
             if (typeof showAddClientModal === 'function') {
                 showAddClientModal();
             } else {
@@ -2985,8 +3423,7 @@
                             .then(() => {
                                 carregarClientes();
                                 Swal.fire('✅ Cliente cadastrado!', 'Cliente adicionado com sucesso.', 'success');
-                                // Reabrir seleção de cliente
-                                abrirSelecaoCliente(tempAppointmentData.date, tempAppointmentData.hour, tempAppointmentData.minute, tempAppointmentData.collaboratorId);
+                                window.abrirSelecaoCliente(tempAppointmentData.date, tempAppointmentData.hour, tempAppointmentData.minute, tempAppointmentData.collaboratorId);
                             })
                             .catch(error => {
                                 Swal.fire('Erro', 'Erro ao cadastrar cliente: ' + error.message, 'error');
@@ -3004,487 +3441,15 @@
                 email: '',
                 photoUrl: null
             };
-            abrirSelecaoServico();
-        }
-
-        // ==========================================
-        // 16. TELA 2: SELEÇÃO DE SERVIÇO
-        // ==========================================
-        function abrirSelecaoServico() {
-            document.getElementById('clientSelectionOverlay').classList.remove('active');
-            document.getElementById('serviceSelectionOverlay').classList.add('active');
-
-            // Carregar serviços recentes do cliente
-            carregarServicosRecentes();
-
-            // Carregar todos os serviços
-            carregarTodosServicos();
-
-            document.getElementById('serviceSearchInput').value = '';
-            document.getElementById('serviceSearchInput').focus();
-        }
-
-        function fecharSelecaoServico() {
-            document.getElementById('serviceSelectionOverlay').classList.remove('active');
-            // Voltar para seleção de cliente
-            abrirSelecaoCliente(tempAppointmentData.date, tempAppointmentData.hour, tempAppointmentData.minute, tempAppointmentData.collaboratorId);
-        }
-
-        function carregarServicosRecentes() {
-            const container = document.getElementById('recentServicesContainer');
-            container.innerHTML = '';
-
-            if (!selectedClientForAppointment || !selectedClientForAppointment.id) {
-                container.innerHTML = '<div class="text-muted" style="font-size:0.8rem;">Nenhum serviço recente</div>';
-                return;
-            }
-
-            // Usar allServices que já foi carregado
-            const allServicesList = window.allServices || [];
-            const clientServices = allServicesList.filter(s => s.clientId === selectedClientForAppointment.id)
-                .sort((a, b) => {
-                    const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp || a.date || 0);
-                    const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp || b.date || 0);
-                    return dateB - dateA;
-                })
-                .slice(0, 10);
-
-            if (clientServices.length === 0) {
-                container.innerHTML = '<div class="text-muted" style="font-size:0.8rem;">Nenhum serviço recente</div>';
-                return;
-            }
-
-            clientServices.forEach(service => {
-                const collaborator = collaborators.find(c => c.id === service.collaboratorId);
-                const collaboratorName = collaborator ? collaborator.name : 'Colaborador';
-                const serviceDate = service.timestamp?.toDate ? service.timestamp.toDate() : new Date(service.timestamp || service.date || 0);
-
-                const card = document.createElement('div');
-                card.className = 'recent-service-card';
-                card.innerHTML = `
-                    <div class="service-name">${service.description || 'Serviço'}</div>
-                    <div class="service-date">${formatDate(serviceDate)}</div>
-                    <div class="service-collaborator">👤 ${collaboratorName}</div>
-                    <div class="service-price">${formatCurrency(service.value)}</div>
-                `;
-                card.addEventListener('click', function() {
-                    const serviceToAdd = {
-                        id: service.id || 'temp_' + Date.now(),
-                        name: service.description || 'Serviço',
-                        price: parseFloat(service.value) || 0,
-                        duration: 30
-                    };
-                    selectedServicesForAppointment.push(serviceToAdd);
-                    abrirSalvarAgendamento();
-                });
-                container.appendChild(card);
-            });
-        }
-
-        function carregarTodosServicos() {
-            const container = document.getElementById('allServicesContainer');
-            container.innerHTML = '';
-
-            // Usar serviços da empresa ou serviços padrão
-            const servicesList = window.companyServices && window.companyServices.length > 0 ? window.companyServices : window.availableServices || [];
-
-            if (servicesList.length === 0) {
-                container.innerHTML = '<div class="text-center text-muted py-4">Nenhum serviço cadastrado.</div>';
-                return;
-            }
-
-            servicesList.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-
-            servicesList.forEach(service => {
-                const div = document.createElement('div');
-                div.className = 'service-list-item';
-                div.innerHTML = `
-                    <div class="color-bar" style="background:#26196b;"></div>
-                    <div class="info">
-                        <div class="name">${service.name}</div>
-                    </div>
-                    <div class="price">${service.price ? formatCurrency(service.price) : ''}</div>
-                `;
-                div.addEventListener('click', function() {
-                    const serviceToAdd = {
-                        id: service.id || 'temp_' + Date.now(),
-                        name: service.name,
-                        price: service.price || 0,
-                        duration: 30
-                    };
-                    selectedServicesForAppointment.push(serviceToAdd);
-                    abrirSalvarAgendamento();
-                });
-                container.appendChild(div);
-            });
-        }
-
-        function filtrarServicosBusca(searchTerm) {
-            const container = document.getElementById('allServicesContainer');
-            const items = container.querySelectorAll('.service-list-item');
-            const term = searchTerm.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
-
-            items.forEach(item => {
-                const name = item.querySelector('.name').textContent.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
-                const show = name.includes(term);
-                item.style.display = show ? 'flex' : 'none';
-            });
-
-            // Também filtrar serviços recentes
-            const recentContainer = document.getElementById('recentServicesContainer');
-            const recentItems = recentContainer.querySelectorAll('.recent-service-card');
-            recentItems.forEach(item => {
-                const name = item.querySelector('.service-name').textContent.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
-                const show = name.includes(term);
-                item.style.display = show ? '' : 'none';
-            });
-        }
-
-        // ==========================================
-        // 17. TELA 3: SALVAR AGENDAMENTO
-        // ==========================================
-        function abrirSalvarAgendamento() {
-            document.getElementById('serviceSelectionOverlay').classList.remove('active');
-            document.getElementById('appointmentSaveOverlay').classList.add('active');
-            atualizarTelaSalvarAgendamento();
-        }
-
-        function fecharSalvarAgendamento() {
-            document.getElementById('appointmentSaveOverlay').classList.remove('active');
-            selectedClientForAppointment = null;
-            selectedServicesForAppointment = [];
-            // Voltar para a agenda
-        }
-
-        function atualizarTelaSalvarAgendamento() {
-            // Atualizar data/hora
-            const dateObj = appointmentDate;
-            const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
-            const dateString = dateObj.toLocaleDateString('pt-PT', options);
-            document.getElementById('appointmentDateDisplay').textContent = dateString.charAt(0).toUpperCase() + dateString.slice(1);
-            document.getElementById('appointmentTimeDisplay').textContent = 
-                `${appointmentTime.hour.toString().padStart(2, '0')}:${appointmentTime.minute.toString().padStart(2, '0')}`;
-            document.getElementById('appointmentDateTimeValue').textContent = 
-                `${dateString.charAt(0).toUpperCase() + dateString.slice(1)} - ${appointmentTime.hour.toString().padStart(2, '0')}:${appointmentTime.minute.toString().padStart(2, '0')}`;
-
-            // Atualizar card do cliente
-            const avatar = document.getElementById('appointmentClientAvatar');
-            const name = document.getElementById('appointmentClientName');
-            const contact = document.getElementById('appointmentClientContact');
-
-            if (selectedClientForAppointment) {
-                if (selectedClientForAppointment.photoUrl) {
-                    avatar.innerHTML = `<img src="${selectedClientForAppointment.photoUrl}" alt="${selectedClientForAppointment.name}">`;
-                } else {
-                    avatar.textContent = selectedClientForAppointment.name.charAt(0).toUpperCase();
-                }
-                name.textContent = selectedClientForAppointment.name;
-                contact.textContent = selectedClientForAppointment.phone || 'Sem contato';
-            } else {
-                avatar.textContent = '?';
-                name.textContent = 'Cliente não selecionado';
-                contact.textContent = 'Sem contato';
-            }
-
-            // Atualizar serviços selecionados
-            const container = document.getElementById('selectedServicesContainer');
-            container.innerHTML = '';
-
-            if (selectedServicesForAppointment.length === 0) {
-                container.innerHTML = '<div class="text-muted text-center py-2">Nenhum serviço selecionado</div>';
-            } else {
-                selectedServicesForAppointment.forEach((service, index) => {
-                    const div = document.createElement('div');
-                    div.className = 'selected-service-item';
-                    div.innerHTML = `
-                        <span class="name">${service.name}</span>
-                        <div>
-                            <span class="price">${formatCurrency(service.price)}</span>
-                            <button class="remove-btn" onclick="removerServicoSelecionado(${index})">×</button>
-                        </div>
-                    `;
-                    container.appendChild(div);
-                });
-            }
-
-            // Atualizar total
-            const total = selectedServicesForAppointment.reduce((sum, s) => sum + (parseFloat(s.price) || 0), 0);
-            document.getElementById('appointmentTotalValue').textContent = formatCurrency(total);
-        }
-
-        function removerServicoSelecionado(index) {
-            selectedServicesForAppointment.splice(index, 1);
-            atualizarTelaSalvarAgendamento();
-        }
-
-        function adicionarMaisServicos() {
-            // Voltar para seleção de serviços mantendo os selecionados
-            document.getElementById('appointmentSaveOverlay').classList.remove('active');
-            document.getElementById('serviceSelectionOverlay').classList.add('active');
-            document.getElementById('serviceSearchInput').value = '';
-            document.getElementById('serviceSearchInput').focus();
-            carregarTodosServicos();
-            carregarServicosRecentes();
+            window.abrirSelecaoServico();
         }
 
         function abrirSeletorDataHora() {
-            // Abrir modal do calendário para selecionar data/hora
             showDatePicker();
         }
 
-        function ligarCliente() {
-            if (selectedClientForAppointment && selectedClientForAppointment.phone) {
-                window.open(`tel:${selectedClientForAppointment.phone}`, '_blank');
-            } else {
-                Swal.fire('Aviso', 'Cliente não possui telefone cadastrado.', 'warning');
-            }
-        }
-
-        function whatsappCliente() {
-            if (selectedClientForAppointment && selectedClientForAppointment.phone) {
-                const phone = selectedClientForAppointment.phone.replace(/\D/g, '');
-                window.open(`https://wa.me/${phone}`, '_blank');
-            } else {
-                Swal.fire('Aviso', 'Cliente não possui telefone cadastrado.', 'warning');
-            }
-        }
-
-        function solicitarAvaliacaoGoogle() {
-            const reviewLink = 'https://g.page/r/CebJa41iu0E6EAE/review';
-            if (selectedClientForAppointment && selectedClientForAppointment.phone) {
-                const message = `Olá ${selectedClientForAppointment.name}! ✨\n\nSeu atendimento foi concluído com sucesso! Gostaríamos muito de saber sua opinião sobre o serviço prestado.\n\n⭐ Por favor, dedique 1 minuto para nos avaliar no Google:\n${reviewLink}\n\nSua avaliação é muito importante para nós! 💙\n\nEquipe ${businessSettings.name || 'Studio DeVitto'}`;
-                const phone = selectedClientForAppointment.phone.replace(/\D/g, '');
-                window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
-            } else {
-                navigator.clipboard.writeText(reviewLink);
-                Swal.fire('Link copiado!', 'Link de avaliação copiado para a área de transferência.', 'success');
-            }
-        }
-
-        function adicionarNota() {
-            Swal.fire({
-                title: 'Adicionar Nota',
-                input: 'textarea',
-                inputPlaceholder: 'Digite sua nota aqui...',
-                showCancelButton: true,
-                confirmButtonText: 'Salvar',
-                cancelButtonText: 'Cancelar'
-            }).then(result => {
-                if (result.isConfirmed && result.value) {
-                    appointmentTempData = { ...appointmentTempData, nota: result.value };
-                    Swal.fire('Nota adicionada!', '', 'success');
-                }
-            });
-        }
-
-        function checkoutAgendamento() {
-            Swal.fire({
-                title: 'Checkout',
-                text: 'Funcionalidade de checkout em desenvolvimento.',
-                icon: 'info',
-                confirmButtonText: 'OK'
-            });
-        }
-
         // ==========================================
-        // 18. CONFIRMAR AGENDAMENTO
-        // ==========================================
-        function confirmarAgendamento() {
-            if (!selectedClientForAppointment) {
-                Swal.fire('Erro', 'Selecione um cliente.', 'error');
-                return;
-            }
-
-            if (selectedServicesForAppointment.length === 0) {
-                Swal.fire('Erro', 'Selecione pelo menos um serviço.', 'error');
-                return;
-            }
-
-            const total = selectedServicesForAppointment.reduce((sum, s) => sum + (parseFloat(s.price) || 0), 0);
-            const servicesNames = selectedServicesForAppointment.map(s => s.name).join(', ');
-            const dateStr = appointmentDate.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-            const timeStr = `${appointmentTime.hour.toString().padStart(2, '0')}:${appointmentTime.minute.toString().padStart(2, '0')}`;
-
-            // Salvar dados temporários para confirmação
-            appointmentTempData = {
-                client: selectedClientForAppointment,
-                services: selectedServicesForAppointment,
-                date: appointmentDate,
-                time: appointmentTime,
-                dateStr: dateStr,
-                timeStr: timeStr,
-                total: total,
-                servicesNames: servicesNames
-            };
-
-            // Mostrar popup de confirmação
-            const details = document.getElementById('confirmationDetails');
-            details.innerHTML = `
-                <div class="row"><span class="label">Cliente:</span><span class="value">${selectedClientForAppointment.name}</span></div>
-                <div class="row"><span class="label">Data:</span><span class="value">${dateStr}</span></div>
-                <div class="row"><span class="label">Hora:</span><span class="value">${timeStr}</span></div>
-                <div class="row"><span class="label">Serviços:</span><span class="value">${servicesNames}</span></div>
-                <div class="row"><span class="label">Total:</span><span class="value" style="color:#28a745;font-weight:700;">${formatCurrency(total)}</span></div>
-            `;
-
-            document.getElementById('confirmationPopup').classList.add('active');
-            isAppointmentConfirmationOpen = true;
-        }
-
-        function fecharConfirmacao() {
-            document.getElementById('confirmationPopup').classList.remove('active');
-            isAppointmentConfirmationOpen = false;
-        }
-
-        function enviarConfirmacao(metodo) {
-            if (!appointmentTempData) return;
-
-            const data = appointmentTempData;
-            const client = data.client;
-            const dateStr = data.dateStr;
-            const timeStr = data.timeStr;
-            const servicesNames = data.servicesNames;
-            const total = data.total;
-
-            const mensagem = 
-                `Olá ${client.name}! 👋\n\n` +
-                `Seu agendamento foi CONFIRMADO:\n` +
-                `📅 Data: ${dateStr}\n` +
-                `🕐 Hora: ${timeStr}\n` +
-                `✂️ Serviço(s): ${servicesNames}\n` +
-                `💰 Total: ${formatCurrency(total)}\n\n` +
-                `Aguardamos você! 😊\n` +
-                `${businessSettings.name || 'Studio DeVitto'}`;
-
-            let url = '';
-            const phone = client.phone || '';
-            const email = client.email || '';
-
-            switch(metodo) {
-                case 'whatsapp':
-                    if (!phone) { Swal.fire('Erro', 'Cliente não possui telefone para WhatsApp.', 'error'); return; }
-                    url = `https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(mensagem)}`;
-                    break;
-                case 'sms':
-                    if (!phone) { Swal.fire('Erro', 'Cliente não possui telefone para SMS.', 'error'); return; }
-                    url = `sms:${phone.replace(/\D/g, '')}?body=${encodeURIComponent(mensagem)}`;
-                    break;
-                case 'email':
-                    if (!email) { Swal.fire('Erro', 'Cliente não possui e-mail cadastrado.', 'error'); return; }
-                    const assunto = encodeURIComponent('Confirmação de Agendamento');
-                    url = `mailto:${email}?subject=${assunto}&body=${encodeURIComponent(mensagem)}`;
-                    break;
-                case 'none':
-                    // Não enviar, apenas salvar
-                    break;
-                default:
-                    return;
-            }
-
-            // Fechar popup
-            fecharConfirmacao();
-
-            // Salvar agendamento
-            salvarAgendamentoCompleto();
-
-            // Abrir URL se não for 'none'
-            if (url && metodo !== 'none') {
-                window.open(url, '_blank');
-                Swal.fire('✅ Mensagem enviada!', `Confirmação enviada via ${metodo.toUpperCase()}`, 'success');
-            } else if (metodo === 'none') {
-                Swal.fire('✅ Agendamento salvo!', 'Agendamento salvo sem envio de confirmação.', 'success');
-            }
-        }
-
-        // ==========================================
-        // 19. SALVAR AGENDAMENTO COMPLETO
-        // ==========================================
-        function salvarAgendamentoCompleto() {
-            if (!currentUser) {
-                Swal.fire('Erro', 'Usuário não logado.', 'error');
-                return;
-            }
-
-            if (!selectedClientForAppointment || selectedServicesForAppointment.length === 0) {
-                Swal.fire('Erro', 'Cliente ou serviços não selecionados.', 'error');
-                return;
-            }
-
-            const totalDuration = selectedServicesForAppointment.reduce((sum, s) => sum + (s.duration || 30), 0);
-            const startMinutes = appointmentTime.hour * 60 + appointmentTime.minute;
-            const endMinutes = startMinutes + totalDuration;
-            const endHour = Math.floor(endMinutes / 60) % 24;
-            const endMinute = endMinutes % 60;
-
-            // Buscar colaborador selecionado (usar o primeiro disponível)
-            const collaboratorId = selectedCollaboratorId || (collaborators.length > 0 ? collaborators[0].id : null);
-
-            const appointmentData = {
-                clientId: selectedClientForAppointment.id || null,
-                clientName: selectedClientForAppointment.name,
-                clientPhone: selectedClientForAppointment.phone || '',
-                date: appointmentDate.toISOString().split('T')[0],
-                startTime: `${appointmentTime.hour.toString().padStart(2, '0')}:${appointmentTime.minute.toString().padStart(2, '0')}`,
-                endTime: `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`,
-                duration: totalDuration,
-                services: selectedServicesForAppointment.map(s => ({ 
-                    id: s.id || null, 
-                    name: s.name, 
-                    price: s.price, 
-                    duration: s.duration || 30 
-                })),
-                serviceName: selectedServicesForAppointment.map(s => s.name).join(', '),
-                total: selectedServicesForAppointment.reduce((sum, s) => sum + (parseFloat(s.price) || 0), 0),
-                userId: currentUser.uid,
-                collaboratorId: collaboratorId,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                status: 'scheduled',
-                reminder24h: true,
-                notes: appointmentTempData?.nota || '',
-                color: '#26196b'
-            };
-
-            Swal.fire({
-                title: 'Salvando agendamento...',
-                allowOutsideClick: false,
-                didOpen: () => { Swal.showLoading(); }
-            });
-
-            db.collection('appointments').add(appointmentData)
-                .then((docRef) => {
-                    const newAppointment = { id: docRef.id, ...appointmentData, createdAt: new Date() };
-                    appointments.push(newAppointment);
-                    salvarNoLocalStorage('appointments', appointments);
-                    
-                    // Fechar telas
-                    fecharSalvarAgendamento();
-                    fecharConfirmacao();
-                    
-                    // Recarregar agenda
-                    renderAgenda();
-                    
-                    Swal.close();
-                    Swal.fire({
-                        icon: 'success',
-                        title: '✅ Agendamento salvo!',
-                        text: `Agendamento para ${selectedClientForAppointment.name} em ${appointmentDate.toLocaleDateString('pt-PT')} às ${appointmentTime.hour.toString().padStart(2, '0')}:${appointmentTime.minute.toString().padStart(2, '0')}`,
-                        timer: 3000,
-                        showConfirmButton: false
-                    });
-
-                    // Resetar dados
-                    selectedClientForAppointment = null;
-                    selectedServicesForAppointment = [];
-                    appointmentTempData = null;
-                })
-                .catch(error => {
-                    Swal.close();
-                    Swal.fire('Erro', 'Erro ao salvar agendamento: ' + error.message, 'error');
-                });
-        }
-
-        // ==========================================
-        // 20. NAVEGAÇÃO DA AGENDA
+        // 18. NAVEGAÇÃO DA AGENDA
         // ==========================================
         function goToYesterday() {
             currentAgendaDate.setDate(currentAgendaDate.getDate() - 1);
@@ -3527,7 +3492,7 @@
         }
 
         // ==========================================
-        // 21. CALENDÁRIO
+        // 19. CALENDÁRIO
         // ==========================================
         function showDatePicker() {
             const modal = new bootstrap.Modal(document.getElementById('datePickerModal'));
@@ -3608,10 +3573,9 @@
             const [year, month, day] = dateStr.split('-').map(Number);
             const selectedDate = new Date(year, month - 1, day);
 
-            // Se estiver no modo de criação de agendamento, atualizar a data
             if (document.getElementById('appointmentSaveOverlay').classList.contains('active')) {
                 appointmentDate = selectedDate;
-                atualizarTelaSalvarAgendamento();
+                window.atualizarTelaSalvarAgendamento();
             } else {
                 currentAgendaDate = selectedDate;
                 renderAgenda();
@@ -3624,7 +3588,7 @@
         }
 
         // ==========================================
-        // 22. EDIÇÃO DE AGENDAMENTO (ORIGINAL)
+        // 20. EDIÇÃO DE AGENDAMENTO (ORIGINAL)
         // ==========================================
         function abrirModalEdicao(appointmentId) {
             const appointment = appointments.find(a => a.id === appointmentId);
@@ -3872,7 +3836,7 @@
         }
 
         // ==========================================
-        // 23. AUXILIARES
+        // 21. AUXILIARES
         // ==========================================
         function formatDate(date) {
             if (!date) return '';
@@ -3943,7 +3907,7 @@
         }
 
         // ==========================================
-        // 24. REFRESH
+        // 22. REFRESH
         // ==========================================
         function refreshAgenda() {
             const btn = document.getElementById('refreshBtn');
@@ -3963,7 +3927,7 @@
         }
 
         // ==========================================
-        // 25. VARIÁVEIS DE SERVIÇOS (PADRÃO)
+        // 23. VARIÁVEIS DE SERVIÇOS
         // ==========================================
         window.availableServices = [
             { id: 1, name: 'Corte Masculino', duration: 30, price: 15 },
@@ -3981,21 +3945,27 @@
         window.companyServices = [];
         window.allServices = [];
 
-        // ==========================================
-        // 26. EXPOR FUNÇÕES PARA USO EXTERNO
-        // ==========================================
-        window.atualizarTelaSalvarAgendamento = atualizarTelaSalvarAgendamento;
-        window.removerServicoSelecionado = removerServicoSelecionado;
-        window.adicionarMaisServicos = adicionarMaisServicos;
-        window.ligarCliente = ligarCliente;
-        window.whatsappCliente = whatsappCliente;
-        window.solicitarAvaliacaoGoogle = solicitarAvaliacaoGoogle;
-        window.adicionarNota = adicionarNota;
-        window.checkoutAgendamento = checkoutAgendamento;
-        window.confirmarAgendamento = confirmarAgendamento;
-        window.enviarConfirmacao = enviarConfirmacao;
-        window.fecharConfirmacao = fecharConfirmacao;
-        window.abrirSelecaoCliente = abrirSelecaoCliente;
+        // EXPOR FUNÇÕES GLOBAIS
+        window.abrirSelecaoCliente = window.abrirSelecaoCliente;
+        window.abrirSelecaoServico = window.abrirSelecaoServico;
+        window.abrirSalvarAgendamento = window.abrirSalvarAgendamento;
+        window.fecharSelecaoCliente = window.fecharSelecaoCliente;
+        window.fecharSelecaoServico = window.fecharSelecaoServico;
+        window.fecharSalvarAgendamento = window.fecharSalvarAgendamento;
+        window.atualizarTelaSalvarAgendamento = window.atualizarTelaSalvarAgendamento;
+        window.removerServicoSelecionado = window.removerServicoSelecionado;
+        window.adicionarMaisServicos = window.adicionarMaisServicos;
+        window.ligarCliente = window.ligarCliente;
+        window.whatsappCliente = window.whatsappCliente;
+        window.solicitarAvaliacaoGoogle = window.solicitarAvaliacaoGoogle;
+        window.adicionarNota = window.adicionarNota;
+        window.checkoutAgendamento = window.checkoutAgendamento;
+        window.confirmarAgendamento = window.confirmarAgendamento;
+        window.enviarConfirmacao = window.enviarConfirmacao;
+        window.fecharConfirmacao = window.fecharConfirmacao;
+        window.salvarAgendamentoCompleto = window.salvarAgendamentoCompleto;
+        window.carregarServicosRecentes = window.carregarServicosRecentes;
+        window.carregarTodosServicos = window.carregarTodosServicos;
 
         console.log('✅ Agenda com criação de agendamento carregada com sucesso!');
         console.log('📌 Para criar um agendamento: toque em qualquer horário da agenda.');
