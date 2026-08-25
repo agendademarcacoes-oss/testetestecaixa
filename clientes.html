@@ -1,0 +1,1268 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Clientes - Studio DeVitto</title>
+    
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+    
+    <!-- Cloudinary SDK -->
+    <script src="https://upload-widget.cloudinary.com/global.js"></script>
+    
+    <style>
+        /* ============================================
+           BLOQUEIO DE ZOOM
+           ============================================ */
+        * {
+            -webkit-touch-callout: none !important;
+            -webkit-user-select: none !important;
+            -webkit-tap-highlight-color: transparent !important;
+            -ms-touch-action: manipulation !important;
+            touch-action: manipulation !important;
+        }
+        
+        html, body {
+            touch-action: pan-x pan-y !important;
+            -ms-touch-action: pan-x pan-y !important;
+            -webkit-text-size-adjust: 100% !important;
+            -moz-text-size-adjust: 100% !important;
+            -ms-text-size-adjust: 100% !important;
+            text-size-adjust: 100% !important;
+            overflow: hidden !important;
+            height: 100% !important;
+            width: 100% !important;
+            position: fixed !important;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f8f9fa;
+            min-height: 100vh;
+            padding: 0;
+            margin: 0;
+            touch-action: pan-x pan-y !important;
+            -ms-touch-action: pan-x pan-y !important;
+            position: fixed !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* ============================================
+           HEADER COM BOTÃO HOME E LOGO
+           ============================================ */
+        .clientes-header {
+            background: linear-gradient(135deg, #26196b, #4a3a9c);
+            color: white;
+            padding: 10px 16px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+            min-height: 48px;
+        }
+
+        .clientes-header .header-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .clientes-header .header-left .brand-logo {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .clientes-header .header-left .brand-logo img {
+            height: 28px;
+            width: 28px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .clientes-header .header-left .brand-logo .brand-icon {
+            font-size: 1.1rem;
+            color: #ffd700;
+        }
+
+        .clientes-header .header-left h1 {
+            font-weight: 700;
+            font-size: 1rem;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .clientes-header .header-left h1 small {
+            font-size: 0.6rem;
+            font-weight: 400;
+            opacity: 0.7;
+        }
+
+        .clientes-header .header-actions {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .btn-home {
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            border-radius: 25px;
+            padding: 5px 12px;
+            font-size: 0.75rem;
+            transition: all 0.3s;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            text-decoration: none;
+        }
+
+        .btn-home:hover {
+            background: rgba(255,255,255,0.25);
+            transform: translateY(-2px);
+        }
+
+        .btn-home i {
+            font-size: 0.8rem;
+        }
+
+        .btn-refresh {
+            background: rgba(255,255,255,0.12);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            border-radius: 25px;
+            padding: 5px 10px;
+            font-size: 0.75rem;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .btn-refresh:hover {
+            background: rgba(255,255,255,0.25);
+        }
+
+        .btn-refresh:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .last-update {
+            font-size: 0.6rem;
+            opacity: 0.7;
+            color: rgba(255,255,255,0.8);
+        }
+
+        /* ============================================
+           CONTEÚDO PRINCIPAL
+           ============================================ */
+        .clientes-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 16px 20px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            height: calc(100vh - 48px);
+        }
+
+        .card-custom {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            padding: 18px 20px;
+            margin-bottom: 16px;
+            transition: box-shadow 0.3s;
+        }
+
+        .card-custom:hover {
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+        }
+
+        .card-custom .card-header-custom {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 12px;
+            margin-bottom: 16px;
+            font-weight: 600;
+            color: #26196b;
+            font-size: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .form-label {
+            font-weight: 600;
+            color: #333;
+            font-size: 0.85rem;
+        }
+
+        .form-control, .form-select {
+            border-radius: 8px;
+            border: 2px solid #e9ecef;
+            padding: 10px 14px;
+            font-size: 0.9rem;
+            transition: border-color 0.3s;
+        }
+
+        .form-control:focus, .form-select:focus {
+            border-color: #26196b;
+            box-shadow: 0 0 0 0.25rem rgba(38,25,107,0.15);
+        }
+
+        /* ============================================
+           TABELA DE CLIENTES
+           ============================================ */
+        .table-clientes {
+            font-size: 0.85rem;
+        }
+
+        .table-clientes th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #dee2e6;
+            white-space: nowrap;
+        }
+
+        .table-clientes td {
+            vertical-align: middle;
+            padding: 10px 12px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .table-clientes tr:hover {
+            background: #f8f9fa;
+        }
+
+        .client-avatar-table {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #e0e0e0;
+            cursor: pointer;
+        }
+
+        .client-avatar-placeholder {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #26196b, #4a3a9c);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        /* ============================================
+           MODAL DE CLIENTE
+           ============================================ */
+        .cliente-modal .modal-content {
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        .cliente-modal .modal-header {
+            background: #26196b;
+            color: white;
+            border: none;
+        }
+
+        .cliente-modal .modal-header .btn-close {
+            filter: brightness(0) invert(1);
+        }
+
+        .cliente-modal .modal-body {
+            padding: 24px;
+        }
+
+        .photo-preview-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .photo-preview {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #26196b;
+            background: #f8f9fa;
+        }
+
+        .photo-placeholder {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #26196b, #4a3a9c);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            border: 3px solid #26196b;
+        }
+
+        /* ============================================
+           RESPONSIVIDADE
+           ============================================ */
+        @media (max-width: 768px) {
+            .clientes-content {
+                padding: 12px 14px;
+            }
+            .card-custom {
+                padding: 14px 16px;
+            }
+            .table-clientes {
+                font-size: 0.75rem;
+            }
+            .table-clientes td, .table-clientes th {
+                padding: 6px 8px;
+            }
+            .client-avatar-table {
+                width: 32px;
+                height: 32px;
+            }
+            .client-avatar-placeholder {
+                width: 32px;
+                height: 32px;
+                font-size: 12px;
+            }
+            .photo-preview, .photo-placeholder {
+                width: 80px;
+                height: 80px;
+                font-size: 32px;
+            }
+            .cliente-modal .modal-body {
+                padding: 16px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .clientes-content {
+                padding: 8px 10px;
+            }
+            .card-custom {
+                padding: 12px 14px;
+            }
+            .table-clientes {
+                font-size: 0.7rem;
+            }
+            .table-clientes td, .table-clientes th {
+                padding: 4px 6px;
+            }
+            .client-avatar-table {
+                width: 28px;
+                height: 28px;
+            }
+            .client-avatar-placeholder {
+                width: 28px;
+                height: 28px;
+                font-size: 10px;
+            }
+            .photo-preview, .photo-placeholder {
+                width: 60px;
+                height: 60px;
+                font-size: 24px;
+            }
+        }
+
+        /* ============================================
+           SCROLLBAR
+           ============================================ */
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+
+        /* ============================================
+           UTILITÁRIOS
+           ============================================ */
+        .text-primary-custom { color: #26196b; }
+        .bg-primary-custom { background: #26196b; }
+        .border-primary-custom { border-color: #26196b; }
+        .cursor-pointer { cursor: pointer; }
+        .gap-2 { gap: 6px; }
+        .gap-3 { gap: 10px; }
+        .flex-wrap { flex-wrap: wrap; }
+        .align-center { align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .mt-2 { margin-top: 6px; }
+        .mt-3 { margin-top: 12px; }
+        .mb-2 { margin-bottom: 6px; }
+        .mb-3 { margin-bottom: 12px; }
+        .text-muted { color: #6c757d; }
+        .text-success { color: #28a745; }
+        .text-danger { color: #dc3545; }
+        .fw-bold { font-weight: 700; }
+        .fw-semibold { font-weight: 600; }
+        .fs-small { font-size: 0.7rem; }
+    </style>
+</head>
+<body>
+
+    <!-- ==========================================
+    HEADER COM BOTÃO HOME E LOGO
+    ========================================== -->
+    <header class="clientes-header" id="clientesHeader">
+        <div class="header-left">
+            <div class="brand-logo" id="headerLogo">
+                <i class="fas fa-users brand-icon" id="logoIconHeader"></i>
+                <img id="logoImageHeader" style="display:none; height:28px; width:28px; border-radius:50%; object-fit:cover;" alt="Logo">
+            </div>
+            <h1>
+                Clientes
+                <small id="userGreeting">Carregando...</small>
+            </h1>
+        </div>
+        <div class="header-actions">
+            <span class="last-update" id="lastUpdateBadge">
+                <i class="fas fa-clock me-1"></i>Atualizado agora
+            </span>
+            <button class="btn-refresh" id="refreshBtn" onclick="recarregarClientes()">
+                <i class="fas fa-sync-alt me-1"></i>Atualizar
+            </button>
+            <button class="btn-home" onclick="goHome()">
+                <i class="fas fa-home"></i>
+                <span>Home</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- ==========================================
+    CONTEÚDO PRINCIPAL
+    ========================================== -->
+    <div class="clientes-content" id="clientesContent">
+
+        <!-- ==========================================
+        LISTA DE CLIENTES
+        ========================================== -->
+        <div class="card-custom">
+            <div class="card-header-custom">
+                <span><i class="fas fa-list me-2"></i>Lista de Clientes</span>
+                <div class="d-flex flex-wrap gap-2">
+                    <div class="input-group" style="max-width:250px;">
+                        <span class="input-group-text bg-white border-end-0">
+                            <i class="fas fa-search text-muted"></i>
+                        </span>
+                        <input type="text" class="form-control border-start-0" id="clientSearch" placeholder="Buscar cliente..." style="font-size:0.8rem;">
+                    </div>
+                    <button class="btn btn-primary btn-sm" id="addClientBtn">
+                        <i class="fas fa-plus me-1"></i>Adicionar
+                    </button>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-clientes table-hover" id="clientesTable">
+                    <thead>
+                        <tr>
+                            <th style="width:50px;">Foto</th>
+                            <th>Nome</th>
+                            <th>Telefone</th>
+                            <th>E-mail</th>
+                            <th>Nascimento</th>
+                            <th style="width:120px;">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="clientesTableBody">
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-4">
+                                <i class="fas fa-users fa-2x mb-2 opacity-25"></i>
+                                <p>Carregando clientes...</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="mt-2 d-flex justify-content-between align-items-center">
+                <span class="text-muted fs-small">Total: <span id="totalClientes">0</span> cliente(s)</span>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ==========================================
+    MODAL DE ADICIONAR/EDITAR CLIENTE
+    ========================================== -->
+    <div class="modal fade cliente-modal" id="clienteModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="clienteModalTitle">
+                        <i class="fas fa-user-plus me-2"></i>Adicionar Cliente
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="clienteForm">
+                        <input type="hidden" id="clienteId">
+                        <div class="row">
+                            <div class="col-md-4 text-center">
+                                <div class="photo-preview-container">
+                                    <div id="photoPreviewArea">
+                                        <div class="photo-placeholder" id="photoPlaceholder">
+                                            <i class="fas fa-user"></i>
+                                        </div>
+                                        <img class="photo-preview" id="photoPreview" style="display:none;" alt="Foto do cliente">
+                                    </div>
+                                    <input type="file" id="photoUpload" accept="image/*" style="display:none;">
+                                    <div class="mt-2 d-flex gap-2 flex-wrap justify-content-center">
+                                        <button type="button" class="btn btn-sm btn-outline-primary" id="uploadPhotoBtn">
+                                            <i class="fas fa-camera me-1"></i>Foto
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" id="removePhotoBtn" style="display:none;">
+                                            <i class="fas fa-trash me-1"></i>Remover
+                                        </button>
+                                    </div>
+                                    <small class="text-muted fs-small">Tamanho recomendado: 500x500px</small>
+                                </div>
+                            </div>
+                            <div class="col-md-8">
+                                <div class="mb-3">
+                                    <label for="clienteNome" class="form-label">Nome Completo *</label>
+                                    <input type="text" class="form-control" id="clienteNome" placeholder="Nome do cliente" required>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="clienteTelefone" class="form-label">Telefone/WhatsApp *</label>
+                                        <input type="text" class="form-control" id="clienteTelefone" placeholder="+351 912 345 678" required>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="clienteEmail" class="form-label">E-mail</label>
+                                        <input type="email" class="form-control" id="clienteEmail" placeholder="cliente@email.com">
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="clienteNascimento" class="form-label">Data de Nascimento</label>
+                                        <input type="date" class="form-control" id="clienteNascimento">
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="clienteEndereco" class="form-label">Endereço</label>
+                                        <input type="text" class="form-control" id="clienteEndereco" placeholder="Endereço completo">
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="clienteObservacoes" class="form-label">Observações</label>
+                                    <textarea class="form-control" id="clienteObservacoes" rows="2" placeholder="Observações sobre o cliente..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="saveClienteBtn">
+                        <i class="fas fa-save me-1"></i>Salvar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+    MODAL DE VISUALIZAÇÃO DA FOTO
+    ========================================== -->
+    <div class="modal fade" id="photoModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Foto do Cliente</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <img id="photoModalImage" src="" alt="Foto do cliente" style="max-width:100%;max-height:70vh;border-radius:8px;">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+    SCRIPTS
+    ========================================== -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // ==========================================
+        // 1. CONFIGURAÇÃO DO FIREBASE
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyC5ezGCOS5d-Vy2l-Gimkl_V9VmwDLZzKc",
+            authDomain: "studio-devitto-152400.firebaseapp.com",
+            projectId: "studio-devitto-152400",
+            storageBucket: "studio-devitto-152400.appspot.com",
+            messagingSenderId: "138996544906",
+            appId: "1:138996544906:web:6569bf954a00e2f7944473",
+            measurementId: "G-FCC5T13QW8"
+        };
+
+        const cloudinaryConfig = {
+            cloudName: "daurmyabq",
+            uploadPreset: "STUDIODEVITTO_PRESET"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // ==========================================
+        // 2. VARIÁVEIS GLOBAIS
+        // ==========================================
+        let currentUser = null;
+        let clientes = [];
+        let clienteEditandoId = null;
+        let fotoClienteUrl = null;
+        let broadcastChannel = null;
+        let filtroClientes = [];
+
+        // ==========================================
+        // 3. INICIALIZAÇÃO
+        // ==========================================
+        document.addEventListener('DOMContentLoaded', function() {
+            initBroadcastChannel();
+
+            auth.onAuthStateChanged(user => {
+                if (user) {
+                    currentUser = user;
+                    document.getElementById('userGreeting').textContent = user.email;
+                    carregarClientes();
+                    carregarConfiguracoesSistema();
+                } else {
+                    document.getElementById('userGreeting').textContent = 'Não autenticado';
+                    mostrarLoginPrompt();
+                }
+            });
+
+            // Eventos
+            document.getElementById('addClientBtn').addEventListener('click', function() {
+                abrirModalCliente();
+            });
+
+            document.getElementById('uploadPhotoBtn').addEventListener('click', function() {
+                document.getElementById('photoUpload').click();
+            });
+
+            document.getElementById('photoUpload').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    uploadFotoCliente(file);
+                }
+            });
+
+            document.getElementById('removePhotoBtn').addEventListener('click', function() {
+                removerFotoCliente();
+            });
+
+            document.getElementById('saveClienteBtn').addEventListener('click', function() {
+                salvarCliente();
+            });
+
+            document.getElementById('clientSearch').addEventListener('input', function() {
+                filtrarClientes(this.value);
+            });
+
+            // Fechar modal e limpar dados
+            document.getElementById('clienteModal').addEventListener('hidden.bs.modal', function() {
+                limparModalCliente();
+            });
+
+            // Atualizar a cada 30 segundos
+            setInterval(function() {
+                if (currentUser) {
+                    carregarClientes();
+                }
+            }, 30000);
+
+            // Sincronizar configurações do sistema
+            carregarConfiguracoesSistema();
+
+            // Atualizar logo periodicamente
+            setInterval(atualizarLogoHeader, 10000);
+        });
+
+        // ==========================================
+        // 4. CANAL DE COMUNICAÇÃO
+        // ==========================================
+        function initBroadcastChannel() {
+            try {
+                if (window.BroadcastChannel) {
+                    broadcastChannel = new BroadcastChannel('clientes-sync');
+                    broadcastChannel.onmessage = function(event) {
+                        if (event.data && event.data.type === 'clientesUpdated') {
+                            console.log('📡 Clientes atualizados via BroadcastChannel');
+                            carregarClientes();
+                        }
+                        if (event.data && event.data.type === 'configUpdated') {
+                            console.log('📡 Configurações atualizadas via BroadcastChannel');
+                            carregarConfiguracoesSistema();
+                        }
+                        if (event.data && event.data.type === 'logoUpdated') {
+                            console.log('📡 Logo atualizada via BroadcastChannel');
+                            atualizarLogoHeader();
+                        }
+                    };
+                    console.log('✅ BroadcastChannel iniciado para clientes');
+                }
+            } catch(e) {
+                console.warn('⚠️ BroadcastChannel não suportado:', e);
+            }
+        }
+
+        function broadcastClientesUpdate() {
+            if (broadcastChannel) {
+                try {
+                    broadcastChannel.postMessage({ type: 'clientesUpdated' });
+                } catch(e) {}
+            }
+        }
+
+        function broadcastConfigUpdate() {
+            if (broadcastChannel) {
+                try {
+                    broadcastChannel.postMessage({ type: 'configUpdated' });
+                } catch(e) {}
+            }
+        }
+
+        function broadcastLogoUpdate() {
+            if (broadcastChannel) {
+                try {
+                    broadcastChannel.postMessage({ type: 'logoUpdated' });
+                } catch(e) {}
+            }
+        }
+
+        // ==========================================
+        // 5. CARREGAR CLIENTES
+        // ==========================================
+        function carregarClientes() {
+            if (!currentUser) return;
+
+            db.collection('clients')
+                .where('userId', '==', currentUser.uid)
+                .get()
+                .then(snapshot => {
+                    clientes = [];
+                    snapshot.forEach(doc => {
+                        clientes.push({
+                            id: doc.id,
+                            ...doc.data()
+                        });
+                    });
+                    clientes.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                    renderizarClientes();
+                    atualizarUltimaAtualizacao();
+                    salvarLocalStorage();
+                })
+                .catch(err => {
+                    console.error('Erro ao carregar clientes:', err);
+                    carregarLocalStorage();
+                });
+        }
+
+        function salvarLocalStorage() {
+            try {
+                localStorage.setItem('clientes_data', JSON.stringify(clientes));
+            } catch(e) {}
+        }
+
+        function carregarLocalStorage() {
+            try {
+                const data = localStorage.getItem('clientes_data');
+                if (data) {
+                    clientes = JSON.parse(data);
+                    renderizarClientes();
+                }
+            } catch(e) {}
+        }
+
+        // ==========================================
+        // 6. RENDERIZAR CLIENTES
+        // ==========================================
+        function renderizarClientes() {
+            const tbody = document.getElementById('clientesTableBody');
+            const search = document.getElementById('clientSearch').value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+
+            let filtered = clientes;
+            if (search) {
+                filtered = clientes.filter(c => {
+                    const nome = (c.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+                    const telefone = (c.phone || '').toLowerCase();
+                    const email = (c.email || '').toLowerCase();
+                    return nome.includes(search) || telefone.includes(search) || email.includes(search);
+                });
+            }
+
+            document.getElementById('totalClientes').textContent = filtered.length;
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">
+                            <i class="fas fa-users fa-2x mb-2 opacity-25"></i>
+                            <p>Nenhum cliente encontrado.</p>
+                            <button class="btn btn-sm btn-primary" onclick="document.getElementById('addClientBtn').click()">
+                                <i class="fas fa-plus me-1"></i>Adicionar Cliente
+                            </button>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            let html = '';
+            filtered.forEach(cliente => {
+                const fotoHtml = cliente.photoUrl ?
+                    `<img src="${cliente.photoUrl}" class="client-avatar-table" onclick="verFoto('${cliente.photoUrl}')" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">` :
+                    `<div class="client-avatar-placeholder">${(cliente.name || '?').charAt(0).toUpperCase()}</div>`;
+
+                const nascimento = cliente.birthdate ? formatarData(cliente.birthdate) : '-';
+
+                html += `
+                    <tr>
+                        <td>${fotoHtml}</td>
+                        <td><strong>${cliente.name || 'Sem nome'}</strong></td>
+                        <td>${cliente.phone || '-'}</td>
+                        <td>${cliente.email || '-'}</td>
+                        <td>${nascimento}</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary me-1" onclick="editarCliente('${cliente.id}')" title="Editar">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="excluirCliente('${cliente.id}')" title="Excluir">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            tbody.innerHTML = html;
+        }
+
+        function filtrarClientes(search) {
+            renderizarClientes();
+        }
+
+        // ==========================================
+        // 7. MODAL DE CLIENTE
+        // ==========================================
+        function abrirModalCliente(clienteId = null) {
+            clienteEditandoId = clienteId;
+            const modal = new bootstrap.Modal(document.getElementById('clienteModal'));
+
+            if (clienteId) {
+                document.getElementById('clienteModalTitle').innerHTML = '<i class="fas fa-user-edit me-2"></i>Editar Cliente';
+                const cliente = clientes.find(c => c.id === clienteId);
+                if (cliente) {
+                    document.getElementById('clienteId').value = cliente.id;
+                    document.getElementById('clienteNome').value = cliente.name || '';
+                    document.getElementById('clienteTelefone').value = cliente.phone || '';
+                    document.getElementById('clienteEmail').value = cliente.email || '';
+                    document.getElementById('clienteNascimento').value = cliente.birthdate || '';
+                    document.getElementById('clienteEndereco').value = cliente.address || '';
+                    document.getElementById('clienteObservacoes').value = cliente.notes || '';
+
+                    if (cliente.photoUrl) {
+                        fotoClienteUrl = cliente.photoUrl;
+                        document.getElementById('photoPreview').src = cliente.photoUrl;
+                        document.getElementById('photoPreview').style.display = 'inline-block';
+                        document.getElementById('photoPlaceholder').style.display = 'none';
+                        document.getElementById('removePhotoBtn').style.display = 'inline-block';
+                    } else {
+                        limparFotoPreview();
+                    }
+                }
+            } else {
+                document.getElementById('clienteModalTitle').innerHTML = '<i class="fas fa-user-plus me-2"></i>Adicionar Cliente';
+                limparModalCliente();
+            }
+
+            modal.show();
+        }
+
+        function limparModalCliente() {
+            document.getElementById('clienteId').value = '';
+            document.getElementById('clienteNome').value = '';
+            document.getElementById('clienteTelefone').value = '';
+            document.getElementById('clienteEmail').value = '';
+            document.getElementById('clienteNascimento').value = '';
+            document.getElementById('clienteEndereco').value = '';
+            document.getElementById('clienteObservacoes').value = '';
+            clienteEditandoId = null;
+            fotoClienteUrl = null;
+            document.getElementById('photoUpload').value = '';
+            limparFotoPreview();
+        }
+
+        function limparFotoPreview() {
+            document.getElementById('photoPreview').style.display = 'none';
+            document.getElementById('photoPlaceholder').style.display = 'flex';
+            document.getElementById('removePhotoBtn').style.display = 'none';
+            document.getElementById('photoUpload').value = '';
+        }
+
+        // ==========================================
+        // 8. FOTO DO CLIENTE
+        // ==========================================
+        function uploadFotoCliente(file) {
+            if (!file) return;
+            if (!file.type.match('image.*')) {
+                Swal.fire('Erro', 'Por favor, selecione uma imagem válida.', 'error');
+                return;
+            }
+
+            // Mostrar preview imediato
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('photoPreview').src = e.target.result;
+                document.getElementById('photoPreview').style.display = 'inline-block';
+                document.getElementById('photoPlaceholder').style.display = 'none';
+                document.getElementById('removePhotoBtn').style.display = 'inline-block';
+            };
+            reader.readAsDataURL(file);
+
+            // Fazer upload para Cloudinary
+            Swal.fire({
+                title: 'Enviando foto...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('upload_preset', cloudinaryConfig.uploadPreset);
+
+            fetch(`https://api.cloudinary.com/v1_1/${cloudinaryConfig.cloudName}/image/upload`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.secure_url) {
+                    fotoClienteUrl = data.secure_url;
+                    Swal.close();
+                    Swal.fire({
+                        icon: 'success',
+                        title: '✅ Foto enviada!',
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                } else {
+                    throw new Error('Erro no upload');
+                }
+            })
+            .catch(error => {
+                Swal.close();
+                Swal.fire('Erro', 'Erro ao enviar foto: ' + error.message, 'error');
+                console.error(error);
+            });
+        }
+
+        function removerFotoCliente() {
+            fotoClienteUrl = null;
+            document.getElementById('photoUpload').value = '';
+            limparFotoPreview();
+            Swal.fire('Foto removida', 'A foto foi removida do cliente.', 'info');
+        }
+
+        function verFoto(url) {
+            if (!url) return;
+            document.getElementById('photoModalImage').src = url;
+            const modal = new bootstrap.Modal(document.getElementById('photoModal'));
+            modal.show();
+        }
+
+        // ==========================================
+        // 9. SALVAR CLIENTE
+        // ==========================================
+        function salvarCliente() {
+            const nome = document.getElementById('clienteNome').value.trim();
+            const telefone = document.getElementById('clienteTelefone').value.trim();
+            const email = document.getElementById('clienteEmail').value.trim();
+            const nascimento = document.getElementById('clienteNascimento').value;
+            const endereco = document.getElementById('clienteEndereco').value.trim();
+            const observacoes = document.getElementById('clienteObservacoes').value.trim();
+
+            if (!nome) {
+                Swal.fire('Erro', 'O nome do cliente é obrigatório.', 'error');
+                document.getElementById('clienteNome').focus();
+                return;
+            }
+
+            if (!telefone) {
+                Swal.fire('Erro', 'O telefone é obrigatório.', 'error');
+                document.getElementById('clienteTelefone').focus();
+                return;
+            }
+
+            const clienteData = {
+                name: nome,
+                phone: telefone,
+                email: email || '',
+                birthdate: nascimento || '',
+                address: endereco || '',
+                notes: observacoes || '',
+                photoUrl: fotoClienteUrl || null,
+                userId: currentUser.uid,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            Swal.fire({
+                title: 'Salvando...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            let promise;
+            if (clienteEditandoId) {
+                promise = db.collection('clients').doc(clienteEditandoId).update(clienteData);
+            } else {
+                clienteData.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+                promise = db.collection('clients').add(clienteData);
+            }
+
+            promise
+                .then(() => {
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('clienteModal'));
+                    if (modal) modal.hide();
+                    carregarClientes();
+                    broadcastClientesUpdate();
+                    Swal.close();
+                    Swal.fire({
+                        icon: 'success',
+                        title: '✅ Cliente salvo!',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                })
+                .catch(error => {
+                    Swal.close();
+                    Swal.fire('Erro', 'Erro ao salvar cliente: ' + error.message, 'error');
+                    console.error(error);
+                });
+        }
+
+        // ==========================================
+        // 10. EDITAR CLIENTE
+        // ==========================================
+        function editarCliente(clienteId) {
+            abrirModalCliente(clienteId);
+        }
+
+        // ==========================================
+        // 11. EXCLUIR CLIENTE
+        // ==========================================
+        function excluirCliente(clienteId) {
+            const cliente = clientes.find(c => c.id === clienteId);
+            if (!cliente) return;
+
+            Swal.fire({
+                title: 'Excluir Cliente',
+                html: `
+                    <p>Tem certeza que deseja excluir <strong>${cliente.name}</strong>?</p>
+                    <p class="text-danger" style="font-size:0.85rem;">Esta ação não pode ser desfeita!</p>
+                `,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Sim, excluir',
+                cancelButtonText: 'Cancelar'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    Swal.fire({
+                        title: 'Excluindo...',
+                        allowOutsideClick: false,
+                        didOpen: () => { Swal.showLoading(); }
+                    });
+
+                    db.collection('clients').doc(clienteId).delete()
+                        .then(() => {
+                            carregarClientes();
+                            broadcastClientesUpdate();
+                            Swal.close();
+                            Swal.fire('✅ Cliente excluído!', '', 'success');
+                        })
+                        .catch(error => {
+                            Swal.close();
+                            Swal.fire('Erro', 'Erro ao excluir cliente: ' + error.message, 'error');
+                            console.error(error);
+                        });
+                }
+            });
+        }
+
+        // ==========================================
+        // 12. CONFIGURAÇÕES DO SISTEMA
+        // ==========================================
+        function carregarConfiguracoesSistema() {
+            try {
+                const config = localStorage.getItem('systemConfig');
+                if (config) {
+                    const parsed = JSON.parse(config);
+                    if (parsed.corPrimaria) {
+                        document.documentElement.style.setProperty('--primary-color', parsed.corPrimaria);
+                        document.documentElement.style.setProperty('--accent-color', parsed.corPrimaria + '99');
+                        const header = document.getElementById('clientesHeader');
+                        if (header) {
+                            header.style.background = `linear-gradient(135deg, ${parsed.corPrimaria}, ${parsed.corPrimaria}99)`;
+                        }
+                    }
+                    atualizarLogoHeader();
+                }
+            } catch(e) {}
+        }
+
+        function atualizarLogoHeader() {
+            const config = localStorage.getItem('systemConfig');
+            if (config) {
+                const parsed = JSON.parse(config);
+                const logoUrl = parsed.logo;
+                const logoIcon = document.getElementById('logoIconHeader');
+                const logoImage = document.getElementById('logoImageHeader');
+
+                if (logoUrl) {
+                    logoIcon.style.display = 'none';
+                    logoImage.style.display = 'inline-block';
+                    logoImage.src = logoUrl;
+                } else {
+                    logoIcon.style.display = 'inline-block';
+                    logoImage.style.display = 'none';
+                }
+            }
+        }
+
+        // ==========================================
+        // 13. FUNÇÕES AUXILIARES
+        // ==========================================
+        function formatarData(data) {
+            if (!data) return '-';
+            const d = new Date(data);
+            return d.toLocaleDateString('pt-PT');
+        }
+
+        function atualizarUltimaAtualizacao() {
+            const now = new Date();
+            const el = document.getElementById('lastUpdateBadge');
+            if (el) {
+                el.innerHTML = `<i class="fas fa-clock me-1"></i>Atualizado ${now.toLocaleTimeString('pt-PT')}`;
+            }
+        }
+
+        function recarregarClientes() {
+            const btn = document.getElementById('refreshBtn');
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Carregando...';
+            btn.disabled = true;
+
+            carregarClientes();
+            setTimeout(() => {
+                btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Atualizar';
+                btn.disabled = false;
+                Swal.fire('✅ Clientes atualizados!', '', 'success');
+            }, 1000);
+        }
+
+        function goHome() {
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage({ action: 'goHome' }, '*');
+            } else {
+                window.location.href = 'layout-index.html';
+            }
+        }
+
+        function mostrarLoginPrompt() {
+            Swal.fire({
+                title: 'Acesso Restrito',
+                text: 'Faça login para gerenciar clientes.',
+                icon: 'warning',
+                confirmButtonText: 'Ir para Login',
+                showCancelButton: true,
+                cancelButtonText: 'Cancelar'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    window.location.href = '/login.html';
+                }
+            });
+        }
+
+        // ==========================================
+        // 14. RECEBER CONFIGURAÇÕES
+        // ==========================================
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'configUpdated') {
+                carregarConfiguracoesSistema();
+            }
+            if (event.data && event.data.type === 'clientesUpdated') {
+                carregarClientes();
+            }
+            if (event.data && event.data.type === 'logoUpdated') {
+                atualizarLogoHeader();
+            }
+        });
+
+        window.parent.postMessage({ type: 'getConfig' }, '*');
+
+        // ==========================================
+        // 15. EXPOR FUNÇÕES GLOBAIS
+        // ==========================================
+        window.editarCliente = editarCliente;
+        window.excluirCliente = excluirCliente;
+        window.verFoto = verFoto;
+        window.recarregarClientes = recarregarClientes;
+        window.goHome = goHome;
+
+        // ==========================================
+        // 16. LOG DE INICIALIZAÇÃO
+        // ==========================================
+        console.log('✅ Clientes carregado com sucesso!');
+        console.log('📌 Funcionalidades:');
+        console.log('   - Listagem de clientes com foto');
+        console.log('   - Adicionar novo cliente com foto');
+        console.log('   - Editar cliente existente');
+        console.log('   - Excluir cliente');
+        console.log('   - Busca de clientes (nome, telefone, e-mail)');
+        console.log('   - Sincronização em tempo real com Firebase');
+        console.log('   - Atualização automática via BroadcastChannel');
+        console.log('   - Botão Home para voltar ao menu principal');
+
+    </script>
+
+</body>
+</html>
