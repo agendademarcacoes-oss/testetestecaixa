@@ -1162,6 +1162,29 @@
     </div>
 
     <!-- ==========================================
+    MODAL DE SELEÇÃO DE PACOTE
+    ========================================== -->
+    <div class="modal fade" id="packageSelectionModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header" style="background:linear-gradient(135deg,#26196b,#4a3a9c);color:white;">
+                    <h5 class="modal-title"><i class="fas fa-box me-2"></i>Serviço de Pacote</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted">Este cliente possui pacotes ativos. Selecione um pacote para usar neste serviço:</p>
+                    <div id="packageList" style="max-height:300px;overflow-y:auto;"></div>
+                    <div class="mt-3">
+                        <button class="btn btn-outline-secondary w-100" id="packageNoUseBtn">
+                            <i class="fas fa-times me-1"></i>Não usar pacote (venda normal)
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
     SCRIPTS
     ========================================== -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
@@ -1202,6 +1225,9 @@
         let broadcastChannel = null;
         let cart = [];
         let newClientPhotoUrl = null;
+        let clientPackages = []; // Pacotes do cliente selecionado
+        let selectedPackageId = null; // Pacote selecionado para o serviço atual
+        let packageServiceInfo = null; // Info do serviço sendo adicionado com pacote
 
         // ==========================================
         // 3. FUNÇÃO DE BUSCA DE CLIENTES (REESCRITA DO ZERO - MANTIDA)
@@ -1303,6 +1329,8 @@
                             autocomplete.classList.remove('active');
                             if (clearBtn) clearBtn.classList.add('show');
                             input.focus();
+                            // Disparar evento para verificar pacotes
+                            verificarPacotesCliente(this.getAttribute('data-id'));
                         };
 
                         autocomplete.appendChild(item);
@@ -1397,6 +1425,20 @@
                     this.blur();
                 }
             });
+
+            // Adicionar evento para limpar seleção do cliente
+            if (clearBtn) {
+                clearBtn.addEventListener('click', function() {
+                    input.value = '';
+                    hidden.value = '';
+                    clientPackages = [];
+                    selectedPackageId = null;
+                    packageServiceInfo = null;
+                    autocomplete.classList.remove('active');
+                    this.classList.remove('show');
+                    input.focus();
+                });
+            }
         }
 
         // ==========================================
@@ -1460,7 +1502,153 @@
         }
 
         // ==========================================
-        // 5. INICIALIZAÇÃO
+        // 5. FUNÇÕES DE PACOTES
+        // ==========================================
+        async function verificarPacotesCliente(clientId) {
+            if (!clientId || !currentUser) {
+                clientPackages = [];
+                return;
+            }
+
+            try {
+                const snapshot = await db.collection('packages')
+                    .where('clientId', '==', clientId)
+                    .where('userId', '==', currentUser.uid)
+                    .where('status', '==', 'active')
+                    .get();
+
+                clientPackages = [];
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    const procedureDates = data.procedureDates || [];
+                    const pendingProcedures = procedureDates.filter(p => !p.completed).length;
+                    const totalProcedures = data.totalProcedures || procedureDates.length;
+
+                    clientPackages.push({
+                        id: doc.id,
+                        ...data,
+                        pending: pendingProcedures,
+                        total: totalProcedures,
+                        completed: totalProcedures - pendingProcedures
+                    });
+                });
+
+                console.log(`📦 ${clientPackages.length} pacotes encontrados para o cliente`);
+            } catch (error) {
+                console.error('Erro ao carregar pacotes:', error);
+                clientPackages = [];
+            }
+        }
+
+        function verificarServicoPacote(description) {
+            if (!clientPackages || clientPackages.length === 0) return null;
+
+            // Verificar se o serviço pertence a algum pacote
+            for (const pkg of clientPackages) {
+                if (pkg.pending <= 0) continue; // Pacote sem procedimentos pendentes
+                
+                // Verificar se a descrição do serviço corresponde ao pacote
+                // Pode ser por descrição ou por nome do procedimento
+                const packageDesc = (pkg.description || '').toLowerCase();
+                const serviceDesc = (description || '').toLowerCase();
+                
+                if (serviceDesc.includes(packageDesc) || packageDesc.includes(serviceDesc)) {
+                    return pkg;
+                }
+                
+                // Verificar também se o serviço está na lista de procedimentos do pacote
+                const procedureDates = pkg.procedureDates || [];
+                for (const proc of procedureDates) {
+                    if (!proc.completed) {
+                        // Se a data do procedimento é hoje ou futura, considerar como elegível
+                        const procDate = new Date(proc.date);
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        if (procDate >= today) {
+                            return pkg;
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
+        function mostrarSelecaoPacote(serviceInfo, callback) {
+            if (!clientPackages || clientPackages.length === 0) {
+                callback(null);
+                return;
+            }
+
+            packageServiceInfo = serviceInfo;
+            selectedPackageId = null;
+
+            const container = document.getElementById('packageList');
+            container.innerHTML = '';
+
+            let html = '';
+            clientPackages.forEach(pkg => {
+                const total = pkg.total || 0;
+                const completed = pkg.completed || 0;
+                const pending = pkg.pending || 0;
+                const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+                html += `
+                    <div class="cart-item mb-2" style="cursor:pointer;border-left-color:#28a745;" onclick="selecionarPacote('${pkg.id}')">
+                        <div class="cart-info">
+                            <div class="cart-title">
+                                <i class="fas fa-box me-1"></i>${pkg.description || 'Pacote'}
+                                <span class="badge bg-success ms-1">${pending} pendentes</span>
+                            </div>
+                            <div class="cart-detail">
+                                Progresso: ${completed}/${total} procedimentos (${progress}%)
+                                <div class="progress" style="height:4px;width:100px;display:inline-block;margin-left:8px;">
+                                    <div class="progress-bar bg-success" style="width:${progress}%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            <div class="cart-value">${formatCurrency(pkg.value)}</div>
+                            <span class="text-muted fs-small">Criado em ${pkg.startDate ? formatDate(pkg.startDate) : ''}</span>
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+
+            const modal = new bootstrap.Modal(document.getElementById('packageSelectionModal'), {
+                backdrop: 'static'
+            });
+
+            modal.show();
+
+            // Guardar callback
+            window._packageCallback = callback;
+
+            // Botão "Não usar pacote"
+            document.getElementById('packageNoUseBtn').onclick = function() {
+                modal.hide();
+                if (window._packageCallback) {
+                    window._packageCallback(null);
+                    window._packageCallback = null;
+                }
+            };
+        }
+
+        window.selecionarPacote = function(packageId) {
+            selectedPackageId = packageId;
+            const modal = bootstrap.Modal.getInstance(document.getElementById('packageSelectionModal'));
+            modal.hide();
+
+            if (window._packageCallback) {
+                const pkg = clientPackages.find(p => p.id === packageId);
+                window._packageCallback(pkg);
+                window._packageCallback = null;
+            }
+        };
+
+        // ==========================================
+        // 6. INICIALIZAÇÃO
         // ==========================================
         document.addEventListener('DOMContentLoaded', function() {
             initBroadcastChannel();
@@ -1545,6 +1733,9 @@
                 document.getElementById('serviceClientAutocomplete').classList.remove('active');
                 document.getElementById('serviceClientSearch').focus();
                 this.classList.remove('show');
+                clientPackages = [];
+                selectedPackageId = null;
+                packageServiceInfo = null;
             });
 
             document.getElementById('clearProduct').addEventListener('click', function() {
@@ -1753,7 +1944,7 @@
         });
 
         // ==========================================
-        // 6. CANAL DE COMUNICAÇÃO
+        // 7. CANAL DE COMUNICAÇÃO
         // ==========================================
         function initBroadcastChannel() {
             try {
@@ -1794,7 +1985,7 @@
         }
 
         // ==========================================
-        // 7. LOGO DO SISTEMA
+        // 8. LOGO DO SISTEMA
         // ==========================================
         function atualizarLogoHeader() {
             const config = localStorage.getItem('systemConfig');
@@ -1818,7 +2009,7 @@
         }
 
         // ==========================================
-        // 8. CARREGAR DADOS
+        // 9. CARREGAR DADOS
         // ==========================================
         function carregarDados() {
             if (!currentUser) return;
@@ -2008,7 +2199,7 @@
         }
 
         // ==========================================
-        // 9. NOVO CLIENTE
+        // 10. NOVO CLIENTE
         // ==========================================
         function abrirModalNovoCliente(nome = '') {
             document.getElementById('newClientForm').reset();
@@ -2146,6 +2337,9 @@
 
                     const clearBtn = searchInput.parentElement.querySelector('.clear-btn');
                     if (clearBtn) clearBtn.classList.add('show');
+                    
+                    // Verificar pacotes do novo cliente
+                    verificarPacotesCliente(clientId);
                 })
                 .catch(error => {
                     Swal.close();
@@ -2154,7 +2348,7 @@
         }
 
         // ==========================================
-        // 10. CAIXA
+        // 11. CAIXA
         // ==========================================
         function abrirModalAbrirCaixa() {
             document.getElementById('initialValueInput').value = 0;
@@ -2303,7 +2497,7 @@
         }
 
         // ==========================================
-        // 11. CARRINHO (COM DESCONTO)
+        // 12. CARRINHO (COM DESCONTO E PACOTES)
         // ==========================================
         function adicionarAoCarrinho(tipo) {
             if (!currentCashier) {
@@ -2319,7 +2513,6 @@
                 const duration = parseInt(document.getElementById('serviceDuration').value) || 30;
                 const description = document.getElementById('serviceDescription').value.trim();
                 
-                // Pegar o valor final com desconto
                 const valorFinal = parseFloat(document.getElementById('serviceFinalValue').value) || valorOriginal;
                 const descontoPercent = parseFloat(document.getElementById('serviceDiscountPercent').value) || 0;
                 const descontoValue = parseFloat(document.getElementById('serviceDiscountValue').value) || 0;
@@ -2339,39 +2532,99 @@
 
                 const descontoAplicado = valorOriginal - valorFinal;
 
-                cart.push({
-                    tipo: 'service',
+                // VERIFICAR PACOTES
+                if (clientPackages.length > 0 && client) {
+                    // Verificar se o serviço pode ser de pacote
+                    const pkgElegivel = verificarServicoPacote(description);
+                    
+                    if (pkgElegivel) {
+                        // Mostrar modal de seleção de pacote
+                        const serviceInfo = {
+                            clientId: clientId,
+                            collaboratorId: collaboratorId,
+                            type: type,
+                            valorOriginal: valorOriginal,
+                            valorFinal: valorFinal,
+                            descontoPercent: descontoPercent,
+                            descontoValue: descontoValue,
+                            descontoAplicado: descontoAplicado,
+                            duration: duration,
+                            description: description,
+                            clientName: client ? client.name : 'Cliente',
+                            collaboratorName: collaborator ? collaborator.name : 'Colaborador'
+                        };
+
+                        mostrarSelecaoPacote(serviceInfo, function(pkgSelecionado) {
+                            if (pkgSelecionado) {
+                                // Usar pacote: valor do serviço = 0 (já pago no pacote)
+                                const itemPacote = {
+                                    tipo: 'service',
+                                    clientId: clientId,
+                                    clientName: client ? client.name : 'Cliente',
+                                    collaboratorId: collaboratorId,
+                                    collaboratorName: collaborator ? collaborator.name : 'Colaborador',
+                                    type: type,
+                                    value: 0, // Valor zero pois está no pacote
+                                    valorOriginal: valorOriginal,
+                                    descontoPercent: 0,
+                                    descontoValue: 0,
+                                    descontoAplicado: 0,
+                                    duration: duration,
+                                    description: description + ' (Pacote)',
+                                    isPackage: true,
+                                    packageId: pkgSelecionado.id,
+                                    packageDescription: pkgSelecionado.description || 'Pacote'
+                                };
+                                
+                                cart.push(itemPacote);
+                                atualizarCarrinho();
+                                
+                                // Resetar campos
+                                document.getElementById('serviceForm').reset();
+                                document.getElementById('serviceClientId').value = '';
+                                document.getElementById('serviceClientSearch').value = '';
+                                document.getElementById('serviceClientAutocomplete').classList.remove('active');
+                                document.getElementById('serviceDescription').value = '';
+                                document.getElementById('serviceDiscountPercent').value = '0';
+                                document.getElementById('serviceDiscountValue').value = '0';
+                                document.getElementById('serviceFinalValue').value = '';
+
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: '✅ Serviço adicionado ao pacote!',
+                                    text: `O serviço foi registrado no pacote "${pkgSelecionado.description || 'Pacote'}"`,
+                                    timer: 2000,
+                                    showConfirmButton: false
+                                });
+                                
+                                // Recarregar pacotes do cliente
+                                verificarPacotesCliente(clientId);
+                            } else {
+                                // Não usar pacote: venda normal
+                                adicionarServicoNormal(serviceInfo);
+                            }
+                        });
+                        return;
+                    }
+                }
+
+                // Se não houver pacotes ou serviço não elegível, venda normal
+                const serviceInfo = {
                     clientId: clientId,
-                    clientName: client ? client.name : 'Cliente',
                     collaboratorId: collaboratorId,
-                    collaboratorName: collaborator ? collaborator.name : 'Colaborador',
                     type: type,
-                    value: valorFinal, // Valor com desconto
                     valorOriginal: valorOriginal,
+                    valorFinal: valorFinal,
                     descontoPercent: descontoPercent,
                     descontoValue: descontoValue,
                     descontoAplicado: descontoAplicado,
                     duration: duration,
-                    description: description || 'Serviço'
-                });
-
-                // Resetar campos
-                document.getElementById('serviceForm').reset();
-                document.getElementById('serviceClientId').value = '';
-                document.getElementById('serviceClientSearch').value = '';
-                document.getElementById('serviceClientAutocomplete').classList.remove('active');
-                document.getElementById('serviceDescription').value = '';
-                document.getElementById('serviceDiscountPercent').value = '0';
-                document.getElementById('serviceDiscountValue').value = '0';
-                document.getElementById('serviceFinalValue').value = '';
-
-                atualizarCarrinho();
-                Swal.fire({
-                    icon: 'success',
-                    title: '✅ Serviço adicionado ao carrinho!',
-                    timer: 1000,
-                    showConfirmButton: false
-                });
+                    description: description,
+                    clientName: client ? client.name : 'Cliente',
+                    collaboratorName: collaborator ? collaborator.name : 'Colaborador'
+                };
+                
+                adicionarServicoNormal(serviceInfo);
 
             } else if (tipo === 'product') {
                 const productId = document.getElementById('productId').value;
@@ -2409,7 +2662,7 @@
                     productPrice: product.salePrice,
                     quantity: quantity,
                     valorOriginal: valorOriginal,
-                    totalValue: valorFinal, // Valor com desconto
+                    totalValue: valorFinal,
                     descontoPercent: descontoPercent,
                     descontoValue: descontoValue,
                     descontoAplicado: descontoAplicado,
@@ -2439,6 +2692,43 @@
             }
         }
 
+        function adicionarServicoNormal(serviceInfo) {
+            cart.push({
+                tipo: 'service',
+                clientId: serviceInfo.clientId,
+                clientName: serviceInfo.clientName,
+                collaboratorId: serviceInfo.collaboratorId,
+                collaboratorName: serviceInfo.collaboratorName,
+                type: serviceInfo.type,
+                value: serviceInfo.valorFinal,
+                valorOriginal: serviceInfo.valorOriginal,
+                descontoPercent: serviceInfo.descontoPercent,
+                descontoValue: serviceInfo.descontoValue,
+                descontoAplicado: serviceInfo.descontoAplicado,
+                duration: serviceInfo.duration,
+                description: serviceInfo.description,
+                isPackage: false
+            });
+
+            // Resetar campos
+            document.getElementById('serviceForm').reset();
+            document.getElementById('serviceClientId').value = '';
+            document.getElementById('serviceClientSearch').value = '';
+            document.getElementById('serviceClientAutocomplete').classList.remove('active');
+            document.getElementById('serviceDescription').value = '';
+            document.getElementById('serviceDiscountPercent').value = '0';
+            document.getElementById('serviceDiscountValue').value = '0';
+            document.getElementById('serviceFinalValue').value = '';
+
+            atualizarCarrinho();
+            Swal.fire({
+                icon: 'success',
+                title: '✅ Serviço adicionado ao carrinho!',
+                timer: 1000,
+                showConfirmButton: false
+            });
+        }
+
         function atualizarCarrinho() {
             const cartCard = document.getElementById('cartCard');
             const container = document.getElementById('cartItems');
@@ -2464,20 +2754,28 @@
                     totalOriginal += item.valorOriginal || item.value;
                     
                     const temDesconto = item.descontoAplicado > 0;
-                    const descontoLabel = temDesconto ? 
-                        `<span class="discount-badge">-${formatCurrency(item.descontoAplicado)}</span>` : '';
+                    const isPackage = item.isPackage || false;
+                    
+                    let descontoLabel = '';
+                    if (temDesconto) {
+                        descontoLabel = `<span class="discount-badge">-${formatCurrency(item.descontoAplicado)}</span>`;
+                    }
+                    if (isPackage) {
+                        descontoLabel = `<span class="discount-badge" style="background:#6f42c1;">📦 Pacote</span>`;
+                    }
 
                     html += `
-                        <div class="cart-item">
+                        <div class="cart-item" style="${isPackage ? 'border-left-color:#6f42c1;background:#f8f0ff;' : ''}">
                             <div class="cart-info">
-                                <div class="cart-title"><i class="fas fa-cut text-primary me-1"></i>${item.description}</div>
+                                <div class="cart-title"><i class="fas fa-cut ${isPackage ? 'text-purple' : 'text-primary'} me-1"></i>${item.description}</div>
                                 <div class="cart-detail">${item.clientName} | ${item.collaboratorName} | ${item.type}
                                     ${temDesconto ? ` | <span class="text-success">${item.descontoPercent > 0 ? item.descontoPercent + '%' : '€ ' + item.descontoValue.toFixed(2)} OFF</span>` : ''}
+                                    ${isPackage ? ' | <span class="text-purple fw-bold">Pacote</span>' : ''}
                                 </div>
                             </div>
                             <div class="text-end">
-                                ${temDesconto ? `<div style="font-size:0.65rem;color:#6c757d;text-decoration:line-through;">${formatCurrency(item.valorOriginal)}</div>` : ''}
-                                <div class="cart-value">${formatCurrency(item.value)} ${descontoLabel}</div>
+                                ${temDesconto && !isPackage ? `<div style="font-size:0.65rem;color:#6c757d;text-decoration:line-through;">${formatCurrency(item.valorOriginal)}</div>` : ''}
+                                <div class="cart-value">${isPackage ? '✅ Incluso' : formatCurrency(item.value)} ${descontoLabel}</div>
                             </div>
                             <div class="cart-actions">
                                 <button class="btn btn-sm btn-outline-danger" onclick="removerDoCarrinho(${index})">
@@ -2530,6 +2828,10 @@
         }
 
         function removerDoCarrinho(index) {
+            const item = cart[index];
+            if (item && item.isPackage) {
+                // Se for item de pacote, não faz nada especial
+            }
             cart.splice(index, 1);
             atualizarCarrinho();
         }
@@ -2553,7 +2855,7 @@
         }
 
         // ==========================================
-        // 12. FINALIZAR VENDA
+        // 13. FINALIZAR VENDA
         // ==========================================
         function abrirModalCheckout() {
             if (cart.length === 0) {
@@ -2574,23 +2876,31 @@
             let totalOriginal = 0;
             let servicesTotal = 0;
             let productsTotal = 0;
+            let packageItems = [];
 
             cart.forEach(item => {
                 if (item.tipo === 'service') {
-                    servicesTotal += item.value;
-                    totalOriginal += item.valorOriginal || item.value;
+                    if (item.isPackage) {
+                        packageItems.push(item);
+                    } else {
+                        servicesTotal += item.value;
+                        totalOriginal += item.valorOriginal || item.value;
+                    }
                     const temDesconto = item.descontoAplicado > 0;
+                    const isPackage = item.isPackage || false;
+                    
                     html += `
-                        <div class="cart-item" style="border-left-color:#28a745;">
+                        <div class="cart-item" style="border-left-color:${isPackage ? '#6f42c1' : '#28a745'};${isPackage ? 'background:#f8f0ff;' : ''}">
                             <div class="cart-info">
-                                <div class="cart-title">✂️ ${item.description}</div>
+                                <div class="cart-title">${isPackage ? '📦' : '✂️'} ${item.description}</div>
                                 <div class="cart-detail">${item.clientName} | ${item.collaboratorName}
-                                    ${temDesconto ? ` | <span class="text-success">Desconto: ${formatCurrency(item.descontoAplicado)}</span>` : ''}
+                                    ${temDesconto && !isPackage ? ` | <span class="text-success">Desconto: ${formatCurrency(item.descontoAplicado)}</span>` : ''}
+                                    ${isPackage ? ' | <span class="text-purple fw-bold">Pacote</span>' : ''}
                                 </div>
                             </div>
                             <div class="text-end">
-                                ${temDesconto ? `<div style="font-size:0.65rem;color:#6c757d;text-decoration:line-through;">${formatCurrency(item.valorOriginal)}</div>` : ''}
-                                <div class="cart-value">${formatCurrency(item.value)}</div>
+                                ${temDesconto && !isPackage ? `<div style="font-size:0.65rem;color:#6c757d;text-decoration:line-through;">${formatCurrency(item.valorOriginal)}</div>` : ''}
+                                <div class="cart-value">${isPackage ? '✅ Incluso' : formatCurrency(item.value)}</div>
                             </div>
                         </div>
                     `;
@@ -2620,6 +2930,13 @@
             html += `
                     </div>
                 </div>
+                ${packageItems.length > 0 ? `
+                    <div class="alert alert-info py-2">
+                        <i class="fas fa-box me-2"></i>
+                        <strong>${packageItems.length}</strong> serviço(s) incluído(s) no pacote: 
+                        ${packageItems.map(p => p.packageDescription || 'Pacote').join(', ')}
+                    </div>
+                ` : ''}
                 <div class="row g-2">
                     <div class="col-6">
                         <div class="summary-box">
@@ -2672,33 +2989,55 @@
 
             const promises = [];
             const productsToUpdate = [];
+            const packagesToUpdate = [];
 
             cart.forEach(item => {
                 if (item.tipo === 'service') {
-                    // Registrar o serviço com o valor já com desconto
-                    const serviceData = {
-                        clientId: item.clientId,
-                        collaboratorId: item.collaboratorId,
-                        type: item.type,
-                        value: item.value, // Valor com desconto
-                        valorOriginal: item.valorOriginal || item.value,
-                        descontoPercent: item.descontoPercent || 0,
-                        descontoValue: item.descontoValue || 0,
-                        descontoAplicado: item.descontoAplicado || 0,
-                        duration: item.duration || 30,
-                        description: item.description || 'Serviço',
-                        date: hoje,
-                        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-                        userId: currentUser.uid
-                    };
-                    promises.push(db.collection('services').add(serviceData));
+                    if (item.isPackage && item.packageId) {
+                        // Serviço de pacote: marcar um procedimento como concluído
+                        const pkg = clientPackages.find(p => p.id === item.packageId);
+                        if (pkg) {
+                            const procedureDates = pkg.procedureDates || [];
+                            // Encontrar o primeiro procedimento pendente
+                            const pendingIndex = procedureDates.findIndex(p => !p.completed);
+                            if (pendingIndex !== -1) {
+                                procedureDates[pendingIndex].completed = true;
+                                
+                                // Atualizar pacote
+                                packagesToUpdate.push(
+                                    db.collection('packages').doc(item.packageId).update({
+                                        procedureDates: procedureDates,
+                                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                                    })
+                                );
+                            }
+                        }
+                    } else {
+                        // Serviço normal
+                        const serviceData = {
+                            clientId: item.clientId,
+                            collaboratorId: item.collaboratorId,
+                            type: item.type,
+                            value: item.value,
+                            valorOriginal: item.valorOriginal || item.value,
+                            descontoPercent: item.descontoPercent || 0,
+                            descontoValue: item.descontoValue || 0,
+                            descontoAplicado: item.descontoAplicado || 0,
+                            duration: item.duration || 30,
+                            description: item.description || 'Serviço',
+                            date: hoje,
+                            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                            userId: currentUser.uid
+                        };
+                        promises.push(db.collection('services').add(serviceData));
+                    }
                 } else {
                     const saleData = {
                         productId: item.productId,
                         productName: item.productName,
                         quantity: item.quantity,
                         unitPrice: item.productPrice,
-                        totalValue: item.totalValue, // Valor com desconto
+                        totalValue: item.totalValue,
                         valorOriginal: item.valorOriginal || item.totalValue,
                         descontoPercent: item.descontoPercent || 0,
                         descontoValue: item.descontoValue || 0,
@@ -2720,7 +3059,7 @@
                 }
             });
 
-            Promise.all([...promises, ...productsToUpdate])
+            Promise.all([...promises, ...productsToUpdate, ...packagesToUpdate])
                 .then(() => {
                     const modal = bootstrap.Modal.getInstance(document.getElementById('checkoutModal'));
                     if (modal) modal.hide();
@@ -2730,6 +3069,12 @@
                     carregarVendasDia();
                     carregarDados();
                     broadcastCaixaUpdate();
+                    
+                    // Recarregar pacotes do cliente se houver
+                    const clientId = document.getElementById('serviceClientId').value;
+                    if (clientId) {
+                        verificarPacotesCliente(clientId);
+                    }
                     
                     Swal.close();
                     Swal.fire({
@@ -2747,7 +3092,7 @@
         }
 
         // ==========================================
-        // 13. RENDERIZAR VENDAS
+        // 14. RENDERIZAR VENDAS
         // ==========================================
         function renderizarVendas(filtro = '') {
             const container = document.getElementById('salesList');
@@ -2788,18 +3133,20 @@
                     const collabName = collaborator ? collaborator.name : 'N/A';
                     const valor = parseFloat(sale.value || 0);
                     const temDesconto = sale.descontoAplicado > 0;
+                    const isPackage = sale.isPackage || false;
                     
                     html += `
                         <div class="sale-item">
                             <div class="sale-info">
-                                <div class="sale-title"><i class="fas fa-cut text-primary me-1"></i>${sale.description || 'Serviço'}</div>
+                                <div class="sale-title"><i class="fas fa-cut ${isPackage ? 'text-purple' : 'text-primary'} me-1"></i>${sale.description || 'Serviço'}${isPackage ? ' 📦' : ''}</div>
                                 <div class="sale-detail">${clientName} | ${collabName} | ${sale.type || 'manual'}
                                     ${temDesconto ? ` | <span class="text-success">Desconto: ${formatCurrency(sale.descontoAplicado)}</span>` : ''}
+                                    ${isPackage ? ' | <span class="text-purple fw-bold">Pacote</span>' : ''}
                                 </div>
                             </div>
                             <div class="text-end">
-                                ${temDesconto ? `<div style="font-size:0.6rem;color:#6c757d;text-decoration:line-through;">${formatCurrency(sale.valorOriginal)}</div>` : ''}
-                                <div class="sale-value">${formatCurrency(valor)}</div>
+                                ${temDesconto && !isPackage ? `<div style="font-size:0.6rem;color:#6c757d;text-decoration:line-through;">${formatCurrency(sale.valorOriginal)}</div>` : ''}
+                                <div class="sale-value">${isPackage ? '✅ Incluso' : formatCurrency(valor)}</div>
                             </div>
                             <div class="sale-actions">
                                 <button class="btn btn-sm btn-outline-danger" onclick="excluirVenda('${sale.id}', 'service')" title="Excluir">
@@ -2842,7 +3189,7 @@
         }
 
         // ==========================================
-        // 14. EXCLUIR VENDA
+        // 15. EXCLUIR VENDA
         // ==========================================
         function excluirVenda(id, tipo) {
             Swal.fire({
@@ -2905,19 +3252,21 @@
         window.excluirVenda = excluirVenda;
 
         // ==========================================
-        // 15. RESUMO E COMISSÕES
+        // 16. RESUMO E COMISSÕES
         // ==========================================
         function atualizarResumo() {
-            const services = todaySales.filter(s => s.tipo === 'service');
+            const services = todaySales.filter(s => s.tipo === 'service' && !s.isPackage);
+            const packageServices = todaySales.filter(s => s.tipo === 'service' && s.isPackage);
             const products = todaySales.filter(s => s.tipo === 'product');
 
             const totalServices = services.length;
             const totalServicesValue = services.reduce((sum, s) => sum + parseFloat(s.value || 0), 0);
             const totalProducts = products.length;
             const totalProductsValue = products.reduce((sum, s) => sum + parseFloat(s.totalValue || 0), 0);
+            const totalPackageServices = packageServices.length;
             const total = totalServicesValue + totalProductsValue;
 
-            // Calcular comissões por colaborador (usando valor com desconto)
+            // Calcular comissões por colaborador (apenas serviços pagos, não pacotes)
             const commissions = {};
             let totalCommissions = 0;
 
@@ -2927,7 +3276,7 @@
                     const perc = s.type === 'manual' ? 
                         parseFloat(collab.manualPercent || 0) : 
                         parseFloat(collab.productPercent || 0);
-                    const valor = parseFloat(s.value || 0); // Usa o valor com desconto
+                    const valor = parseFloat(s.value || 0);
                     const comissao = valor * (perc / 100);
                     totalCommissions += comissao;
 
@@ -2947,7 +3296,7 @@
             const totalSalon = total - totalCommissions;
 
             // Atualizar resumo
-            document.getElementById('summaryServices').textContent = totalServices;
+            document.getElementById('summaryServices').textContent = totalServices + (totalPackageServices > 0 ? ` (${totalPackageServices} pacote)` : '');
             document.getElementById('summaryServicesValue').textContent = formatCurrency(totalServicesValue);
             document.getElementById('summaryProducts').textContent = totalProducts;
             document.getElementById('summaryProductsValue').textContent = formatCurrency(totalProductsValue);
@@ -2986,7 +3335,7 @@
         }
 
         // ==========================================
-        // 16. ATUALIZAR ÚLTIMA ATUALIZAÇÃO
+        // 17. ATUALIZAR ÚLTIMA ATUALIZAÇÃO
         // ==========================================
         function atualizarUltimaAtualizacao() {
             const now = new Date();
@@ -2997,7 +3346,7 @@
         }
 
         // ==========================================
-        // 17. RECARREGAR DADOS
+        // 18. RECARREGAR DADOS
         // ==========================================
         function recarregarDados() {
             const btn = document.getElementById('refreshBtn');
@@ -3013,7 +3362,7 @@
         }
 
         // ==========================================
-        // 18. FUNÇÃO HOME
+        // 19. FUNÇÃO HOME
         // ==========================================
         function goHome() {
             if (window.parent && window.parent !== window) {
@@ -3024,7 +3373,7 @@
         }
 
         // ==========================================
-        // 19. MOSTRAR LOGIN PROMPT
+        // 20. MOSTRAR LOGIN PROMPT
         // ==========================================
         function mostrarLoginPrompt() {
             Swal.fire({
@@ -3042,7 +3391,7 @@
         }
 
         // ==========================================
-        // 20. RECEBER CONFIGURAÇÕES
+        // 21. RECEBER CONFIGURAÇÕES
         // ==========================================
         window.addEventListener('message', function(event) {
             if (event.data && event.data.type === 'configUpdated') {
@@ -3062,15 +3411,22 @@
         window.parent.postMessage({ type: 'getConfig' }, '*');
 
         // ==========================================
-        // 21. UTILITÁRIOS
+        // 22. UTILITÁRIOS
         // ==========================================
         function formatCurrency(value) {
             if (typeof value !== 'number') value = parseFloat(value) || 0;
             return '€ ' + value.toFixed(2).replace('.', ',');
         }
 
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            if (isNaN(date)) return dateStr;
+            return date.toLocaleDateString('pt-PT');
+        }
+
         // ==========================================
-        // 22. LOG DE INICIALIZAÇÃO
+        // 23. LOG DE INICIALIZAÇÃO
         // ==========================================
         console.log('✅ Caixa carregado com sucesso!');
         console.log('📌 NOVIDADES:');
@@ -3080,6 +3436,12 @@
         console.log('   ✅ Total Original e Total com Desconto no carrinho');
         console.log('   ✅ Resumo da venda com desconto destacado');
         console.log('   ✅ Vendas registradas com valor com desconto e histórico do desconto');
+        console.log('   ✅ INTEGRAÇÃO COM PACOTES:');
+        console.log('      - Ao selecionar um cliente, verifica pacotes ativos');
+        console.log('      - Se o serviço for elegível, pergunta se deseja usar o pacote');
+        console.log('      - Serviços de pacote são registrados com valor ZERO');
+        console.log('      - Procedimentos do pacote são marcados como concluídos');
+        console.log('      - Badges "Pacote" no carrinho e nas vendas');
         console.log('📌 Busca de clientes REESCRITA DO ZERO (mantida):');
         console.log('   ✅ Normalização de acentos (Cecília → Cecília)');
         console.log('   ✅ Busca parcial por "Ti" → Tiago, Tiara, Tiana...');
