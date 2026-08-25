@@ -1,0 +1,1762 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Estoque - Studio DeVitto</title>
+    
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+    
+    <!-- Cloudinary SDK -->
+    <script src="https://upload-widget.cloudinary.com/global.js"></script>
+    
+    <style>
+        /* ============================================
+           BLOQUEIO DE ZOOM
+           ============================================ */
+        * {
+            -webkit-touch-callout: none !important;
+            -webkit-user-select: none !important;
+            -webkit-tap-highlight-color: transparent !important;
+            -ms-touch-action: manipulation !important;
+            touch-action: manipulation !important;
+        }
+        
+        html, body {
+            touch-action: pan-x pan-y !important;
+            -ms-touch-action: pan-x pan-y !important;
+            -webkit-text-size-adjust: 100% !important;
+            -moz-text-size-adjust: 100% !important;
+            -ms-text-size-adjust: 100% !important;
+            text-size-adjust: 100% !important;
+            overflow: hidden !important;
+            height: 100% !important;
+            width: 100% !important;
+            position: fixed !important;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f8f9fa;
+            min-height: 100vh;
+            padding: 0;
+            margin: 0;
+            touch-action: pan-x pan-y !important;
+            -ms-touch-action: pan-x pan-y !important;
+            position: fixed !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* ============================================
+           HEADER COM BOTÃO HOME
+           ============================================ */
+        .estoque-header {
+            background: linear-gradient(135deg, #26196b, #4a3a9c);
+            color: white;
+            padding: 10px 16px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+            min-height: 48px;
+        }
+
+        .estoque-header .header-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .estoque-header .header-left .brand-icon {
+            font-size: 1.1rem;
+            color: #ffd700;
+        }
+
+        .estoque-header .header-left h1 {
+            font-weight: 700;
+            font-size: 1rem;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .estoque-header .header-left h1 small {
+            font-size: 0.6rem;
+            font-weight: 400;
+            opacity: 0.7;
+        }
+
+        .estoque-header .header-actions {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .btn-home {
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            border-radius: 25px;
+            padding: 5px 12px;
+            font-size: 0.75rem;
+            transition: all 0.3s;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            text-decoration: none;
+        }
+
+        .btn-home:hover {
+            background: rgba(255,255,255,0.25);
+            transform: translateY(-2px);
+        }
+
+        .btn-home i {
+            font-size: 0.8rem;
+        }
+
+        .btn-refresh {
+            background: rgba(255,255,255,0.12);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            border-radius: 25px;
+            padding: 5px 10px;
+            font-size: 0.75rem;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .btn-refresh:hover {
+            background: rgba(255,255,255,0.25);
+        }
+
+        .btn-refresh:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .last-update {
+            font-size: 0.6rem;
+            opacity: 0.7;
+            color: rgba(255,255,255,0.8);
+        }
+
+        /* ============================================
+           CONTEÚDO PRINCIPAL
+           ============================================ */
+        .estoque-container {
+            height: calc(100vh - 48px);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: #f8f9fa;
+            padding: 12px;
+        }
+
+        /* ============================================
+           BARRA DE FERRAMENTAS
+           ============================================ */
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            flex-shrink: 0;
+        }
+
+        .toolbar .search-box {
+            flex: 1;
+            min-width: 200px;
+            position: relative;
+        }
+
+        .toolbar .search-box input {
+            width: 100%;
+            padding: 8px 12px 8px 36px;
+            border: 2px solid #e0e0e0;
+            border-radius: 25px;
+            font-size: 0.85rem;
+            transition: border-color 0.3s;
+            background: white;
+        }
+
+        .toolbar .search-box input:focus {
+            border-color: #26196b;
+            outline: none;
+        }
+
+        .toolbar .search-box i {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6c757d;
+        }
+
+        .toolbar .filter-group {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+
+        .toolbar .filter-btn {
+            padding: 6px 14px;
+            border: 1px solid #dee2e6;
+            border-radius: 20px;
+            background: white;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: #333;
+        }
+
+        .toolbar .filter-btn:hover {
+            background: #e9ecef;
+        }
+
+        .toolbar .filter-btn.active {
+            background: #26196b;
+            color: white;
+            border-color: #26196b;
+        }
+
+        .toolbar .btn-add {
+            padding: 8px 18px;
+            background: #26196b;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .toolbar .btn-add:hover {
+            background: #4a3a9c;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(38,25,107,0.3);
+        }
+
+        /* ============================================
+           GRID DE PRODUTOS
+           ============================================ */
+        .products-grid {
+            flex: 1;
+            overflow-y: auto;
+            padding: 4px 0;
+        }
+
+        .product-card {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            transition: all 0.3s ease;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid #e9ecef;
+        }
+
+        .product-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+        }
+
+        .product-card .product-image {
+            height: 160px;
+            background: #f8f9fa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .product-card .product-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .product-card .product-image .placeholder {
+            font-size: 3rem;
+            color: #dee2e6;
+        }
+
+        .product-card .product-image .stock-badge {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.65rem;
+            font-weight: 600;
+            color: white;
+        }
+
+        .product-card .product-image .stock-badge.low {
+            background: #dc3545;
+        }
+
+        .product-card .product-image .stock-badge.normal {
+            background: #28a745;
+        }
+
+        .product-card .product-image .stock-badge.out {
+            background: #6c757d;
+        }
+
+        .product-card .product-body {
+            padding: 12px 14px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .product-card .product-body .product-name {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #333;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .product-card .product-body .product-category {
+            font-size: 0.7rem;
+            color: #6c757d;
+            margin-bottom: 6px;
+        }
+
+        .product-card .product-body .product-price {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #28a745;
+            margin-bottom: 4px;
+        }
+
+        .product-card .product-body .product-stock {
+            font-size: 0.75rem;
+            color: #6c757d;
+            margin-bottom: 8px;
+        }
+
+        .product-card .product-body .product-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: auto;
+            flex-wrap: wrap;
+        }
+
+        .product-card .product-body .product-actions .btn-sm {
+            font-size: 0.7rem;
+            padding: 4px 10px;
+            border-radius: 15px;
+        }
+
+        .product-card .product-body .product-status {
+            font-size: 0.7rem;
+            padding: 2px 10px;
+            border-radius: 12px;
+            display: inline-block;
+            margin-bottom: 6px;
+        }
+
+        .product-card .product-body .product-status.active {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .product-card .product-body .product-status.inactive {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        /* ============================================
+           RESUMO DO ESTOQUE
+           ============================================ */
+        .estoque-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 8px;
+            margin-bottom: 12px;
+            flex-shrink: 0;
+        }
+
+        .estoque-summary .summary-item {
+            background: white;
+            border-radius: 10px;
+            padding: 10px 14px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            border: 1px solid #e9ecef;
+        }
+
+        .estoque-summary .summary-item .number {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #26196b;
+        }
+
+        .estoque-summary .summary-item .label {
+            font-size: 0.65rem;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .estoque-summary .summary-item .number.low {
+            color: #dc3545;
+        }
+
+        .estoque-summary .summary-item .number.success {
+            color: #28a745;
+        }
+
+        /* ============================================
+           MODAL DE PRODUTO
+           ============================================ */
+        .product-modal .modal-content {
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        .product-modal .modal-header {
+            background: #26196b;
+            color: white;
+            border: none;
+        }
+
+        .product-modal .modal-header .btn-close {
+            filter: brightness(0) invert(1);
+        }
+
+        .product-modal .modal-body {
+            padding: 20px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .product-modal .form-label {
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: #333;
+        }
+
+        .product-modal .form-control,
+        .product-modal .form-select {
+            border-radius: 8px;
+            border: 2px solid #e9ecef;
+            font-size: 0.9rem;
+            padding: 8px 12px;
+        }
+
+        .product-modal .form-control:focus,
+        .product-modal .form-select:focus {
+            border-color: #26196b;
+            box-shadow: 0 0 0 0.2rem rgba(38,25,107,0.15);
+        }
+
+        .product-modal .image-upload-area {
+            border: 2px dashed #dee2e6;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            min-height: 150px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .product-modal .image-upload-area:hover {
+            border-color: #26196b;
+            background: #f8f5ff;
+        }
+
+        .product-modal .image-upload-area img {
+            max-height: 150px;
+            max-width: 100%;
+            border-radius: 8px;
+            object-fit: contain;
+        }
+
+        .product-modal .image-upload-area .upload-icon {
+            font-size: 2.5rem;
+            color: #adb5bd;
+            margin-bottom: 8px;
+        }
+
+        .product-modal .image-upload-area .upload-text {
+            font-size: 0.85rem;
+            color: #6c757d;
+        }
+
+        /* ============================================
+           CHECKBOX DE STATUS
+           ============================================ */
+        .product-status-checkbox {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: #26196b;
+        }
+
+        .product-status-checkbox:checked {
+            accent-color: #28a745;
+        }
+
+        .status-label {
+            font-size: 0.75rem;
+            margin-left: 4px;
+        }
+
+        .status-label.active {
+            color: #28a745;
+        }
+
+        .status-label.inactive {
+            color: #dc3545;
+        }
+
+        /* ============================================
+           RESPONSIVIDADE
+           ============================================ */
+        @media (max-width: 768px) {
+            .estoque-container {
+                padding: 8px;
+            }
+
+            .toolbar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .toolbar .search-box {
+                min-width: auto;
+            }
+
+            .toolbar .filter-group {
+                justify-content: center;
+            }
+
+            .estoque-summary {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .product-card .product-image {
+                height: 120px;
+            }
+
+            .product-card .product-body .product-name {
+                font-size: 0.8rem;
+            }
+
+            .product-card .product-body .product-price {
+                font-size: 0.95rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .estoque-container {
+                padding: 4px;
+            }
+
+            .estoque-summary {
+                grid-template-columns: 1fr 1fr;
+                gap: 4px;
+            }
+
+            .estoque-summary .summary-item {
+                padding: 6px 10px;
+            }
+
+            .estoque-summary .summary-item .number {
+                font-size: 1rem;
+            }
+
+            .product-card .product-image {
+                height: 100px;
+            }
+
+            .product-card .product-body {
+                padding: 8px 10px;
+            }
+
+            .product-card .product-body .product-name {
+                font-size: 0.7rem;
+            }
+
+            .product-card .product-body .product-price {
+                font-size: 0.85rem;
+            }
+
+            .product-card .product-body .product-actions .btn-sm {
+                font-size: 0.6rem;
+                padding: 3px 8px;
+            }
+
+            .toolbar .filter-btn {
+                padding: 4px 10px;
+                font-size: 0.65rem;
+            }
+
+            .toolbar .btn-add {
+                padding: 6px 14px;
+                font-size: 0.7rem;
+            }
+        }
+
+        /* ============================================
+           SCROLLBAR
+           ============================================ */
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+
+        /* ============================================
+           UTILITÁRIOS
+           ============================================ */
+        .text-primary-custom { color: #26196b; }
+        .bg-primary-custom { background: #26196b; }
+        .border-primary-custom { border-color: #26196b; }
+        .cursor-pointer { cursor: pointer; }
+        .gap-2 { gap: 6px; }
+        .gap-3 { gap: 10px; }
+        .flex-wrap { flex-wrap: wrap; }
+        .align-center { align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .mt-2 { margin-top: 6px; }
+        .mt-3 { margin-top: 12px; }
+        .mb-2 { margin-bottom: 6px; }
+        .mb-3 { margin-bottom: 12px; }
+        .text-muted { color: #6c757d; }
+        .text-success { color: #28a745; }
+        .text-danger { color: #dc3545; }
+        .text-warning { color: #ffc107; }
+        .fw-bold { font-weight: 700; }
+        .fw-semibold { font-weight: 600; }
+        .fs-small { font-size: 0.7rem; }
+    </style>
+</head>
+<body>
+
+    <!-- ==========================================
+    HEADER COM BOTÃO HOME
+    ========================================== -->
+    <header class="estoque-header" id="estoqueHeader">
+        <div class="header-left">
+            <span id="headerLogo">
+                <i class="fas fa-boxes brand-icon"></i>
+                <span id="headerSystemName" style="font-weight:600;font-size:1rem;color:white;">Estoque</span>
+            </span>
+            <small id="userGreeting" style="font-size:0.65rem;opacity:0.7;color:rgba(255,255,255,0.8);">Carregando...</small>
+        </div>
+        <div class="header-actions">
+            <span class="last-update" id="lastUpdateBadge">
+                <i class="fas fa-clock me-1"></i>Atualizado agora
+            </span>
+            <button class="btn-refresh" id="refreshBtn" onclick="refreshEstoque()">
+                <i class="fas fa-sync-alt me-1"></i>Atualizar
+            </button>
+            <button class="btn-home" onclick="goHome()">
+                <i class="fas fa-home"></i>
+                <span>Home</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- ==========================================
+    CONTEÚDO PRINCIPAL
+    ========================================== -->
+    <div class="estoque-container" id="estoqueContainer">
+
+        <!-- ==========================================
+        RESUMO DO ESTOQUE
+        ========================================== -->
+        <div class="estoque-summary" id="estoqueSummary">
+            <div class="summary-item">
+                <div class="number" id="totalProducts">0</div>
+                <div class="label">Total Produtos</div>
+            </div>
+            <div class="summary-item">
+                <div class="number success" id="totalValue">€ 0,00</div>
+                <div class="label">Valor Total</div>
+            </div>
+            <div class="summary-item">
+                <div class="number low" id="lowStockCount">0</div>
+                <div class="label">Estoque Baixo</div>
+            </div>
+            <div class="summary-item">
+                <div class="number" id="totalInvestment">€ 0,00</div>
+                <div class="label">Investimento</div>
+            </div>
+        </div>
+
+        <!-- ==========================================
+        BARRA DE FERRAMENTAS
+        ========================================== -->
+        <div class="toolbar" id="toolbar">
+            <div class="search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" id="searchProducts" placeholder="Buscar produtos..." oninput="filtrarProdutos()">
+            </div>
+            <div class="filter-group">
+                <button class="filter-btn active" data-filter="all" onclick="setFilter('all')">Todos</button>
+                <button class="filter-btn" data-filter="active" onclick="setFilter('active')">Ativos</button>
+                <button class="filter-btn" data-filter="inactive" onclick="setFilter('inactive')">Inativos</button>
+                <button class="filter-btn" data-filter="low" onclick="setFilter('low')">Estoque Baixo</button>
+            </div>
+            <button class="btn-add" onclick="abrirModalProduto()">
+                <i class="fas fa-plus"></i> Adicionar Produto
+            </button>
+        </div>
+
+        <!-- ==========================================
+        GRADE DE PRODUTOS
+        ========================================== -->
+        <div class="products-grid" id="productsGrid">
+            <div class="row g-3" id="productsContainer">
+                <!-- Produtos serão renderizados aqui -->
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+    MODAL DE PRODUTO
+    ========================================== -->
+    <div class="modal fade product-modal" id="productModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="productModalTitle">
+                        <i class="fas fa-box me-2"></i>Adicionar Produto
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="productForm">
+                        <input type="hidden" id="productId">
+                        <input type="hidden" id="productImageUrl">
+                        
+                        <div class="row">
+                            <div class="col-md-8">
+                                <!-- Nome -->
+                                <div class="mb-3">
+                                    <label class="form-label">Nome do Produto *</label>
+                                    <input type="text" class="form-control" id="prodName" placeholder="Ex: Shampoo Hidratante" required>
+                                </div>
+
+                                <!-- Descrição -->
+                                <div class="mb-3">
+                                    <label class="form-label">Descrição</label>
+                                    <textarea class="form-control" id="prodDescription" rows="2" placeholder="Breve descrição do produto..."></textarea>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Categoria</label>
+                                        <select class="form-select" id="prodCategory">
+                                            <option value="">Selecione...</option>
+                                            <option value="cabelo">Cabelo</option>
+                                            <option value="shampoo">Shampoo</option>
+                                            <option value="condicionador">Condicionador</option>
+                                            <option value="mascara">Máscara</option>
+                                            <option value="pele">Pele</option>
+                                            <option value="tintas">Tintas</option>
+                                            <option value="maquiagem">Maquiagem</option>
+                                            <option value="acessorios">Acessórios</option>
+                                            <option value="outros">Outros</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Status</label>
+                                        <div class="d-flex align-items-center mt-2">
+                                            <input type="checkbox" class="product-status-checkbox" id="prodActive" checked>
+                                            <label class="status-label active" id="prodStatusLabel" for="prodActive">Ativo</label>
+                                        </div>
+                                        <small class="text-muted">Produtos inativos não aparecem na loja.</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <!-- Imagem -->
+                                <div class="mb-3">
+                                    <label class="form-label">Imagem do Produto</label>
+                                    <div class="image-upload-area" id="imageUploadArea" onclick="document.getElementById('imageInput').click()">
+                                        <div id="imagePreview">
+                                            <div class="upload-icon"><i class="fas fa-cloud-upload-alt"></i></div>
+                                            <div class="upload-text">Clique para fazer upload</div>
+                                            <small class="text-muted">PNG, JPG até 5MB</small>
+                                        </div>
+                                        <input type="file" id="imageInput" accept="image/*" style="display:none" onchange="handleImageUpload(event)">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label class="form-label">Quantidade *</label>
+                                <input type="number" class="form-control" id="prodQuantity" min="0" value="0" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Quantidade Mínima *</label>
+                                <input type="number" class="form-control" id="prodMinQuantity" min="1" value="5" required>
+                                <small class="text-muted">Alerta quando estoque atingir este valor.</small>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Código SKU (opcional)</label>
+                                <input type="text" class="form-control" id="prodSku" placeholder="SKU-001">
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label">Preço de Compra (€)</label>
+                                <input type="number" class="form-control" id="prodPurchasePrice" step="0.01" min="0" value="0">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Preço de Venda (€) *</label>
+                                <input type="number" class="form-control" id="prodSalePrice" step="0.01" min="0" value="0" required>
+                            </div>
+                        </div>
+
+                        <div class="mt-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="prodShowInStore" checked>
+                                <label class="form-check-label" for="prodShowInStore">
+                                    Mostrar na Loja/Vitrine
+                                </label>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger" id="deleteProductBtn" style="display:none;" onclick="excluirProduto()">
+                        <i class="fas fa-trash me-1"></i>Excluir
+                    </button>
+                    <button type="button" class="btn btn-primary" id="saveProductBtn" onclick="salvarProduto()">
+                        <i class="fas fa-save me-1"></i>Salvar Produto
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+    SCRIPTS
+    ========================================== -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // ==========================================
+        // 1. CONFIGURAÇÃO DO FIREBASE
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyC5ezGCOS5d-Vy2l-Gimkl_V9VmwDLZzKc",
+            authDomain: "studio-devitto-152400.firebaseapp.com",
+            projectId: "studio-devitto-152400",
+            storageBucket: "studio-devitto-152400.appspot.com",
+            messagingSenderId: "138996544906",
+            appId: "1:138996544906:web:6569bf954a00e2f7944473",
+            measurementId: "G-FCC5T13QW8"
+        };
+
+        const cloudinaryConfig = {
+            cloudName: "daurmyabq",
+            uploadPreset: "STUDIODEVITTO_PRESET"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const storage = firebase.storage();
+
+        // ==========================================
+        // 2. BLOQUEIO DE ZOOM
+        // ==========================================
+        (function() {
+            document.addEventListener('keydown', function(e) {
+                if (e.ctrlKey && (e.key === '+' || e.key === '-' || e.key === '0' || e.key === '=')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return false;
+                }
+                if (e.metaKey && (e.key === '+' || e.key === '-' || e.key === '0')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return false;
+                }
+            }, { passive: false });
+
+            document.addEventListener('wheel', function(e) {
+                if (e.ctrlKey || e.metaKey) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return false;
+                }
+            }, { passive: false });
+
+            let lastTouchDistance = 0;
+            let isPinching = false;
+
+            document.addEventListener('touchstart', function(e) {
+                if (e.touches.length === 2) {
+                    const touch1 = e.touches[0];
+                    const touch2 = e.touches[1];
+                    lastTouchDistance = Math.hypot(
+                        touch2.clientX - touch1.clientX,
+                        touch2.clientY - touch1.clientY
+                    );
+                    isPinching = true;
+                }
+            }, { passive: true });
+
+            document.addEventListener('touchmove', function(e) {
+                if (e.touches.length === 2 && isPinching) {
+                    const touch1 = e.touches[0];
+                    const touch2 = e.touches[1];
+                    const distance = Math.hypot(
+                        touch2.clientX - touch1.clientX,
+                        touch2.clientY - touch1.clientY
+                    );
+                    if (Math.abs(distance - lastTouchDistance) > 3) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return false;
+                    }
+                }
+            }, { passive: false });
+
+            document.addEventListener('touchend', function(e) {
+                if (e.touches.length < 2) {
+                    isPinching = false;
+                }
+            }, { passive: true });
+
+            let lastTouchEnd = 0;
+            document.addEventListener('touchend', function(e) {
+                const now = Date.now();
+                if (now - lastTouchEnd <= 300) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return false;
+                }
+                lastTouchEnd = now;
+            }, { passive: false });
+
+            console.log('🔒 Bloqueio de zoom reforçado aplicado!');
+        })();
+
+        // ==========================================
+        // 3. VARIÁVEIS GLOBAIS
+        // ==========================================
+        let currentUser = null;
+        let products = [];
+        let currentFilter = 'all';
+        let editingProductId = null;
+        let productListener = null;
+
+        // ==========================================
+        // 4. INICIALIZAÇÃO
+        // ==========================================
+        document.addEventListener('DOMContentLoaded', function() {
+            auth.onAuthStateChanged(user => {
+                if (user) {
+                    currentUser = user;
+                    document.getElementById('userGreeting').textContent = user.email;
+                    carregarProdutos();
+                    carregarConfiguracoesSistema();
+                } else {
+                    document.getElementById('userGreeting').textContent = 'Não autenticado';
+                    mostrarLoginPrompt();
+                }
+            });
+
+            // Atualizar a cada 30 segundos
+            setInterval(function() {
+                if (currentUser) {
+                    carregarProdutos();
+                }
+            }, 30000);
+        });
+
+        // ==========================================
+        // 5. CARREGAR CONFIGURAÇÕES DO SISTEMA
+        // ==========================================
+        function carregarConfiguracoesSistema() {
+            try {
+                const config = localStorage.getItem('systemConfig');
+                if (config) {
+                    const parsed = JSON.parse(config);
+                    if (parsed.corPrimaria) {
+                        document.documentElement.style.setProperty('--primary-color', parsed.corPrimaria);
+                        document.documentElement.style.setProperty('--accent-color', parsed.corPrimaria + '99');
+                        const header = document.getElementById('estoqueHeader');
+                        if (header) {
+                            header.style.background = `linear-gradient(135deg, ${parsed.corPrimaria}, ${parsed.corPrimaria}99)`;
+                        }
+                    }
+                    if (parsed.logo) {
+                        const logoContainer = document.getElementById('headerLogo');
+                        if (logoContainer) {
+                            logoContainer.innerHTML = `
+                                <img src="${parsed.logo}" style="height:24px;width:24px;border-radius:50%;object-fit:cover;margin-right:6px;" alt="Logo">
+                                <span id="headerSystemName" style="font-weight:600;font-size:1rem;color:white;">Estoque</span>
+                            `;
+                        }
+                    }
+                }
+            } catch(e) {}
+        }
+
+        // ==========================================
+        // 6. FUNÇÃO HOME
+        // ==========================================
+        function goHome() {
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage({ action: 'goHome' }, '*');
+            } else {
+                window.location.href = 'layout-index.html';
+            }
+        }
+
+        // ==========================================
+        // 7. CARREGAR PRODUTOS COM LISTENER EM TEMPO REAL
+        // ==========================================
+        function carregarProdutos() {
+            if (!currentUser) return;
+
+            if (productListener) {
+                productListener();
+                productListener = null;
+            }
+
+            productListener = db.collection('products')
+                .where('userId', '==', currentUser.uid)
+                .onSnapshot(snapshot => {
+                    products = [];
+                    snapshot.forEach(doc => {
+                        products.push({ id: doc.id, ...doc.data() });
+                    });
+                    // Ordenar por nome
+                    products.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                    renderizarProdutos();
+                    atualizarResumo();
+                    atualizarUltimaAtualizacao();
+                    
+                    // Notificar a loja sobre a atualização
+                    notificarLoja();
+                }, error => {
+                    console.error('Erro ao carregar produtos:', error);
+                    carregarDoLocalStorage();
+                });
+        }
+
+        function carregarDoLocalStorage() {
+            try {
+                const data = localStorage.getItem('estoque_products');
+                if (data) {
+                    products = JSON.parse(data);
+                    renderizarProdutos();
+                    atualizarResumo();
+                }
+            } catch(e) {}
+        }
+
+        function salvarNoLocalStorage() {
+            try {
+                localStorage.setItem('estoque_products', JSON.stringify(products));
+            } catch(e) {}
+        }
+
+        function notificarLoja() {
+            // Notificar a página da loja sobre a atualização
+            if (window.parent && window.parent !== window) {
+                try {
+                    window.parent.postMessage({ 
+                        type: 'estoqueUpdated', 
+                        products: products 
+                    }, '*');
+                } catch(e) {}
+            }
+            
+            // Salvar no localStorage para a loja acessar
+            localStorage.setItem('loja_products', JSON.stringify(products));
+            
+            // Broadcast para outras abas
+            if (window.BroadcastChannel) {
+                try {
+                    const channel = new BroadcastChannel('estoque-sync');
+                    channel.postMessage({ type: 'productsUpdated', products: products });
+                    channel.close();
+                } catch(e) {}
+            }
+        }
+
+        // ==========================================
+        // 8. RENDERIZAR PRODUTOS
+        // ==========================================
+        function renderizarProdutos() {
+            const container = document.getElementById('productsContainer');
+            const searchTerm = document.getElementById('searchProducts').value.toLowerCase().trim();
+            
+            let filtered = [...products];
+            
+            // Filtro de busca
+            if (searchTerm) {
+                filtered = filtered.filter(p => 
+                    (p.name || '').toLowerCase().includes(searchTerm) ||
+                    (p.description || '').toLowerCase().includes(searchTerm) ||
+                    (p.category || '').toLowerCase().includes(searchTerm) ||
+                    (p.sku || '').toLowerCase().includes(searchTerm)
+                );
+            }
+            
+            // Filtro de status
+            if (currentFilter === 'active') {
+                filtered = filtered.filter(p => p.active !== false);
+            } else if (currentFilter === 'inactive') {
+                filtered = filtered.filter(p => p.active === false);
+            } else if (currentFilter === 'low') {
+                filtered = filtered.filter(p => p.quantity <= p.minQuantity && p.active !== false);
+            }
+            
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="col-12 text-center py-5">
+                        <i class="fas fa-box-open fa-4x mb-3 opacity-25"></i>
+                        <h5 class="text-muted">Nenhum produto encontrado</h5>
+                        <p class="text-muted small">Clique em "Adicionar Produto" para começar.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '';
+            filtered.forEach(product => {
+                const isActive = product.active !== false;
+                const isLowStock = product.quantity <= product.minQuantity && isActive;
+                const isOutStock = product.quantity <= 0;
+                
+                const imageUrl = product.imageUrl || '';
+                const stockStatus = isOutStock ? 'out' : (isLowStock ? 'low' : 'normal');
+                const stockLabel = isOutStock ? 'ESGOTADO' : (isLowStock ? 'Estoque Baixo' : `${product.quantity} em estoque`);
+                
+                const categoriaNome = product.category ? 
+                    product.category.charAt(0).toUpperCase() + product.category.slice(1) : 
+                    'Sem categoria';
+                
+                const formattedPrice = formatCurrency(product.salePrice || 0);
+                const formattedPurchase = formatCurrency(product.purchasePrice || 0);
+                
+                html += `
+                    <div class="col-xl-3 col-lg-4 col-md-6 col-6">
+                        <div class="product-card">
+                            <div class="product-image">
+                                ${imageUrl ? 
+                                    `<img src="${imageUrl}" alt="${product.name}" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'placeholder\\'><i class=\\'fas fa-box\\'></i></div>';">` :
+                                    `<div class="placeholder"><i class="fas fa-box"></i></div>`
+                                }
+                                <span class="stock-badge ${stockStatus}">${stockLabel}</span>
+                            </div>
+                            <div class="product-body">
+                                <div class="product-name">${product.name || 'Sem nome'}</div>
+                                <div class="product-category"><i class="fas fa-tag me-1"></i>${categoriaNome}</div>
+                                <div class="product-price">${formattedPrice}</div>
+                                <div class="product-stock">
+                                    <i class="fas fa-cubes me-1"></i>${product.quantity || 0} unidades
+                                    ${product.purchasePrice ? `| Compra: ${formattedPurchase}` : ''}
+                                </div>
+                                <span class="product-status ${isActive ? 'active' : 'inactive'}">
+                                    ${isActive ? '✅ Ativo' : '❌ Inativo'}
+                                </span>
+                                <div class="product-actions">
+                                    <button class="btn btn-sm btn-primary" onclick="editarProduto('${product.id}')">
+                                        <i class="fas fa-edit"></i> Editar
+                                    </button>
+                                    <button class="btn btn-sm btn-${isActive ? 'warning' : 'success'}" onclick="toggleStatus('${product.id}')">
+                                        <i class="fas fa-${isActive ? 'pause' : 'play'}"></i>
+                                        ${isActive ? 'Desativar' : 'Ativar'}
+                                    </button>
+                                    ${product.showInStore !== false ? `
+                                        <button class="btn btn-sm btn-info" onclick="verNaLoja('${product.id}')">
+                                            <i class="fas fa-store"></i> Ver
+                                        </button>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+            salvarNoLocalStorage();
+        }
+
+        // ==========================================
+        // 9. ATUALIZAR RESUMO
+        // ==========================================
+        function atualizarResumo() {
+            const total = products.length;
+            const ativos = products.filter(p => p.active !== false);
+            const lowStock = products.filter(p => p.quantity <= p.minQuantity && p.active !== false);
+            
+            let totalValue = 0;
+            let totalInvestment = 0;
+            
+            products.forEach(p => {
+                totalValue += (p.quantity || 0) * (p.salePrice || 0);
+                totalInvestment += (p.quantity || 0) * (p.purchasePrice || 0);
+            });
+            
+            document.getElementById('totalProducts').textContent = total;
+            document.getElementById('totalValue').textContent = formatCurrency(totalValue);
+            document.getElementById('lowStockCount').textContent = lowStock.length;
+            document.getElementById('totalInvestment').textContent = formatCurrency(totalInvestment);
+        }
+
+        // ==========================================
+        // 10. FILTROS
+        // ==========================================
+        function setFilter(filter) {
+            currentFilter = filter;
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.getAttribute('data-filter') === filter) {
+                    btn.classList.add('active');
+                }
+            });
+            renderizarProdutos();
+        }
+
+        function filtrarProdutos() {
+            renderizarProdutos();
+        }
+
+        // ==========================================
+        // 11. ABRIR MODAL DE PRODUTO
+        // ==========================================
+        function abrirModalProduto(productId = null) {
+            editingProductId = productId;
+            const modal = new bootstrap.Modal(document.getElementById('productModal'));
+            
+            if (productId) {
+                const product = products.find(p => p.id === productId);
+                if (!product) {
+                    showError('Produto não encontrado.');
+                    return;
+                }
+                
+                document.getElementById('productModalTitle').textContent = '✏️ Editar Produto';
+                document.getElementById('productId').value = product.id;
+                document.getElementById('prodName').value = product.name || '';
+                document.getElementById('prodDescription').value = product.description || '';
+                document.getElementById('prodCategory').value = product.category || '';
+                document.getElementById('prodQuantity').value = product.quantity || 0;
+                document.getElementById('prodMinQuantity').value = product.minQuantity || 5;
+                document.getElementById('prodPurchasePrice').value = product.purchasePrice || 0;
+                document.getElementById('prodSalePrice').value = product.salePrice || 0;
+                document.getElementById('prodSku').value = product.sku || '';
+                document.getElementById('prodActive').checked = product.active !== false;
+                document.getElementById('prodShowInStore').checked = product.showInStore !== false;
+                document.getElementById('prodImageUrl').value = product.imageUrl || '';
+                document.getElementById('deleteProductBtn').style.display = 'inline-block';
+                
+                // Atualizar status label
+                atualizarStatusLabel();
+                
+                // Mostrar imagem se existir
+                if (product.imageUrl) {
+                    const preview = document.getElementById('imagePreview');
+                    preview.innerHTML = `
+                        <img src="${product.imageUrl}" alt="Imagem do produto" style="max-height:150px;max-width:100%;border-radius:8px;object-fit:contain;">
+                        <div class="mt-2">
+                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="removerImagem()">
+                                <i class="fas fa-trash me-1"></i>Remover
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    resetImagePreview();
+                }
+            } else {
+                document.getElementById('productModalTitle').textContent = '➕ Adicionar Produto';
+                document.getElementById('productForm').reset();
+                document.getElementById('productId').value = '';
+                document.getElementById('prodImageUrl').value = '';
+                document.getElementById('prodActive').checked = true;
+                document.getElementById('prodShowInStore').checked = true;
+                document.getElementById('prodQuantity').value = 0;
+                document.getElementById('prodMinQuantity').value = 5;
+                document.getElementById('deleteProductBtn').style.display = 'none';
+                resetImagePreview();
+                atualizarStatusLabel();
+            }
+            
+            // Evento para atualizar status label
+            document.getElementById('prodActive').addEventListener('change', atualizarStatusLabel);
+            
+            modal.show();
+        }
+
+        function atualizarStatusLabel() {
+            const isActive = document.getElementById('prodActive').checked;
+            const label = document.getElementById('prodStatusLabel');
+            if (isActive) {
+                label.textContent = 'Ativo';
+                label.className = 'status-label active';
+            } else {
+                label.textContent = 'Inativo';
+                label.className = 'status-label inactive';
+            }
+        }
+
+        function resetImagePreview() {
+            const preview = document.getElementById('imagePreview');
+            preview.innerHTML = `
+                <div class="upload-icon"><i class="fas fa-cloud-upload-alt"></i></div>
+                <div class="upload-text">Clique para fazer upload</div>
+                <small class="text-muted">PNG, JPG até 5MB</small>
+            `;
+        }
+
+        // ==========================================
+        // 12. UPLOAD DE IMAGEM
+        // ==========================================
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            if (!file.type.match('image.*')) {
+                showError('Por favor, selecione uma imagem válida.');
+                return;
+            }
+            
+            // Mostrar preview local
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const preview = document.getElementById('imagePreview');
+                preview.innerHTML = `
+                    <img src="${e.target.result}" alt="Preview" style="max-height:150px;max-width:100%;border-radius:8px;object-fit:contain;">
+                    <div class="mt-2">
+                        <span class="text-muted small">Enviando...</span>
+                    </div>
+                `;
+            };
+            reader.readAsDataURL(file);
+            
+            // Upload para o Cloudinary
+            uploadImageToCloudinary(file)
+                .then(imageUrl => {
+                    document.getElementById('prodImageUrl').value = imageUrl;
+                    const preview = document.getElementById('imagePreview');
+                    preview.innerHTML = `
+                        <img src="${imageUrl}" alt="Imagem do produto" style="max-height:150px;max-width:100%;border-radius:8px;object-fit:contain;">
+                        <div class="mt-2">
+                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="removerImagem()">
+                                <i class="fas fa-trash me-1"></i>Remover
+                            </button>
+                        </div>
+                    `;
+                    showSuccess('Imagem enviada com sucesso!');
+                })
+                .catch(error => {
+                    showError('Erro ao enviar imagem: ' + error.message);
+                    resetImagePreview();
+                });
+        }
+
+        function uploadImageToCloudinary(file) {
+            return new Promise((resolve, reject) => {
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('upload_preset', cloudinaryConfig.uploadPreset);
+
+                fetch(`https://api.cloudinary.com/v1_1/${cloudinaryConfig.cloudName}/image/upload`, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.secure_url) {
+                        resolve(data.secure_url);
+                    } else {
+                        reject('Erro no upload: ' + JSON.stringify(data));
+                    }
+                })
+                .catch(error => reject(error));
+            });
+        }
+
+        function removerImagem() {
+            document.getElementById('prodImageUrl').value = '';
+            resetImagePreview();
+            showSuccess('Imagem removida!');
+        }
+
+        // ==========================================
+        // 13. SALVAR PRODUTO
+        // ==========================================
+        function salvarProduto() {
+            const productId = document.getElementById('productId').value;
+            const name = document.getElementById('prodName').value.trim();
+            const description = document.getElementById('prodDescription').value.trim();
+            const category = document.getElementById('prodCategory').value;
+            const quantity = parseInt(document.getElementById('prodQuantity').value) || 0;
+            const minQuantity = parseInt(document.getElementById('prodMinQuantity').value) || 5;
+            const purchasePrice = parseFloat(document.getElementById('prodPurchasePrice').value) || 0;
+            const salePrice = parseFloat(document.getElementById('prodSalePrice').value) || 0;
+            const sku = document.getElementById('prodSku').value.trim();
+            const active = document.getElementById('prodActive').checked;
+            const showInStore = document.getElementById('prodShowInStore').checked;
+            const imageUrl = document.getElementById('prodImageUrl').value || null;
+
+            if (!name) {
+                showError('Por favor, digite o nome do produto.');
+                return;
+            }
+
+            if (quantity < 0) {
+                showError('A quantidade não pode ser negativa.');
+                return;
+            }
+
+            if (minQuantity < 1) {
+                showError('A quantidade mínima deve ser pelo menos 1.');
+                return;
+            }
+
+            if (salePrice < 0) {
+                showError('O preço de venda não pode ser negativo.');
+                return;
+            }
+
+            const productData = {
+                name: name,
+                description: description,
+                category: category,
+                quantity: quantity,
+                minQuantity: minQuantity,
+                purchasePrice: purchasePrice,
+                salePrice: salePrice,
+                sku: sku,
+                active: active,
+                showInStore: showInStore,
+                imageUrl: imageUrl,
+                userId: currentUser.uid,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            Swal.fire({
+                title: productId ? 'Atualizando produto...' : 'Salvando produto...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            let promise;
+            if (productId) {
+                promise = db.collection('products').doc(productId).update(productData);
+            } else {
+                productData.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+                promise = db.collection('products').add(productData);
+            }
+
+            promise
+                .then(() => {
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('productModal'));
+                    if (modal) modal.hide();
+                    Swal.close();
+                    showSuccess(productId ? 'Produto atualizado com sucesso!' : 'Produto adicionado com sucesso!');
+                    
+                    // Notificar a loja
+                    notificarLoja();
+                })
+                .catch(error => {
+                    Swal.close();
+                    showError('Erro ao salvar produto: ' + error.message);
+                });
+        }
+
+        // ==========================================
+        // 14. EDITAR PRODUTO
+        // ==========================================
+        function editarProduto(productId) {
+            abrirModalProduto(productId);
+        }
+
+        // ==========================================
+        // 15. EXCLUIR PRODUTO
+        // ==========================================
+        function excluirProduto() {
+            const productId = document.getElementById('productId').value;
+            if (!productId) return;
+
+            const product = products.find(p => p.id === productId);
+            if (!product) return;
+
+            Swal.fire({
+                title: 'Excluir Produto',
+                text: `Tem certeza que deseja excluir "${product.name}"? Esta ação não pode ser desfeita.`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Sim, excluir',
+                cancelButtonText: 'Cancelar'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    Swal.fire({
+                        title: 'Excluindo...',
+                        allowOutsideClick: false,
+                        didOpen: () => { Swal.showLoading(); }
+                    });
+
+                    db.collection('products').doc(productId).delete()
+                        .then(() => {
+                            const modal = bootstrap.Modal.getInstance(document.getElementById('productModal'));
+                            if (modal) modal.hide();
+                            Swal.close();
+                            showSuccess('Produto excluído com sucesso!');
+                            notificarLoja();
+                        })
+                        .catch(error => {
+                            Swal.close();
+                            showError('Erro ao excluir produto: ' + error.message);
+                        });
+                }
+            });
+        }
+
+        // ==========================================
+        // 16. ALTERNAR STATUS
+        // ==========================================
+        function toggleStatus(productId) {
+            const product = products.find(p => p.id === productId);
+            if (!product) return;
+
+            const newStatus = product.active !== false ? false : true;
+            const action = newStatus ? 'ativar' : 'desativar';
+
+            Swal.fire({
+                title: `${action === 'ativar' ? 'Ativar' : 'Desativar'} Produto`,
+                text: `Deseja ${action} "${product.name}"?`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: `Sim, ${action}`,
+                cancelButtonText: 'Cancelar'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    db.collection('products').doc(productId).update({
+                        active: newStatus,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    })
+                    .then(() => {
+                        showSuccess(`Produto ${action}do com sucesso!`);
+                        notificarLoja();
+                    })
+                    .catch(error => {
+                        showError('Erro ao alterar status: ' + error.message);
+                    });
+                }
+            });
+        }
+
+        // ==========================================
+        // 17. VER NA LOJA
+        // ==========================================
+        function verNaLoja(productId) {
+            const product = products.find(p => p.id === productId);
+            if (!product) return;
+
+            // Abrir a loja com o produto em destaque
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage({ 
+                    type: 'showProduct', 
+                    productId: productId,
+                    products: products
+                }, '*');
+            } else {
+                // Redirecionar para a loja
+                localStorage.setItem('loja_highlight_product', productId);
+                window.location.href = 'store.html?product=' + productId;
+            }
+            
+            showSuccess(`Produto "${product.name}" sendo exibido na loja.`);
+        }
+
+        // ==========================================
+        // 18. ATUALIZAR DATA/HORA
+        // ==========================================
+        function atualizarUltimaAtualizacao() {
+            const now = new Date();
+            const el = document.getElementById('lastUpdateBadge');
+            if (el) {
+                el.innerHTML = `<i class="fas fa-clock me-1"></i>Atualizado ${now.toLocaleTimeString('pt-PT')}`;
+            }
+        }
+
+        // ==========================================
+        // 19. REFRESH
+        // ==========================================
+        function refreshEstoque() {
+            const btn = document.getElementById('refreshBtn');
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Carregando...';
+            btn.disabled = true;
+
+            carregarProdutos().then(() => {
+                btn.innerHTML = '<i class="fas fa-check me-1"></i>Atualizado!';
+                setTimeout(() => {
+                    btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Atualizar';
+                    btn.disabled = false;
+                }, 1500);
+                Swal.fire('✅ Estoque atualizado!', '', 'success');
+            }).catch(() => {
+                btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Atualizar';
+                btn.disabled = false;
+                Swal.fire('❌ Erro ao atualizar', 'Tente novamente mais tarde.', 'error');
+            });
+        }
+
+        // ==========================================
+        // 20. FUNÇÕES AUXILIARES
+        // ==========================================
+        function formatCurrency(value) {
+            if (typeof value !== 'number') value = parseFloat(value) || 0;
+            return '€ ' + value.toFixed(2).replace('.', ',');
+        }
+
+        function showSuccess(message) {
+            Swal.fire({
+                icon: 'success',
+                title: 'Sucesso!',
+                text: message,
+                timer: 2000,
+                showConfirmButton: false
+            });
+        }
+
+        function showError(message) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Erro!',
+                text: message,
+                timer: 3000,
+                showConfirmButton: true
+            });
+        }
+
+        function mostrarLoginPrompt() {
+            Swal.fire({
+                title: 'Acesso Restrito',
+                text: 'Faça login para gerenciar o estoque.',
+                icon: 'warning',
+                confirmButtonText: 'Ir para Login',
+                showCancelButton: true,
+                cancelButtonText: 'Cancelar'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    window.location.href = '/login.html';
+                }
+            });
+        }
+
+        // ==========================================
+        // 21. RECEBER CONFIGURAÇÕES
+        // ==========================================
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'configUpdated') {
+                carregarConfiguracoesSistema();
+            }
+            if (event.data && event.data.type === 'getProducts') {
+                event.source.postMessage({ 
+                    type: 'productsData', 
+                    products: products 
+                }, '*');
+            }
+        });
+
+        window.parent.postMessage({ type: 'getConfig' }, '*');
+
+        // ==========================================
+        // 22. EXPOR FUNÇÕES GLOBAIS
+        // ==========================================
+        window.goHome = goHome;
+        window.refreshEstoque = refreshEstoque;
+        window.abrirModalProduto = abrirModalProduto;
+        window.editarProduto = editarProduto;
+        window.excluirProduto = excluirProduto;
+        window.toggleStatus = toggleStatus;
+        window.verNaLoja = verNaLoja;
+        window.setFilter = setFilter;
+        window.filtrarProdutos = filtrarProdutos;
+        window.handleImageUpload = handleImageUpload;
+        window.removerImagem = removerImagem;
+        window.salvarProduto = salvarProduto;
+
+        // ==========================================
+        // 23. LOG DE INICIALIZAÇÃO
+        // ==========================================
+        console.log('✅ Estoque carregado com sucesso!');
+        console.log('📌 Funcionalidades:');
+        console.log('   - Gerenciamento completo de produtos');
+        console.log('   - Upload de imagens via Cloudinary');
+        console.log('   - Filtros: Todos, Ativos, Inativos, Estoque Baixo');
+        console.log('   - Busca por nome, descrição, categoria, SKU');
+        console.log('   - Resumo do estoque em tempo real');
+        console.log('   - Sincronização com a Loja/Vitrine');
+        console.log('   - Bloqueio de zoom em desktop e mobile');
+        console.log('   - Integração com Firebase em tempo real');
+        console.log('   - Produtos ativos/inativos');
+        console.log('   - Mostrar/ocultar na loja');
+
+    </script>
+
+</body>
+</html>
