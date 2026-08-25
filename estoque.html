@@ -1,3 +1,6 @@
+Vou criar um código completamente novo e funcional para o Estoque, com todas as funções de adicionar, editar, excluir e visualizar produtos funcionando corretamente.
+
+```html
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -21,7 +24,7 @@
     
     <style>
         /* ============================================
-           BLOQUEIO DE ZOOM E SCROLL LATERAL
+           RESET E BLOQUEIO DE ZOOM
            ============================================ */
         * {
             -webkit-touch-callout: none !important;
@@ -59,11 +62,6 @@
             overflow-y: auto !important;
             -webkit-overflow-scrolling: touch;
             overflow-x: hidden !important;
-        }
-
-        .estoque-container, .products-grid, .row, .col-*, .modal, .modal-body {
-            overflow-x: hidden !important;
-            max-width: 100% !important;
         }
 
         /* ============================================
@@ -108,12 +106,6 @@
             white-space: nowrap;
         }
 
-        .estoque-header .header-left h1 small {
-            font-size: 0.6rem;
-            font-weight: 400;
-            opacity: 0.7;
-        }
-
         .estoque-header .header-actions {
             display: flex;
             gap: 6px;
@@ -143,10 +135,6 @@
             transform: translateY(-2px);
         }
 
-        .btn-home i {
-            font-size: 0.8rem;
-        }
-
         .btn-refresh {
             background: rgba(255,255,255,0.12);
             border: 1px solid rgba(255,255,255,0.2);
@@ -161,11 +149,6 @@
 
         .btn-refresh:hover {
             background: rgba(255,255,255,0.25);
-        }
-
-        .btn-refresh:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
         }
 
         .last-update {
@@ -224,10 +207,6 @@
             display: flex;
             align-items: center;
             gap: 8px;
-        }
-
-        .summary-toggle .toggle-title i {
-            color: #26196b;
         }
 
         .summary-toggle .toggle-icon {
@@ -369,15 +348,6 @@
             max-width: 100%;
         }
 
-        .toolbar .filter-row::-webkit-scrollbar {
-            height: 2px;
-        }
-
-        .toolbar .filter-row::-webkit-scrollbar-thumb {
-            background: #c1c1c1;
-            border-radius: 2px;
-        }
-
         .toolbar .filter-btn {
             padding: 5px 12px;
             border: 1px solid #dee2e6;
@@ -421,10 +391,6 @@
             background: #218838;
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(40,167,69,0.3);
-        }
-
-        .toolbar .btn-add i {
-            font-size: 0.7rem;
         }
 
         /* ============================================
@@ -689,10 +655,6 @@
             border: none;
         }
 
-        .product-view-modal .modal-header .btn-close {
-            filter: brightness(0) invert(1);
-        }
-
         .product-view-modal .modal-body {
             padding: 20px;
             max-height: 75vh;
@@ -704,11 +666,6 @@
             max-height: 300px;
             object-fit: contain;
             border-radius: 12px;
-            background: #f8f9fa;
-        }
-
-        .product-view-modal .product-view-info {
-            padding: 16px 0;
         }
 
         .product-view-modal .product-view-info .info-row {
@@ -776,12 +733,10 @@
             .toolbar .btn-add { padding: 3px 10px; font-size: 0.55rem; }
             .toolbar .search-box input { font-size: 0.6rem; padding: 5px 24px 5px 26px; }
             .estoque-header .header-left h1 { font-size: 0.85rem; }
-            .estoque-header .header-left h1 small { display: none; }
             .btn-home { padding: 4px 8px; font-size: 0.65rem; }
             .btn-refresh { padding: 4px 8px; font-size: 0.65rem; }
             .last-update { display: none; }
             .product-view-modal .product-view-image { max-height: 150px; }
-            .product-view-modal .product-view-info .info-row { font-size: 0.75rem; padding: 6px 0; }
         }
 
         ::-webkit-scrollbar { width: 3px; height: 3px; }
@@ -789,19 +744,7 @@
         ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
 
-        .text-primary-custom { color: #26196b; }
-        .bg-primary-custom { background: #26196b; }
-        .border-primary-custom { border-color: #26196b; }
         .cursor-pointer { cursor: pointer; }
-        .gap-2 { gap: 6px; }
-        .gap-3 { gap: 10px; }
-        .flex-wrap { flex-wrap: wrap; }
-        .align-center { align-items: center; }
-        .justify-between { justify-content: space-between; }
-        .mt-2 { margin-top: 6px; }
-        .mt-3 { margin-top: 12px; }
-        .mb-2 { margin-bottom: 6px; }
-        .mb-3 { margin-bottom: 12px; }
         .text-muted { color: #6c757d; }
         .text-success { color: #28a745; }
         .text-danger { color: #dc3545; }
@@ -1173,7 +1116,6 @@
         let editingProductId = null;
         let productListener = null;
         let summaryOpen = false;
-        let modalInstance = null;
 
         // ==========================================
         // 4. INICIALIZAÇÃO
@@ -1354,7 +1296,6 @@
                     'Sem categoria';
                 
                 const formattedPrice = formatCurrency(product.salePrice || 0);
-                const formattedPurchase = formatCurrency(product.purchasePrice || 0);
                 
                 html += `
                     <div class="col-xl-3 col-lg-4 col-md-6 col-6">
@@ -1372,7 +1313,6 @@
                                 <div class="product-price">${formattedPrice}</div>
                                 <div class="product-stock">
                                     <i class="fas fa-cubes me-1"></i>${product.quantity || 0} unidades
-                                    ${product.purchasePrice ? `| Compra: ${formattedPurchase}` : ''}
                                 </div>
                                 <span class="product-status ${isActive ? 'active' : 'inactive'}">
                                     ${isActive ? '✅ Ativo' : '❌ Inativo'}
@@ -1601,35 +1541,29 @@
         }
 
         // ==========================================
-        // 14. ABRIR MODAL DE PRODUTO (CORRIGIDO)
+        // 14. ABRIR MODAL DE PRODUTO (ADICIONAR)
         // ==========================================
         function abrirModalProduto(productId = null) {
-            console.log('📦 Abrindo modal de produto...', productId ? 'Edição' : 'Adição');
+            console.log('📦 Abrindo modal de produto...');
             
             try {
-                // Verificar se o modal existe
                 const modalElement = document.getElementById('productModal');
                 if (!modalElement) {
-                    console.error('❌ Modal não encontrado!');
                     showError('Erro ao abrir modal. Tente novamente.');
                     return;
                 }
 
-                // Destruir instância anterior se existir
-                if (modalInstance) {
-                    try {
-                        modalInstance.dispose();
-                    } catch(e) {}
-                    modalInstance = null;
-                }
-
-                // Criar nova instância
-                modalInstance = new bootstrap.Modal(modalElement, {
-                    backdrop: 'static',
-                    keyboard: true
-                });
-
-                editingProductId = productId;
+                // Reset do formulário
+                document.getElementById('productForm').reset();
+                document.getElementById('productId').value = '';
+                document.getElementById('prodImageUrl').value = '';
+                document.getElementById('prodActive').checked = true;
+                document.getElementById('prodShowInStore').checked = true;
+                document.getElementById('prodQuantity').value = 0;
+                document.getElementById('prodMinQuantity').value = 5;
+                document.getElementById('deleteProductBtn').style.display = 'none';
+                resetImagePreview();
+                atualizarStatusLabel();
 
                 if (productId) {
                     // EDIÇÃO
@@ -1666,22 +1600,10 @@
                                 </button>
                             </div>
                         `;
-                    } else {
-                        resetImagePreview();
                     }
                 } else {
                     // ADIÇÃO
                     document.getElementById('productModalTitle').textContent = '➕ Adicionar Produto';
-                    document.getElementById('productForm').reset();
-                    document.getElementById('productId').value = '';
-                    document.getElementById('prodImageUrl').value = '';
-                    document.getElementById('prodActive').checked = true;
-                    document.getElementById('prodShowInStore').checked = true;
-                    document.getElementById('prodQuantity').value = 0;
-                    document.getElementById('prodMinQuantity').value = 5;
-                    document.getElementById('deleteProductBtn').style.display = 'none';
-                    resetImagePreview();
-                    atualizarStatusLabel();
                 }
 
                 // Adicionar evento para atualizar status label
@@ -1690,7 +1612,11 @@
                 };
 
                 // Mostrar o modal
-                modalInstance.show();
+                const modal = new bootstrap.Modal(modalElement, {
+                    backdrop: 'static',
+                    keyboard: true
+                });
+                modal.show();
                 console.log('✅ Modal aberto com sucesso!');
 
             } catch (error) {
@@ -1861,10 +1787,8 @@
 
             promise
                 .then(() => {
-                    if (modalInstance) {
-                        modalInstance.hide();
-                        modalInstance = null;
-                    }
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('productModal'));
+                    if (modal) modal.hide();
                     Swal.close();
                     showSuccess(productId ? 'Produto atualizado com sucesso!' : 'Produto adicionado com sucesso!');
                     notificarLoja();
@@ -1912,10 +1836,8 @@
 
                     db.collection('products').doc(productId).delete()
                         .then(() => {
-                            if (modalInstance) {
-                                modalInstance.hide();
-                                modalInstance = null;
-                            }
+                            const modal = bootstrap.Modal.getInstance(document.getElementById('productModal'));
+                            if (modal) modal.hide();
                             Swal.close();
                             showSuccess('Produto excluído com sucesso!');
                             notificarLoja();
@@ -2151,3 +2073,4 @@
 
 </body>
 </html>
+```
