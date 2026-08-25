@@ -416,17 +416,6 @@
             flex: 1;
         }
 
-        .ficha-field .value.editable {
-            cursor: pointer;
-            padding: 4px 8px;
-            border-radius: 4px;
-            transition: background 0.2s;
-        }
-
-        .ficha-field .value.editable:hover {
-            background: #f0f0ff;
-        }
-
         .ficha-field .value .tag {
             display: inline-block;
             background: #f0f0ff;
@@ -454,6 +443,22 @@
         .service-history-item .service-value {
             font-weight: 600;
             color: #28a745;
+        }
+
+        .birthday-badge {
+            display: inline-block;
+            background: #ffd700;
+            color: #000;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.65rem;
+            font-weight: 600;
+            animation: pulse-birthday 1.5s infinite;
+        }
+
+        @keyframes pulse-birthday {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
         }
 
         /* ============================================
@@ -647,6 +652,7 @@
         .text-muted { color: #6c757d; }
         .text-success { color: #28a745; }
         .text-danger { color: #dc3545; }
+        .text-warning { color: #ffc107; }
         .fw-bold { font-weight: 700; }
         .fw-semibold { font-weight: 600; }
         .fs-small { font-size: 0.7rem; }
@@ -925,7 +931,6 @@
         function verificarMobile() {
             isMobile = window.innerWidth < 992;
             if (!isMobile && clienteSelecionado) {
-                // Se for desktop e tem cliente selecionado, mostrar na lateral
                 const fichaColumn = document.getElementById('fichaColumn');
                 fichaColumn.classList.add('active');
                 renderizarFichaDesktop(clienteSelecionado);
@@ -982,6 +987,7 @@
                 clientesSnap.forEach(doc => {
                     clientes.push({ id: doc.id, ...doc.data() });
                 });
+                // Ordenar por nome (ordem alfabética)
                 clientes.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
                 const collabSnap = await db.collection('collaborators')
@@ -1077,7 +1083,7 @@
         }
 
         // ==========================================
-        // 8. FILTRAR CLIENTES (EM TEMPO REAL)
+        // 8. FILTRAR CLIENTES (EM TEMPO REAL - ORDEM ALFABÉTICA)
         // ==========================================
         function filtrarClientes(searchTerm) {
             const list = document.getElementById('clientAutocompleteList');
@@ -1103,14 +1109,17 @@
                        email.includes(normalizedSearch);
             });
 
+            // Manter a ordem alfabética após o filtro
+            filtered.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
             clientesFiltrados = filtered;
             renderizarListaClientes();
             atualizarContagemClientes();
 
             // Autocomplete
-            if (filtered.length > 0 && filtered.length <= 10) {
+            if (filtered.length > 0 && filtered.length <= 15) {
                 let html = '';
-                filtered.slice(0, 10).forEach(c => {
+                filtered.slice(0, 15).forEach(c => {
                     const fotoHtml = c.photoUrl ? 
                         `<img src="${c.photoUrl}" style="width:30px;height:30px;border-radius:50%;object-fit:cover;margin-right:8px;" onerror="this.style.display='none'">` :
                         `<span style="display:inline-block;width:30px;height:30px;border-radius:50%;background:#26196b;color:white;text-align:center;line-height:30px;font-size:14px;margin-right:8px;">${(c.name || '?').charAt(0).toUpperCase()}</span>`;
@@ -1164,19 +1173,25 @@
 
                 const totalServicos = servicos.filter(s => s.clientId === cliente.id).length;
 
+                // Verificar se é aniversário hoje
+                const isBirthdayToday = cliente.birthdate ? verificarAniversarioHoje(cliente.birthdate) : false;
+                const birthdayIcon = isBirthdayToday ? ' 🎂' : '';
+
                 html += `
                     <div class="client-card-item" onclick="selecionarCliente('${cliente.id}')">
                         ${photoHtml}
                         <div class="client-info">
                             <div class="name">
-                                ${cliente.name || 'Sem nome'}
+                                ${cliente.name || 'Sem nome'}${birthdayIcon}
                                 <span class="badge ${totalServicos > 0 ? 'bg-success' : 'bg-secondary'}" style="font-size:0.6rem;">
                                     ${totalServicos} serviços
                                 </span>
+                                ${isBirthdayToday ? '<span class="birthday-badge">🎉 HOJE É ANIVERSÁRIO!</span>' : ''}
                             </div>
                             <div class="details">
                                 ${cliente.phone || 'Sem telefone'} 
                                 ${cliente.email ? `| ${cliente.email}` : ''}
+                                ${cliente.birthdate ? `| Nasc: ${formatDate(cliente.birthdate)}` : ''}
                             </div>
                         </div>
                         <div class="client-badge">
@@ -1194,7 +1209,17 @@
         }
 
         // ==========================================
-        // 10. SELECIONAR CLIENTE
+        // 10. VERIFICAR ANIVERSÁRIO HOJE
+        // ==========================================
+        function verificarAniversarioHoje(birthdate) {
+            if (!birthdate) return false;
+            const hoje = new Date();
+            const birth = new Date(birthdate);
+            return birth.getMonth() === hoje.getMonth() && birth.getDate() === hoje.getDate();
+        }
+
+        // ==========================================
+        // 11. SELECIONAR CLIENTE
         // ==========================================
         function selecionarCliente(clienteId) {
             if (typeof clienteId === 'string') {
@@ -1220,7 +1245,7 @@
         window.selecionarCliente = selecionarCliente;
 
         // ==========================================
-        // 11. RENDERIZAR FICHA - DESKTOP (LATERAL)
+        // 12. RENDERIZAR FICHA - DESKTOP (LATERAL)
         // ==========================================
         function renderizarFichaDesktop(cliente) {
             const body = document.getElementById('fichaDesktopBody');
@@ -1233,7 +1258,7 @@
         }
 
         // ==========================================
-        // 12. RENDERIZAR FICHA - MOBILE (POPUP)
+        // 13. RENDERIZAR FICHA - MOBILE (POPUP)
         // ==========================================
         function renderizarFichaMobile(cliente) {
             const body = document.getElementById('fichaMobileBody');
@@ -1258,7 +1283,46 @@
         }
 
         // ==========================================
-        // 13. GERAR HTML DA FICHA
+        // 14. ENVIAR WHATSAPP DE ANIVERSÁRIO
+        // ==========================================
+        function enviarWhatsAppAniversario(cliente) {
+            if (!cliente || !cliente.phone) {
+                Swal.fire('Aviso', 'Cliente não possui telefone cadastrado.', 'warning');
+                return;
+            }
+
+            const nome = cliente.name || 'Cliente';
+            const phone = cliente.phone.replace(/\D/g, '');
+            
+            // Buscar nome da empresa
+            let empresaNome = 'Studio DeVitto';
+            try {
+                const config = localStorage.getItem('systemConfig');
+                if (config) {
+                    const parsed = JSON.parse(config);
+                    if (parsed.nome) empresaNome = parsed.nome;
+                }
+            } catch(e) {}
+
+            const mensagem = `🎂 *FELIZ ANIVERSÁRIO, ${nome.toUpperCase()}!* 🎉
+
+Que este dia seja tão incrível quanto você! 🎈
+
+Desejamos muita saúde, alegria, prosperidade e muitos momentos felizes! 
+
+Que todos os seus sonhos se realizem e que este novo ano de vida seja repleto de conquistas e realizações! ✨
+
+Um grande abraço da equipe ${empresaNome}! ❤️
+
+*P.S.: Como presente de aniversário, estamos lhe dando uma *Hidratação dos Cabelos com Vapor de Ozônio!* 🎁
+(obs: presente válido para os próximos 7 dias, não acompanha escova/brushing)`;
+
+            const url = `https://wa.me/${phone}?text=${encodeURIComponent(mensagem)}`;
+            window.open(url, '_blank');
+        }
+
+        // ==========================================
+        // 15. GERAR HTML DA FICHA
         // ==========================================
         function gerarHTMLFicha(cliente) {
             const servicosCliente = servicos
@@ -1271,6 +1335,7 @@
 
             const totalGasto = servicosCliente.reduce((sum, s) => sum + parseFloat(s.value || 0), 0);
             const nota = notasClientes[cliente.id]?.notes || '';
+            const isBirthdayToday = cliente.birthdate ? verificarAniversarioHoje(cliente.birthdate) : false;
 
             const fotoHtml = cliente.photoUrl ? 
                 `<img src="${cliente.photoUrl}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid #26196b;margin:0 auto 10px;display:block;" onerror="this.style.display='none'">` : 
@@ -1300,12 +1365,24 @@
                 servicosHtml = '<p class="text-muted text-center py-2">Nenhum serviço registrado.</p>';
             }
 
+            const birthdayBanner = isBirthdayToday ? `
+                <div class="alert alert-success text-center py-2 mb-3" style="border: 2px solid #ffd700;">
+                    <i class="fas fa-gift me-2"></i>
+                    <strong>🎉 HOJE É ANIVERSÁRIO DE ${cliente.name.toUpperCase()}!</strong>
+                    <i class="fas fa-gift ms-2"></i>
+                </div>
+            ` : '';
+
             return `
                 <div class="text-center">
                     ${fotoHtml}
                     <h5 class="mb-1">${cliente.name}</h5>
                     <p class="text-muted small">${cliente.phone || 'Sem telefone'}</p>
+                    ${cliente.birthdate ? `<p class="text-muted small">🎂 Nascimento: ${formatDate(cliente.birthdate)}</p>` : ''}
+                    ${isBirthdayToday ? '<span class="birthday-badge">🎉 ANIVERSÁRIO HOJE!</span>' : ''}
                 </div>
+
+                ${birthdayBanner}
 
                 <hr>
 
@@ -1325,6 +1402,12 @@
                         <span class="label">Último Atend.</span>
                         <span class="value">${servicosCliente.length > 0 ? formatDate(servicosCliente[0].date) : 'Nunca'}</span>
                     </div>
+                    ${cliente.birthdate ? `
+                    <div class="ficha-field">
+                        <span class="label">Data Nasc.</span>
+                        <span class="value">${formatDate(cliente.birthdate)}</span>
+                    </div>
+                    ` : ''}
                 </div>
 
                 <div class="ficha-section">
@@ -1353,6 +1436,11 @@
                         <button class="btn btn-success btn-sm" onclick="window.open('https://wa.me/${cliente.phone.replace(/\D/g, '')}?text=Olá ${encodeURIComponent(cliente.name)}!', '_blank')">
                             <i class="fab fa-whatsapp me-1"></i>WhatsApp
                         </button>
+                        ${isBirthdayToday ? `
+                        <button class="btn btn-warning btn-sm" onclick="enviarWhatsAppAniversario(clienteSelecionado)">
+                            <i class="fas fa-gift me-1"></i>🎂 Enviar Parabéns WhatsApp
+                        </button>
+                        ` : ''}
                     ` : ''}
                     <button class="btn btn-outline-primary btn-sm" onclick="editarNotas('${cliente.id}')">
                         <i class="fas fa-sticky-note me-1"></i>Editar Notas
@@ -1362,7 +1450,7 @@
         }
 
         // ==========================================
-        // 14. FUNÇÕES DE NOTAS
+        // 16. FUNÇÕES DE NOTAS
         // ==========================================
         function editarNotas(clientId) {
             const cliente = clientes.find(c => c.id === clientId);
@@ -1436,7 +1524,7 @@
         }
 
         // ==========================================
-        // 15. FUNÇÕES AUXILIARES
+        // 17. FUNÇÕES AUXILIARES
         // ==========================================
         function formatDate(date) {
             if (!date) return '';
@@ -1458,7 +1546,7 @@
         }
 
         // ==========================================
-        // 16. RECARREGAR DADOS
+        // 18. RECARREGAR DADOS
         // ==========================================
         function recarregarDados() {
             const btn = document.getElementById('refreshBtn');
@@ -1474,7 +1562,7 @@
         }
 
         // ==========================================
-        // 17. FUNÇÃO HOME
+        // 19. FUNÇÃO HOME
         // ==========================================
         function goHome() {
             if (window.parent && window.parent !== window) {
@@ -1485,7 +1573,7 @@
         }
 
         // ==========================================
-        // 18. MOSTRAR LOGIN PROMPT
+        // 20. MOSTRAR LOGIN PROMPT
         // ==========================================
         function mostrarLoginPrompt() {
             Swal.fire({
@@ -1503,7 +1591,7 @@
         }
 
         // ==========================================
-        // 19. RECEBER CONFIGURAÇÕES
+        // 21. RECEBER CONFIGURAÇÕES
         // ==========================================
         window.addEventListener('message', function(event) {
             if (event.data && event.data.type === 'configUpdated') {
@@ -1520,17 +1608,19 @@
         window.parent.postMessage({ type: 'getConfig' }, '*');
 
         // ==========================================
-        // 20. LOG DE INICIALIZAÇÃO
+        // 22. LOG DE INICIALIZAÇÃO
         // ==========================================
         console.log('✅ Registros carregados com sucesso!');
         console.log('📌 Funcionalidades:');
         console.log('   - Filtro em tempo real (busca por eliminação)');
+        console.log('   - Manutenção da ordem alfabética');
         console.log('   - Desktop: ficha na lateral direita');
         console.log('   - Mobile: popup em tela cheia');
+        console.log('   - Data de nascimento do cliente');
+        console.log('   - Botão WhatsApp de feliz aniversário');
+        console.log('   - Badge de aniversário do dia');
         console.log('   - Visualização e edição de notas');
         console.log('   - Histórico de serviços');
-        console.log('   - Integração com WhatsApp');
-        console.log('   - Sincronização em tempo real');
 
     </script>
 
