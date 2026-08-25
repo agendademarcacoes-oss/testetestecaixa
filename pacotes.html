@@ -155,24 +155,6 @@
             color: rgba(255,255,255,0.8);
         }
 
-        .btn-finished {
-            background: rgba(255,255,255,0.15);
-            border: 1px solid rgba(255,255,255,0.3);
-            color: white;
-            border-radius: 25px;
-            padding: 5px 12px;
-            font-size: 0.75rem;
-            transition: all 0.3s;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .btn-finished:hover {
-            background: rgba(255,255,255,0.25);
-        }
-
         /* ============================================
            CONTEÚDO PRINCIPAL
            ============================================ */
@@ -182,6 +164,67 @@
             padding: 16px;
             background: #f8f9fa;
             -webkit-overflow-scrolling: touch;
+        }
+
+        /* ============================================
+           TOPO COM BOTÃO DE FINALIZADOS
+           ============================================ */
+        .packages-top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .packages-top-bar .title-section {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .packages-top-bar .title-section h5 {
+            margin: 0;
+            color: #26196b;
+            font-weight: 600;
+        }
+
+        .packages-top-bar .title-section .badge-count {
+            background: #26196b;
+            color: white;
+            border-radius: 20px;
+            padding: 2px 12px;
+            font-size: 0.75rem;
+        }
+
+        .btn-finished {
+            background: #6c757d;
+            border: none;
+            color: white;
+            border-radius: 25px;
+            padding: 6px 16px;
+            font-size: 0.75rem;
+            transition: all 0.3s;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-finished:hover {
+            background: #5a6268;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .btn-finished .badge-light {
+            background: white;
+            color: #6c757d;
+            border-radius: 50%;
+            padding: 1px 8px;
+            font-size: 0.65rem;
+            font-weight: 700;
         }
 
         /* ============================================
@@ -509,6 +552,14 @@
             .packages-container {
                 padding: 10px;
             }
+            .packages-top-bar {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 8px;
+            }
+            .packages-top-bar .title-section {
+                justify-content: center;
+            }
             .package-card .card-header-custom {
                 padding: 10px 12px;
                 flex-direction: column;
@@ -530,6 +581,9 @@
             }
             .finished-overlay .finished-body {
                 padding: 10px;
+            }
+            .btn-finished {
+                justify-content: center;
             }
         }
 
@@ -554,6 +608,9 @@
             }
             .finished-overlay .finished-header .title {
                 font-size: 0.85rem;
+            }
+            .packages-top-bar .title-section h5 {
+                font-size: 0.9rem;
             }
         }
 
@@ -604,7 +661,7 @@
 <body>
 
     <!-- ==========================================
-    HEADER COM BOTÃO HOME E PACOTES FINALIZADOS
+    HEADER COM BOTÃO HOME
     ========================================== -->
     <header class="packages-header" id="packagesHeader">
         <div class="header-left">
@@ -618,10 +675,6 @@
             <span class="last-update" id="lastUpdateBadge">
                 <i class="fas fa-clock me-1"></i>Atualizado agora
             </span>
-            <button class="btn-finished" onclick="abrirPacotesFinalizados()">
-                <i class="fas fa-archive me-1"></i>Finalizados
-                <span class="badge bg-light text-dark ms-1" id="finishedCount">0</span>
-            </button>
             <button class="btn-refresh" id="refreshBtn" onclick="refreshPackages()">
                 <i class="fas fa-sync-alt me-1"></i>Atualizar
             </button>
@@ -636,6 +689,20 @@
     CONTEÚDO PRINCIPAL
     ========================================== -->
     <div class="packages-container" id="packagesContainer">
+
+        <!-- ==========================================
+        TOPO COM BOTÃO DE FINALIZADOS
+        ========================================== -->
+        <div class="packages-top-bar">
+            <div class="title-section">
+                <h5><i class="fas fa-box me-2"></i>Pacotes Ativos</h5>
+                <span class="badge-count" id="activeCount">0</span>
+            </div>
+            <button class="btn-finished" onclick="abrirPacotesFinalizados()">
+                <i class="fas fa-archive me-1"></i>Finalizados
+                <span class="badge-light" id="finishedCount">0</span>
+            </button>
+        </div>
 
         <!-- ==========================================
         FORMULÁRIO DE CRIAÇÃO/EDIÇÃO DE PACOTES
@@ -756,6 +823,7 @@
             <div class="title">
                 <i class="fas fa-archive"></i>
                 <span>Pacotes Finalizados</span>
+                <span class="badge bg-light text-dark ms-2" id="finishedOverlayCount">0</span>
             </div>
             <button class="btn-close-finished" id="closeFinishedOverlay">
                 <i class="fas fa-times"></i>
@@ -892,7 +960,6 @@
                 }
             });
 
-            // Eventos do formulário
             document.getElementById('packageForm').addEventListener('submit', function(e) {
                 e.preventDefault();
                 salvarPacote();
@@ -910,7 +977,6 @@
                 fecharPacotesFinalizados();
             });
 
-            // Atualizar a cada 30 segundos
             setInterval(function() {
                 if (currentUser) {
                     carregarDados();
@@ -972,7 +1038,7 @@
                     carregarPacotes()
                 ]);
                 renderPackages();
-                atualizarContadorFinalizados();
+                atualizarContadores();
                 atualizarUltimaAtualizacao();
             } catch (error) {
                 console.error('Erro ao carregar dados:', error);
@@ -1296,8 +1362,7 @@
                         
                         if (newStatus === 'completed') {
                             Swal.fire('🎉 Pacote concluído!', 'Todos os procedimentos foram realizados.', 'success');
-                            // Atualizar contador
-                            atualizarContadorFinalizados();
+                            atualizarContadores();
                         }
                     })
                     .catch(error => {
@@ -1344,7 +1409,7 @@
             })
             .then(() => {
                 carregarDados();
-                atualizarContadorFinalizados();
+                atualizarContadores();
                 Swal.fire('✅ Pacote finalizado!', '', 'success');
             })
             .catch(error => {
@@ -1374,7 +1439,7 @@
                     db.collection('packages').doc(packageId).delete()
                         .then(() => {
                             carregarDados();
-                            atualizarContadorFinalizados();
+                            atualizarContadores();
                             Swal.fire('✅ Pacote excluído!', '', 'success');
                         })
                         .catch(error => {
@@ -1651,6 +1716,8 @@
             const container = document.getElementById('finishedBody');
             const finishedPackages = packages.filter(p => p.status === 'finished');
 
+            document.getElementById('finishedOverlayCount').textContent = finishedPackages.length;
+
             if (finishedPackages.length === 0) {
                 container.innerHTML = `
                     <div class="text-center text-muted py-5">
@@ -1661,7 +1728,6 @@
                 return;
             }
 
-            // Agrupar por cliente
             const groupedByClient = {};
             finishedPackages.forEach(pkg => {
                 const clientId = pkg.clientId;
@@ -1750,11 +1816,14 @@
         }
 
         // ==========================================
-        // 20. ATUALIZAR CONTADOR DE FINALIZADOS
+        // 20. ATUALIZAR CONTADORES
         // ==========================================
-        function atualizarContadorFinalizados() {
-            const count = packages.filter(p => p.status === 'finished').length;
-            document.getElementById('finishedCount').textContent = count;
+        function atualizarContadores() {
+            const activeCount = packages.filter(p => p.status === 'active' || p.status === 'completed').length;
+            const finishedCount = packages.filter(p => p.status === 'finished').length;
+            
+            document.getElementById('activeCount').textContent = activeCount;
+            document.getElementById('finishedCount').textContent = finishedCount;
         }
 
         // ==========================================
@@ -1911,7 +1980,8 @@
         console.log('   - Excluir pacotes');
         console.log('   - Visualização de detalhes');
         console.log('   - Pacotes Finalizados em tela cheia');
-        console.log('   - Contador de pacotes finalizados');
+        console.log('   - Contador de pacotes ativos e finalizados');
+        console.log('   - Botão Finalizados organizado no topo');
         console.log('   - Integração com o Caixa (usar pacote)');
         console.log('   - Bloqueio de zoom em desktop e mobile');
         console.log('   - Dados salvos em tempo real no Firebase');
