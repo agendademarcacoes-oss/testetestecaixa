@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -484,6 +483,29 @@
             margin: 0 8px;
         }
 
+        .cart-item .cart-discount {
+            font-size: 0.7rem;
+            color: #28a745;
+            font-weight: 600;
+            margin: 0 4px;
+        }
+
+        /* Badge de desconto */
+        .discount-badge {
+            background: #28a745;
+            color: white;
+            font-size: 0.6rem;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: 600;
+            margin-left: 4px;
+        }
+
+        .discount-badge.percent {
+            background: #ffc107;
+            color: #000;
+        }
+
         /* Resumo */
         .summary-box {
             background: #f8f9fa;
@@ -571,6 +593,10 @@
             .caixa-header .header-left .brand-logo img {
                 height: 24px;
                 width: 24px;
+            }
+            .discount-input-group {
+                flex-direction: column;
+                gap: 4px;
             }
         }
 
@@ -724,7 +750,10 @@
             <div class="mt-2 pt-2 border-top">
                 <div class="d-flex justify-content-between align-items-center">
                     <strong>Total do Carrinho</strong>
-                    <strong id="cartTotal">€ 0,00</strong>
+                    <div class="text-end">
+                        <div id="cartTotalOriginal" style="font-size:0.75rem;color:#6c757d;text-decoration:line-through;display:none;"></div>
+                        <strong id="cartTotal">€ 0,00</strong>
+                    </div>
                 </div>
                 <div class="d-flex gap-2 mt-2">
                     <button class="btn btn-sm btn-outline-danger" id="clearCartBtn">
@@ -815,6 +844,33 @@
                                     </div>
                                 </div>
                             </div>
+                            
+                            <!-- NOVO: DESCONTO PARA SERVIÇO -->
+                            <div class="col-12 mt-2">
+                                <div class="row g-2 align-items-center">
+                                    <div class="col-md-4">
+                                        <label class="form-label">Desconto (%)</label>
+                                        <input type="number" class="form-control" id="serviceDiscountPercent" 
+                                               min="0" max="100" step="1" value="0" 
+                                               onchange="calcularDescontoServico()" 
+                                               oninput="calcularDescontoServico()">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Desconto (€)</label>
+                                        <input type="number" class="form-control" id="serviceDiscountValue" 
+                                               step="0.01" min="0" value="0"
+                                               onchange="calcularDescontoServico()" 
+                                               oninput="calcularDescontoServico()">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Valor com Desconto</label>
+                                        <input type="number" class="form-control" id="serviceFinalValue" 
+                                               step="0.01" min="0" readonly style="background:#f8f9fa;font-weight:bold;color:#28a745;">
+                                    </div>
+                                </div>
+                                <small class="text-muted fs-small">Aplique desconto em % ou valor fixo. O valor final será atualizado automaticamente.</small>
+                            </div>
+                            
                             <div class="col-12">
                                 <button type="submit" class="btn btn-primary w-100" id="addServiceBtn">
                                     <i class="fas fa-plus me-1"></i>Adicionar ao Carrinho
@@ -865,6 +921,33 @@
                                     </button>
                                 </div>
                             </div>
+                            
+                            <!-- NOVO: DESCONTO PARA PRODUTO -->
+                            <div class="col-12 mt-2">
+                                <div class="row g-2 align-items-center">
+                                    <div class="col-md-4">
+                                        <label class="form-label">Desconto (%)</label>
+                                        <input type="number" class="form-control" id="productDiscountPercent" 
+                                               min="0" max="100" step="1" value="0"
+                                               onchange="calcularDescontoProduto()" 
+                                               oninput="calcularDescontoProduto()">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Desconto (€)</label>
+                                        <input type="number" class="form-control" id="productDiscountValue" 
+                                               step="0.01" min="0" value="0"
+                                               onchange="calcularDescontoProduto()" 
+                                               oninput="calcularDescontoProduto()">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Valor com Desconto</label>
+                                        <input type="number" class="form-control" id="productFinalValue" 
+                                               step="0.01" min="0" readonly style="background:#f8f9fa;font-weight:bold;color:#28a745;">
+                                    </div>
+                                </div>
+                                <small class="text-muted fs-small">Aplique desconto em % ou valor fixo. O valor final será atualizado automaticamente.</small>
+                            </div>
+                            
                             <div class="col-12">
                                 <button type="submit" class="btn btn-primary w-100" id="addProductBtn">
                                     <i class="fas fa-plus me-1"></i>Adicionar ao Carrinho
@@ -1121,7 +1204,7 @@
         let newClientPhotoUrl = null;
 
         // ==========================================
-        // 3. FUNÇÃO DE BUSCA DE CLIENTES REESCRITA DO ZERO
+        // 3. FUNÇÃO DE BUSCA DE CLIENTES (REESCRITA DO ZERO - MANTIDA)
         // ==========================================
         function configurarBuscaClientes(inputId, autocompleteId, hiddenId, clearBtnId) {
             const input = document.getElementById(inputId);
@@ -1131,7 +1214,6 @@
 
             if (!input || !autocomplete) return;
 
-            // Função para remover acentos e normalizar texto
             function normalizarTexto(texto) {
                 if (!texto) return '';
                 return texto
@@ -1141,41 +1223,33 @@
                     .trim();
             }
 
-            // Função para verificar se um cliente corresponde ao termo de busca
             function clienteCorresponde(cliente, termo) {
                 if (!termo) return true;
-                
                 const termoNormalizado = normalizarTexto(termo);
                 if (!termoNormalizado) return true;
 
-                // Buscar por nome (com acentos normalizados)
                 const nome = normalizarTexto(cliente.name || '');
                 if (nome.includes(termoNormalizado)) return true;
 
-                // Buscar por telefone (removendo caracteres especiais)
                 const phone = (cliente.phone || '').replace(/\D/g, '');
                 const termoSemNumeros = termo.replace(/\D/g, '');
                 if (phone.includes(termoSemNumeros) && termoSemNumeros.length > 0) return true;
 
-                // Buscar por email
                 const email = (cliente.email || '').toLowerCase();
                 if (email.includes(termoNormalizado)) return true;
 
                 return false;
             }
 
-            // Função para renderizar a lista de clientes
             function renderizarClientes(clientesFiltrados, termo) {
                 autocomplete.innerHTML = '';
 
                 if (!clientesFiltrados || clientesFiltrados.length === 0) {
-                    // Nenhum cliente encontrado
                     const div = document.createElement('div');
                     div.className = 'autocomplete-item text-muted';
                     div.textContent = 'Nenhum cliente encontrado';
                     autocomplete.appendChild(div);
 
-                    // Opção para cadastrar novo cliente
                     const novo = document.createElement('div');
                     novo.className = 'autocomplete-item';
                     novo.style.cssText = 'color:#26196b;font-weight:500;';
@@ -1186,14 +1260,12 @@
                     };
                     autocomplete.appendChild(novo);
                 } else {
-                    // Mostrar clientes encontrados
                     clientesFiltrados.forEach(cliente => {
                         const item = document.createElement('div');
                         item.className = 'autocomplete-item';
                         item.setAttribute('data-id', cliente.id);
                         item.setAttribute('data-name', cliente.name);
 
-                        // Foto ou placeholder
                         const fotoDiv = document.createElement('div');
                         if (cliente.photoUrl) {
                             const img = document.createElement('img');
@@ -1208,7 +1280,6 @@
                             fotoDiv.appendChild(placeholder);
                         }
 
-                        // Informações
                         const infoDiv = document.createElement('div');
                         infoDiv.className = 'info';
                         
@@ -1226,7 +1297,6 @@
                         item.appendChild(fotoDiv);
                         item.appendChild(infoDiv);
 
-                        // Evento de clique para selecionar o cliente
                         item.onclick = function() {
                             input.value = this.getAttribute('data-name');
                             hidden.value = this.getAttribute('data-id');
@@ -1238,7 +1308,6 @@
                         autocomplete.appendChild(item);
                     });
 
-                    // Opção para cadastrar novo cliente
                     const novo = document.createElement('div');
                     novo.className = 'autocomplete-item';
                     novo.style.cssText = 'color:#26196b;font-weight:500;border-top:1px solid #eee;';
@@ -1253,9 +1322,7 @@
                 autocomplete.classList.add('active');
             }
 
-            // Função principal de busca
             function buscarClientes(termo) {
-                // Se não houver clientes cadastrados
                 if (!clients || clients.length === 0) {
                     autocomplete.innerHTML = '';
                     
@@ -1278,14 +1345,12 @@
                     return;
                 }
 
-                // Se o termo estiver vazio, mostrar todos os clientes (limitado a 20)
                 if (!termo || termo.trim() === '') {
                     const todos = clients.slice(0, 20);
                     renderizarClientes(todos, termo);
                     return;
                 }
 
-                // Filtrar clientes
                 const termoNormalizado = normalizarTexto(termo);
                 const resultados = clients.filter(cliente => 
                     clienteCorresponde(cliente, termoNormalizado)
@@ -1294,11 +1359,9 @@
                 renderizarClientes(resultados, termo);
             }
 
-            // Evento de input (digitação)
             input.addEventListener('input', function() {
                 const termo = this.value;
                 
-                // Mostrar/esconder botão limpar
                 if (clearBtn) {
                     if (termo.length > 0) {
                         clearBtn.classList.add('show');
@@ -1310,20 +1373,17 @@
                 buscarClientes(termo);
             });
 
-            // Evento de foco (mostrar todos os clientes)
             input.addEventListener('focus', function() {
                 const termo = this.value;
                 buscarClientes(termo);
             });
 
-            // Evento de blur (fechar autocomplete com delay)
             input.addEventListener('blur', function() {
                 setTimeout(() => {
                     autocomplete.classList.remove('active');
                 }, 200);
             });
 
-            // Evento de tecla (Enter para selecionar o primeiro)
             input.addEventListener('keydown', function(e) {
                 if (e.key === 'Enter') {
                     const primeiroItem = autocomplete.querySelector('.autocomplete-item[data-id]');
@@ -1340,7 +1400,67 @@
         }
 
         // ==========================================
-        // 4. INICIALIZAÇÃO
+        // 4. FUNÇÕES DE DESCONTO
+        // ==========================================
+        function calcularDescontoServico() {
+            const valor = parseFloat(document.getElementById('serviceValue').value) || 0;
+            const descontoPercent = parseFloat(document.getElementById('serviceDiscountPercent').value) || 0;
+            const descontoValue = parseFloat(document.getElementById('serviceDiscountValue').value) || 0;
+
+            let finalValue = valor;
+
+            // Aplicar desconto percentual
+            if (descontoPercent > 0) {
+                finalValue = valor * (1 - (descontoPercent / 100));
+            }
+
+            // Aplicar desconto em valor (substitui o percentual se ambos forem informados)
+            if (descontoValue > 0) {
+                finalValue = valor - descontoValue;
+            }
+
+            // Garantir que não fique negativo
+            if (finalValue < 0) finalValue = 0;
+
+            document.getElementById('serviceFinalValue').value = finalValue.toFixed(2);
+        }
+
+        function calcularDescontoProduto() {
+            const produtoId = document.getElementById('productId').value;
+            const quantidade = parseInt(document.getElementById('productQuantity').value) || 1;
+            
+            let valorUnitario = 0;
+            if (produtoId) {
+                const produto = products.find(p => p.id === produtoId);
+                if (produto) {
+                    valorUnitario = parseFloat(produto.salePrice) || 0;
+                }
+            }
+
+            const valorTotal = valorUnitario * quantidade;
+            const descontoPercent = parseFloat(document.getElementById('productDiscountPercent').value) || 0;
+            const descontoValue = parseFloat(document.getElementById('productDiscountValue').value) || 0;
+
+            let finalValue = valorTotal;
+
+            // Aplicar desconto percentual
+            if (descontoPercent > 0) {
+                finalValue = valorTotal * (1 - (descontoPercent / 100));
+            }
+
+            // Aplicar desconto em valor (substitui o percentual se ambos forem informados)
+            if (descontoValue > 0) {
+                finalValue = valorTotal - descontoValue;
+            }
+
+            // Garantir que não fique negativo
+            if (finalValue < 0) finalValue = 0;
+
+            document.getElementById('productFinalValue').value = finalValue.toFixed(2);
+        }
+
+        // ==========================================
+        // 5. INICIALIZAÇÃO
         // ==========================================
         document.addEventListener('DOMContentLoaded', function() {
             initBroadcastChannel();
@@ -1443,13 +1563,8 @@
                 this.classList.remove('show');
             });
 
-            // ==========================================
-            // CONFIGURAR BUSCA DE CLIENTES - REWRITTEN FROM ZERO
-            // ==========================================
-            // Configurar busca para o campo de cliente do serviço
+            // Configurar busca de clientes
             configurarBuscaClientes('serviceClientSearch', 'serviceClientAutocomplete', 'serviceClientId', 'clearServiceClient');
-            
-            // Configurar busca para o campo de cliente do produto
             configurarBuscaClientes('productClientSearch', 'productClientAutocomplete', 'productClientId', 'clearProductClient');
 
             // Eventos - Novo Cliente
@@ -1517,7 +1632,7 @@
                                     <div class="name">${p.name}</div>
                                     <div class="detail">${formatCurrency(p.salePrice)} | ${estoque} und</div>
                                 </div>
-                                <span class="badge-item ${estoque <= p.minQuantity ? 'bg-warning' : 'bg-success'}">${estoque}</span>
+                                <span class="badge-item ${estoque <= 5 ? 'bg-warning' : 'bg-success'}">${estoque}</span>
                             </div>
                         `;
                     });
@@ -1535,6 +1650,7 @@
                             const stock = parseInt(this.getAttribute('data-stock')) || 0;
                             document.getElementById('productQuantity').max = stock;
                             document.getElementById('productQuantity').value = 1;
+                            calcularDescontoProduto();
                             list.classList.remove('active');
                             clearBtn.classList.add('show');
                         });
@@ -1569,7 +1685,7 @@
                                 <div class="name">${p.name}</div>
                                 <div class="detail">${formatCurrency(p.salePrice)} | ${estoque} und</div>
                             </div>
-                            <span class="badge-item ${estoque <= p.minQuantity ? 'bg-warning' : 'bg-success'}">${estoque}</span>
+                            <span class="badge-item ${estoque <= 5 ? 'bg-warning' : 'bg-success'}">${estoque}</span>
                         </div>
                     `;
                 });
@@ -1585,6 +1701,7 @@
                         const stock = parseInt(this.getAttribute('data-stock')) || 0;
                         document.getElementById('productQuantity').max = stock;
                         document.getElementById('productQuantity').value = 1;
+                        calcularDescontoProduto();
                         list.classList.remove('active');
                         clearBtn.classList.add('show');
                     });
@@ -1623,10 +1740,20 @@
 
             // Atualizar logo periodicamente
             setInterval(atualizarLogoHeader, 10000);
+
+            // Eventos para recalcular desconto quando mudar valor do serviço
+            document.getElementById('serviceValue').addEventListener('input', calcularDescontoServico);
+            document.getElementById('serviceDiscountPercent').addEventListener('input', calcularDescontoServico);
+            document.getElementById('serviceDiscountValue').addEventListener('input', calcularDescontoServico);
+
+            // Eventos para recalcular desconto quando mudar valor do produto
+            document.getElementById('productQuantity').addEventListener('input', calcularDescontoProduto);
+            document.getElementById('productDiscountPercent').addEventListener('input', calcularDescontoProduto);
+            document.getElementById('productDiscountValue').addEventListener('input', calcularDescontoProduto);
         });
 
         // ==========================================
-        // 5. CANAL DE COMUNICAÇÃO
+        // 6. CANAL DE COMUNICAÇÃO
         // ==========================================
         function initBroadcastChannel() {
             try {
@@ -1667,7 +1794,7 @@
         }
 
         // ==========================================
-        // 6. LOGO DO SISTEMA
+        // 7. LOGO DO SISTEMA
         // ==========================================
         function atualizarLogoHeader() {
             const config = localStorage.getItem('systemConfig');
@@ -1691,7 +1818,7 @@
         }
 
         // ==========================================
-        // 7. CARREGAR DADOS
+        // 8. CARREGAR DADOS
         // ==========================================
         function carregarDados() {
             if (!currentUser) return;
@@ -1881,7 +2008,7 @@
         }
 
         // ==========================================
-        // 8. NOVO CLIENTE
+        // 9. NOVO CLIENTE
         // ==========================================
         function abrirModalNovoCliente(nome = '') {
             document.getElementById('newClientForm').reset();
@@ -2027,7 +2154,7 @@
         }
 
         // ==========================================
-        // 9. CAIXA
+        // 10. CAIXA
         // ==========================================
         function abrirModalAbrirCaixa() {
             document.getElementById('initialValueInput').value = 0;
@@ -2176,7 +2303,7 @@
         }
 
         // ==========================================
-        // 10. CARRINHO
+        // 11. CARRINHO (COM DESCONTO)
         // ==========================================
         function adicionarAoCarrinho(tipo) {
             if (!currentCashier) {
@@ -2188,22 +2315,29 @@
                 const clientId = document.getElementById('serviceClientId').value;
                 const collaboratorId = document.getElementById('serviceCollaborator').value;
                 const type = document.getElementById('serviceType').value;
-                const value = parseFloat(document.getElementById('serviceValue').value);
+                const valorOriginal = parseFloat(document.getElementById('serviceValue').value);
                 const duration = parseInt(document.getElementById('serviceDuration').value) || 30;
                 const description = document.getElementById('serviceDescription').value.trim();
+                
+                // Pegar o valor final com desconto
+                const valorFinal = parseFloat(document.getElementById('serviceFinalValue').value) || valorOriginal;
+                const descontoPercent = parseFloat(document.getElementById('serviceDiscountPercent').value) || 0;
+                const descontoValue = parseFloat(document.getElementById('serviceDiscountValue').value) || 0;
 
-                if (!clientId || !collaboratorId || !type || !value) {
+                if (!clientId || !collaboratorId || !type || !valorOriginal) {
                     Swal.fire('Erro', 'Preencha todos os campos obrigatórios.', 'error');
                     return;
                 }
 
-                if (value <= 0) {
+                if (valorOriginal <= 0) {
                     Swal.fire('Erro', 'O valor deve ser maior que zero.', 'error');
                     return;
                 }
 
                 const client = clients.find(c => c.id === clientId);
                 const collaborator = collaborators.find(c => c.id === collaboratorId);
+
+                const descontoAplicado = valorOriginal - valorFinal;
 
                 cart.push({
                     tipo: 'service',
@@ -2212,16 +2346,24 @@
                     collaboratorId: collaboratorId,
                     collaboratorName: collaborator ? collaborator.name : 'Colaborador',
                     type: type,
-                    value: value,
+                    value: valorFinal, // Valor com desconto
+                    valorOriginal: valorOriginal,
+                    descontoPercent: descontoPercent,
+                    descontoValue: descontoValue,
+                    descontoAplicado: descontoAplicado,
                     duration: duration,
                     description: description || 'Serviço'
                 });
 
+                // Resetar campos
                 document.getElementById('serviceForm').reset();
                 document.getElementById('serviceClientId').value = '';
                 document.getElementById('serviceClientSearch').value = '';
                 document.getElementById('serviceClientAutocomplete').classList.remove('active');
                 document.getElementById('serviceDescription').value = '';
+                document.getElementById('serviceDiscountPercent').value = '0';
+                document.getElementById('serviceDiscountValue').value = '0';
+                document.getElementById('serviceFinalValue').value = '';
 
                 atualizarCarrinho();
                 Swal.fire({
@@ -2252,6 +2394,12 @@
                     return;
                 }
 
+                const valorOriginal = quantity * parseFloat(product.salePrice);
+                const valorFinal = parseFloat(document.getElementById('productFinalValue').value) || valorOriginal;
+                const descontoPercent = parseFloat(document.getElementById('productDiscountPercent').value) || 0;
+                const descontoValue = parseFloat(document.getElementById('productDiscountValue').value) || 0;
+                const descontoAplicado = valorOriginal - valorFinal;
+
                 const client = clientId ? clients.find(c => c.id === clientId) : null;
 
                 cart.push({
@@ -2260,11 +2408,16 @@
                     productName: product.name,
                     productPrice: product.salePrice,
                     quantity: quantity,
-                    totalValue: quantity * parseFloat(product.salePrice),
+                    valorOriginal: valorOriginal,
+                    totalValue: valorFinal, // Valor com desconto
+                    descontoPercent: descontoPercent,
+                    descontoValue: descontoValue,
+                    descontoAplicado: descontoAplicado,
                     clientId: clientId,
                     clientName: client ? client.name : 'Sem cliente'
                 });
 
+                // Resetar campos
                 document.getElementById('productForm').reset();
                 document.getElementById('productId').value = '';
                 document.getElementById('productSearch').value = '';
@@ -2272,6 +2425,9 @@
                 document.getElementById('productClientSearch').value = '';
                 document.getElementById('productAutocomplete').classList.remove('active');
                 document.getElementById('productClientAutocomplete').classList.remove('active');
+                document.getElementById('productDiscountPercent').value = '0';
+                document.getElementById('productDiscountValue').value = '0';
+                document.getElementById('productFinalValue').value = '';
 
                 atualizarCarrinho();
                 Swal.fire({
@@ -2287,6 +2443,7 @@
             const cartCard = document.getElementById('cartCard');
             const container = document.getElementById('cartItems');
             const totalSpan = document.getElementById('cartTotal');
+            const totalOriginalSpan = document.getElementById('cartTotalOriginal');
             const countSpan = document.getElementById('cartCount');
 
             if (cart.length === 0) {
@@ -2299,17 +2456,29 @@
 
             let html = '';
             let total = 0;
+            let totalOriginal = 0;
 
             cart.forEach((item, index) => {
                 if (item.tipo === 'service') {
                     total += item.value;
+                    totalOriginal += item.valorOriginal || item.value;
+                    
+                    const temDesconto = item.descontoAplicado > 0;
+                    const descontoLabel = temDesconto ? 
+                        `<span class="discount-badge">-${formatCurrency(item.descontoAplicado)}</span>` : '';
+
                     html += `
                         <div class="cart-item">
                             <div class="cart-info">
                                 <div class="cart-title"><i class="fas fa-cut text-primary me-1"></i>${item.description}</div>
-                                <div class="cart-detail">${item.clientName} | ${item.collaboratorName} | ${item.type}</div>
+                                <div class="cart-detail">${item.clientName} | ${item.collaboratorName} | ${item.type}
+                                    ${temDesconto ? ` | <span class="text-success">${item.descontoPercent > 0 ? item.descontoPercent + '%' : '€ ' + item.descontoValue.toFixed(2)} OFF</span>` : ''}
+                                </div>
                             </div>
-                            <div class="cart-value">${formatCurrency(item.value)}</div>
+                            <div class="text-end">
+                                ${temDesconto ? `<div style="font-size:0.65rem;color:#6c757d;text-decoration:line-through;">${formatCurrency(item.valorOriginal)}</div>` : ''}
+                                <div class="cart-value">${formatCurrency(item.value)} ${descontoLabel}</div>
+                            </div>
                             <div class="cart-actions">
                                 <button class="btn btn-sm btn-outline-danger" onclick="removerDoCarrinho(${index})">
                                     <i class="fas fa-times"></i>
@@ -2319,13 +2488,24 @@
                     `;
                 } else {
                     total += item.totalValue;
+                    totalOriginal += item.valorOriginal || item.totalValue;
+                    
+                    const temDesconto = item.descontoAplicado > 0;
+                    const descontoLabel = temDesconto ? 
+                        `<span class="discount-badge">-${formatCurrency(item.descontoAplicado)}</span>` : '';
+
                     html += `
                         <div class="cart-item">
                             <div class="cart-info">
                                 <div class="cart-title"><i class="fas fa-box text-info me-1"></i>${item.productName}</div>
-                                <div class="cart-detail">${item.clientName} | ${item.quantity} und | ${formatCurrency(item.productPrice)}/und</div>
+                                <div class="cart-detail">${item.clientName} | ${item.quantity} und | ${formatCurrency(item.productPrice)}/und
+                                    ${temDesconto ? ` | <span class="text-success">${item.descontoPercent > 0 ? item.descontoPercent + '%' : '€ ' + item.descontoValue.toFixed(2)} OFF</span>` : ''}
+                                </div>
                             </div>
-                            <div class="cart-value">${formatCurrency(item.totalValue)}</div>
+                            <div class="text-end">
+                                ${temDesconto ? `<div style="font-size:0.65rem;color:#6c757d;text-decoration:line-through;">${formatCurrency(item.valorOriginal)}</div>` : ''}
+                                <div class="cart-value">${formatCurrency(item.totalValue)} ${descontoLabel}</div>
+                            </div>
                             <div class="cart-actions">
                                 <button class="btn btn-sm btn-outline-danger" onclick="removerDoCarrinho(${index})">
                                     <i class="fas fa-times"></i>
@@ -2337,7 +2517,16 @@
             });
 
             container.innerHTML = html;
+
+            // Atualizar totais
             totalSpan.textContent = formatCurrency(total);
+            
+            if (totalOriginal > total) {
+                totalOriginalSpan.style.display = 'block';
+                totalOriginalSpan.textContent = `Original: ${formatCurrency(totalOriginal)}`;
+            } else {
+                totalOriginalSpan.style.display = 'none';
+            }
         }
 
         function removerDoCarrinho(index) {
@@ -2364,7 +2553,7 @@
         }
 
         // ==========================================
-        // 11. FINALIZAR VENDA
+        // 12. FINALIZAR VENDA
         // ==========================================
         function abrirModalCheckout() {
             if (cart.length === 0) {
@@ -2382,30 +2571,45 @@
             `;
 
             let total = 0;
+            let totalOriginal = 0;
             let servicesTotal = 0;
             let productsTotal = 0;
 
             cart.forEach(item => {
                 if (item.tipo === 'service') {
                     servicesTotal += item.value;
+                    totalOriginal += item.valorOriginal || item.value;
+                    const temDesconto = item.descontoAplicado > 0;
                     html += `
                         <div class="cart-item" style="border-left-color:#28a745;">
                             <div class="cart-info">
                                 <div class="cart-title">✂️ ${item.description}</div>
-                                <div class="cart-detail">${item.clientName} | ${item.collaboratorName}</div>
+                                <div class="cart-detail">${item.clientName} | ${item.collaboratorName}
+                                    ${temDesconto ? ` | <span class="text-success">Desconto: ${formatCurrency(item.descontoAplicado)}</span>` : ''}
+                                </div>
                             </div>
-                            <div class="cart-value">${formatCurrency(item.value)}</div>
+                            <div class="text-end">
+                                ${temDesconto ? `<div style="font-size:0.65rem;color:#6c757d;text-decoration:line-through;">${formatCurrency(item.valorOriginal)}</div>` : ''}
+                                <div class="cart-value">${formatCurrency(item.value)}</div>
+                            </div>
                         </div>
                     `;
                 } else {
                     productsTotal += item.totalValue;
+                    totalOriginal += item.valorOriginal || item.totalValue;
+                    const temDesconto = item.descontoAplicado > 0;
                     html += `
                         <div class="cart-item" style="border-left-color:#17a2b8;">
                             <div class="cart-info">
                                 <div class="cart-title">📦 ${item.productName}</div>
-                                <div class="cart-detail">${item.clientName} | ${item.quantity} und</div>
+                                <div class="cart-detail">${item.clientName} | ${item.quantity} und
+                                    ${temDesconto ? ` | <span class="text-success">Desconto: ${formatCurrency(item.descontoAplicado)}</span>` : ''}
+                                </div>
                             </div>
-                            <div class="cart-value">${formatCurrency(item.totalValue)}</div>
+                            <div class="text-end">
+                                ${temDesconto ? `<div style="font-size:0.65rem;color:#6c757d;text-decoration:line-through;">${formatCurrency(item.valorOriginal)}</div>` : ''}
+                                <div class="cart-value">${formatCurrency(item.totalValue)}</div>
+                            </div>
                         </div>
                     `;
                 }
@@ -2434,6 +2638,16 @@
                             <span class="label fw-bold">Total</span>
                             <span class="value fw-bold">${formatCurrency(total)}</span>
                         </div>
+                        ${totalOriginal > total ? `
+                            <div class="summary-box" style="background:#fff3cd;border:1px solid #ffc107;">
+                                <span class="label text-muted">Total Original</span>
+                                <span class="value" style="text-decoration:line-through;color:#6c757d;">${formatCurrency(totalOriginal)}</span>
+                            </div>
+                            <div class="summary-box" style="background:#d4edda;border:1px solid #28a745;">
+                                <span class="label text-success">Desconto Total</span>
+                                <span class="value text-success">${formatCurrency(totalOriginal - total)}</span>
+                            </div>
+                        ` : ''}
                     </div>
                 </div>
             `;
@@ -2461,11 +2675,16 @@
 
             cart.forEach(item => {
                 if (item.tipo === 'service') {
+                    // Registrar o serviço com o valor já com desconto
                     const serviceData = {
                         clientId: item.clientId,
                         collaboratorId: item.collaboratorId,
                         type: item.type,
-                        value: item.value,
+                        value: item.value, // Valor com desconto
+                        valorOriginal: item.valorOriginal || item.value,
+                        descontoPercent: item.descontoPercent || 0,
+                        descontoValue: item.descontoValue || 0,
+                        descontoAplicado: item.descontoAplicado || 0,
                         duration: item.duration || 30,
                         description: item.description || 'Serviço',
                         date: hoje,
@@ -2479,7 +2698,11 @@
                         productName: item.productName,
                         quantity: item.quantity,
                         unitPrice: item.productPrice,
-                        totalValue: item.totalValue,
+                        totalValue: item.totalValue, // Valor com desconto
+                        valorOriginal: item.valorOriginal || item.totalValue,
+                        descontoPercent: item.descontoPercent || 0,
+                        descontoValue: item.descontoValue || 0,
+                        descontoAplicado: item.descontoAplicado || 0,
                         clientId: item.clientId || null,
                         date: hoje,
                         timestamp: firebase.firestore.FieldValue.serverTimestamp(),
@@ -2512,7 +2735,8 @@
                     Swal.fire({
                         icon: 'success',
                         title: '✅ Venda finalizada com sucesso!',
-                        timer: 2000,
+                        html: totalOriginal > total ? `<p>Desconto total aplicado: ${formatCurrency(totalOriginal - total)}</p>` : '',
+                        timer: 3000,
                         showConfirmButton: false
                     });
                 })
@@ -2523,7 +2747,7 @@
         }
 
         // ==========================================
-        // 12. RENDERIZAR VENDAS
+        // 13. RENDERIZAR VENDAS
         // ==========================================
         function renderizarVendas(filtro = '') {
             const container = document.getElementById('salesList');
@@ -2563,13 +2787,20 @@
                     const collaborator = collaborators.find(c => c.id === sale.collaboratorId);
                     const collabName = collaborator ? collaborator.name : 'N/A';
                     const valor = parseFloat(sale.value || 0);
+                    const temDesconto = sale.descontoAplicado > 0;
+                    
                     html += `
                         <div class="sale-item">
                             <div class="sale-info">
                                 <div class="sale-title"><i class="fas fa-cut text-primary me-1"></i>${sale.description || 'Serviço'}</div>
-                                <div class="sale-detail">${clientName} | ${collabName} | ${sale.type || 'manual'}</div>
+                                <div class="sale-detail">${clientName} | ${collabName} | ${sale.type || 'manual'}
+                                    ${temDesconto ? ` | <span class="text-success">Desconto: ${formatCurrency(sale.descontoAplicado)}</span>` : ''}
+                                </div>
                             </div>
-                            <div class="sale-value">${formatCurrency(valor)}</div>
+                            <div class="text-end">
+                                ${temDesconto ? `<div style="font-size:0.6rem;color:#6c757d;text-decoration:line-through;">${formatCurrency(sale.valorOriginal)}</div>` : ''}
+                                <div class="sale-value">${formatCurrency(valor)}</div>
+                            </div>
                             <div class="sale-actions">
                                 <button class="btn btn-sm btn-outline-danger" onclick="excluirVenda('${sale.id}', 'service')" title="Excluir">
                                     <i class="fas fa-trash"></i>
@@ -2579,13 +2810,20 @@
                     `;
                 } else {
                     const valor = parseFloat(sale.totalValue || 0);
+                    const temDesconto = sale.descontoAplicado > 0;
+                    
                     html += `
                         <div class="sale-item">
                             <div class="sale-info">
                                 <div class="sale-title"><i class="fas fa-box text-info me-1"></i>${sale.productName || 'Produto'}</div>
-                                <div class="sale-detail">${clientName} | ${sale.quantity || 0} und | ${formatCurrency(sale.unitPrice)}/und</div>
+                                <div class="sale-detail">${clientName} | ${sale.quantity || 0} und | ${formatCurrency(sale.unitPrice)}/und
+                                    ${temDesconto ? ` | <span class="text-success">Desconto: ${formatCurrency(sale.descontoAplicado)}</span>` : ''}
+                                </div>
                             </div>
-                            <div class="sale-value">${formatCurrency(valor)}</div>
+                            <div class="text-end">
+                                ${temDesconto ? `<div style="font-size:0.6rem;color:#6c757d;text-decoration:line-through;">${formatCurrency(sale.valorOriginal)}</div>` : ''}
+                                <div class="sale-value">${formatCurrency(valor)}</div>
+                            </div>
                             <div class="sale-actions">
                                 <button class="btn btn-sm btn-outline-danger" onclick="excluirVenda('${sale.id}', 'product')" title="Excluir">
                                     <i class="fas fa-trash"></i>
@@ -2604,7 +2842,7 @@
         }
 
         // ==========================================
-        // 13. EXCLUIR VENDA
+        // 14. EXCLUIR VENDA
         // ==========================================
         function excluirVenda(id, tipo) {
             Swal.fire({
@@ -2667,7 +2905,7 @@
         window.excluirVenda = excluirVenda;
 
         // ==========================================
-        // 14. RESUMO E COMISSÕES
+        // 15. RESUMO E COMISSÕES
         // ==========================================
         function atualizarResumo() {
             const services = todaySales.filter(s => s.tipo === 'service');
@@ -2679,7 +2917,7 @@
             const totalProductsValue = products.reduce((sum, s) => sum + parseFloat(s.totalValue || 0), 0);
             const total = totalServicesValue + totalProductsValue;
 
-            // Calcular comissões por colaborador
+            // Calcular comissões por colaborador (usando valor com desconto)
             const commissions = {};
             let totalCommissions = 0;
 
@@ -2689,7 +2927,7 @@
                     const perc = s.type === 'manual' ? 
                         parseFloat(collab.manualPercent || 0) : 
                         parseFloat(collab.productPercent || 0);
-                    const valor = parseFloat(s.value || 0);
+                    const valor = parseFloat(s.value || 0); // Usa o valor com desconto
                     const comissao = valor * (perc / 100);
                     totalCommissions += comissao;
 
@@ -2748,7 +2986,7 @@
         }
 
         // ==========================================
-        // 15. ATUALIZAR ÚLTIMA ATUALIZAÇÃO
+        // 16. ATUALIZAR ÚLTIMA ATUALIZAÇÃO
         // ==========================================
         function atualizarUltimaAtualizacao() {
             const now = new Date();
@@ -2759,7 +2997,7 @@
         }
 
         // ==========================================
-        // 16. RECARREGAR DADOS
+        // 17. RECARREGAR DADOS
         // ==========================================
         function recarregarDados() {
             const btn = document.getElementById('refreshBtn');
@@ -2775,7 +3013,7 @@
         }
 
         // ==========================================
-        // 17. FUNÇÃO HOME
+        // 18. FUNÇÃO HOME
         // ==========================================
         function goHome() {
             if (window.parent && window.parent !== window) {
@@ -2786,7 +3024,7 @@
         }
 
         // ==========================================
-        // 18. MOSTRAR LOGIN PROMPT
+        // 19. MOSTRAR LOGIN PROMPT
         // ==========================================
         function mostrarLoginPrompt() {
             Swal.fire({
@@ -2804,7 +3042,7 @@
         }
 
         // ==========================================
-        // 19. RECEBER CONFIGURAÇÕES
+        // 20. RECEBER CONFIGURAÇÕES
         // ==========================================
         window.addEventListener('message', function(event) {
             if (event.data && event.data.type === 'configUpdated') {
@@ -2824,7 +3062,7 @@
         window.parent.postMessage({ type: 'getConfig' }, '*');
 
         // ==========================================
-        // 20. UTILITÁRIOS
+        // 21. UTILITÁRIOS
         // ==========================================
         function formatCurrency(value) {
             if (typeof value !== 'number') value = parseFloat(value) || 0;
@@ -2832,22 +3070,26 @@
         }
 
         // ==========================================
-        // 21. LOG DE INICIALIZAÇÃO
+        // 22. LOG DE INICIALIZAÇÃO
         // ==========================================
         console.log('✅ Caixa carregado com sucesso!');
-        console.log('📌 Busca de clientes REESCRITA DO ZERO:');
+        console.log('📌 NOVIDADES:');
+        console.log('   ✅ Desconto em SERVIÇOS: Percentual (%) ou Valor Fixo (€)');
+        console.log('   ✅ Desconto em PRODUTOS: Percentual (%) ou Valor Fixo (€)');
+        console.log('   ✅ Badge de desconto no carrinho mostrando o valor economizado');
+        console.log('   ✅ Total Original e Total com Desconto no carrinho');
+        console.log('   ✅ Resumo da venda com desconto destacado');
+        console.log('   ✅ Vendas registradas com valor com desconto e histórico do desconto');
+        console.log('📌 Busca de clientes REESCRITA DO ZERO (mantida):');
         console.log('   ✅ Normalização de acentos (Cecília → Cecília)');
         console.log('   ✅ Busca parcial por "Ti" → Tiago, Tiara, Tiana...');
         console.log('   ✅ Busca parcial por "Cec" → Cecília, Cecílio...');
-        console.log('   ✅ Busca parcial por "Marg" → Margarida, Margarete...');
         console.log('   ✅ Busca por telefone e email');
         console.log('   ✅ Lista todos os clientes ao focar no campo');
         console.log('   ✅ Botão (x) para limpar busca');
         console.log('   ✅ Tecla Enter seleciona o primeiro resultado');
         console.log('   ✅ Tecla ESC fecha a lista');
         console.log('   ✅ Logo do sistema atualizada automaticamente');
-        console.log('   ✅ Carrinho com múltiplas vendas');
-        console.log('   ✅ Comissões detalhadas por colaborador');
 
     </script>
 
