@@ -552,7 +552,7 @@
         }
 
         /* ============================================
-           MODAL DE PRODUTO
+           MODAL DE PRODUTO - CORRIGIDO
            ============================================ */
         .product-modal .modal-content {
             border-radius: 16px;
@@ -888,7 +888,7 @@
     </div>
 
     <!-- ==========================================
-    MODAL DE PRODUTO (ADICIONAR/EDITAR) - CORRIGIDO
+    MODAL DE PRODUTO - CORRIGIDO (ADICIONAR/EDITAR)
     ========================================== -->
     <div class="modal fade product-modal" id="productModal" tabindex="-1" data-bs-backdrop="static">
         <div class="modal-dialog modal-lg modal-dialog-scrollable">
@@ -1160,37 +1160,35 @@
         let editingProductId = null;
         let productListener = null;
         let summaryOpen = false;
-        let productModalInstance = null;
 
         // ==========================================
-        // 4. INICIALIZAÇÃO
+        // 4. INICIALIZAÇÃO - CORRIGIDO
         // ==========================================
         document.addEventListener('DOMContentLoaded', function() {
-            // Inicializar o modal de produto
-            const modalElement = document.getElementById('productModal');
-            if (modalElement) {
-                productModalInstance = new bootstrap.Modal(modalElement, {
-                    backdrop: 'static',
-                    keyboard: true
-                });
-            }
-
+            console.log('🚀 Inicializando sistema de estoque...');
+            
+            // Verificar autenticação
             auth.onAuthStateChanged(user => {
                 if (user) {
                     currentUser = user;
                     document.getElementById('userGreeting').textContent = user.email;
+                    console.log('✅ Usuário autenticado:', user.email);
+                    
+                    // Carregar dados
                     carregarProdutos();
                     carregarConfiguracoesSistema();
                     setupSearchListener();
                     
-                    // Configurar eventos do modal
+                    // Configurar eventos do modal APÓS o carregamento
                     configurarEventosModal();
                 } else {
                     document.getElementById('userGreeting').textContent = 'Não autenticado';
+                    console.log('⚠️ Usuário não autenticado');
                     mostrarLoginPrompt();
                 }
             });
 
+            // Atualização automática
             setInterval(function() {
                 if (currentUser) {
                     carregarProdutos();
@@ -1199,34 +1197,70 @@
         });
 
         // ==========================================
-        // 5. CONFIGURAR EVENTOS DO MODAL
+        // 5. CONFIGURAR EVENTOS DO MODAL - CORRIGIDO
         // ==========================================
         function configurarEventosModal() {
+            console.log('🔧 Configurando eventos do modal...');
+            
             // Upload de imagem
-            document.getElementById('imageUploadArea').addEventListener('click', function() {
-                document.getElementById('imageInput').click();
-            });
+            const uploadArea = document.getElementById('imageUploadArea');
+            const imageInput = document.getElementById('imageInput');
+            
+            if (uploadArea) {
+                // Remover eventos antigos clonando
+                const newUploadArea = uploadArea.cloneNode(true);
+                uploadArea.parentNode.replaceChild(newUploadArea, uploadArea);
+                
+                newUploadArea.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    document.getElementById('imageInput').click();
+                });
+            }
 
-            document.getElementById('imageInput').addEventListener('change', function(e) {
-                handleImageUpload(e);
-            });
+            if (imageInput) {
+                const newImageInput = imageInput.cloneNode(true);
+                imageInput.parentNode.replaceChild(newImageInput, imageInput);
+                
+                newImageInput.addEventListener('change', function(e) {
+                    handleImageUpload(e);
+                });
+            }
 
             // Botão salvar
-            document.getElementById('saveProductBtn').addEventListener('click', function() {
-                salvarProduto();
-            });
+            const saveBtn = document.getElementById('saveProductBtn');
+            if (saveBtn) {
+                const newSaveBtn = saveBtn.cloneNode(true);
+                saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+                
+                newSaveBtn.addEventListener('click', function() {
+                    salvarProduto();
+                });
+            }
 
             // Botão excluir
-            document.getElementById('deleteProductBtn').addEventListener('click', function() {
-                excluirProduto();
-            });
+            const deleteBtn = document.getElementById('deleteProductBtn');
+            if (deleteBtn) {
+                const newDeleteBtn = deleteBtn.cloneNode(true);
+                deleteBtn.parentNode.replaceChild(newDeleteBtn, deleteBtn);
+                
+                newDeleteBtn.addEventListener('click', function() {
+                    excluirProduto();
+                });
+            }
 
             // Status checkbox
-            document.getElementById('prodActive').addEventListener('change', function() {
-                atualizarStatusLabel();
-            });
+            const activeCheck = document.getElementById('prodActive');
+            if (activeCheck) {
+                const newActiveCheck = activeCheck.cloneNode(true);
+                activeCheck.parentNode.replaceChild(newActiveCheck, activeCheck);
+                
+                newActiveCheck.addEventListener('change', function() {
+                    atualizarStatusLabel();
+                });
+            }
 
-            console.log('✅ Eventos do modal configurados');
+            console.log('✅ Eventos do modal configurados com sucesso!');
         }
 
         // ==========================================
@@ -1631,14 +1665,16 @@
         }
 
         // ==========================================
-        // 15. ABRIR MODAL DE PRODUTO (ADICIONAR/EDITAR)
+        // 15. ABRIR MODAL DE PRODUTO (ADICIONAR/EDITAR) - CORRIGIDO
         // ==========================================
         function abrirModalProduto(productId = null) {
-            console.log('📦 Abrindo modal de produto...', productId);
+            console.log('📦 Abrindo modal de produto...', productId ? 'Edição' : 'Adição');
             
             try {
                 // Resetar o formulário
-                document.getElementById('productForm').reset();
+                const form = document.getElementById('productForm');
+                if (form) form.reset();
+                
                 document.getElementById('productId').value = '';
                 document.getElementById('prodImageUrl').value = '';
                 document.getElementById('prodActive').checked = true;
@@ -1692,21 +1728,27 @@
                     document.getElementById('productModalTitle').textContent = '➕ Adicionar Produto';
                 }
                 
-                // Abrir o modal
-                if (productModalInstance) {
-                    productModalInstance.show();
+                // Abrir o modal - usando o Bootstrap diretamente
+                const modalElement = document.getElementById('productModal');
+                if (modalElement) {
+                    // Garantir que o modal está limpo
+                    const modalInstance = bootstrap.Modal.getInstance(modalElement);
+                    if (modalInstance) {
+                        modalInstance.dispose();
+                    }
+                    
+                    // Criar nova instância
+                    const newModal = new bootstrap.Modal(modalElement, {
+                        backdrop: 'static',
+                        keyboard: true
+                    });
+                    
+                    // Mostrar o modal
+                    newModal.show();
                     console.log('✅ Modal aberto com sucesso!');
                 } else {
-                    console.error('❌ Modal não inicializado');
-                    // Tentar inicializar novamente
-                    const modalElement = document.getElementById('productModal');
-                    if (modalElement) {
-                        productModalInstance = new bootstrap.Modal(modalElement, {
-                            backdrop: 'static',
-                            keyboard: true
-                        });
-                        productModalInstance.show();
-                    }
+                    console.error('❌ Elemento modal não encontrado!');
+                    showError('Erro ao abrir o formulário. Tente novamente.');
                 }
                 
             } catch (error) {
@@ -1883,8 +1925,10 @@
 
             promise
                 .then(() => {
-                    if (productModalInstance) {
-                        productModalInstance.hide();
+                    const modalElement = document.getElementById('productModal');
+                    if (modalElement) {
+                        const modalInstance = bootstrap.Modal.getInstance(modalElement);
+                        if (modalInstance) modalInstance.hide();
                     }
                     Swal.close();
                     showSuccess(productId ? 'Produto atualizado com sucesso!' : 'Produto adicionado com sucesso!');
@@ -1933,8 +1977,10 @@
 
                     db.collection('products').doc(productId).delete()
                         .then(() => {
-                            if (productModalInstance) {
-                                productModalInstance.hide();
+                            const modalElement = document.getElementById('productModal');
+                            if (modalElement) {
+                                const modalInstance = bootstrap.Modal.getInstance(modalElement);
+                                if (modalInstance) modalInstance.hide();
                             }
                             Swal.close();
                             showSuccess('Produto excluído com sucesso!');
