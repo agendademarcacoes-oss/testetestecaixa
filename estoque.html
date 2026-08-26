@@ -1,6 +1,3 @@
-Vou criar um código completamente novo e funcional para o Estoque, com todas as funções de adicionar, editar, excluir e visualizar produtos funcionando corretamente.
-
-```html
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -24,7 +21,7 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
     
     <style>
         /* ============================================
-           RESET E BLOQUEIO DE ZOOM
+           BLOQUEIO DE ZOOM E SCROLL LATERAL
            ============================================ */
         * {
             -webkit-touch-callout: none !important;
@@ -62,6 +59,11 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
             overflow-y: auto !important;
             -webkit-overflow-scrolling: touch;
             overflow-x: hidden !important;
+        }
+
+        .estoque-container, .products-grid, .row, .col-*, .modal, .modal-body {
+            overflow-x: hidden !important;
+            max-width: 100% !important;
         }
 
         /* ============================================
@@ -149,6 +151,11 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
 
         .btn-refresh:hover {
             background: rgba(255,255,255,0.25);
+        }
+
+        .btn-refresh:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
         }
 
         .last-update {
@@ -334,9 +341,7 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
             background: rgba(220,53,69,0.1);
         }
 
-        .toolbar .search-box .clear-search.visible {
-            display: block;
-        }
+        .toolbar .search-box .clear-search.visible { display: block; }
 
         .toolbar .filter-row {
             display: flex;
@@ -346,6 +351,15 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
             overflow-x: auto;
             padding: 2px 0;
             max-width: 100%;
+        }
+
+        .toolbar .filter-row::-webkit-scrollbar {
+            height: 2px;
+        }
+
+        .toolbar .filter-row::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 2px;
         }
 
         .toolbar .filter-btn {
@@ -361,10 +375,7 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
             flex-shrink: 0;
         }
 
-        .toolbar .filter-btn:hover {
-            background: #e9ecef;
-        }
-
+        .toolbar .filter-btn:hover { background: #e9ecef; }
         .toolbar .filter-btn.active {
             background: #26196b;
             color: white;
@@ -629,9 +640,7 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
             accent-color: #26196b;
         }
 
-        .product-status-checkbox:checked {
-            accent-color: #28a745;
-        }
+        .product-status-checkbox:checked { accent-color: #28a745; }
 
         .status-label {
             font-size: 0.7rem;
@@ -642,7 +651,7 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
         .status-label.inactive { color: #dc3545; }
 
         /* ============================================
-           MODAL DE VISUALIZAÇÃO
+           MODAL DE VISUALIZAÇÃO DO PRODUTO
            ============================================ */
         .product-view-modal .modal-content {
             border-radius: 16px;
@@ -653,6 +662,10 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
             background: #26196b;
             color: white;
             border: none;
+        }
+
+        .product-view-modal .modal-header .btn-close {
+            filter: brightness(0) invert(1);
         }
 
         .product-view-modal .modal-body {
@@ -666,7 +679,10 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
             max-height: 300px;
             object-fit: contain;
             border-radius: 12px;
+            background: #f8f9fa;
         }
+
+        .product-view-modal .product-view-info { padding: 16px 0; }
 
         .product-view-modal .product-view-info .info-row {
             display: flex;
@@ -733,10 +749,12 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
             .toolbar .btn-add { padding: 3px 10px; font-size: 0.55rem; }
             .toolbar .search-box input { font-size: 0.6rem; padding: 5px 24px 5px 26px; }
             .estoque-header .header-left h1 { font-size: 0.85rem; }
+            .estoque-header .header-left h1 small { display: none; }
             .btn-home { padding: 4px 8px; font-size: 0.65rem; }
             .btn-refresh { padding: 4px 8px; font-size: 0.65rem; }
             .last-update { display: none; }
             .product-view-modal .product-view-image { max-height: 150px; }
+            .product-view-modal .product-view-info .info-row { font-size: 0.75rem; padding: 6px 0; }
         }
 
         ::-webkit-scrollbar { width: 3px; height: 3px; }
@@ -744,7 +762,19 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
         ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
 
+        .text-primary-custom { color: #26196b; }
+        .bg-primary-custom { background: #26196b; }
+        .border-primary-custom { border-color: #26196b; }
         .cursor-pointer { cursor: pointer; }
+        .gap-2 { gap: 6px; }
+        .gap-3 { gap: 10px; }
+        .flex-wrap { flex-wrap: wrap; }
+        .align-center { align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .mt-2 { margin-top: 6px; }
+        .mt-3 { margin-top: 12px; }
+        .mb-2 { margin-bottom: 6px; }
+        .mb-3 { margin-bottom: 12px; }
         .text-muted { color: #6c757d; }
         .text-success { color: #28a745; }
         .text-danger { color: #dc3545; }
@@ -787,7 +817,9 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
     ========================================== -->
     <div class="estoque-container" id="estoqueContainer">
 
-        <!-- RESUMO DO ESTOQUE -->
+        <!-- ==========================================
+        RESUMO DO ESTOQUE
+        ========================================== -->
         <div class="estoque-summary-wrapper">
             <div class="summary-toggle" onclick="toggleSummary()">
                 <div class="toggle-title">
@@ -799,6 +831,7 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
                     <i class="fas fa-chevron-down"></i>
                 </div>
             </div>
+            
             <div class="estoque-summary" id="estoqueSummary">
                 <div class="summary-item">
                     <div class="number" id="totalProducts">0</div>
@@ -819,7 +852,9 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
             </div>
         </div>
 
-        <!-- BARRA DE FERRAMENTAS -->
+        <!-- ==========================================
+        BARRA DE FERRAMENTAS
+        ========================================== -->
         <div class="toolbar" id="toolbar">
             <div class="search-row">
                 <div class="search-box">
@@ -830,6 +865,7 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
                     </button>
                 </div>
             </div>
+            
             <div class="filter-row">
                 <button class="filter-btn active" data-filter="all" onclick="setFilter('all')">Todos</button>
                 <button class="filter-btn" data-filter="active" onclick="setFilter('active')">Ativos</button>
@@ -841,18 +877,20 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
             </div>
         </div>
 
-        <!-- GRADE DE PRODUTOS -->
+        <!-- ==========================================
+        GRADE DE PRODUTOS
+        ========================================== -->
         <div class="products-grid" id="productsGrid">
             <div class="row g-2" id="productsContainer">
-                <!-- Produtos renderizados aqui -->
+                <!-- Produtos serão renderizados aqui -->
             </div>
         </div>
     </div>
 
     <!-- ==========================================
-    MODAL DE PRODUTO (ADICIONAR/EDITAR)
+    MODAL DE PRODUTO (ADICIONAR/EDITAR) - CORRIGIDO
     ========================================== -->
-    <div class="modal fade product-modal" id="productModal" tabindex="-1">
+    <div class="modal fade product-modal" id="productModal" tabindex="-1" data-bs-backdrop="static">
         <div class="modal-dialog modal-lg modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
@@ -861,8 +899,8 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body">
-                    <form id="productForm">
+                <div class="modal-body" id="productModalBody">
+                    <form id="productForm" onsubmit="return false;">
                         <input type="hidden" id="productId">
                         <input type="hidden" id="productImageUrl">
                         
@@ -908,13 +946,13 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
                             <div class="col-md-4">
                                 <div class="mb-3">
                                     <label class="form-label">Imagem do Produto</label>
-                                    <div class="image-upload-area" id="imageUploadArea" onclick="document.getElementById('imageInput').click()">
+                                    <div class="image-upload-area" id="imageUploadArea">
                                         <div id="imagePreview">
                                             <div class="upload-icon"><i class="fas fa-cloud-upload-alt"></i></div>
                                             <div class="upload-text">Clique para fazer upload</div>
                                             <small class="text-muted">PNG, JPG até 5MB</small>
                                         </div>
-                                        <input type="file" id="imageInput" accept="image/*" style="display:none" onchange="handleImageUpload(event)">
+                                        <input type="file" id="imageInput" accept="image/*" style="display:none">
                                     </div>
                                 </div>
                             </div>
@@ -966,7 +1004,7 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
                     <button type="button" class="btn btn-danger" id="deleteProductBtn" style="display:none;" onclick="excluirProduto()">
                         <i class="fas fa-trash me-1"></i>Excluir
                     </button>
-                    <button type="button" class="btn btn-primary" id="saveProductBtn" onclick="salvarProduto()">
+                    <button type="button" class="btn btn-primary" id="saveProductBtn">
                         <i class="fas fa-save me-1"></i>Salvar Produto
                     </button>
                 </div>
@@ -977,7 +1015,7 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
     <!-- ==========================================
     MODAL DE VISUALIZAÇÃO DO PRODUTO
     ========================================== -->
-    <div class="modal fade product-view-modal" id="productViewModal" tabindex="-1">
+    <div class="modal fade product-view-modal" id="productViewModal" tabindex="-1" data-bs-backdrop="static">
         <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
@@ -987,7 +1025,7 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body" id="productViewBody">
-                    <!-- Conteúdo preenchido dinamicamente -->
+                    <!-- Conteúdo será preenchido dinamicamente -->
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
@@ -1026,7 +1064,7 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
         const storage = firebase.storage();
 
         // ==========================================
-        // 2. BLOQUEIO DE ZOOM E SCROLL LATERAL
+        // 2. BLOQUEIO DE ZOOM
         // ==========================================
         (function() {
             document.addEventListener('keydown', function(e) {
@@ -1057,7 +1095,10 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
                 if (e.touches.length === 2) {
                     const touch1 = e.touches[0];
                     const touch2 = e.touches[1];
-                    lastTouchDistance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
+                    lastTouchDistance = Math.hypot(
+                        touch2.clientX - touch1.clientX,
+                        touch2.clientY - touch1.clientY
+                    );
                     isPinching = true;
                 }
             }, { passive: true });
@@ -1066,7 +1107,10 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
                 if (e.touches.length === 2 && isPinching) {
                     const touch1 = e.touches[0];
                     const touch2 = e.touches[1];
-                    const distance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
+                    const distance = Math.hypot(
+                        touch2.clientX - touch1.clientX,
+                        touch2.clientY - touch1.clientY
+                    );
                     if (Math.abs(distance - lastTouchDistance) > 3) {
                         e.preventDefault();
                         e.stopPropagation();
@@ -1116,11 +1160,21 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
         let editingProductId = null;
         let productListener = null;
         let summaryOpen = false;
+        let productModalInstance = null;
 
         // ==========================================
         // 4. INICIALIZAÇÃO
         // ==========================================
         document.addEventListener('DOMContentLoaded', function() {
+            // Inicializar o modal de produto
+            const modalElement = document.getElementById('productModal');
+            if (modalElement) {
+                productModalInstance = new bootstrap.Modal(modalElement, {
+                    backdrop: 'static',
+                    keyboard: true
+                });
+            }
+
             auth.onAuthStateChanged(user => {
                 if (user) {
                     currentUser = user;
@@ -1128,6 +1182,9 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
                     carregarProdutos();
                     carregarConfiguracoesSistema();
                     setupSearchListener();
+                    
+                    // Configurar eventos do modal
+                    configurarEventosModal();
                 } else {
                     document.getElementById('userGreeting').textContent = 'Não autenticado';
                     mostrarLoginPrompt();
@@ -1142,7 +1199,38 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
         });
 
         // ==========================================
-        // 5. CARREGAR CONFIGURAÇÕES DO SISTEMA
+        // 5. CONFIGURAR EVENTOS DO MODAL
+        // ==========================================
+        function configurarEventosModal() {
+            // Upload de imagem
+            document.getElementById('imageUploadArea').addEventListener('click', function() {
+                document.getElementById('imageInput').click();
+            });
+
+            document.getElementById('imageInput').addEventListener('change', function(e) {
+                handleImageUpload(e);
+            });
+
+            // Botão salvar
+            document.getElementById('saveProductBtn').addEventListener('click', function() {
+                salvarProduto();
+            });
+
+            // Botão excluir
+            document.getElementById('deleteProductBtn').addEventListener('click', function() {
+                excluirProduto();
+            });
+
+            // Status checkbox
+            document.getElementById('prodActive').addEventListener('change', function() {
+                atualizarStatusLabel();
+            });
+
+            console.log('✅ Eventos do modal configurados');
+        }
+
+        // ==========================================
+        // 6. CARREGAR CONFIGURAÇÕES DO SISTEMA
         // ==========================================
         function carregarConfiguracoesSistema() {
             try {
@@ -1171,7 +1259,7 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
         }
 
         // ==========================================
-        // 6. FUNÇÃO HOME
+        // 7. FUNÇÃO HOME
         // ==========================================
         function goHome() {
             if (window.parent && window.parent !== window) {
@@ -1182,7 +1270,7 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
         }
 
         // ==========================================
-        // 7. CARREGAR PRODUTOS
+        // 8. CARREGAR PRODUTOS
         // ==========================================
         function carregarProdutos() {
             if (!currentUser) return;
@@ -1230,7 +1318,10 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
         function notificarLoja() {
             if (window.parent && window.parent !== window) {
                 try {
-                    window.parent.postMessage({ type: 'estoqueUpdated', products: products }, '*');
+                    window.parent.postMessage({ 
+                        type: 'estoqueUpdated', 
+                        products: products 
+                    }, '*');
                 } catch(e) {}
             }
             localStorage.setItem('loja_products', JSON.stringify(products));
@@ -1245,7 +1336,7 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
         }
 
         // ==========================================
-        // 8. RENDERIZAR PRODUTOS
+        // 9. RENDERIZAR PRODUTOS
         // ==========================================
         function renderizarProdutos() {
             const container = document.getElementById('productsContainer');
@@ -1296,6 +1387,7 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
                     'Sem categoria';
                 
                 const formattedPrice = formatCurrency(product.salePrice || 0);
+                const formattedPurchase = formatCurrency(product.purchasePrice || 0);
                 
                 html += `
                     <div class="col-xl-3 col-lg-4 col-md-6 col-6">
@@ -1313,6 +1405,7 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
                                 <div class="product-price">${formattedPrice}</div>
                                 <div class="product-stock">
                                     <i class="fas fa-cubes me-1"></i>${product.quantity || 0} unidades
+                                    ${product.purchasePrice ? `| Compra: ${formattedPurchase}` : ''}
                                 </div>
                                 <span class="product-status ${isActive ? 'active' : 'inactive'}">
                                     ${isActive ? '✅ Ativo' : '❌ Inativo'}
@@ -1342,7 +1435,7 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
         }
 
         // ==========================================
-        // 9. VER PRODUTO COMPLETO
+        // 10. VER PRODUTO COMPLETO
         // ==========================================
         function verProdutoCompleto(productId) {
             const product = products.find(p => p.id === productId);
@@ -1423,19 +1516,19 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
                             ` : ''}
                         </div>
                         <div class="product-view-actions">
-                            <button class="btn btn-sm btn-primary" onclick="editarProduto('${product.id}'); fecharModalVisualizacao();">
+                            <button class="btn btn-sm btn-primary" onclick="editarProduto('${product.id}'); bootstrap.Modal.getInstance(document.getElementById('productViewModal')).hide();">
                                 <i class="fas fa-edit"></i> Editar Produto
                             </button>
-                            <button class="btn btn-sm btn-${isActive ? 'warning' : 'success'}" onclick="toggleStatus('${product.id}'); fecharModalVisualizacao();">
+                            <button class="btn btn-sm btn-${isActive ? 'warning' : 'success'}" onclick="toggleStatus('${product.id}'); bootstrap.Modal.getInstance(document.getElementById('productViewModal')).hide();">
                                 <i class="fas fa-${isActive ? 'pause' : 'play'}"></i>
                                 ${isActive ? 'Desativar' : 'Ativar'}
                             </button>
                             ${product.showInStore !== false ? `
-                                <button class="btn btn-sm btn-info" onclick="verNaLoja('${product.id}'); fecharModalVisualizacao();">
+                                <button class="btn btn-sm btn-info" onclick="verNaLoja('${product.id}'); bootstrap.Modal.getInstance(document.getElementById('productViewModal')).hide();">
                                     <i class="fas fa-store"></i> Ver na Loja
                                 </button>
                             ` : ''}
-                            <button class="btn btn-sm btn-danger" onclick="excluirProdutoDirect('${product.id}'); fecharModalVisualizacao();">
+                            <button class="btn btn-sm btn-danger" onclick="excluirProdutoDirect('${product.id}'); bootstrap.Modal.getInstance(document.getElementById('productViewModal')).hide();">
                                 <i class="fas fa-trash"></i> Excluir
                             </button>
                         </div>
@@ -1443,17 +1536,12 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
                 </div>
             `;
 
-            const modal = new bootstrap.Modal(document.getElementById('productViewModal'));
-            modal.show();
-        }
-
-        function fecharModalVisualizacao() {
-            const modal = bootstrap.Modal.getInstance(document.getElementById('productViewModal'));
-            if (modal) modal.hide();
+            const viewModal = new bootstrap.Modal(document.getElementById('productViewModal'));
+            viewModal.show();
         }
 
         // ==========================================
-        // 10. ATUALIZAR RESUMO
+        // 11. ATUALIZAR RESUMO
         // ==========================================
         function atualizarResumo() {
             const total = products.length;
@@ -1479,7 +1567,7 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
         }
 
         // ==========================================
-        // 11. TOGGLE RESUMO
+        // 12. TOGGLE RESUMO
         // ==========================================
         function toggleSummary() {
             summaryOpen = !summaryOpen;
@@ -1496,7 +1584,7 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
         }
 
         // ==========================================
-        // 12. FILTROS
+        // 13. FILTROS
         // ==========================================
         function setFilter(filter) {
             currentFilter = filter;
@@ -1510,7 +1598,7 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
         }
 
         // ==========================================
-        // 13. BUSCA
+        // 14. BUSCA COM BOTÃO "X"
         // ==========================================
         function setupSearchListener() {
             const searchInput = document.getElementById('searchProducts');
@@ -1528,12 +1616,14 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
             } else {
                 clearBtn.classList.remove('visible');
             }
+            
             renderizarProdutos();
         }
 
         function clearSearch() {
             const input = document.getElementById('searchProducts');
             const clearBtn = document.getElementById('clearSearchBtn');
+            
             input.value = '';
             clearBtn.classList.remove('visible');
             renderizarProdutos();
@@ -1541,19 +1631,13 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
         }
 
         // ==========================================
-        // 14. ABRIR MODAL DE PRODUTO (ADICIONAR)
+        // 15. ABRIR MODAL DE PRODUTO (ADICIONAR/EDITAR)
         // ==========================================
         function abrirModalProduto(productId = null) {
-            console.log('📦 Abrindo modal de produto...');
+            console.log('📦 Abrindo modal de produto...', productId);
             
             try {
-                const modalElement = document.getElementById('productModal');
-                if (!modalElement) {
-                    showError('Erro ao abrir modal. Tente novamente.');
-                    return;
-                }
-
-                // Reset do formulário
+                // Resetar o formulário
                 document.getElementById('productForm').reset();
                 document.getElementById('productId').value = '';
                 document.getElementById('prodImageUrl').value = '';
@@ -1600,31 +1684,40 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
                                 </button>
                             </div>
                         `;
+                    } else {
+                        resetImagePreview();
                     }
                 } else {
                     // ADIÇÃO
                     document.getElementById('productModalTitle').textContent = '➕ Adicionar Produto';
                 }
-
-                // Adicionar evento para atualizar status label
-                document.getElementById('prodActive').onchange = function() {
-                    atualizarStatusLabel();
-                };
-
-                // Mostrar o modal
-                const modal = new bootstrap.Modal(modalElement, {
-                    backdrop: 'static',
-                    keyboard: true
-                });
-                modal.show();
-                console.log('✅ Modal aberto com sucesso!');
-
+                
+                // Abrir o modal
+                if (productModalInstance) {
+                    productModalInstance.show();
+                    console.log('✅ Modal aberto com sucesso!');
+                } else {
+                    console.error('❌ Modal não inicializado');
+                    // Tentar inicializar novamente
+                    const modalElement = document.getElementById('productModal');
+                    if (modalElement) {
+                        productModalInstance = new bootstrap.Modal(modalElement, {
+                            backdrop: 'static',
+                            keyboard: true
+                        });
+                        productModalInstance.show();
+                    }
+                }
+                
             } catch (error) {
                 console.error('❌ Erro ao abrir modal:', error);
                 showError('Erro ao abrir o formulário. Tente novamente.');
             }
         }
 
+        // ==========================================
+        // 16. ATUALIZAR STATUS LABEL
+        // ==========================================
         function atualizarStatusLabel() {
             const isActive = document.getElementById('prodActive').checked;
             const label = document.getElementById('prodStatusLabel');
@@ -1637,6 +1730,9 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
             }
         }
 
+        // ==========================================
+        // 17. RESETAR PREVIEW DA IMAGEM
+        // ==========================================
         function resetImagePreview() {
             const preview = document.getElementById('imagePreview');
             preview.innerHTML = `
@@ -1647,7 +1743,7 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
         }
 
         // ==========================================
-        // 15. UPLOAD DE IMAGEM
+        // 18. UPLOAD DE IMAGEM
         // ==========================================
         function handleImageUpload(event) {
             const file = event.target.files[0];
@@ -1719,7 +1815,7 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
         }
 
         // ==========================================
-        // 16. SALVAR PRODUTO (ADICIONAR/EDITAR)
+        // 19. SALVAR PRODUTO (ADICIONAR/EDITAR)
         // ==========================================
         function salvarProduto() {
             const productId = document.getElementById('productId').value;
@@ -1787,8 +1883,9 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
 
             promise
                 .then(() => {
-                    const modal = bootstrap.Modal.getInstance(document.getElementById('productModal'));
-                    if (modal) modal.hide();
+                    if (productModalInstance) {
+                        productModalInstance.hide();
+                    }
                     Swal.close();
                     showSuccess(productId ? 'Produto atualizado com sucesso!' : 'Produto adicionado com sucesso!');
                     notificarLoja();
@@ -1801,14 +1898,14 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
         }
 
         // ==========================================
-        // 17. EDITAR PRODUTO
+        // 20. EDITAR PRODUTO
         // ==========================================
         function editarProduto(productId) {
             abrirModalProduto(productId);
         }
 
         // ==========================================
-        // 18. EXCLUIR PRODUTO
+        // 21. EXCLUIR PRODUTO
         // ==========================================
         function excluirProduto() {
             const productId = document.getElementById('productId').value;
@@ -1836,8 +1933,9 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
 
                     db.collection('products').doc(productId).delete()
                         .then(() => {
-                            const modal = bootstrap.Modal.getInstance(document.getElementById('productModal'));
-                            if (modal) modal.hide();
+                            if (productModalInstance) {
+                                productModalInstance.hide();
+                            }
                             Swal.close();
                             showSuccess('Produto excluído com sucesso!');
                             notificarLoja();
@@ -1888,7 +1986,7 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
         }
 
         // ==========================================
-        // 19. ALTERNAR STATUS
+        // 22. ALTERNAR STATUS
         // ==========================================
         function toggleStatus(productId) {
             const product = products.find(p => p.id === productId);
@@ -1923,7 +2021,7 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
         }
 
         // ==========================================
-        // 20. VER NA LOJA
+        // 23. VER NA LOJA
         // ==========================================
         function verNaLoja(productId) {
             const product = products.find(p => p.id === productId);
@@ -1944,7 +2042,7 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
         }
 
         // ==========================================
-        // 21. ATUALIZAR DATA/HORA
+        // 24. ATUALIZAR DATA/HORA
         // ==========================================
         function atualizarUltimaAtualizacao() {
             const now = new Date();
@@ -1955,7 +2053,7 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
         }
 
         // ==========================================
-        // 22. REFRESH
+        // 25. REFRESH
         // ==========================================
         function refreshEstoque() {
             const btn = document.getElementById('refreshBtn');
@@ -1974,7 +2072,7 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
         }
 
         // ==========================================
-        // 23. FUNÇÕES AUXILIARES
+        // 26. FUNÇÕES AUXILIARES
         // ==========================================
         function formatCurrency(value) {
             if (typeof value !== 'number') value = parseFloat(value) || 0;
@@ -2017,7 +2115,7 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
         }
 
         // ==========================================
-        // 24. RECEBER CONFIGURAÇÕES
+        // 27. RECEBER CONFIGURAÇÕES
         // ==========================================
         window.addEventListener('message', function(event) {
             if (event.data && event.data.type === 'configUpdated') {
@@ -2034,7 +2132,7 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
         window.parent.postMessage({ type: 'getConfig' }, '*');
 
         // ==========================================
-        // 25. EXPOR FUNÇÕES GLOBAIS
+        // 28. EXPOR FUNÇÕES GLOBAIS
         // ==========================================
         window.goHome = goHome;
         window.refreshEstoque = refreshEstoque;
@@ -2045,7 +2143,6 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
         window.toggleStatus = toggleStatus;
         window.verNaLoja = verNaLoja;
         window.verProdutoCompleto = verProdutoCompleto;
-        window.fecharModalVisualizacao = fecharModalVisualizacao;
         window.setFilter = setFilter;
         window.handleSearch = handleSearch;
         window.clearSearch = clearSearch;
@@ -2055,22 +2152,22 @@ Vou criar um código completamente novo e funcional para o Estoque, com todas as
         window.salvarProduto = salvarProduto;
 
         // ==========================================
-        // 26. LOG
+        // 29. LOG DE INICIALIZAÇÃO
         // ==========================================
         console.log('✅ Estoque carregado com sucesso!');
         console.log('📌 Funcionalidades:');
-        console.log('   - Adicionar Produto (funcionando)');
-        console.log('   - Editar Produto (funcionando)');
-        console.log('   - Excluir Produto (funcionando)');
-        console.log('   - Visualizar Produto em tela cheia');
-        console.log('   - Busca com botão "X" para limpar');
-        console.log('   - Filtros em linha separada');
-        console.log('   - Resumo do Estoque com dropdown');
-        console.log('   - Scroll lateral bloqueado');
-        console.log('   - Sincronização com Firebase em tempo real');
+        console.log('   - ✅ Adicionar Produto (funcionando)');
+        console.log('   - ✅ Editar Produto (funcionando)');
+        console.log('   - ✅ Excluir Produto (funcionando)');
+        console.log('   - ✅ Visualizar Produto em tela cheia');
+        console.log('   - ✅ Imagem do produto em destaque');
+        console.log('   - ✅ Busca com botão "X" para limpar');
+        console.log('   - ✅ Filtros em linha separada');
+        console.log('   - ✅ Resumo do Estoque com dropdown');
+        console.log('   - ✅ Scroll lateral bloqueado');
+        console.log('   - ✅ Sincronização com Firebase em tempo real');
 
     </script>
 
 </body>
 </html>
-```
