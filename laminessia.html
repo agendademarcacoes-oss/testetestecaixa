@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -17,12 +16,8 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
     
-    <!-- Cloudinary SDK -->
-    <script src="https://upload-widget.cloudinary.com/global.js"></script>
-    
-    <!-- jsPDF -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <!-- Signature Pad -->
+    <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
     
     <style>
         /* ============================================
@@ -175,314 +170,343 @@
         }
 
         /* ============================================
-           BUSCA DE CLIENTES
+           BARRA DE FERRAMENTAS
            ============================================ */
-        .client-search-area {
+        .toolbar {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 8px;
             flex-shrink: 0;
-            margin-bottom: 10px;
+            max-width: 100%;
         }
 
-        .client-search-area .search-box {
+        .toolbar .search-row {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            gap: 6px;
+        }
+
+        .toolbar .search-box {
+            flex: 1;
             position: relative;
-            width: 100%;
+            max-width: 100%;
         }
 
-        .client-search-area .search-box input {
+        .toolbar .search-box input {
             width: 100%;
-            padding: 8px 32px 8px 36px;
+            padding: 7px 32px 7px 34px;
             border: 2px solid #e0e0e0;
             border-radius: 25px;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             transition: border-color 0.3s;
             background: white;
+            max-width: 100%;
         }
 
-        .client-search-area .search-box input:focus {
+        .toolbar .search-box input:focus {
             border-color: #26196b;
             outline: none;
         }
 
-        .client-search-area .search-box .search-icon {
+        .toolbar .search-box .search-icon {
             position: absolute;
             left: 12px;
             top: 50%;
             transform: translateY(-50%);
             color: #6c757d;
-        }
-
-        .client-search-area .search-box .clear-search {
-            position: absolute;
-            right: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #6c757d;
-            cursor: pointer;
             font-size: 0.8rem;
-            padding: 4px;
-            border-radius: 50%;
-            transition: all 0.3s;
-            display: none;
-            background: none;
-            border: none;
         }
 
-        .client-search-area .search-box .clear-search.visible {
-            display: block;
-        }
-
-        .client-results {
-            max-height: 200px;
-            overflow-y: auto;
-            margin-top: 8px;
-        }
-
-        .client-result-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 8px 12px;
-            background: white;
-            border-radius: 8px;
-            margin-bottom: 4px;
-            border: 1px solid #e9ecef;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .client-result-item:hover {
-            background: #f8f5ff;
-            border-color: #26196b;
-            transform: translateX(4px);
-        }
-
-        .client-result-item .client-info {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .client-result-item .client-avatar {
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            background: #26196b;
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 14px;
-            flex-shrink: 0;
-        }
-
-        .client-result-item .client-avatar img {
-            width: 100%;
-            height: 100%;
-            border-radius: 50%;
-            object-fit: cover;
-        }
-
-        .client-result-item .client-name {
-            font-weight: 600;
-            font-size: 0.85rem;
-        }
-
-        .client-result-item .client-phone {
-            font-size: 0.7rem;
-            color: #6c757d;
-        }
-
-        .client-result-item .client-fichas {
-            font-size: 0.65rem;
-            background: #e9ecef;
-            padding: 2px 10px;
-            border-radius: 12px;
-            color: #6c757d;
-            white-space: nowrap;
-        }
-
-        /* ============================================
-           TIPOS DE FICHAS - CARDS
-           ============================================ */
-        .fichas-types {
-            flex-shrink: 0;
-            margin-bottom: 10px;
-        }
-
-        .fichas-types-title {
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: #333;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .fichas-types-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-            gap: 6px;
-        }
-
-        .ficha-type-card {
-            background: white;
-            border-radius: 10px;
-            padding: 10px 8px;
-            text-align: center;
-            border: 2px solid #e9ecef;
-            cursor: pointer;
-            transition: all 0.3s;
-            position: relative;
-        }
-
-        .ficha-type-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-
-        .ficha-type-card.selected {
-            border-color: #26196b;
-            background: #f8f5ff;
-        }
-
-        .ficha-type-card .ficha-icon {
-            font-size: 1.5rem;
-            margin-bottom: 4px;
-            display: block;
-        }
-
-        .ficha-type-card .ficha-name {
-            font-size: 0.65rem;
-            font-weight: 600;
-            color: #333;
-        }
-
-        .ficha-type-card .ficha-check {
-            position: absolute;
-            top: 4px;
-            right: 4px;
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
+        .toolbar .btn-add {
+            padding: 5px 16px;
             background: #28a745;
             color: white;
-            display: none;
+            border: none;
+            border-radius: 25px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
             align-items: center;
-            justify-content: center;
-            font-size: 10px;
+            gap: 5px;
+            white-space: nowrap;
+            flex-shrink: 0;
         }
 
-        .ficha-type-card.selected .ficha-check {
+        .toolbar .btn-add:hover {
+            background: #218838;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(40,167,69,0.3);
+        }
+
+        .toolbar .btn-list {
+            padding: 5px 16px;
+            background: #17a2b8;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            transition: all 0.3s;
             display: flex;
+            align-items: center;
+            gap: 5px;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .toolbar .btn-list:hover {
+            background: #138496;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(23,162,184,0.3);
         }
 
         /* ============================================
-           LISTA DE FICHAS DO CLIENTE
+           CARDS DOS TIPOS DE FICHA
            ============================================ */
-        .fichas-list-area {
+        .fichas-grid {
             flex: 1;
             overflow-y: auto;
             overflow-x: hidden !important;
+            padding: 2px 0;
         }
 
-        .fichas-list-area .section-title {
-            font-size: 0.8rem;
-            font-weight: 600;
-            color: #333;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
+        .fichas-grid .row {
+            margin: 0 !important;
+            overflow-x: hidden !important;
+            max-width: 100% !important;
         }
 
-        .ficha-item {
+        .fichas-grid [class*="col-"] {
+            padding: 0 4px !important;
+            margin-bottom: 8px !important;
+            overflow-x: hidden !important;
+            max-width: 100% !important;
+        }
+
+        .ficha-card {
             background: white;
-            border-radius: 10px;
-            padding: 10px 12px;
-            margin-bottom: 6px;
-            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            transition: all 0.3s ease;
+            height: 100%;
             display: flex;
-            align-items: center;
-            justify-content: space-between;
-            transition: all 0.3s;
+            flex-direction: column;
+            border: 2px solid #e9ecef;
+            overflow-x: hidden !important;
             cursor: pointer;
+            position: relative;
         }
 
-        .ficha-item:hover {
+        .ficha-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.12);
             border-color: #26196b;
-            transform: translateX(4px);
         }
 
-        .ficha-item .ficha-info {
-            display: flex;
-            align-items: center;
-            gap: 10px;
+        .ficha-card .ficha-icon {
+            font-size: 2.5rem;
+            padding: 16px 0 8px;
+            text-align: center;
+            color: #26196b;
         }
 
-        .ficha-item .ficha-icon {
-            font-size: 1.2rem;
-            width: 36px;
+        .ficha-card .ficha-body {
+            padding: 8px 14px 14px;
+            flex: 1;
             text-align: center;
         }
 
-        .ficha-item .ficha-details .ficha-name {
-            font-weight: 600;
-            font-size: 0.85rem;
+        .ficha-card .ficha-body .ficha-name {
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: #333;
+            margin-bottom: 2px;
         }
 
-        .ficha-item .ficha-details .ficha-date {
-            font-size: 0.65rem;
+        .ficha-card .ficha-body .ficha-desc {
+            font-size: 0.7rem;
+            color: #6c757d;
+            margin-bottom: 6px;
+        }
+
+        .ficha-card .ficha-badge {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.55rem;
+            font-weight: 600;
+            background: #e9ecef;
             color: #6c757d;
         }
 
-        .ficha-item .ficha-status {
-            font-size: 0.6rem;
-            padding: 2px 10px;
-            border-radius: 12px;
-            font-weight: 600;
-        }
-
-        .ficha-item .ficha-status.completed {
+        .ficha-card .ficha-badge.active {
             background: #d4edda;
             color: #155724;
         }
 
-        .ficha-item .ficha-status.pending {
-            background: #fff3cd;
-            color: #856404;
+        .ficha-card .ficha-check {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid #dee2e6;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: white;
         }
 
-        .ficha-item .ficha-status.in_progress {
-            background: #cce5ff;
-            color: #004085;
-        }
-
-        .ficha-item .ficha-actions {
+        .ficha-card .ficha-check.checked {
             display: flex;
-            gap: 4px;
+            background: #26196b;
+            border-color: #26196b;
+            color: white;
         }
 
-        .ficha-item .ficha-actions .btn-sm {
-            font-size: 0.6rem;
-            padding: 3px 8px;
-            border-radius: 15px;
+        .ficha-card .ficha-check i {
+            font-size: 0.7rem;
         }
 
-        .empty-state {
-            text-align: center;
-            padding: 30px 20px;
-            color: #6c757d;
+        .ficha-card .ficha-selectable {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            width: 22px;
+            height: 22px;
+            border-radius: 4px;
+            border: 2px solid #dee2e6;
+            background: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
         }
 
-        .empty-state i {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-            opacity: 0.3;
+        .ficha-card .ficha-selectable.selected {
+            background: #26196b;
+            border-color: #26196b;
+            color: white;
+        }
+
+        .ficha-card .ficha-selectable i {
+            font-size: 0.7rem;
+            opacity: 0;
+            transition: all 0.3s;
+        }
+
+        .ficha-card .ficha-selectable.selected i {
+            opacity: 1;
+        }
+
+        /* Cores por tipo */
+        .ficha-card.type-rosto { border-color: #FF6B6B; }
+        .ficha-card.type-rosto .ficha-icon { color: #FF6B6B; }
+        .ficha-card.type-corporal { border-color: #FF9F43; }
+        .ficha-card.type-corporal .ficha-icon { color: #FF9F43; }
+        .ficha-card.type-pernas { border-color: #EE5A24; }
+        .ficha-card.type-pernas .ficha-icon { color: #EE5A24; }
+        .ficha-card.type-pos-operatorio { border-color: #6C5CE7; }
+        .ficha-card.type-pos-operatorio .ficha-icon { color: #6C5CE7; }
+        .ficha-card.type-pestanas { border-color: #FD79A8; }
+        .ficha-card.type-pestanas .ficha-icon { color: #FD79A8; }
+        .ficha-card.type-unhas { border-color: #E17055; }
+        .ficha-card.type-unhas .ficha-icon { color: #E17055; }
+        .ficha-card.type-cabelo { border-color: #00B894; }
+        .ficha-card.type-cabelo .ficha-icon { color: #00B894; }
+        .ficha-card.type-laminessia { border-color: #0984E3; }
+        .ficha-card.type-laminessia .ficha-icon { color: #0984E3; }
+        .ficha-card.type-maquiagem { border-color: #E84393; }
+        .ficha-card.type-maquiagem .ficha-icon { color: #E84393; }
+        .ficha-card.type-depilacao { border-color: #FDCB6E; }
+        .ficha-card.type-depilacao .ficha-icon { color: #FDCB6E; }
+        .ficha-card.type-massagem { border-color: #00CEC9; }
+        .ficha-card.type-massagem .ficha-icon { color: #00CEC9; }
+
+        /* ============================================
+           MODAL DE SELEÇÃO DE CLIENTE E COLABORADOR
+           ============================================ */
+        .select-modal .modal-content {
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        .select-modal .modal-header {
+            background: #26196b;
+            color: white;
+            border: none;
+        }
+
+        .select-modal .modal-header .btn-close {
+            filter: brightness(0) invert(1);
+        }
+
+        .select-modal .modal-body {
+            padding: 20px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .select-modal .autocomplete-container {
+            position: relative;
+        }
+
+        .select-modal .autocomplete-list {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            max-height: 200px;
+            overflow-y: auto;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            display: none;
+        }
+
+        .select-modal .autocomplete-list.active {
+            display: block;
+        }
+
+        .select-modal .autocomplete-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #f1f1f1;
+            transition: background 0.2s;
+        }
+
+        .select-modal .autocomplete-item:hover {
+            background: #f8f9fa;
+        }
+
+        .select-modal .btn-add-client {
+            margin-top: 8px;
+            padding: 6px 16px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .select-modal .btn-add-client:hover {
+            background: #218838;
         }
 
         /* ============================================
-           MODAL DE FICHA
+           MODAL DA FICHA
            ============================================ */
         .ficha-modal .modal-content {
             border-radius: 16px;
@@ -526,66 +550,106 @@
             box-shadow: 0 0 0 0.2rem rgba(38,25,107,0.15);
         }
 
-        .ficha-modal .image-upload-area {
-            border: 2px dashed #dee2e6;
-            border-radius: 10px;
-            padding: 12px;
+        /* ============================================
+           SIGNATURE PAD
+           ============================================ */
+        .signature-container {
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            background: white;
+            touch-action: none;
+        }
+
+        .signature-container canvas {
+            width: 100%;
+            height: 150px;
+            touch-action: none;
+        }
+
+        .signature-container .signature-label {
+            display: block;
             text-align: center;
-            cursor: pointer;
-            transition: all 0.3s;
-            min-height: 100px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .ficha-modal .image-upload-area:hover {
-            border-color: #26196b;
-            background: #f8f5ff;
-        }
-
-        .ficha-modal .image-upload-area img {
-            max-height: 100px;
-            max-width: 100%;
-            border-radius: 6px;
-            object-fit: contain;
-        }
-
-        .ficha-modal .image-upload-area .upload-icon {
-            font-size: 1.5rem;
-            color: #adb5bd;
-            margin-bottom: 4px;
-        }
-
-        .ficha-modal .image-upload-area .upload-text {
             font-size: 0.7rem;
             color: #6c757d;
+            padding: 4px;
+            background: #f8f9fa;
+            border-top: 1px solid #e9ecef;
         }
 
-        .ficha-modal .checkbox-group {
+        /* ============================================
+           LISTA DE FICHAS CADASTRADAS
+           ============================================ */
+        .fichas-list-modal .modal-content {
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        .fichas-list-modal .modal-header {
+            background: #26196b;
+            color: white;
+            border: none;
+        }
+
+        .fichas-list-modal .modal-header .btn-close {
+            filter: brightness(0) invert(1);
+        }
+
+        .fichas-list-modal .modal-body {
+            padding: 16px 20px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .ficha-list-item {
+            background: white;
+            border-radius: 10px;
+            padding: 12px 14px;
+            margin-bottom: 8px;
+            border: 1px solid #e9ecef;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .ficha-list-item:hover {
+            border-color: #26196b;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+
+        .ficha-list-item .ficha-list-info {
             display: flex;
+            justify-content: space-between;
+            align-items: center;
             flex-wrap: wrap;
             gap: 6px;
         }
 
-        .ficha-modal .checkbox-group .form-check {
-            margin-right: 8px;
+        .ficha-list-item .ficha-list-client {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #333;
         }
 
-        .ficha-modal .checkbox-group .form-check-label {
-            font-size: 0.8rem;
-        }
-
-        .ficha-tabs .nav-link {
-            font-size: 0.75rem;
-            padding: 6px 12px;
+        .ficha-list-item .ficha-list-type {
+            font-size: 0.7rem;
+            padding: 2px 10px;
+            border-radius: 12px;
+            background: #e9ecef;
             color: #6c757d;
         }
 
-        .ficha-tabs .nav-link.active {
-            color: #26196b;
-            font-weight: 600;
+        .ficha-list-item .ficha-list-date {
+            font-size: 0.65rem;
+            color: #6c757d;
+        }
+
+        .ficha-list-item .ficha-list-collaborator {
+            font-size: 0.65rem;
+            color: #6c757d;
+        }
+
+        .ficha-list-item .ficha-list-actions {
+            display: flex;
+            gap: 4px;
         }
 
         /* ============================================
@@ -593,30 +657,32 @@
            ============================================ */
         @media (max-width: 768px) {
             .fichas-container { padding: 6px 8px; }
-            .fichas-types-grid { grid-template-columns: repeat(4, 1fr); }
-            .ficha-type-card { padding: 8px 4px; }
-            .ficha-type-card .ficha-icon { font-size: 1.2rem; }
-            .ficha-type-card .ficha-name { font-size: 0.55rem; }
-            .client-search-area .search-box input { font-size: 0.75rem; padding: 6px 28px 6px 30px; }
-            .ficha-item { padding: 8px 10px; }
-            .ficha-item .ficha-details .ficha-name { font-size: 0.75rem; }
-            .ficha-item .ficha-details .ficha-date { font-size: 0.55rem; }
+            .toolbar { gap: 4px; }
+            .toolbar .search-box input { font-size: 0.7rem; padding: 6px 28px 6px 30px; }
+            .toolbar .btn-add { padding: 4px 12px; font-size: 0.6rem; }
+            .toolbar .btn-list { padding: 4px 12px; font-size: 0.6rem; }
+            .ficha-card .ficha-icon { font-size: 2rem; padding: 12px 0 4px; }
+            .ficha-card .ficha-body .ficha-name { font-size: 0.8rem; }
+            .signature-container canvas { height: 120px; }
         }
 
         @media (max-width: 480px) {
-            .fichas-types-grid { grid-template-columns: repeat(3, 1fr); }
+            .fichas-container { padding: 4px 6px; }
+            .ficha-card .ficha-icon { font-size: 1.6rem; padding: 8px 0 2px; }
+            .ficha-card .ficha-body .ficha-name { font-size: 0.7rem; }
+            .ficha-card .ficha-body .ficha-desc { font-size: 0.6rem; }
+            .ficha-card .ficha-selectable { width: 18px; height: 18px; }
+            .ficha-card .ficha-badge { font-size: 0.5rem; padding: 1px 6px; }
             .fichas-header .header-left h1 { font-size: 0.85rem; }
             .fichas-header .header-left h1 small { display: none; }
             .btn-home { padding: 4px 8px; font-size: 0.65rem; }
             .btn-refresh { padding: 4px 8px; font-size: 0.65rem; }
             .last-update { display: none; }
-            .ficha-modal .modal-body { padding: 12px 14px; }
-            .ficha-item .ficha-actions .btn-sm { font-size: 0.5rem; padding: 2px 6px; }
+            .signature-container canvas { height: 100px; }
+            .ficha-list-item { padding: 8px 10px; }
+            .ficha-list-item .ficha-list-client { font-size: 0.8rem; }
         }
 
-        /* ============================================
-           SCROLLBAR
-           ============================================ */
         ::-webkit-scrollbar { width: 3px; height: 3px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
         ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
@@ -678,60 +744,90 @@
     <div class="fichas-container" id="fichasContainer">
 
         <!-- ==========================================
-        BUSCA DE CLIENTES
+        BARRA DE FERRAMENTAS
         ========================================== -->
-        <div class="client-search-area">
-            <div class="search-box">
-                <i class="fas fa-search search-icon"></i>
-                <input type="text" id="searchClient" placeholder="Buscar cliente por nome ou telefone..." oninput="buscarClientes()" autocomplete="off">
-                <button class="clear-search" id="clearSearchBtn" onclick="clearSearch()">
-                    <i class="fas fa-times"></i>
+        <div class="toolbar" id="toolbar">
+            <div class="search-row">
+                <div class="search-box">
+                    <i class="fas fa-search search-icon"></i>
+                    <input type="text" id="searchFichas" placeholder="Buscar fichas..." oninput="handleSearch()" autocomplete="off">
+                </div>
+                <button class="btn-add" id="addFichaBtn" onclick="iniciarNovaFicha()">
+                    <i class="fas fa-plus"></i> Nova Ficha
                 </button>
-            </div>
-            <div class="client-results" id="clientResults">
-                <!-- Resultados da busca -->
+                <button class="btn-list" id="listFichasBtn" onclick="abrirListaFichas()">
+                    <i class="fas fa-list"></i> Fichas
+                </button>
             </div>
         </div>
 
         <!-- ==========================================
-        TIPOS DE FICHAS - CARDS
+        GRADE DE CARDS DE FICHAS
         ========================================== -->
-        <div class="fichas-types" id="fichasTypes">
-            <div class="fichas-types-title">
-                <i class="fas fa-th-large text-primary-custom"></i>
-                Selecione o tipo de ficha
-                <span id="selectedCount" style="font-size:0.7rem;background:#e9ecef;padding:1px 8px;border-radius:12px;color:#6c757d;display:none;">0 selecionadas</span>
-            </div>
-            <div class="fichas-types-grid" id="fichasTypesGrid">
-                <!-- Cards serão gerados dinamicamente -->
+        <div class="fichas-grid" id="fichasGrid">
+            <div class="row g-2" id="fichasContainer">
+                <!-- Cards serão renderizados aqui -->
             </div>
         </div>
+    </div>
 
-        <!-- ==========================================
-        LISTA DE FICHAS DO CLIENTE
-        ========================================== -->
-        <div class="fichas-list-area" id="fichasListArea">
-            <div class="section-title">
-                <span><i class="fas fa-list me-2 text-primary-custom"></i>Fichas do Cliente</span>
-                <button class="btn btn-sm btn-primary" id="createFichaBtn" onclick="criarFichasSelecionadas()" disabled>
-                    <i class="fas fa-plus me-1"></i>Criar Fichas
-                </button>
-            </div>
-            <div id="fichasList">
-                <div class="empty-state">
-                    <i class="fas fa-file-medical-alt"></i>
-                    <p>Nenhuma ficha encontrada</p>
-                    <small class="text-muted">Busque um cliente e selecione os tipos de ficha para criar</small>
+    <!-- ==========================================
+    MODAL DE SELEÇÃO DE CLIENTE E COLABORADOR
+    ========================================== -->
+    <div class="modal fade select-modal" id="selectModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-user-check me-2"></i>Selecionar Cliente e Colaborador
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Cliente *</label>
+                        <div class="autocomplete-container">
+                            <input type="text" class="form-control" id="selectClient" 
+                                   placeholder="Digite o nome do cliente..." autocomplete="off">
+                            <div class="autocomplete-list" id="selectClientList"></div>
+                        </div>
+                        <input type="hidden" id="selectClientId">
+                        <button class="btn-add-client" onclick="abrirCadastroCliente()">
+                            <i class="fas fa-user-plus me-1"></i>Cadastrar novo cliente
+                        </button>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Profissional Responsável *</label>
+                        <select class="form-select" id="selectCollaborator">
+                            <option value="">Selecione um profissional</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Tipo de Ficha</label>
+                        <div id="selectedFichaTypes" class="d-flex flex-wrap gap-2">
+                            <!-- Tipos selecionados serão mostrados aqui -->
+                        </div>
+                    </div>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Serão criadas fichas para os tipos selecionados: <span id="selectedTypesText">Nenhum</span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="confirmSelectBtn">
+                        <i class="fas fa-check me-1"></i>Continuar
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- ==========================================
-    MODAL DE FICHA
+    MODAL DA FICHA (CONTEÚDO DINÂMICO)
     ========================================== -->
     <div class="modal fade ficha-modal" id="fichaModal" tabindex="-1" data-bs-backdrop="static">
-        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="fichaModalTitle">
@@ -744,14 +840,143 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                    <button type="button" class="btn btn-danger" id="deleteFichaBtn" style="display:none;" onclick="excluirFicha()">
+                    <button type="button" class="btn btn-danger" id="deleteFichaBtn" style="display:none;">
                         <i class="fas fa-trash me-1"></i>Excluir
                     </button>
-                    <button type="button" class="btn btn-success" id="saveFichaBtn" onclick="salvarFicha()">
+                    <button type="button" class="btn btn-success" id="saveFichaBtn">
                         <i class="fas fa-save me-1"></i>Salvar Ficha
                     </button>
-                    <button type="button" class="btn btn-info" id="pdfFichaBtn" style="display:none;" onclick="gerarPDFFicha()">
-                        <i class="fas fa-file-pdf me-1"></i>PDF
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+    MODAL DE ASSINATURA
+    ========================================== -->
+    <div class="modal fade" id="signatureModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-pen-square me-2"></i>Assinatura Digital
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Termo de Consentimento RGPD</label>
+                        <div class="p-3 bg-light rounded" style="max-height:150px;overflow-y:auto;font-size:0.8rem;border-left:3px solid #26196b;">
+                            <p>Declaro que li e compreendo as informações sobre o tratamento dos meus dados pessoais, 
+                            de acordo com o Regulamento Geral de Proteção de Dados (RGPD).</p>
+                            <p>Autorizo a coleta, armazenamento e tratamento dos meus dados para fins de acompanhamento 
+                            clínico e estético.</p>
+                            <p><strong>Direitos:</strong> Acesso, retificação, eliminação, oposição e portabilidade dos dados.</p>
+                            <p><small class="text-muted">Esta autorização pode ser revogada a qualquer momento.</small></p>
+                        </div>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="consentCheck">
+                        <label class="form-check-label" for="consentCheck">
+                            Li e concordo com o termo de consentimento RGPD
+                        </label>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Assinatura do Cliente</label>
+                        <div class="signature-container">
+                            <canvas id="clientSignatureCanvas" height="150"></canvas>
+                            <span class="signature-label">Assine com o dedo ou mouse</span>
+                        </div>
+                        <button class="btn btn-sm btn-outline-danger mt-1" onclick="clearSignature('client')">
+                            <i class="fas fa-eraser me-1"></i>Limpar
+                        </button>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Assinatura do Profissional</label>
+                        <div class="signature-container">
+                            <canvas id="professionalSignatureCanvas" height="150"></canvas>
+                            <span class="signature-label">Assine com o dedo ou mouse</span>
+                        </div>
+                        <button class="btn btn-sm btn-outline-danger mt-1" onclick="clearSignature('professional')">
+                            <i class="fas fa-eraser me-1"></i>Limpar
+                        </button>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="confirmSignatureBtn" disabled>
+                        <i class="fas fa-check me-1"></i>Confirmar Assinaturas
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+    MODAL DE LISTA DE FICHAS CADASTRADAS
+    ========================================== -->
+    <div class="modal fade fichas-list-modal" id="fichasListModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-list me-2"></i>Fichas Cadastradas
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <input type="text" class="form-control" id="searchFichasList" 
+                               placeholder="Buscar por cliente, tipo ou profissional..." oninput="filtrarListaFichas()">
+                    </div>
+                    <div id="fichasListContainer">
+                        <div class="text-center text-muted py-4">
+                            <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
+                            <p>Carregando fichas...</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+    MODAL DE CADASTRO DE CLIENTE
+    ========================================== -->
+    <div class="modal fade" id="clientModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-user-plus me-2"></i>Cadastrar Cliente
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Nome Completo *</label>
+                        <input type="text" class="form-control" id="clientName" placeholder="Ex: Maria Silva">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Telefone/WhatsApp</label>
+                        <input type="text" class="form-control" id="clientPhone" placeholder="+351 912 345 678">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">E-mail</label>
+                        <input type="email" class="form-control" id="clientEmail" placeholder="cliente@email.com">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Data de Nascimento</label>
+                        <input type="date" class="form-control" id="clientBirthdate">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="saveClientBtn">
+                        <i class="fas fa-save me-1"></i>Cadastrar
                     </button>
                 </div>
             </div>
@@ -791,52 +1016,62 @@
         // ==========================================
         let currentUser = null;
         let clients = [];
-        let selectedClient = null;
-        let selectedTypes = [];
+        let collaborators = [];
         let fichas = [];
-        let editingFichaId = null;
-        let currentFichaType = null;
+        let selectedFichaTypes = [];
+        let currentFichaId = null;
+        let clientSignaturePad = null;
+        let professionalSignaturePad = null;
+        let signatureClientId = null;
         let fichasListener = null;
+        let clientsListener = null;
+        let collaboratorsListener = null;
 
         // ==========================================
         // 3. TIPOS DE FICHAS DISPONÍVEIS
         // ==========================================
-        const TIPOS_FICHAS = [
-            { id: 'rosto', nome: 'Rosto', icone: 'fa-face-smile', cor: '#e74c3c', descricao: 'Avaliação facial e estética' },
-            { id: 'corpo', nome: 'Corpo', icone: 'fa-person', cor: '#3498db', descricao: 'Avaliação corporal' },
-            { id: 'pernas', nome: 'Pernas', icone: 'fa-person-walking', cor: '#2ecc71', descricao: 'Avaliação de pernas' },
-            { id: 'pos-operatorio', nome: 'Pós-Operatório', icone: 'fa-heart-pulse', cor: '#e67e22', descricao: 'Avaliação pós-operatória' },
-            { id: 'pestanas', nome: 'Pestanas', icone: 'fa-eye', cor: '#9b59b6', descricao: 'Avaliação de pestanas' },
-            { id: 'unhas', nome: 'Unhas', icone: 'fa-hand', cor: '#e91e63', descricao: 'Avaliação de unhas' },
-            { id: 'cabelo', nome: 'Cabelo', icone: 'fa-cut', cor: '#26196b', descricao: 'Avaliação capilar' },
-            { id: 'laminessia', nome: 'Laminessia', icone: 'fa-sparkles', cor: '#1abc9c', descricao: 'Avaliação Laminessia' },
-            { id: 'massagem', nome: 'Massagem', icone: 'fa-spa', cor: '#f39c12', descricao: 'Avaliação para massagem' },
-            { id: 'depilacao', nome: 'Depilação', icone: 'fa-hand-sparkles', cor: '#d35400', descricao: 'Avaliação para depilação' },
-            { id: 'maquiagem', nome: 'Maquiagem', icone: 'fa-paintbrush', cor: '#c0392b', descricao: 'Avaliação para maquiagem' },
-            { id: 'sobrancelhas', nome: 'Sobrancelhas', icone: 'fa-chevron-up', cor: '#795548', descricao: 'Design de sobrancelhas' }
+        const FICHA_TYPES = [
+            { id: 'rosto', name: 'Rosto', icon: 'fa-face-smile', color: '#FF6B6B', desc: 'Avaliação facial e pele' },
+            { id: 'corporal', name: 'Corporal', icon: 'fa-person', color: '#FF9F43', desc: 'Avaliação corporal geral' },
+            { id: 'pernas', name: 'Pernas', icon: 'fa-person-walking', color: '#EE5A24', desc: 'Avaliação de membros inferiores' },
+            { id: 'pos-operatorio', name: 'Pós-Operatório', icon: 'fa-hospital', color: '#6C5CE7', desc: 'Avaliação pós-cirúrgica' },
+            { id: 'pestanas', name: 'Pestanas', icon: 'fa-eye', color: '#FD79A8', desc: 'Avaliação de pestanas' },
+            { id: 'unhas', name: 'Unhas', icon: 'fa-hand', color: '#E17055', desc: 'Avaliação de unhas e mãos' },
+            { id: 'cabelo', name: 'Cabelo', icon: 'fa-cut', color: '#00B894', desc: 'Avaliação capilar' },
+            { id: 'laminessia', name: 'Laminessia', icon: 'fa-sparkles', color: '#0984E3', desc: 'Avaliação estética completa' },
+            { id: 'maquiagem', name: 'Maquiagem', icon: 'fa-paint-brush', color: '#E84393', desc: 'Avaliação de maquiagem' },
+            { id: 'depilacao', name: 'Depilação', icon: 'fa-wind', color: '#FDCB6E', desc: 'Avaliação de depilação' },
+            { id: 'massagem', name: 'Massagem', icon: 'fa-hand-sparkles', color: '#00CEC9', desc: 'Avaliação de massagem' }
         ];
 
         // ==========================================
         // 4. INICIALIZAÇÃO
         // ==========================================
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 Inicializando sistema de fichas...');
+
             auth.onAuthStateChanged(user => {
                 if (user) {
                     currentUser = user;
                     document.getElementById('userGreeting').textContent = user.email;
-                    carregarClientes();
-                    carregarFichas();
+                    carregarDados();
                     carregarConfiguracoesSistema();
-                    renderizarTiposFichas();
+                    configurarEventos();
                 } else {
                     document.getElementById('userGreeting').textContent = 'Não autenticado';
                     mostrarLoginPrompt();
                 }
             });
+
+            setInterval(function() {
+                if (currentUser) {
+                    carregarFichas();
+                }
+            }, 30000);
         });
 
         // ==========================================
-        // 5. CARREGAR CONFIGURAÇÕES
+        // 5. CARREGAR CONFIGURAÇÕES DO SISTEMA
         // ==========================================
         function carregarConfiguracoesSistema() {
             try {
@@ -876,29 +1111,62 @@
         }
 
         // ==========================================
-        // 7. CARREGAR CLIENTES
+        // 7. CARREGAR DADOS
         // ==========================================
+        function carregarDados() {
+            carregarClientes();
+            carregarColaboradores();
+            carregarFichas();
+        }
+
         function carregarClientes() {
             if (!currentUser) return;
-            
-            db.collection('clients')
+
+            if (clientsListener) {
+                clientsListener();
+                clientsListener = null;
+            }
+
+            clientsListener = db.collection('clients')
                 .where('userId', '==', currentUser.uid)
-                .get()
-                .then(snapshot => {
+                .onSnapshot(snapshot => {
                     clients = [];
                     snapshot.forEach(doc => {
                         clients.push({ id: doc.id, ...doc.data() });
                     });
                     clients.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-                })
-                .catch(error => {
+                    console.log('✅ Clientes carregados:', clients.length);
+                }, error => {
                     console.error('Erro ao carregar clientes:', error);
                 });
         }
 
-        // ==========================================
-        // 8. CARREGAR FICHAS
-        // ==========================================
+        function carregarColaboradores() {
+            if (!currentUser) return;
+
+            if (collaboratorsListener) {
+                collaboratorsListener();
+                collaboratorsListener = null;
+            }
+
+            collaboratorsListener = db.collection('collaborators')
+                .where('userId', '==', currentUser.uid)
+                .where('active', '==', true)
+                .onSnapshot(snapshot => {
+                    collaborators = [];
+                    snapshot.forEach(doc => {
+                        collaborators.push({ id: doc.id, ...doc.data() });
+                    });
+                    collaborators.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                    
+                    // Atualizar select de colaboradores
+                    atualizarSelectColaboradores();
+                    console.log('✅ Colaboradores carregados:', collaborators.length);
+                }, error => {
+                    console.error('Erro ao carregar colaboradores:', error);
+                });
+        }
+
         function carregarFichas() {
             if (!currentUser) return;
 
@@ -907,282 +1175,303 @@
                 fichasListener = null;
             }
 
-            fichasListener = db.collection('fichas_avaliacao')
+            fichasListener = db.collection('fichas')
                 .where('userId', '==', currentUser.uid)
                 .onSnapshot(snapshot => {
                     fichas = [];
                     snapshot.forEach(doc => {
                         fichas.push({ id: doc.id, ...doc.data() });
                     });
-                    if (selectedClient) {
-                        renderizarFichasCliente();
-                    }
+                    fichas.sort((a, b) => {
+                        const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
+                        const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+                        return dateB - dateA;
+                    });
+                    renderizarCards();
                     atualizarUltimaAtualizacao();
+                    console.log('✅ Fichas carregadas:', fichas.length);
                 }, error => {
                     console.error('Erro ao carregar fichas:', error);
                 });
         }
 
-        // ==========================================
-        // 9. RENDERIZAR TIPOS DE FICHAS
-        // ==========================================
-        function renderizarTiposFichas() {
-            const grid = document.getElementById('fichasTypesGrid');
-            grid.innerHTML = '';
-
-            TIPOS_FICHAS.forEach(tipo => {
-                const card = document.createElement('div');
-                card.className = 'ficha-type-card';
-                card.setAttribute('data-tipo-id', tipo.id);
-                card.innerHTML = `
-                    <span class="ficha-check"><i class="fas fa-check"></i></span>
-                    <span class="ficha-icon" style="color:${tipo.cor}">${tipo.icone}</span>
-                    <span class="ficha-name">${tipo.nome}</span>
-                `;
-                card.addEventListener('click', function() {
-                    toggleTipoFicha(tipo.id);
-                });
-                grid.appendChild(card);
+        function atualizarSelectColaboradores() {
+            const select = document.getElementById('selectCollaborator');
+            select.innerHTML = '<option value="">Selecione um profissional</option>';
+            collaborators.forEach(c => {
+                const option = document.createElement('option');
+                option.value = c.id;
+                option.textContent = c.name;
+                select.appendChild(option);
             });
         }
 
         // ==========================================
-        // 10. TOGGLE TIPO DE FICHA
+        // 8. RENDERIZAR CARDS
         // ==========================================
-        function toggleTipoFicha(tipoId) {
-            const index = selectedTypes.indexOf(tipoId);
-            if (index > -1) {
-                selectedTypes.splice(index, 1);
-            } else {
-                selectedTypes.push(tipoId);
+        function renderizarCards() {
+            const container = document.getElementById('fichasContainer');
+            const searchTerm = document.getElementById('searchFichas').value.toLowerCase().trim();
+            
+            let filtered = [...FICHA_TYPES];
+            
+            if (searchTerm) {
+                filtered = filtered.filter(f => 
+                    f.name.toLowerCase().includes(searchTerm) ||
+                    f.desc.toLowerCase().includes(searchTerm)
+                );
             }
-            atualizarSelecaoTipos();
-        }
-
-        function atualizarSelecaoTipos() {
-            document.querySelectorAll('.ficha-type-card').forEach(card => {
-                const tipoId = card.getAttribute('data-tipo-id');
-                card.classList.toggle('selected', selectedTypes.includes(tipoId));
-            });
-
-            const countEl = document.getElementById('selectedCount');
-            if (selectedTypes.length > 0) {
-                countEl.style.display = 'inline-block';
-                countEl.textContent = `${selectedTypes.length} selecionada(s)`;
-            } else {
-                countEl.style.display = 'none';
-            }
-
-            const btn = document.getElementById('createFichaBtn');
-            btn.disabled = selectedTypes.length === 0 || !selectedClient;
-        }
-
-        // ==========================================
-        // 11. BUSCAR CLIENTES
-        // ==========================================
-        function buscarClientes() {
-            const searchTerm = document.getElementById('searchClient').value.toLowerCase().trim();
-            const results = document.getElementById('clientResults');
-            const clearBtn = document.getElementById('clearSearchBtn');
-
-            if (searchTerm.length > 0) {
-                clearBtn.classList.add('visible');
-            } else {
-                clearBtn.classList.remove('visible');
-            }
-
-            if (searchTerm.length < 2) {
-                results.innerHTML = '';
-                return;
-            }
-
-            const filtered = clients.filter(c => 
-                (c.name || '').toLowerCase().includes(searchTerm) ||
-                (c.phone || '').includes(searchTerm)
-            );
-
+            
             if (filtered.length === 0) {
-                results.innerHTML = `<div class="text-center text-muted py-3 fs-small">Nenhum cliente encontrado</div>`;
-                return;
-            }
-
-            let html = '';
-            filtered.slice(0, 10).forEach(client => {
-                const fichasCount = fichas.filter(f => f.clienteId === client.id).length;
-                const avatarHtml = client.photoUrl ? 
-                    `<img src="${client.photoUrl}" alt="${client.name}">` :
-                    (client.name || '?').charAt(0).toUpperCase();
-
-                html += `
-                    <div class="client-result-item" onclick="selecionarCliente('${client.id}')">
-                        <div class="client-info">
-                            <div class="client-avatar">${avatarHtml}</div>
-                            <div>
-                                <div class="client-name">${client.name || 'Sem nome'}</div>
-                                <div class="client-phone">${client.phone || 'Sem telefone'}</div>
-                            </div>
-                        </div>
-                        <div class="client-fichas">${fichasCount} ficha(s)</div>
-                    </div>
-                `;
-            });
-
-            results.innerHTML = html;
-        }
-
-        // ==========================================
-        // 12. SELECIONAR CLIENTE
-        // ==========================================
-        function selecionarCliente(clientId) {
-            selectedClient = clients.find(c => c.id === clientId);
-            if (!selectedClient) return;
-
-            document.getElementById('searchClient').value = selectedClient.name || '';
-            document.getElementById('clientResults').innerHTML = '';
-            document.getElementById('clearSearchBtn').classList.remove('visible');
-
-            selectedTypes = [];
-            atualizarSelecaoTipos();
-            renderizarFichasCliente();
-
-            // Limpar seleção de tipos
-            document.querySelectorAll('.ficha-type-card').forEach(card => {
-                card.classList.remove('selected');
-            });
-        }
-
-        // ==========================================
-        // 13. RENDERIZAR FICHAS DO CLIENTE
-        // ==========================================
-        function renderizarFichasCliente() {
-            const container = document.getElementById('fichasList');
-            const clientFichas = fichas.filter(f => f.clienteId === selectedClient?.id);
-
-            if (clientFichas.length === 0) {
                 container.innerHTML = `
-                    <div class="empty-state">
-                        <i class="fas fa-file-medical-alt"></i>
-                        <p>Nenhuma ficha para este cliente</p>
-                        <small class="text-muted">Selecione os tipos de ficha e clique em "Criar Fichas"</small>
+                    <div class="col-12 text-center py-5">
+                        <i class="fas fa-file-medical-alt fa-4x mb-3 opacity-25"></i>
+                        <h5 class="text-muted">Nenhum tipo de ficha encontrado</h5>
                     </div>
                 `;
                 return;
             }
-
+            
             let html = '';
-            // Ordenar por data (mais recente primeiro)
-            clientFichas.sort((a, b) => {
-                const da = a.criadoEm?.toDate ? a.criadoEm.toDate() : new Date(a.criadoEm || 0);
-                const db = b.criadoEm?.toDate ? b.criadoEm.toDate() : new Date(b.criadoEm || 0);
-                return db - da;
-            });
-
-            clientFichas.forEach(ficha => {
-                const tipo = TIPOS_FICHAS.find(t => t.id === ficha.tipo);
-                const icon = tipo ? tipo.icone : 'fa-file-medical-alt';
-                const cor = tipo ? tipo.cor : '#6c757d';
-                const nome = tipo ? tipo.nome : ficha.tipo || 'Desconhecido';
-
-                const statusMap = {
-                    'completed': '✅ Concluída',
-                    'pending': '⏳ Pendente',
-                    'in_progress': '🔄 Em andamento'
-                };
-                const statusLabel = statusMap[ficha.status] || '📋 Rascunho';
-                const statusClass = ficha.status === 'completed' ? 'completed' : ficha.status === 'in_progress' ? 'in_progress' : 'pending';
-
-                const dataCriacao = ficha.criadoEm?.toDate ? ficha.criadoEm.toDate() : new Date(ficha.criadoEm || 0);
-
+            filtered.forEach(ficha => {
+                // Verificar se já existe ficha deste tipo
+                const existingFichas = fichas.filter(f => f.tipo === ficha.id);
+                const hasExisting = existingFichas.length > 0;
+                
                 html += `
-                    <div class="ficha-item" onclick="abrirFicha('${ficha.id}')">
-                        <div class="ficha-info">
-                            <div class="ficha-icon" style="color:${cor}"><i class="fas ${icon}"></i></div>
-                            <div class="ficha-details">
-                                <div class="ficha-name">${nome} ${ficha.titulo ? `- ${ficha.titulo}` : ''}</div>
-                                <div class="ficha-date">${dataCriacao.toLocaleDateString('pt-PT')} ${dataCriacao.toLocaleTimeString('pt-PT', {hour:'2-digit',minute:'2-digit'})}</div>
+                    <div class="col-xl-3 col-lg-4 col-md-6 col-6">
+                        <div class="ficha-card type-${ficha.id}" onclick="selecionarFicha('${ficha.id}')">
+                            <div class="ficha-selectable" id="select_${ficha.id}" onclick="event.stopPropagation(); toggleSelectFicha('${ficha.id}')">
+                                <i class="fas fa-check"></i>
                             </div>
-                        </div>
-                        <div>
-                            <span class="ficha-status ${statusClass}">${statusLabel}</span>
-                            <div class="ficha-actions mt-1">
-                                <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); abrirFicha('${ficha.id}')">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); excluirFichaDirect('${ficha.id}')">
-                                    <i class="fas fa-trash"></i>
-                                </button>
+                            <div class="ficha-badge ${hasExisting ? 'active' : ''}">
+                                ${hasExisting ? `${existingFichas.length} ficha(s)` : 'Nova'}
+                            </div>
+                            <div class="ficha-icon">
+                                <i class="fas ${ficha.icon}" style="color:${ficha.color}"></i>
+                            </div>
+                            <div class="ficha-body">
+                                <div class="ficha-name">${ficha.name}</div>
+                                <div class="ficha-desc">${ficha.desc}</div>
                             </div>
                         </div>
                     </div>
                 `;
             });
-
+            
             container.innerHTML = html;
         }
 
         // ==========================================
-        // 14. CRIAR FICHAS SELECIONADAS
+        // 9. SELEÇÃO DE FICHAS
         // ==========================================
-        function criarFichasSelecionadas() {
-            if (!selectedClient) {
-                showError('Selecione um cliente primeiro.');
+        function selecionarFicha(typeId) {
+            toggleSelectFicha(typeId);
+        }
+
+        function toggleSelectFicha(typeId) {
+            const el = document.getElementById(`select_${typeId}`);
+            if (!el) return;
+            
+            const index = selectedFichaTypes.indexOf(typeId);
+            if (index > -1) {
+                selectedFichaTypes.splice(index, 1);
+                el.classList.remove('selected');
+            } else {
+                selectedFichaTypes.push(typeId);
+                el.classList.add('selected');
+            }
+            
+            // Atualizar texto dos tipos selecionados
+            const typesText = document.getElementById('selectedTypesText');
+            if (typesText) {
+                const names = selectedFichaTypes.map(id => {
+                    const type = FICHA_TYPES.find(f => f.id === id);
+                    return type ? type.name : id;
+                });
+                typesText.textContent = names.length > 0 ? names.join(', ') : 'Nenhum';
+            }
+        }
+
+        // ==========================================
+        // 10. INICIAR NOVA FICHA
+        // ==========================================
+        function iniciarNovaFicha() {
+            if (selectedFichaTypes.length === 0) {
+                showError('Selecione pelo menos um tipo de ficha para começar.');
                 return;
             }
-
-            if (selectedTypes.length === 0) {
-                showError('Selecione pelo menos um tipo de ficha.');
-                return;
+            
+            // Abrir modal de seleção
+            const modal = new bootstrap.Modal(document.getElementById('selectModal'));
+            modal.show();
+            
+            // Atualizar tipos selecionados
+            const typesText = document.getElementById('selectedTypesText');
+            if (typesText) {
+                const names = selectedFichaTypes.map(id => {
+                    const type = FICHA_TYPES.find(f => f.id === id);
+                    return type ? type.name : id;
+                });
+                typesText.textContent = names.join(', ');
             }
+            
+            // Configurar autocomplete de clientes
+            configurarAutocompleteClientes();
+            
+            // Limpar campos
+            document.getElementById('selectClient').value = '';
+            document.getElementById('selectClientId').value = '';
+            document.getElementById('selectCollaborator').value = '';
+        }
 
-            Swal.fire({
-                title: 'Criar Fichas',
-                text: `Deseja criar ${selectedTypes.length} ficha(s) para ${selectedClient.name}?`,
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonText: 'Sim, criar',
-                cancelButtonText: 'Cancelar'
-            }).then(result => {
-                if (result.isConfirmed) {
-                    criarFichas();
+        function configurarAutocompleteClientes() {
+            const input = document.getElementById('selectClient');
+            const list = document.getElementById('selectClientList');
+            
+            // Remover eventos antigos
+            const newInput = input.cloneNode(true);
+            input.parentNode.replaceChild(newInput, input);
+            
+            const newList = list.cloneNode(true);
+            list.parentNode.replaceChild(newList, list);
+            
+            const updatedInput = document.getElementById('selectClient');
+            const updatedList = document.getElementById('selectClientList');
+            
+            updatedInput.addEventListener('input', function() {
+                const searchTerm = this.value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+                
+                if (searchTerm.length < 1) {
+                    updatedList.classList.remove('active');
+                    return;
+                }
+                
+                const filtered = clients.filter(c => 
+                    c.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").includes(searchTerm) ||
+                    (c.phone && c.phone.includes(searchTerm))
+                );
+                
+                if (filtered.length === 0) {
+                    updatedList.classList.remove('active');
+                    return;
+                }
+                
+                let html = '';
+                filtered.slice(0, 10).forEach(c => {
+                    html += `<div class="autocomplete-item" data-id="${c.id}" data-name="${c.name}">${c.name} ${c.phone ? `(${c.phone})` : ''}</div>`;
+                });
+                
+                updatedList.innerHTML = html;
+                updatedList.classList.add('active');
+                
+                updatedList.querySelectorAll('.autocomplete-item').forEach(item => {
+                    item.addEventListener('click', function() {
+                        updatedInput.value = this.getAttribute('data-name');
+                        document.getElementById('selectClientId').value = this.getAttribute('data-id');
+                        updatedList.classList.remove('active');
+                    });
+                });
+            });
+            
+            // Fechar autocomplete ao clicar fora
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.autocomplete-container')) {
+                    updatedList.classList.remove('active');
                 }
             });
         }
 
-        function criarFichas() {
-            if (!currentUser || !selectedClient) return;
+        // ==========================================
+        // 11. CONFIRMAR SELEÇÃO E ABRIR FICHA
+        // ==========================================
+        document.getElementById('confirmSelectBtn').addEventListener('click', function() {
+            const clientId = document.getElementById('selectClientId').value;
+            const collaboratorId = document.getElementById('selectCollaborator').value;
+            
+            if (!clientId) {
+                showError('Selecione um cliente.');
+                return;
+            }
+            
+            if (!collaboratorId) {
+                showError('Selecione um profissional responsável.');
+                return;
+            }
+            
+            if (selectedFichaTypes.length === 0) {
+                showError('Selecione pelo menos um tipo de ficha.');
+                return;
+            }
+            
+            // Fechar modal de seleção
+            const selectModal = bootstrap.Modal.getInstance(document.getElementById('selectModal'));
+            if (selectModal) selectModal.hide();
+            
+            // Criar fichas para cada tipo selecionado
+            criarFichas(clientId, collaboratorId);
+        });
 
+        // ==========================================
+        // 12. CRIAR FICHAS
+        // ==========================================
+        function criarFichas(clientId, collaboratorId) {
+            const client = clients.find(c => c.id === clientId);
+            const collaborator = collaborators.find(c => c.id === collaboratorId);
+            
+            if (!client || !collaborator) {
+                showError('Dados do cliente ou colaborador não encontrados.');
+                return;
+            }
+            
             Swal.fire({
                 title: 'Criando fichas...',
+                text: `Criando ${selectedFichaTypes.length} ficha(s) para ${client.name}`,
                 allowOutsideClick: false,
                 didOpen: () => { Swal.showLoading(); }
             });
-
-            const promises = selectedTypes.map(tipoId => {
-                const tipo = TIPOS_FICHAS.find(t => t.id === tipoId);
+            
+            const promises = selectedFichaTypes.map(typeId => {
+                const type = FICHA_TYPES.find(f => f.id === typeId);
                 const fichaData = {
-                    clienteId: selectedClient.id,
-                    clienteNome: selectedClient.name || 'Cliente',
-                    clientePhone: selectedClient.phone || '',
-                    tipo: tipoId,
-                    tipoNome: tipo ? tipo.nome : tipoId,
-                    titulo: '',
-                    status: 'pending',
-                    dados: {},
-                    fotos: [],
+                    clienteId: clientId,
+                    clienteNome: client.name,
+                    clienteTelefone: client.phone || '',
+                    clienteEmail: client.email || '',
+                    colaboradorId: collaboratorId,
+                    colaboradorNome: collaborator.name,
+                    tipo: typeId,
+                    tipoNome: type ? type.name : typeId,
                     userId: currentUser.uid,
-                    criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
-                    atualizadoEm: firebase.firestore.FieldValue.serverTimestamp()
+                    status: 'em_andamento',
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    dados: {},
+                    assinado: false,
+                    rgpd: false
                 };
-
-                return db.collection('fichas_avaliacao').add(fichaData);
+                
+                return db.collection('fichas').add(fichaData);
             });
-
+            
             Promise.all(promises)
-                .then(() => {
+                .then(docRefs => {
                     Swal.close();
-                    showSuccess(`${selectedTypes.length} ficha(s) criada(s) com sucesso!`);
-                    selectedTypes = [];
-                    atualizarSelecaoTipos();
+                    const ids = docRefs.map(ref => ref.id);
+                    showSuccess(`${selectedFichaTypes.length} ficha(s) criada(s) com sucesso!`);
+                    
+                    // Abrir a primeira ficha
+                    if (ids.length > 0) {
+                        abrirFicha(ids[0]);
+                    }
+                    
+                    // Limpar seleção
+                    selectedFichaTypes = [];
+                    document.querySelectorAll('.ficha-selectable').forEach(el => {
+                        el.classList.remove('selected');
+                    });
+                    document.getElementById('selectedTypesText').textContent = 'Nenhum';
+                    
                     carregarFichas();
                 })
                 .catch(error => {
@@ -1192,7 +1481,7 @@
         }
 
         // ==========================================
-        // 15. ABRIR FICHA
+        // 13. ABRIR FICHA
         // ==========================================
         function abrirFicha(fichaId) {
             const ficha = fichas.find(f => f.id === fichaId);
@@ -1200,655 +1489,442 @@
                 showError('Ficha não encontrada.');
                 return;
             }
-
-            editingFichaId = fichaId;
-            currentFichaType = ficha.tipo;
-            const tipo = TIPOS_FICHAS.find(t => t.id === ficha.tipo);
-
-            document.getElementById('fichaModalTitle').textContent = `📋 ${tipo ? tipo.nome : 'Ficha'} - ${ficha.clienteNome}`;
+            
+            currentFichaId = fichaId;
+            const type = FICHA_TYPES.find(f => f.id === ficha.tipo);
+            
+            document.getElementById('fichaModalTitle').textContent = `📋 ${ficha.tipoNome || 'Ficha'} - ${ficha.clienteNome}`;
             document.getElementById('deleteFichaBtn').style.display = 'inline-block';
-            document.getElementById('pdfFichaBtn').style.display = 'inline-block';
-
-            renderizarConteudoFicha(ficha);
-
+            
+            // Gerar conteúdo da ficha baseado no tipo
+            const content = gerarConteudoFicha(ficha);
+            document.getElementById('fichaModalBody').innerHTML = content;
+            
+            // Preencher dados existentes
+            if (ficha.dados) {
+                preencherDadosFicha(ficha.dados);
+            }
+            
+            // Abrir modal
             const modal = new bootstrap.Modal(document.getElementById('fichaModal'));
             modal.show();
         }
 
         // ==========================================
-        // 16. RENDERIZAR CONTEÚDO DA FICHA
+        // 14. GERAR CONTEÚDO DA FICHA
         // ==========================================
-        function renderizarConteudoFicha(ficha) {
-            const body = document.getElementById('fichaModalBody');
-            const tipo = TIPOS_FICHAS.find(t => t.id === ficha.tipo);
-            const dados = ficha.dados || {};
-
-            // HTML base da ficha
-            let html = `
-                <form id="fichaForm" onsubmit="return false;">
-                    <input type="hidden" id="fichaId" value="${ficha.id}">
-                    
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Cliente</label>
-                            <input type="text" class="form-control" value="${ficha.clienteNome}" readonly>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Tipo de Ficha</label>
-                            <input type="text" class="form-control" value="${tipo ? tipo.nome : ficha.tipo}" readonly>
-                        </div>
-                    </div>
-
-                    <div class="row mb-3">
-                        <div class="col-md-8">
-                            <label class="form-label">Título / Descrição</label>
-                            <input type="text" class="form-control" id="fichaTitulo" placeholder="Ex: Avaliação inicial" value="${ficha.titulo || ''}">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Status</label>
-                            <select class="form-select" id="fichaStatus">
-                                <option value="pending" ${ficha.status === 'pending' ? 'selected' : ''}>⏳ Pendente</option>
-                                <option value="in_progress" ${ficha.status === 'in_progress' ? 'selected' : ''}>🔄 Em andamento</option>
-                                <option value="completed" ${ficha.status === 'completed' ? 'selected' : ''}>✅ Concluída</option>
-                            </select>
-                        </div>
-                    </div>
-            `;
-
-            // Campos específicos por tipo de ficha
-            html += gerarCamposPorTipo(ficha.tipo, dados);
-
-            // Fotos
-            html += `
-                    <hr>
-                    <div class="mb-3">
-                        <label class="form-label">Fotos</label>
-                        <div class="image-upload-area" id="fichaImageUploadArea">
-                            <div id="fichaImagePreview">
-                                <div class="upload-icon"><i class="fas fa-camera"></i></div>
-                                <div class="upload-text">Clique para adicionar fotos</div>
-                                <small class="text-muted">PNG, JPG até 5MB</small>
-                            </div>
-                            <input type="file" id="fichaImageInput" accept="image/*" multiple style="display:none">
-                        </div>
-                        <div class="row g-2 mt-2" id="fichaFotosContainer">
-                            ${(ficha.fotos || []).map((foto, index) => `
-                                <div class="col-3 col-md-2">
-                                    <div class="position-relative">
-                                        <img src="${foto.url}" class="img-fluid rounded" style="height:80px;object-fit:cover;width:100%;">
-                                        <button class="btn btn-sm btn-danger position-absolute top-0 end-0" style="padding:2px 6px;font-size:10px;" onclick="removerFotoFicha(${index})">
-                                            <i class="fas fa-times"></i>
-                                        </button>
-                                        ${foto.legenda ? `<div class="text-muted fs-small text-truncate">${foto.legenda}</div>` : ''}
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                </form>
-            `;
-
-            body.innerHTML = html;
-
-            // Configurar upload de fotos
-            const uploadArea = document.getElementById('fichaImageUploadArea');
-            const imageInput = document.getElementById('fichaImageInput');
+        function gerarConteudoFicha(ficha) {
+            const tipo = ficha.tipo || 'geral';
+            const cliente = clients.find(c => c.id === ficha.clienteId);
             
-            uploadArea.addEventListener('click', function() {
-                imageInput.click();
-            });
-
-            imageInput.addEventListener('change', function(e) {
-                handleFichaImageUpload(e);
-            });
-        }
-
-        // ==========================================
-        // 17. GERAR CAMPOS POR TIPO DE FICHA
-        // ==========================================
-        function gerarCamposPorTipo(tipo, dados) {
-            let html = '<hr><div class="row">';
-
+            let campos = '';
+            
+            // Campos comuns a todas as fichas
+            const camposComuns = `
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Data da Avaliação</label>
+                        <input type="date" class="form-control" id="ficha_data" value="${new Date().toISOString().split('T')[0]}">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Cliente</label>
+                        <input type="text" class="form-control" value="${cliente ? cliente.name : 'Cliente'}" readonly>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Telefone</label>
+                        <input type="text" class="form-control" value="${cliente ? cliente.phone : ''}" readonly>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Profissional</label>
+                        <input type="text" class="form-control" value="${ficha.colaboradorNome || ''}" readonly>
+                    </div>
+                </div>
+                <hr>
+            `;
+            
+            // Campos específicos por tipo
+            let camposEspecificos = '';
+            
             switch(tipo) {
                 case 'rosto':
-                    html += `
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Tipo de Pele</label>
-                            <select class="form-select" id="f_rosto_tipoPele">
-                                <option value="">Selecione...</option>
-                                ${['Seca','Normal','Mista','Oleosa','Sensível','Desidratada'].map(opt => 
-                                    `<option value="${opt}" ${dados.tipoPele === opt ? 'selected' : ''}>${opt}</option>`
-                                ).join('')}
-                            </select>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Fototipo</label>
-                            <select class="form-select" id="f_rosto_fototipo">
-                                <option value="">Selecione...</option>
-                                ${['I - Muito clara','II - Clara','III - Morena clara','IV - Morena','V - Morena escura','VI - Escura'].map(opt => 
-                                    `<option value="${opt}" ${dados.fototipo === opt ? 'selected' : ''}>${opt}</option>`
-                                ).join('')}
-                            </select>
-                        </div>
-                        <div class="col-12 mb-3">
-                            <label class="form-label">Condições da Pele</label>
-                            <div class="checkbox-group">
-                                ${['Acne','Comedões','Manchas','Vermelhidão','Poros dilatados','Linhas/rugas','Flacidez','Cicatrizes'].map(opt => {
-                                    const checked = (dados.condicoes && dados.condicoes.includes(opt)) ? 'checked' : '';
-                                    return `
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" value="${opt}" id="f_rosto_cond_${opt}" ${checked}>
-                                            <label class="form-check-label" for="f_rosto_cond_${opt}">${opt}</label>
-                                        </div>
-                                    `;
-                                }).join('')}
+                    camposEspecificos = `
+                        <h6 class="fw-bold mb-3">Avaliação Facial</h6>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Tipo de Pele</label>
+                                <select class="form-select" id="f_rosto_pele">
+                                    <option value="">Selecione</option>
+                                    <option value="seca">Seca</option>
+                                    <option value="normal">Normal</option>
+                                    <option value="mista">Mista</option>
+                                    <option value="oleosa">Oleosa</option>
+                                    <option value="sensivel">Sensível</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Fototipo</label>
+                                <select class="form-select" id="f_rosto_fototipo">
+                                    <option value="">Selecione</option>
+                                    <option value="I">I - Pele muito clara</option>
+                                    <option value="II">II - Pele clara</option>
+                                    <option value="III">III - Pele morena clara</option>
+                                    <option value="IV">IV - Pele morena</option>
+                                    <option value="V">V - Pele morena escura</option>
+                                    <option value="VI">VI - Pele escura</option>
+                                </select>
                             </div>
                         </div>
-                        <div class="col-12 mb-3">
+                        <div class="mb-3">
+                            <label class="form-label">Condições da Pele</label>
+                            <div class="d-flex flex-wrap gap-2">
+                                ${['Acne','Comedões','Manchas','Vermelhidão','Poros dilatados','Rugas','Flacidez','Cicatrizes'].map(opt => 
+                                    `<div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="f_rosto_${opt}" value="${opt}">
+                                        <label class="form-check-label" for="f_rosto_${opt}">${opt}</label>
+                                    </div>`
+                                ).join('')}
+                            </div>
+                        </div>
+                        <div class="mb-3">
                             <label class="form-label">Observações</label>
-                            <textarea class="form-control" id="f_rosto_obs" rows="2">${dados.observacoes || ''}</textarea>
+                            <textarea class="form-control" id="f_rosto_obs" rows="3"></textarea>
                         </div>
                     `;
                     break;
-
-                case 'corpo':
-                    html += `
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Altura (cm)</label>
-                            <input type="number" class="form-control" id="f_corpo_altura" value="${dados.altura || ''}">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Peso (kg)</label>
-                            <input type="number" class="form-control" id="f_corpo_peso" step="0.1" value="${dados.peso || ''}">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Tipo de Corpo</label>
-                            <select class="form-select" id="f_corpo_tipo">
-                                <option value="">Selecione...</option>
-                                ${['Ectomorfo','Mesomorfo','Endomorfo'].map(opt => 
-                                    `<option value="${opt}" ${dados.tipoCorpo === opt ? 'selected' : ''}>${opt}</option>`
-                                ).join('')}
-                            </select>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Área de Foco</label>
-                            <select class="form-select" id="f_corpo_foco">
-                                <option value="">Selecione...</option>
-                                ${['Abdômen','Braços','Coxas','Glúteos','Costas','Peitoral'].map(opt => 
-                                    `<option value="${opt}" ${dados.areaFoco === opt ? 'selected' : ''}>${opt}</option>`
-                                ).join('')}
-                            </select>
-                        </div>
-                        <div class="col-12 mb-3">
-                            <label class="form-label">Observações</label>
-                            <textarea class="form-control" id="f_corpo_obs" rows="2">${dados.observacoes || ''}</textarea>
-                        </div>
-                    `;
-                    break;
-
-                case 'pernas':
-                    html += `
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Queixa Principal</label>
-                            <select class="form-select" id="f_pernas_queixa">
-                                <option value="">Selecione...</option>
-                                ${['Dor','Inchaço','Cansaço','Frio','Formigamento','Cãibras'].map(opt => 
-                                    `<option value="${opt}" ${dados.queixa === opt ? 'selected' : ''}>${opt}</option>`
-                                ).join('')}
-                            </select>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Circulação</label>
-                            <select class="form-select" id="f_pernas_circulacao">
-                                <option value="">Selecione...</option>
-                                ${['Normal','Ruim','Varizes','Vasinhos'].map(opt => 
-                                    `<option value="${opt}" ${dados.circulacao === opt ? 'selected' : ''}>${opt}</option>`
-                                ).join('')}
-                            </select>
-                        </div>
-                        <div class="col-12 mb-3">
-                            <label class="form-label">Observações</label>
-                            <textarea class="form-control" id="f_pernas_obs" rows="2">${dados.observacoes || ''}</textarea>
-                        </div>
-                    `;
-                    break;
-
-                case 'pos-operatorio':
-                    html += `
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Procedimento Realizado</label>
-                            <input type="text" class="form-control" id="f_pos_procedimento" value="${dados.procedimento || ''}">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Data do Procedimento</label>
-                            <input type="date" class="form-control" id="f_pos_data" value="${dados.dataProcedimento || ''}">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Tempo de Pós-Operatório</label>
-                            <select class="form-select" id="f_pos_tempo">
-                                <option value="">Selecione...</option>
-                                ${['1-7 dias','1-4 semanas','1-3 meses','3-6 meses','6+ meses'].map(opt => 
-                                    `<option value="${opt}" ${dados.tempoPos === opt ? 'selected' : ''}>${opt}</option>`
-                                ).join('')}
-                            </select>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Nível de Dor</label>
-                            <select class="form-select" id="f_pos_dor">
-                                <option value="">Selecione...</option>
-                                ${['1 - Muito Leve','2','3','4','5 - Moderada','6','7','8','9','10 - Extrema'].map(opt => 
-                                    `<option value="${opt}" ${dados.nivelDor === opt ? 'selected' : ''}>${opt}</option>`
-                                ).join('')}
-                            </select>
-                        </div>
-                        <div class="col-12 mb-3">
-                            <label class="form-label">Observações</label>
-                            <textarea class="form-control" id="f_pos_obs" rows="2">${dados.observacoes || ''}</textarea>
-                        </div>
-                    `;
-                    break;
-
-                case 'pestanas':
-                    html += `
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Tamanho Natural</label>
-                            <select class="form-select" id="f_pestanas_tamanho">
-                                <option value="">Selecione...</option>
-                                ${['Curto','Médio','Longo'].map(opt => 
-                                    `<option value="${opt}" ${dados.tamanhoNatural === opt ? 'selected' : ''}>${opt}</option>`
-                                ).join('')}
-                            </select>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Volume Natural</label>
-                            <select class="form-select" id="f_pestanas_volume">
-                                <option value="">Selecione...</option>
-                                ${['Ralo','Médio','Cheio'].map(opt => 
-                                    `<option value="${opt}" ${dados.volumeNatural === opt ? 'selected' : ''}>${opt}</option>`
-                                ).join('')}
-                            </select>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Curvatura</label>
-                            <select class="form-select" id="f_pestanas_curvatura">
-                                <option value="">Selecione...</option>
-                                ${['Reta','Levemente Curva','Curva','Muito Curva'].map(opt => 
-                                    `<option value="${opt}" ${dados.curvatura === opt ? 'selected' : ''}>${opt}</option>`
-                                ).join('')}
-                            </select>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Sensibilidade</label>
-                            <select class="form-select" id="f_pestanas_sensibilidade">
-                                <option value="">Selecione...</option>
-                                ${['Normal','Pouco Sensível','Sensível','Muito Sensível'].map(opt => 
-                                    `<option value="${opt}" ${dados.sensibilidade === opt ? 'selected' : ''}>${opt}</option>`
-                                ).join('')}
-                            </select>
-                        </div>
-                        <div class="col-12 mb-3">
-                            <label class="form-label">Observações</label>
-                            <textarea class="form-control" id="f_pestanas_obs" rows="2">${dados.observacoes || ''}</textarea>
-                        </div>
-                    `;
-                    break;
-
-                case 'unhas':
-                    html += `
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Condição das Unhas</label>
-                            <select class="form-select" id="f_unhas_condicao">
-                                <option value="">Selecione...</option>
-                                ${['Saudável','Fragilizada','Descamando','Amarelada','Rachada'].map(opt => 
-                                    `<option value="${opt}" ${dados.condicao === opt ? 'selected' : ''}>${opt}</option>`
-                                ).join('')}
-                            </select>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Formato Preferido</label>
-                            <select class="form-select" id="f_unhas_formato">
-                                <option value="">Selecione...</option>
-                                ${['Quadrado','Arredondado','Oval','Stiletto','Coffin'].map(opt => 
-                                    `<option value="${opt}" ${dados.formato === opt ? 'selected' : ''}>${opt}</option>`
-                                ).join('')}
-                            </select>
-                        </div>
-                        <div class="col-12 mb-3">
-                            <label class="form-label">Observações</label>
-                            <textarea class="form-control" id="f_unhas_obs" rows="2">${dados.observacoes || ''}</textarea>
-                        </div>
-                    `;
-                    break;
-
+                    
                 case 'cabelo':
-                    html += `
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Tipo de Cabelo</label>
-                            <select class="form-select" id="f_cabelo_tipo">
-                                <option value="">Selecione...</option>
-                                ${['Liso','Ondulado','Cacheado','Crespo'].map(opt => 
-                                    `<option value="${opt}" ${dados.tipoCabelo === opt ? 'selected' : ''}>${opt}</option>`
-                                ).join('')}
-                            </select>
+                    camposEspecificos = `
+                        <h6 class="fw-bold mb-3">Avaliação Capilar</h6>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Tipo de Cabelo</label>
+                                <select class="form-select" id="f_cabelo_tipo">
+                                    <option value="">Selecione</option>
+                                    <option value="liso">Liso</option>
+                                    <option value="ondulado">Ondulado</option>
+                                    <option value="cacheado">Cacheado</option>
+                                    <option value="crespo">Crespo</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Textura</label>
+                                <select class="form-select" id="f_cabelo_textura">
+                                    <option value="">Selecione</option>
+                                    <option value="fino">Fino</option>
+                                    <option value="medio">Médio</option>
+                                    <option value="grosso">Grosso</option>
+                                </select>
+                            </div>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Textura</label>
-                            <select class="form-select" id="f_cabelo_textura">
-                                <option value="">Selecione...</option>
-                                ${['Fino','Médio','Grosso'].map(opt => 
-                                    `<option value="${opt}" ${dados.textura === opt ? 'selected' : ''}>${opt}</option>`
-                                ).join('')}
-                            </select>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Condição do Couro Cabeludo</label>
+                                <select class="form-select" id="f_cabelo_couro">
+                                    <option value="">Selecione</option>
+                                    <option value="normal">Normal</option>
+                                    <option value="seco">Seco</option>
+                                    <option value="oleoso">Oleoso</option>
+                                    <option value="sensivel">Sensível</option>
+                                    <option value="caspa">Com Caspa</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Comprimento</label>
+                                <select class="form-select" id="f_cabelo_comprimento">
+                                    <option value="">Selecione</option>
+                                    <option value="curto">Curto</option>
+                                    <option value="medio">Médio</option>
+                                    <option value="longo">Longo</option>
+                                    <option value="muito_longo">Muito Longo</option>
+                                </select>
+                            </div>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Condição do Couro Cabeludo</label>
-                            <select class="form-select" id="f_cabelo_couro">
-                                <option value="">Selecione...</option>
-                                ${['Normal','Seco','Oleoso','Sensível','Com Caspa'].map(opt => 
-                                    `<option value="${opt}" ${dados.couroCabeludo === opt ? 'selected' : ''}>${opt}</option>`
+                        <div class="mb-3">
+                            <label class="form-label">Condições</label>
+                            <div class="d-flex flex-wrap gap-2">
+                                ${['Quimica','Coloração','Descoloração','Progressiva','Cacheamento','Pontas duplas','Queda','Caspa'].map(opt => 
+                                    `<div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="f_cabelo_${opt}" value="${opt}">
+                                        <label class="form-check-label" for="f_cabelo_${opt}">${opt}</label>
+                                    </div>`
                                 ).join('')}
-                            </select>
+                            </div>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Histórico de Coloração</label>
-                            <select class="form-select" id="f_cabelo_coloracao">
-                                <option value="">Selecione...</option>
-                                ${['Nunca','Natural','Química','Henna','Com Mechas'].map(opt => 
-                                    `<option value="${opt}" ${dados.historicoColoracao === opt ? 'selected' : ''}>${opt}</option>`
-                                ).join('')}
-                            </select>
-                        </div>
-                        <div class="col-12 mb-3">
+                        <div class="mb-3">
                             <label class="form-label">Observações</label>
-                            <textarea class="form-control" id="f_cabelo_obs" rows="2">${dados.observacoes || ''}</textarea>
+                            <textarea class="form-control" id="f_cabelo_obs" rows="3"></textarea>
                         </div>
                     `;
                     break;
-
+                    
                 case 'laminessia':
-                    html += `
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Tipo de Pele</label>
-                            <select class="form-select" id="f_laminessia_tipoPele">
-                                <option value="">Selecione...</option>
-                                ${['Seca','Normal','Mista','Oleosa','Sensível'].map(opt => 
-                                    `<option value="${opt}" ${dados.tipoPele === opt ? 'selected' : ''}>${opt}</option>`
+                    camposEspecificos = `
+                        <h6 class="fw-bold mb-3">Avaliação Laminessia</h6>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Tipo de Pele</label>
+                                <select class="form-select" id="f_laminessia_pele">
+                                    <option value="">Selecione</option>
+                                    <option value="seca">Seca</option>
+                                    <option value="normal">Normal</option>
+                                    <option value="mista">Mista</option>
+                                    <option value="oleosa">Oleosa</option>
+                                    <option value="sensivel">Sensível</option>
+                                    <option value="desidratada">Desidratada</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Fototipo</label>
+                                <select class="form-select" id="f_laminessia_fototipo">
+                                    <option value="">Selecione</option>
+                                    <option value="I">I - Pele muito clara</option>
+                                    <option value="II">II - Pele clara</option>
+                                    <option value="III">III - Pele morena clara</option>
+                                    <option value="IV">IV - Pele morena</option>
+                                    <option value="V">V - Pele morena escura</option>
+                                    <option value="VI">VI - Pele escura</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Área a ser tratada</label>
+                                <select class="form-select" id="f_laminessia_area">
+                                    <option value="">Selecione</option>
+                                    <option value="rosto">Rosto</option>
+                                    <option value="pescoco">Pescoço</option>
+                                    <option value="colar">Colar</option>
+                                    <option value="maos">Mãos</option>
+                                    <option value="outras">Outras</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Objetivo do Tratamento</label>
+                                <select class="form-select" id="f_laminessia_objetivo">
+                                    <option value="">Selecione</option>
+                                    <option value="hidratacao">Hidratação</option>
+                                    <option value="rejuvenescimento">Rejuvenescimento</option>
+                                    <option value="clareamento">Clareamento</option>
+                                    <option value="firmeza">Firmeza</option>
+                                    <option value="preenchimento">Preenchimento</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Condições da Pele</label>
+                            <div class="d-flex flex-wrap gap-2">
+                                ${['Acne','Manchas','Vermelhidão','Poros','Rugas','Flacidez','Cicatrizes','Estrias','Celulite'].map(opt => 
+                                    `<div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="f_laminessia_${opt}" value="${opt}">
+                                        <label class="form-check-label" for="f_laminessia_${opt}">${opt}</label>
+                                    </div>`
                                 ).join('')}
-                            </select>
+                            </div>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Fototipo</label>
-                            <select class="form-select" id="f_laminessia_fototipo">
-                                <option value="">Selecione...</option>
-                                ${['I - Muito clara','II - Clara','III - Morena clara','IV - Morena','V - Morena escura','VI - Escura'].map(opt => 
-                                    `<option value="${opt}" ${dados.fototipo === opt ? 'selected' : ''}>${opt}</option>`
-                                ).join('')}
-                            </select>
-                        </div>
-                        <div class="col-12 mb-3">
-                            <label class="form-label">Objetivo do Tratamento</label>
-                            <input type="text" class="form-control" id="f_laminessia_objetivo" value="${dados.objetivo || ''}" placeholder="Ex: Clareamento, Hidratação, etc.">
-                        </div>
-                        <div class="col-12 mb-3">
+                        <div class="mb-3">
                             <label class="form-label">Observações</label>
-                            <textarea class="form-control" id="f_laminessia_obs" rows="2">${dados.observacoes || ''}</textarea>
+                            <textarea class="form-control" id="f_laminessia_obs" rows="3"></textarea>
                         </div>
                     `;
                     break;
-
+                    
                 default:
-                    // Ficha genérica para outros tipos
-                    html += `
-                        <div class="col-12 mb-3">
-                            <label class="form-label">Descrição da Avaliação</label>
-                            <textarea class="form-control" id="f_generica_descricao" rows="4" placeholder="Descreva os detalhes da avaliação...">${dados.descricao || ''}</textarea>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Avaliação Geral</label>
-                            <select class="form-select" id="f_generica_avaliacao">
-                                <option value="">Selecione...</option>
-                                ${['Excelente','Bom','Regular','Necessita Melhorias'].map(opt => 
-                                    `<option value="${opt}" ${dados.avaliacao === opt ? 'selected' : ''}>${opt}</option>`
-                                ).join('')}
-                            </select>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Próximos Passos</label>
-                            <input type="text" class="form-control" id="f_generica_proximos" value="${dados.proximosPassos || ''}" placeholder="Ex: Agendar nova avaliação, iniciar tratamento...">
+                    // Campos genéricos
+                    camposEspecificos = `
+                        <h6 class="fw-bold mb-3">Avaliação Geral</h6>
+                        <div class="mb-3">
+                            <label class="form-label">Observações</label>
+                            <textarea class="form-control" id="f_geral_obs" rows="5"></textarea>
                         </div>
                     `;
             }
-
-            html += '</div>';
-            return html;
+            
+            // Seção de RGPD e Assinatura
+            const rgpdSection = `
+                <hr>
+                <h6 class="fw-bold mb-3"><i class="fas fa-shield-alt me-2"></i>RGPD e Assinatura</h6>
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="f_rgpd" ${ficha.rgpd ? 'checked' : ''}>
+                        <label class="form-check-label" for="f_rgpd">
+                            <strong>Consentimento RGPD</strong> - Autorizo o tratamento dos meus dados pessoais para fins de acompanhamento clínico e estético.
+                        </label>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="f_assinado" ${ficha.assinado ? 'checked' : ''}>
+                        <label class="form-check-label" for="f_assinado">
+                            <strong>Ficha Assinada</strong> - A ficha foi assinada digitalmente pelo cliente e profissional.
+                        </label>
+                    </div>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-primary btn-sm" onclick="abrirAssinatura()">
+                        <i class="fas fa-pen-square me-1"></i>Assinar Digitalmente
+                    </button>
+                    ${ficha.assinado ? '<span class="badge bg-success align-self-center">✅ Assinado</span>' : ''}
+                    ${ficha.rgpd ? '<span class="badge bg-info align-self-center">📜 RGPD Aceito</span>' : ''}
+                </div>
+            `;
+            
+            return `
+                <form id="fichaForm" onsubmit="return false;">
+                    ${camposComuns}
+                    ${camposEspecificos}
+                    ${rgpdSection}
+                </form>
+            `;
         }
 
         // ==========================================
-        // 18. UPLOAD DE FOTOS DA FICHA
+        // 15. PREENCHER DADOS DA FICHA
         // ==========================================
-        function handleFichaImageUpload(event) {
-            const files = event.target.files;
-            if (!files || files.length === 0) return;
-
-            Swal.fire({
-                title: 'Enviando fotos...',
-                allowOutsideClick: false,
-                didOpen: () => { Swal.showLoading(); }
-            });
-
-            const promises = [];
-            const fichaId = document.getElementById('fichaId').value;
-            const ficha = fichas.find(f => f.id === fichaId);
-
-            for (let i = 0; i < files.length; i++) {
-                const file = files[i];
-                if (!file.type.match('image.*')) continue;
-                promises.push(uploadImageToCloudinary(file));
-            }
-
-            Promise.all(promises)
-                .then(urls => {
-                    const novasFotos = urls.map(url => ({ url, legenda: '' }));
-                    const fotosAtuais = ficha.fotos || [];
-                    const todasFotos = [...fotosAtuais, ...novasFotos];
-
-                    return db.collection('fichas_avaliacao').doc(fichaId).update({
-                        fotos: todasFotos,
-                        atualizadoEm: firebase.firestore.FieldValue.serverTimestamp()
-                    });
-                })
-                .then(() => {
-                    Swal.close();
-                    showSuccess('Fotos enviadas com sucesso!');
-                    carregarFichas();
-                    const fichaAtualizada = fichas.find(f => f.id === fichaId);
-                    if (fichaAtualizada) {
-                        renderizarConteudoFicha(fichaAtualizada);
-                    }
-                })
-                .catch(error => {
-                    Swal.close();
-                    showError('Erro ao enviar fotos: ' + error.message);
-                });
-
-            event.target.value = '';
-        }
-
-        function uploadImageToCloudinary(file) {
-            return new Promise((resolve, reject) => {
-                const formData = new FormData();
-                formData.append('file', file);
-                formData.append('upload_preset', cloudinaryConfig.uploadPreset);
-
-                fetch(`https://api.cloudinary.com/v1_1/${cloudinaryConfig.cloudName}/image/upload`, {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.secure_url) {
-                        resolve(data.secure_url);
+        function preencherDadosFicha(dados) {
+            if (!dados) return;
+            
+            // Preencher campos comuns
+            if (dados.data) document.getElementById('ficha_data').value = dados.data;
+            
+            // Preencher campos específicos baseado no tipo
+            Object.keys(dados).forEach(key => {
+                const el = document.getElementById(`f_${key}`);
+                if (el) {
+                    if (el.type === 'checkbox') {
+                        el.checked = dados[key] === true;
                     } else {
-                        reject('Erro no upload: ' + JSON.stringify(data));
+                        el.value = dados[key] || '';
                     }
-                })
-                .catch(error => reject(error));
-            });
-        }
-
-        function removerFotoFicha(index) {
-            const fichaId = document.getElementById('fichaId').value;
-            const ficha = fichas.find(f => f.id === fichaId);
-            if (!ficha) return;
-
-            const fotos = ficha.fotos || [];
-            fotos.splice(index, 1);
-
-            db.collection('fichas_avaliacao').doc(fichaId).update({
-                fotos: fotos,
-                atualizadoEm: firebase.firestore.FieldValue.serverTimestamp()
-            })
-            .then(() => {
-                carregarFichas();
-                const fichaAtualizada = fichas.find(f => f.id === fichaId);
-                if (fichaAtualizada) {
-                    renderizarConteudoFicha(fichaAtualizada);
                 }
-                showSuccess('Foto removida!');
-            })
-            .catch(error => {
-                showError('Erro ao remover foto: ' + error.message);
             });
+            
+            // Preencher checkboxes de condições
+            if (dados.condicoes) {
+                dados.condicoes.forEach(cond => {
+                    const el = document.getElementById(`f_${cond}`);
+                    if (el && el.type === 'checkbox') {
+                        el.checked = true;
+                    }
+                });
+            }
         }
 
         // ==========================================
-        // 19. SALVAR FICHA
+        // 16. COLETAR DADOS DA FICHA
         // ==========================================
-        function salvarFicha() {
-            const fichaId = document.getElementById('fichaId').value;
-            const ficha = fichas.find(f => f.id === fichaId);
-            if (!ficha) {
-                showError('Ficha não encontrada.');
+        function coletarDadosFicha() {
+            const form = document.getElementById('fichaForm');
+            if (!form) return {};
+            
+            const dados = {};
+            
+            // Coletar todos os inputs
+            form.querySelectorAll('input, select, textarea').forEach(el => {
+                if (el.id && el.id.startsWith('f_')) {
+                    const key = el.id.replace('f_', '');
+                    if (el.type === 'checkbox') {
+                        dados[key] = el.checked;
+                    } else if (el.type === 'date') {
+                        dados[key] = el.value;
+                    } else {
+                        dados[key] = el.value || '';
+                    }
+                }
+            });
+            
+            // Coletar condições (checkboxes agrupados)
+            const condicoes = [];
+            form.querySelectorAll('input[type="checkbox"]').forEach(el => {
+                if (el.checked && el.id) {
+                    const key = el.id.replace('f_', '');
+                    // Verificar se é uma condição (não são rgpd, assinado, etc)
+                    if (!['rgpd', 'assinado'].includes(key)) {
+                        condicoes.push(key);
+                    }
+                }
+            });
+            if (condicoes.length > 0) {
+                dados.condicoes = condicoes;
+            }
+            
+            // RGPD e Assinatura
+            const rgpdEl = document.getElementById('f_rgpd');
+            if (rgpdEl) dados.rgpd = rgpdEl.checked;
+            
+            const assinadoEl = document.getElementById('f_assinado');
+            if (assinadoEl) dados.assinado = assinadoEl.checked;
+            
+            return dados;
+        }
+
+        // ==========================================
+        // 17. SALVAR FICHA
+        // ==========================================
+        document.getElementById('saveFichaBtn').addEventListener('click', function() {
+            if (!currentFichaId) {
+                showError('Nenhuma ficha selecionada.');
                 return;
             }
-
-            const titulo = document.getElementById('fichaTitulo').value.trim();
-            const status = document.getElementById('fichaStatus').value;
-
-            // Coletar dados específicos do tipo
-            const dados = coletarDadosFicha(ficha.tipo);
-
+            
+            const dados = coletarDadosFicha();
+            const dataAtual = document.getElementById('ficha_data')?.value || new Date().toISOString().split('T')[0];
+            
             const updateData = {
-                titulo: titulo,
-                status: status,
                 dados: dados,
-                atualizadoEm: firebase.firestore.FieldValue.serverTimestamp()
+                data: dataAtual,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
             };
-
+            
+            // Verificar RGPD e Assinatura
+            const rgpdEl = document.getElementById('f_rgpd');
+            if (rgpdEl) updateData.rgpd = rgpdEl.checked;
+            
+            const assinadoEl = document.getElementById('f_assinado');
+            if (assinadoEl) updateData.assinado = assinadoEl.checked;
+            
             Swal.fire({
                 title: 'Salvando ficha...',
                 allowOutsideClick: false,
                 didOpen: () => { Swal.showLoading(); }
             });
-
-            db.collection('fichas_avaliacao').doc(fichaId).update(updateData)
+            
+            db.collection('fichas').doc(currentFichaId).update(updateData)
                 .then(() => {
                     Swal.close();
                     showSuccess('Ficha salva com sucesso!');
                     carregarFichas();
-                    const modal = bootstrap.Modal.getInstance(document.getElementById('fichaModal'));
-                    if (modal) modal.hide();
+                    
+                    // Atualizar status de assinatura
+                    if (updateData.assinado) {
+                        document.querySelector('#fichaModalBody .badge.bg-success')?.remove();
+                        document.querySelector('#fichaModalBody .d-flex.gap-2')?.insertAdjacentHTML('afterend', 
+                            '<span class="badge bg-success mt-2">✅ Ficha Assinada</span>'
+                        );
+                    }
+                    if (updateData.rgpd) {
+                        document.querySelector('#fichaModalBody .badge.bg-info')?.remove();
+                        document.querySelector('#fichaModalBody .d-flex.gap-2')?.insertAdjacentHTML('afterend', 
+                            '<span class="badge bg-info mt-2">📜 RGPD Aceito</span>'
+                        );
+                    }
                 })
                 .catch(error => {
                     Swal.close();
                     showError('Erro ao salvar ficha: ' + error.message);
                 });
-        }
-
-        function coletarDadosFicha(tipo) {
-            const dados = {};
-
-            switch(tipo) {
-                case 'rosto':
-                    dados.tipoPele = document.getElementById('f_rosto_tipoPele')?.value || '';
-                    dados.fototipo = document.getElementById('f_rosto_fototipo')?.value || '';
-                    dados.condicoes = [];
-                    document.querySelectorAll('#f_rosto_cond_acne, #f_rosto_cond_comedoes, #f_rosto_cond_manchas, #f_rosto_cond_vermelhidão, #f_rosto_cond_poros, #f_rosto_cond_linhas, #f_rosto_cond_flacidez, #f_rosto_cond_cicatrizes').forEach(cb => {
-                        if (cb.checked) dados.condicoes.push(cb.value);
-                    });
-                    dados.observacoes = document.getElementById('f_rosto_obs')?.value || '';
-                    break;
-
-                case 'corpo':
-                    dados.altura = document.getElementById('f_corpo_altura')?.value || '';
-                    dados.peso = document.getElementById('f_corpo_peso')?.value || '';
-                    dados.tipoCorpo = document.getElementById('f_corpo_tipo')?.value || '';
-                    dados.areaFoco = document.getElementById('f_corpo_foco')?.value || '';
-                    dados.observacoes = document.getElementById('f_corpo_obs')?.value || '';
-                    break;
-
-                case 'pernas':
-                    dados.queixa = document.getElementById('f_pernas_queixa')?.value || '';
-                    dados.circulacao = document.getElementById('f_pernas_circulacao')?.value || '';
-                    dados.observacoes = document.getElementById('f_pernas_obs')?.value || '';
-                    break;
-
-                case 'pos-operatorio':
-                    dados.procedimento = document.getElementById('f_pos_procedimento')?.value || '';
-                    dados.dataProcedimento = document.getElementById('f_pos_data')?.value || '';
-                    dados.tempoPos = document.getElementById('f_pos_tempo')?.value || '';
-                    dados.nivelDor = document.getElementById('f_pos_dor')?.value || '';
-                    dados.observacoes = document.getElementById('f_pos_obs')?.value || '';
-                    break;
-
-                case 'pestanas':
-                    dados.tamanhoNatural = document.getElementById('f_pestanas_tamanho')?.value || '';
-                    dados.volumeNatural = document.getElementById('f_pestanas_volume')?.value || '';
-                    dados.curvatura = document.getElementById('f_pestanas_curvatura')?.value || '';
-                    dados.sensibilidade = document.getElementById('f_pestanas_sensibilidade')?.value || '';
-                    dados.observacoes = document.getElementById('f_pestanas_obs')?.value || '';
-                    break;
-
-                case 'unhas':
-                    dados.condicao = document.getElementById('f_unhas_condicao')?.value || '';
-                    dados.formato = document.getElementById('f_unhas_formato')?.value || '';
-                    dados.observacoes = document.getElementById('f_unhas_obs')?.value || '';
-                    break;
-
-                case 'cabelo':
-                    dados.tipoCabelo = document.getElementById('f_cabelo_tipo')?.value || '';
-                    dados.textura = document.getElementById('f_cabelo_textura')?.value || '';
-                    dados.couroCabeludo = document.getElementById('f_cabelo_couro')?.value || '';
-                    dados.historicoColoracao = document.getElementById('f_cabelo_coloracao')?.value || '';
-                    dados.observacoes = document.getElementById('f_cabelo_obs')?.value || '';
-                    break;
-
-                case 'laminessia':
-                    dados.tipoPele = document.getElementById('f_laminessia_tipoPele')?.value || '';
-                    dados.fototipo = document.getElementById('f_laminessia_fototipo')?.value || '';
-                    dados.objetivo = document.getElementById('f_laminessia_objetivo')?.value || '';
-                    dados.observacoes = document.getElementById('f_laminessia_obs')?.value || '';
-                    break;
-
-                default:
-                    dados.descricao = document.getElementById('f_generica_descricao')?.value || '';
-                    dados.avaliacao = document.getElementById('f_generica_avaliacao')?.value || '';
-                    dados.proximosPassos = document.getElementById('f_generica_proximos')?.value || '';
-            }
-
-            return dados;
-        }
+        });
 
         // ==========================================
-        // 20. EXCLUIR FICHA
+        // 18. EXCLUIR FICHA
         // ==========================================
-        function excluirFicha() {
-            const fichaId = document.getElementById('fichaId').value;
-            if (!fichaId) return;
-
+        document.getElementById('deleteFichaBtn').addEventListener('click', function() {
+            if (!currentFichaId) return;
+            
             Swal.fire({
                 title: 'Excluir Ficha',
-                text: 'Tem certeza que deseja excluir esta ficha?',
+                text: 'Tem certeza que deseja excluir esta ficha? Esta ação não pode ser desfeita.',
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#d33',
@@ -1862,12 +1938,12 @@
                         allowOutsideClick: false,
                         didOpen: () => { Swal.showLoading(); }
                     });
-
-                    db.collection('fichas_avaliacao').doc(fichaId).delete()
+                    
+                    db.collection('fichas').doc(currentFichaId).delete()
                         .then(() => {
+                            Swal.close();
                             const modal = bootstrap.Modal.getInstance(document.getElementById('fichaModal'));
                             if (modal) modal.hide();
-                            Swal.close();
                             showSuccess('Ficha excluída com sucesso!');
                             carregarFichas();
                         })
@@ -1877,9 +1953,214 @@
                         });
                 }
             });
+        });
+
+        // ==========================================
+        // 19. ASSINATURA DIGITAL
+        // ==========================================
+        function abrirAssinatura() {
+            const modal = new bootstrap.Modal(document.getElementById('signatureModal'));
+            modal.show();
+            
+            // Inicializar assinaturas após o modal ser mostrado
+            setTimeout(() => {
+                initSignaturePads();
+            }, 300);
+            
+            // Habilitar/Desabilitar botão
+            document.getElementById('consentCheck').addEventListener('change', function() {
+                document.getElementById('confirmSignatureBtn').disabled = !this.checked;
+            });
+            
+            document.getElementById('confirmSignatureBtn').addEventListener('click', function() {
+                confirmarAssinaturas();
+            });
         }
 
-        function excluirFichaDirect(fichaId) {
+        function initSignaturePads() {
+            // Assinatura do Cliente
+            const clientCanvas = document.getElementById('clientSignatureCanvas');
+            if (clientCanvas) {
+                const ctx = clientCanvas.getContext('2d');
+                ctx.clearRect(0, 0, clientCanvas.width, clientCanvas.height);
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, clientCanvas.width, clientCanvas.height);
+                
+                if (clientSignaturePad) {
+                    clientSignaturePad.clear();
+                    clientSignaturePad = null;
+                }
+                
+                clientSignaturePad = new SignaturePad(clientCanvas, {
+                    backgroundColor: 'white',
+                    penColor: '#26196b',
+                    minWidth: 1.5,
+                    maxWidth: 3,
+                    velocityFilterWeight: 0.7
+                });
+            }
+            
+            // Assinatura do Profissional
+            const profCanvas = document.getElementById('professionalSignatureCanvas');
+            if (profCanvas) {
+                const ctx = profCanvas.getContext('2d');
+                ctx.clearRect(0, 0, profCanvas.width, profCanvas.height);
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, profCanvas.width, profCanvas.height);
+                
+                if (professionalSignaturePad) {
+                    professionalSignaturePad.clear();
+                    professionalSignaturePad = null;
+                }
+                
+                professionalSignaturePad = new SignaturePad(profCanvas, {
+                    backgroundColor: 'white',
+                    penColor: '#26196b',
+                    minWidth: 1.5,
+                    maxWidth: 3,
+                    velocityFilterWeight: 0.7
+                });
+            }
+            
+            document.getElementById('consentCheck').checked = false;
+            document.getElementById('confirmSignatureBtn').disabled = true;
+        }
+
+        function clearSignature(type) {
+            if (type === 'client' && clientSignaturePad) {
+                clientSignaturePad.clear();
+            } else if (type === 'professional' && professionalSignaturePad) {
+                professionalSignaturePad.clear();
+            }
+        }
+
+        function confirmarAssinaturas() {
+            if (!clientSignaturePad || !professionalSignaturePad) {
+                showError('Assinaturas não inicializadas.');
+                return;
+            }
+            
+            if (clientSignaturePad.isEmpty()) {
+                showError('Por favor, assine no campo do Cliente.');
+                return;
+            }
+            
+            if (professionalSignaturePad.isEmpty()) {
+                showError('Por favor, assine no campo do Profissional.');
+                return;
+            }
+            
+            // Salvar assinaturas
+            const clientSignature = clientSignaturePad.toDataURL('image/png');
+            const professionalSignature = professionalSignaturePad.toDataURL('image/png');
+            
+            // Atualizar ficha
+            if (currentFichaId) {
+                db.collection('fichas').doc(currentFichaId).update({
+                    'assinado': true,
+                    'rgpd': true,
+                    'assinaturaCliente': clientSignature,
+                    'assinaturaProfissional': professionalSignature,
+                    'dataAssinatura': firebase.firestore.FieldValue.serverTimestamp()
+                })
+                .then(() => {
+                    // Marcar checkboxes na ficha
+                    const rgpdEl = document.getElementById('f_rgpd');
+                    if (rgpdEl) rgpdEl.checked = true;
+                    
+                    const assinadoEl = document.getElementById('f_assinado');
+                    if (assinadoEl) assinadoEl.checked = true;
+                    
+                    // Fechar modal de assinatura
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('signatureModal'));
+                    if (modal) modal.hide();
+                    
+                    showSuccess('✅ Assinaturas registradas com sucesso!');
+                    carregarFichas();
+                })
+                .catch(error => {
+                    showError('Erro ao salvar assinaturas: ' + error.message);
+                });
+            }
+        }
+
+        // ==========================================
+        // 20. LISTA DE FICHAS CADASTRADAS
+        // ==========================================
+        function abrirListaFichas() {
+            const modal = new bootstrap.Modal(document.getElementById('fichasListModal'));
+            modal.show();
+            renderizarListaFichas();
+        }
+
+        function renderizarListaFichas() {
+            const container = document.getElementById('fichasListContainer');
+            const searchTerm = document.getElementById('searchFichasList').value.toLowerCase().trim();
+            
+            let filtered = [...fichas];
+            
+            if (searchTerm) {
+                filtered = filtered.filter(f => 
+                    (f.clienteNome || '').toLowerCase().includes(searchTerm) ||
+                    (f.tipoNome || '').toLowerCase().includes(searchTerm) ||
+                    (f.colaboradorNome || '').toLowerCase().includes(searchTerm)
+                );
+            }
+            
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-file-medical-alt fa-3x mb-3 opacity-25"></i>
+                        <p>Nenhuma ficha cadastrada.</p>
+                        <small>Clique em "Nova Ficha" para começar.</small>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '';
+            filtered.forEach(ficha => {
+                const type = FICHA_TYPES.find(f => f.id === ficha.tipo);
+                const dataCriacao = ficha.createdAt ? new Date(ficha.createdAt).toLocaleDateString('pt-PT') : 'Data não informada';
+                const statusColor = ficha.assinado ? 'success' : (ficha.dados && Object.keys(ficha.dados).length > 0 ? 'warning' : 'secondary');
+                const statusText = ficha.assinado ? '✅ Assinada' : (ficha.dados && Object.keys(ficha.dados).length > 0 ? '⏳ Em andamento' : '📄 Criada');
+                
+                html += `
+                    <div class="ficha-list-item" onclick="abrirFicha('${ficha.id}')">
+                        <div class="ficha-list-info">
+                            <div>
+                                <div class="ficha-list-client">
+                                    <i class="fas ${type ? type.icon : 'fa-file-medical-alt'}" style="color:${type ? type.color : '#6c757d'};margin-right:8px;"></i>
+                                    ${ficha.clienteNome || 'Cliente'}
+                                </div>
+                                <div class="d-flex flex-wrap gap-2 mt-1">
+                                    <span class="ficha-list-type">${ficha.tipoNome || ficha.tipo || 'Geral'}</span>
+                                    <span class="ficha-list-date"><i class="far fa-calendar me-1"></i>${dataCriacao}</span>
+                                    <span class="ficha-list-collaborator"><i class="fas fa-user-tie me-1"></i>${ficha.colaboradorNome || 'Profissional'}</span>
+                                    <span class="badge bg-${statusColor}">${statusText}</span>
+                                </div>
+                            </div>
+                            <div class="ficha-list-actions">
+                                <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); abrirFicha('${ficha.id}')">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); excluirFichaLista('${ficha.id}')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        function filtrarListaFichas() {
+            renderizarListaFichas();
+        }
+
+        function excluirFichaLista(fichaId) {
             Swal.fire({
                 title: 'Excluir Ficha',
                 text: 'Tem certeza que deseja excluir esta ficha?',
@@ -1891,192 +2172,86 @@
                 cancelButtonText: 'Cancelar'
             }).then(result => {
                 if (result.isConfirmed) {
-                    Swal.fire({
-                        title: 'Excluindo...',
-                        allowOutsideClick: false,
-                        didOpen: () => { Swal.showLoading(); }
-                    });
-
-                    db.collection('fichas_avaliacao').doc(fichaId).delete()
+                    db.collection('fichas').doc(fichaId).delete()
                         .then(() => {
-                            Swal.close();
                             showSuccess('Ficha excluída com sucesso!');
                             carregarFichas();
+                            renderizarListaFichas();
                         })
                         .catch(error => {
-                            Swal.close();
-                            showError('Erro ao excluir ficha: ' + error.message);
+                            showError('Erro ao excluir: ' + error.message);
                         });
                 }
             });
         }
 
         // ==========================================
-        // 21. GERAR PDF DA FICHA
+        // 21. CADASTRO DE CLIENTE
         // ==========================================
-        function gerarPDFFicha() {
-            const fichaId = document.getElementById('fichaId').value;
-            const ficha = fichas.find(f => f.id === fichaId);
-            if (!ficha) {
-                showError('Ficha não encontrada.');
+        function abrirCadastroCliente() {
+            const modal = new bootstrap.Modal(document.getElementById('clientModal'));
+            modal.show();
+        }
+
+        document.getElementById('saveClientBtn').addEventListener('click', function() {
+            const name = document.getElementById('clientName').value.trim();
+            const phone = document.getElementById('clientPhone').value.trim();
+            const email = document.getElementById('clientEmail').value.trim();
+            const birthdate = document.getElementById('clientBirthdate').value;
+            
+            if (!name) {
+                showError('Digite o nome do cliente.');
                 return;
             }
-
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF('p', 'pt', 'a4');
-            const pageW = doc.internal.pageSize.getWidth();
-            const margin = 40;
-            let y = margin;
-
-            const tipo = TIPOS_FICHAS.find(t => t.id === ficha.tipo);
-            const tipoNome = tipo ? tipo.nome : ficha.tipo || 'Ficha';
-
-            // Título
-            doc.setFontSize(18);
-            doc.setTextColor(38, 25, 107);
-            doc.text(`Ficha de Avaliação - ${tipoNome}`, pageW / 2, y, { align: 'center' });
-            y += 30;
-
-            // Informações do cliente
-            doc.setFontSize(10);
-            doc.setTextColor(50, 50, 70);
-            doc.text(`Cliente: ${ficha.clienteNome}`, margin, y);
-            y += 16;
-            doc.text(`Data: ${new Date().toLocaleDateString('pt-PT')}`, margin, y);
-            y += 16;
-            doc.text(`Status: ${ficha.status === 'completed' ? 'Concluída' : ficha.status === 'in_progress' ? 'Em andamento' : 'Pendente'}`, margin, y);
-            y += 20;
-
-            // Dados da ficha
-            const dados = ficha.dados || {};
-            const dadosList = [];
-
-            // Extrair dados baseado no tipo
-            switch(ficha.tipo) {
-                case 'rosto':
-                    if (dados.tipoPele) dadosList.push(['Tipo de Pele', dados.tipoPele]);
-                    if (dados.fototipo) dadosList.push(['Fototipo', dados.fototipo]);
-                    if (dados.condicoes && dados.condicoes.length) dadosList.push(['Condições', dados.condicoes.join(', ')]);
-                    if (dados.observacoes) dadosList.push(['Observações', dados.observacoes]);
-                    break;
-                case 'corpo':
-                    if (dados.altura) dadosList.push(['Altura', dados.altura + ' cm']);
-                    if (dados.peso) dadosList.push(['Peso', dados.peso + ' kg']);
-                    if (dados.tipoCorpo) dadosList.push(['Tipo de Corpo', dados.tipoCorpo]);
-                    if (dados.areaFoco) dadosList.push(['Área de Foco', dados.areaFoco]);
-                    if (dados.observacoes) dadosList.push(['Observações', dados.observacoes]);
-                    break;
-                case 'cabelo':
-                    if (dados.tipoCabelo) dadosList.push(['Tipo de Cabelo', dados.tipoCabelo]);
-                    if (dados.textura) dadosList.push(['Textura', dados.textura]);
-                    if (dados.couroCabeludo) dadosList.push(['Couro Cabeludo', dados.couroCabeludo]);
-                    if (dados.historicoColoracao) dadosList.push(['Histórico de Coloração', dados.historicoColoracao]);
-                    if (dados.observacoes) dadosList.push(['Observações', dados.observacoes]);
-                    break;
-                default:
-                    if (dados.descricao) dadosList.push(['Descrição', dados.descricao]);
-                    if (dados.avaliacao) dadosList.push(['Avaliação', dados.avaliacao]);
-                    if (dados.proximosPassos) dadosList.push(['Próximos Passos', dados.proximosPassos]);
-            }
-
-            if (dadosList.length > 0) {
-                doc.autoTable({
-                    startY: y,
-                    head: [['Campo', 'Valor']],
-                    body: dadosList,
-                    theme: 'striped',
-                    headStyles: { fillColor: [38, 25, 107] },
-                    styles: { fontSize: 9 },
-                    columnStyles: {
-                        0: { cellWidth: 120 },
-                        1: { cellWidth: 'auto' }
-                    }
+            
+            const clientData = {
+                name: name,
+                phone: phone,
+                email: email,
+                birthdate: birthdate,
+                userId: currentUser.uid,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            
+            Swal.fire({
+                title: 'Cadastrando cliente...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+            
+            db.collection('clients').add(clientData)
+                .then(() => {
+                    Swal.close();
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('clientModal'));
+                    if (modal) modal.hide();
+                    showSuccess('Cliente cadastrado com sucesso!');
+                    document.getElementById('clientName').value = '';
+                    document.getElementById('clientPhone').value = '';
+                    document.getElementById('clientEmail').value = '';
+                    document.getElementById('clientBirthdate').value = '';
+                })
+                .catch(error => {
+                    Swal.close();
+                    showError('Erro ao cadastrar cliente: ' + error.message);
                 });
-                y = doc.lastAutoTable.finalY + 20;
-            }
+        });
 
-            // Fotos
-            if (ficha.fotos && ficha.fotos.length > 0) {
-                doc.setFontSize(12);
-                doc.setTextColor(38, 25, 107);
-                doc.text('Fotos', margin, y);
-                y += 16;
-
-                const photosPerPage = 4;
-                let photoIndex = 0;
-                while (photoIndex < ficha.fotos.length) {
-                    const cols = Math.min(photosPerPage, ficha.fotos.length - photoIndex);
-                    const photoWidth = (pageW - margin * 2 - (cols - 1) * 10) / cols;
-                    const photoHeight = photoWidth * 0.75;
-
-                    for (let i = 0; i < cols && photoIndex < ficha.fotos.length; i++) {
-                        const photo = ficha.fotos[photoIndex];
-                        const x = margin + i * (photoWidth + 10);
-                        try {
-                            doc.addImage(photo.url, 'JPEG', x, y, photoWidth, photoHeight);
-                        } catch(e) {
-                            doc.setDrawColor(200, 200, 200);
-                            doc.setFillColor(240, 240, 240);
-                            doc.rect(x, y, photoWidth, photoHeight, 'F');
-                            doc.setFontSize(8);
-                            doc.setTextColor(150, 150, 150);
-                            doc.text('Imagem', x + photoWidth/2, y + photoHeight/2, { align: 'center' });
-                        }
-                        if (photo.legenda) {
-                            doc.setFontSize(8);
-                            doc.setTextColor(100, 100, 120);
-                            doc.text(photo.legenda, x + photoWidth/2, y + photoHeight + 12, { align: 'center', maxWidth: photoWidth });
-                        }
-                        photoIndex++;
-                    }
-                    y += photoHeight + 30;
-                    if (photoIndex < ficha.fotos.length) {
-                        doc.addPage();
-                        y = margin + 20;
-                    }
-                }
-            }
-
-            // Rodapé
-            doc.setFontSize(8);
-            doc.setTextColor(150, 150, 170);
-            const rodape = `Documento gerado por Studio DeVitto em ${new Date().toLocaleDateString('pt-PT')} às ${new Date().toLocaleTimeString('pt-PT')}`;
-            doc.text(rodape, pageW/2, doc.internal.pageSize.getHeight() - 20, { align: 'center' });
-
-            doc.save(`Ficha_${tipoNome}_${ficha.clienteNome}_${new Date().toISOString().slice(0,10)}.pdf`);
-            showSuccess('PDF gerado com sucesso!');
+        // ==========================================
+        // 22. BUSCA
+        // ==========================================
+        function handleSearch() {
+            renderizarCards();
         }
 
         // ==========================================
-        // 22. LIMPAR BUSCA
-        // ==========================================
-        function clearSearch() {
-            document.getElementById('searchClient').value = '';
-            document.getElementById('clientResults').innerHTML = '';
-            document.getElementById('clearSearchBtn').classList.remove('visible');
-        }
-
-        // ==========================================
-        // 23. ATUALIZAR DATA/HORA
-        // ==========================================
-        function atualizarUltimaAtualizacao() {
-            const now = new Date();
-            const el = document.getElementById('lastUpdateBadge');
-            if (el) {
-                el.innerHTML = `<i class="fas fa-clock me-1"></i>Atualizado ${now.toLocaleTimeString('pt-PT')}`;
-            }
-        }
-
-        // ==========================================
-        // 24. REFRESH
+        // 23. REFRESH
         // ==========================================
         function refreshFichas() {
             const btn = document.getElementById('refreshBtn');
             btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Carregando...';
             btn.disabled = true;
 
-            carregarClientes();
-            carregarFichas();
+            carregarDados();
             setTimeout(() => {
                 btn.innerHTML = '<i class="fas fa-check me-1"></i>Atualizado!';
                 setTimeout(() => {
@@ -2088,8 +2263,13 @@
         }
 
         // ==========================================
-        // 25. FUNÇÕES AUXILIARES
+        // 24. FUNÇÕES AUXILIARES
         // ==========================================
+        function formatCurrency(value) {
+            if (typeof value !== 'number') value = parseFloat(value) || 0;
+            return '€ ' + value.toFixed(2).replace('.', ',');
+        }
+
         function showSuccess(message) {
             Swal.fire({
                 icon: 'success',
@@ -2125,6 +2305,28 @@
             });
         }
 
+        function atualizarUltimaAtualizacao() {
+            const now = new Date();
+            const el = document.getElementById('lastUpdateBadge');
+            if (el) {
+                el.innerHTML = `<i class="fas fa-clock me-1"></i>Atualizado ${now.toLocaleTimeString('pt-PT')}`;
+            }
+        }
+
+        // ==========================================
+        // 25. CONFIGURAR EVENTOS
+        // ==========================================
+        function configurarEventos() {
+            // Fechar modais ao clicar fora
+            document.querySelectorAll('.modal').forEach(modal => {
+                modal.addEventListener('hidden.bs.modal', function() {
+                    document.body.classList.remove('modal-open');
+                    document.body.style.overflow = '';
+                    document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+                });
+            });
+        }
+
         // ==========================================
         // 26. RECEBER CONFIGURAÇÕES
         // ==========================================
@@ -2141,31 +2343,32 @@
         // ==========================================
         window.goHome = goHome;
         window.refreshFichas = refreshFichas;
-        window.buscarClientes = buscarClientes;
-        window.clearSearch = clearSearch;
-        window.selecionarCliente = selecionarCliente;
-        window.criarFichasSelecionadas = criarFichasSelecionadas;
+        window.iniciarNovaFicha = iniciarNovaFicha;
         window.abrirFicha = abrirFicha;
-        window.salvarFicha = salvarFicha;
-        window.excluirFicha = excluirFicha;
-        window.excluirFichaDirect = excluirFichaDirect;
-        window.gerarPDFFicha = gerarPDFFicha;
-        window.removerFotoFicha = removerFotoFicha;
-        window.handleFichaImageUpload = handleFichaImageUpload;
+        window.abrirListaFichas = abrirListaFichas;
+        window.abrirCadastroCliente = abrirCadastroCliente;
+        window.abrirAssinatura = abrirAssinatura;
+        window.clearSignature = clearSignature;
+        window.selecionarFicha = selecionarFicha;
+        window.toggleSelectFicha = toggleSelectFicha;
+        window.filtrarListaFichas = filtrarListaFichas;
+        window.excluirFichaLista = excluirFichaLista;
+        window.handleSearch = handleSearch;
 
         // ==========================================
         // 28. LOG DE INICIALIZAÇÃO
         // ==========================================
         console.log('✅ Sistema de Fichas carregado com sucesso!');
-        console.log('📌 Tipos de fichas disponíveis:', TIPOS_FICHAS.length);
         console.log('📌 Funcionalidades:');
-        console.log('   - Busca de clientes por nome/telefone');
-        console.log('   - Seleção múltipla de tipos de ficha');
-        console.log('   - Criação de fichas em lote');
-        console.log('   - Preenchimento de fichas por tipo');
-        console.log('   - Upload de fotos via Cloudinary');
-        console.log('   - Geração de PDF');
-        console.log('   - Sincronização em tempo real com Firebase');
+        console.log('   - 11 tipos de fichas disponíveis');
+        console.log('   - Seleção múltipla de fichas');
+        console.log('   - Cadastro de cliente');
+        console.log('   - Assinatura digital (cliente e profissional)');
+        console.log('   - Consentimento RGPD');
+        console.log('   - Lista de fichas cadastradas com busca');
+        console.log('   - Vinculação de múltiplas fichas por cliente');
+        console.log('   - Bloqueio de zoom em desktop e mobile');
+        console.log('   - Sincronização com Firebase em tempo real');
 
     </script>
 
