@@ -2638,7 +2638,7 @@
         }
 
         // ==========================================
-        // 25. GERAR PDF (MELHORADO COM DADOS DO CLIENTE)
+        // 25. GERAR PDF (CORRIGIDO - COM TODAS AS INFORMAÇÕES)
         // ==========================================
         function gerarPDF() {
             if (!currentFichaData || !currentFichaData.id) {
@@ -2652,26 +2652,32 @@
             const margin = 40;
             let y = margin;
 
-            // Título
-            doc.setFontSize(20);
+            // ===== CABEÇALHO =====
+            doc.setFontSize(22);
             doc.setTextColor(38, 25, 107);
+            doc.setFont('helvetica', 'bold');
             doc.text('FICHA DE AVALIAÇÃO', pageW / 2, y, { align: 'center' });
-            y += 25;
-
-            // Linha separadora
-            doc.setDrawColor(200, 200, 220);
-            doc.line(margin, y, pageW - margin, y);
-            y += 20;
-
-            // DADOS DO CLIENTE
-            doc.setFontSize(14);
-            doc.setTextColor(38, 25, 107);
-            doc.text('DADOS DO CLIENTE', margin, y);
-            y += 18;
+            y += 10;
 
             doc.setFontSize(10);
-            doc.setTextColor(50, 50, 70);
-            
+            doc.setTextColor(100, 100, 130);
+            doc.setFont('helvetica', 'normal');
+            doc.text('Studio DeVitto - Documento Clínico', pageW / 2, y, { align: 'center' });
+            y += 18;
+
+            // Linha decorativa
+            doc.setDrawColor(38, 25, 107);
+            doc.setLineWidth(1.5);
+            doc.line(margin, y, pageW - margin, y);
+            y += 16;
+
+            // ===== DADOS DO CLIENTE =====
+            doc.setFontSize(13);
+            doc.setTextColor(38, 25, 107);
+            doc.setFont('helvetica', 'bold');
+            doc.text('DADOS DO CLIENTE', margin, y);
+            y += 14;
+
             // Buscar dados completos do cliente
             let clienteData = null;
             if (currentFichaData.clienteId) {
@@ -2685,22 +2691,27 @@
             const clienteEmail = clienteData?.email || currentFichaData.clienteEmail || '';
             const clientePhoto = clienteData?.photoUrl || currentFichaData.clientePhoto || '';
 
+            // Foto do cliente (se tiver)
+            if (clientePhoto) {
+                try {
+                    doc.addImage(clientePhoto, 'JPEG', pageW - margin - 70, y - 10, 60, 60);
+                } catch(e) {
+                    // Se não conseguir carregar a imagem, ignora
+                }
+            }
+
+            doc.setFontSize(10);
+            doc.setTextColor(50, 50, 70);
+            doc.setFont('helvetica', 'normal');
+
             const infoCliente = [
                 ['Nome:', clienteNome],
                 ['Data de Nascimento:', clienteNascimento ? formatDate(clienteNascimento) : 'Não informada'],
                 ['Telefone:', clientePhone || 'Não informado'],
                 ['E-mail:', clienteEmail || 'Não informado']
             ];
-            
-            // Se tiver foto, adicionar no canto direito
-            if (clientePhoto) {
-                try {
-                    doc.addImage(clientePhoto, 'JPEG', pageW - margin - 60, y - 10, 50, 50);
-                } catch(e) {}
-            }
 
             infoCliente.forEach(([label, value]) => {
-                doc.setFontSize(10);
                 doc.setFont('helvetica', 'bold');
                 doc.text(label, margin, y);
                 doc.setFont('helvetica', 'normal');
@@ -2708,8 +2719,7 @@
                 y += 16;
             });
 
-            // Informações da ficha
-            doc.setFontSize(10);
+            // Profissional e Data
             doc.setFont('helvetica', 'bold');
             doc.text('Profissional:', margin, y);
             doc.setFont('helvetica', 'normal');
@@ -2720,15 +2730,25 @@
             doc.text('Data da Avaliação:', margin, y);
             doc.setFont('helvetica', 'normal');
             doc.text(currentFichaData.data ? formatDate(currentFichaData.data) : 'Não informada', margin + 80, y);
+            y += 18;
+
+            // Linha separadora
+            doc.setDrawColor(200, 200, 220);
+            doc.setLineWidth(0.5);
+            doc.line(margin, y, pageW - margin, y);
             y += 16;
 
-            y += 10;
-            doc.line(margin, y, pageW - margin, y);
-            y += 20;
-
-            // AVALIAÇÕES
+            // ===== AVALIAÇÕES =====
             const tipos = currentFichaData.tipos || [];
-            tipos.forEach(tipoId => {
+
+            if (tipos.length === 0) {
+                doc.setFontSize(11);
+                doc.setTextColor(150, 150, 170);
+                doc.text('Nenhuma avaliação registrada.', margin, y);
+                y += 20;
+            }
+
+            tipos.forEach((tipoId, index) => {
                 const tipo = FICHA_TYPES[tipoId];
                 if (!tipo) return;
 
@@ -2738,29 +2758,45 @@
                     y = margin + 20;
                 }
 
-                doc.setFontSize(13);
+                // Título da ficha com cor
+                doc.setFontSize(14);
                 doc.setTextColor(tipo.cor || '#26196b');
                 doc.setFont('helvetica', 'bold');
-                doc.text(`📋 ${tipo.nome}`, margin, y);
-                y += 16;
+                doc.text(`${index + 1}. ${tipo.nome}`, margin, y);
+                y += 14;
+
+                // Perguntas e respostas
+                doc.setFontSize(9.5);
+                doc.setTextColor(50, 50, 70);
                 doc.setFont('helvetica', 'normal');
 
-                doc.setFontSize(9);
-                doc.setTextColor(50, 50, 70);
                 tipo.perguntas.forEach(p => {
                     const resposta = currentFichaData.respostas ? currentFichaData.respostas[p.id] || '-' : '-';
-                    doc.text(`${p.label}:`, margin + 10, y);
-                    doc.text(resposta, margin + 120, y);
-                    y += 14;
+                    
+                    // Quebra de linha se o texto for muito longo
+                    const labelText = `${p.label}:`;
+                    const respostaText = resposta;
+                    
+                    doc.setFont('helvetica', 'bold');
+                    doc.text(labelText, margin + 8, y);
+                    const labelWidth = doc.getStringUnitWidth(labelText) * 9.5 / 1.5;
+                    
+                    doc.setFont('helvetica', 'normal');
+                    const maxWidth = pageW - margin - 8 - labelWidth - 30;
+                    const respostaLines = doc.splitTextToSize(respostaText, maxWidth);
+                    
+                    doc.text(respostaLines, margin + 8 + labelWidth + 5, y);
+                    y += 12 * Math.max(1, respostaLines.length);
                 });
 
                 y += 8;
                 doc.setDrawColor(220, 220, 235);
-                doc.line(margin, y, pageW - margin, y);
+                doc.setLineWidth(0.3);
+                doc.line(margin + 8, y, pageW - margin - 8, y);
                 y += 14;
             });
 
-            // FOTOS
+            // ===== FOTOS =====
             if (currentFichaData.fotos && currentFichaData.fotos.length > 0) {
                 doc.addPage();
                 y = margin + 20;
@@ -2768,13 +2804,13 @@
                 doc.setTextColor(38, 25, 107);
                 doc.setFont('helvetica', 'bold');
                 doc.text('REGISTRO FOTOGRÁFICO', pageW / 2, y, { align: 'center' });
-                y += 20;
+                y += 18;
                 doc.setFont('helvetica', 'normal');
 
                 const fotos = currentFichaData.fotos;
                 const maxPerRow = 2;
-                const imgWidth = 160;
-                const imgHeight = 160;
+                const imgWidth = 150;
+                const imgHeight = 150;
                 const spacing = 20;
 
                 for (let i = 0; i < Math.min(fotos.length, 8); i++) {
@@ -2799,71 +2835,92 @@
                         } catch(e) {}
                     }
                 }
+                y += Math.ceil(Math.min(fotos.length, 8) / maxPerRow) * (imgHeight + spacing) + 20;
             }
 
-            // ASSINATURAS
+            // ===== ASSINATURAS =====
             doc.addPage();
             y = margin + 20;
             doc.setFontSize(14);
             doc.setTextColor(38, 25, 107);
             doc.setFont('helvetica', 'bold');
             doc.text('ASSINATURAS', pageW / 2, y, { align: 'center' });
-            y += 25;
+            y += 20;
             doc.setFont('helvetica', 'normal');
 
             // Assinatura do Cliente
-            doc.setFontSize(10);
+            doc.setFontSize(11);
             doc.setTextColor(50, 50, 70);
+            doc.setFont('helvetica', 'bold');
             doc.text('Assinatura do Cliente:', margin, y);
-            y += 16;
+            y += 14;
+            doc.setFont('helvetica', 'normal');
+
             if (currentFichaData.assinaturaCliente) {
                 try {
-                    doc.addImage(currentFichaData.assinaturaCliente, 'PNG', margin, y, 200, 50);
-                    y += 60;
+                    doc.addImage(currentFichaData.assinaturaCliente, 'PNG', margin, y, 220, 55);
+                    y += 65;
                 } catch(e) {
-                    doc.text('[Assinatura digital capturada]', margin, y);
+                    doc.text('________________________________________', margin, y);
+                    y += 16;
+                    doc.text('(Assinatura digital registrada)', margin, y);
                     y += 16;
                 }
             } else {
                 doc.text('________________________________________', margin, y);
                 y += 16;
+                doc.text('(Cliente não assinou)', margin, y);
+                y += 16;
             }
+
+            y += 10;
 
             // Assinatura do Profissional
-            doc.setFontSize(10);
+            doc.setFont('helvetica', 'bold');
             doc.text('Assinatura do Profissional:', margin, y);
-            y += 16;
+            y += 14;
+            doc.setFont('helvetica', 'normal');
+
             if (currentFichaData.assinaturaProfissional) {
                 try {
-                    doc.addImage(currentFichaData.assinaturaProfissional, 'PNG', margin, y, 200, 50);
-                    y += 60;
+                    doc.addImage(currentFichaData.assinaturaProfissional, 'PNG', margin, y, 220, 55);
+                    y += 65;
                 } catch(e) {
-                    doc.text('[Assinatura digital capturada]', margin, y);
+                    doc.text('________________________________________', margin, y);
+                    y += 16;
+                    doc.text('(Assinatura digital registrada)', margin, y);
                     y += 16;
                 }
             } else {
                 doc.text('________________________________________', margin, y);
                 y += 16;
+                doc.text('(Profissional não assinou)', margin, y);
+                y += 16;
             }
 
-            // RGPD
-            y += 10;
+            y += 20;
+
+            // ===== RGPD =====
             doc.setFontSize(9);
-            doc.setTextColor(100, 100, 130);
+            doc.setTextColor(80, 80, 100);
+            doc.setFont('helvetica', 'normal');
             const rgpdText = currentFichaData.consentimentoRGPD ? 
                 '☑ Consentimento RGPD: Aceito' : 
                 '☐ Consentimento RGPD: Não aceito';
             doc.text(rgpdText, margin, y);
-            y += 16;
+            y += 14;
 
-            // Rodapé
+            // ===== RODAPÉ =====
             y = doc.internal.pageSize.getHeight() - 30;
             doc.setFontSize(8);
             doc.setTextColor(150, 150, 170);
+            doc.setFont('helvetica', 'italic');
             const rodape = `Documento gerado por Studio DeVitto em ${new Date().toLocaleDateString('pt-PT')} às ${new Date().toLocaleTimeString('pt-PT')}`;
             doc.text(rodape, pageW / 2, y, { align: 'center' });
 
-            doc.save(`Ficha_${clienteNome.replace(/\s/g, '_')}_${new Date().toISOString().slice(0,10)}.pdf`);
+            // Salvar PDF
+            const nomeCliente = clienteNome.replace(/\s/g, '_').substring(0, 30);
+            doc.save(`Ficha_${nomeCliente}_${new Date().toISOString().slice(0,10)}.pdf`);
             showSuccess('PDF gerado com sucesso!');
         }
 
@@ -3173,7 +3230,7 @@
         console.log('   - Assinatura digital (cliente + profissional)');
         console.log('   - Consentimento RGPD');
         console.log('   - Upload de fotos');
-        console.log('   - Geração de PDF com dados completos do cliente');
+        console.log('   - Geração de PDF com dados completos do cliente e todas as respostas');
         console.log('   - Compartilhamento');
         console.log('   - Tela cheia em mobile');
         console.log('   - Responsivo desktop/mobile');
