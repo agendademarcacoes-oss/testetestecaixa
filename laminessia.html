@@ -445,8 +445,21 @@
         .ficha-modal .modal-content {
             border-radius: 16px;
             overflow: hidden;
-            height: 95vh;
-            max-height: 95vh;
+            height: 98vh;
+            max-height: 98vh;
+        }
+
+        .ficha-modal .modal-dialog {
+            margin: 0;
+            max-width: 100%;
+            width: 100%;
+            height: 100%;
+        }
+
+        .ficha-modal .modal-dialog .modal-content {
+            border-radius: 0;
+            height: 100vh;
+            max-height: 100vh;
         }
 
         .ficha-modal .modal-header {
@@ -473,11 +486,43 @@
         }
 
         /* ============================================
-           LISTA DE CLIENTES (BUSCA)
+           LISTA DE CLIENTES COM BUSCA
            ============================================ */
+        .client-search-container {
+            position: relative;
+            margin-bottom: 12px;
+        }
+
+        .client-search-container input {
+            width: 100%;
+            padding: 10px 16px 10px 40px;
+            border: 2px solid #e0e0e0;
+            border-radius: 25px;
+            font-size: 0.9rem;
+            transition: border-color 0.3s;
+            background: white;
+        }
+
+        .client-search-container input:focus {
+            border-color: #26196b;
+            outline: none;
+        }
+
+        .client-search-container .search-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6c757d;
+        }
+
         .client-list {
-            max-height: 300px;
+            max-height: 250px;
             overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 10px;
+            padding: 4px;
+            background: white;
         }
 
         .client-item {
@@ -490,8 +535,17 @@
             gap: 12px;
         }
 
+        .client-item:last-child {
+            border-bottom: none;
+        }
+
         .client-item:hover {
             background: #f8f9fa;
+        }
+
+        .client-item.selected {
+            background: #e7f1ff;
+            border-left: 4px solid #26196b;
         }
 
         .client-item .client-avatar {
@@ -525,6 +579,36 @@
         .client-item .client-info .client-contact {
             font-size: 0.75rem;
             color: #6c757d;
+        }
+
+        .client-item .client-check {
+            color: #28a745;
+            font-size: 1.2rem;
+            display: none;
+        }
+
+        .client-item.selected .client-check {
+            display: block;
+        }
+
+        .btn-criar-cliente {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px;
+            border: 2px dashed #dee2e6;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: #6c757d;
+            margin-top: 8px;
+        }
+
+        .btn-criar-cliente:hover {
+            border-color: #26196b;
+            color: #26196b;
+            background: #f8f5ff;
         }
 
         /* ============================================
@@ -741,11 +825,15 @@
             .toolbar .search-row { flex-direction: column; align-items: stretch; }
             .toolbar .search-box { min-width: auto; }
             .toolbar .btn-group-actions { justify-content: center; }
-            .ficha-modal .modal-content { height: 98vh; max-height: 98vh; border-radius: 0; }
+            .ficha-modal .modal-content { height: 100vh; max-height: 100vh; border-radius: 0; }
+            .ficha-modal .modal-dialog { margin: 0; }
             .ficha-modal .modal-body { padding: 12px 14px; }
             .photos-grid { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); }
             .ficha-card .card-header-ficha { padding: 10px 12px; min-height: 42px; }
             .ficha-card .card-header-ficha .ficha-title { font-size: 0.75rem; }
+            .client-list { max-height: 200px; }
+            .client-item { padding: 8px 10px; }
+            .client-item .client-avatar { width: 36px; height: 36px; font-size: 14px; }
         }
 
         @media (max-width: 480px) {
@@ -753,11 +841,11 @@
             .toolbar .btn-action { padding: 5px 12px; font-size: 0.65rem; }
             .toolbar .search-box input { font-size: 0.7rem; padding: 6px 28px 6px 30px; }
             .ficha-modal .modal-body { padding: 10px 12px; }
-            .client-item { padding: 8px 10px; }
-            .client-item .client-avatar { width: 36px; height: 36px; font-size: 14px; }
             .photos-grid { grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); }
             .ficha-card .card-body-ficha { padding: 8px 10px; }
             .ficha-card .card-body-ficha .ficha-desc { font-size: 0.65rem; }
+            .client-search-container input { font-size: 0.8rem; padding: 8px 12px 8px 36px; }
+            .client-list { max-height: 150px; }
         }
 
         ::-webkit-scrollbar { width: 3px; height: 3px; }
@@ -1169,6 +1257,24 @@
                     mostrarLoginPrompt();
                 }
             });
+
+            // Inicializar modal de ficha
+            const modalElement = document.getElementById('fichaModal');
+            if (modalElement) {
+                fichaModalInstance = new bootstrap.Modal(modalElement, {
+                    backdrop: 'static',
+                    keyboard: true
+                });
+            }
+
+            // Inicializar modal de fichas cadastradas
+            const modalFichasElement = document.getElementById('fichasCadastradasModal');
+            if (modalFichasElement) {
+                fichasCadastradasModalInstance = new bootstrap.Modal(modalFichasElement, {
+                    backdrop: 'static',
+                    keyboard: true
+                });
+            }
         });
 
         // ==========================================
@@ -1359,7 +1465,7 @@
         }
 
         // ==========================================
-        // 13. ABRIR MODAL NOVA FICHA
+        // 13. ABRIR MODAL NOVA FICHA (COM BUSCA DE CLIENTE)
         // ==========================================
         function abrirModalNovaFicha() {
             if (selectedCards.length === 0) {
@@ -1372,45 +1478,13 @@
                 return;
             }
 
-            // Buscar clientes
-            const clientList = clients.map(c => `
-                <div class="client-item" onclick="selecionarClienteFicha('${c.id}')">
-                    ${c.photoUrl ? 
-                        `<img src="${c.photoUrl}" class="client-avatar" onerror="this.onerror=null;this.innerHTML='${c.name.charAt(0).toUpperCase()}'">` :
-                        `<div class="client-avatar">${c.name.charAt(0).toUpperCase()}</div>`
-                    }
-                    <div class="client-info">
-                        <div class="client-name">${c.name}</div>
-                        <div class="client-contact">${c.phone || 'Sem telefone'} ${c.email ? `| ${c.email}` : ''}</div>
-                    </div>
-                </div>
-            `).join('');
-
-            // Verificar se há clientes
-            if (clients.length === 0) {
-                Swal.fire({
-                    title: 'Nenhum cliente cadastrado',
-                    text: 'Deseja criar um novo cliente agora?',
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonText: 'Sim, criar cliente',
-                    cancelButtonText: 'Cancelar'
-                }).then(result => {
-                    if (result.isConfirmed) {
-                        abrirModalNovoCliente();
-                    }
-                });
-                return;
-            }
-
-            // Perguntar colaborador
-            let colaboradores = [];
+            // Buscar colaboradores
             db.collection('collaborators')
                 .where('userId', '==', currentUser.uid)
                 .where('active', '==', true)
                 .get()
                 .then(snapshot => {
-                    colaboradores = [];
+                    let colaboradores = [];
                     snapshot.forEach(doc => {
                         colaboradores.push({ id: doc.id, ...doc.data() });
                     });
@@ -1422,38 +1496,86 @@
                     const tiposFichas = selectedCards.map(id => FICHA_TYPES[id]).filter(Boolean);
                     const tiposNomes = tiposFichas.map(f => f.nome).join(', ');
 
+                    // Gerar lista de clientes com busca
+                    let clientListHtml = '';
+                    if (clients.length === 0) {
+                        clientListHtml = `
+                            <div class="text-center text-muted py-3">
+                                <i class="fas fa-users fa-2x mb-2 opacity-25"></i>
+                                <p>Nenhum cliente cadastrado</p>
+                                <button class="btn btn-sm btn-primary" onclick="window.abrirModalNovoCliente()">
+                                    <i class="fas fa-user-plus me-1"></i>Criar Cliente
+                                </button>
+                            </div>
+                        `;
+                    } else {
+                        clientListHtml = clients.map(c => `
+                            <div class="client-item" onclick="selecionarClienteFicha('${c.id}')" data-client-id="${c.id}">
+                                ${c.photoUrl ? 
+                                    `<img src="${c.photoUrl}" class="client-avatar" onerror="this.onerror=null;this.innerHTML='${c.name.charAt(0).toUpperCase()}'">` :
+                                    `<div class="client-avatar">${c.name.charAt(0).toUpperCase()}</div>`
+                                }
+                                <div class="client-info">
+                                    <div class="client-name">${c.name}</div>
+                                    <div class="client-contact">${c.phone || 'Sem telefone'} ${c.email ? `| ${c.email}` : ''}</div>
+                                </div>
+                                <div class="client-check"><i class="fas fa-check-circle"></i></div>
+                            </div>
+                        `).join('');
+                    }
+
                     Swal.fire({
                         title: 'Nova Ficha',
                         html: `
                             <div class="text-start">
                                 <p><strong>Fichas selecionadas:</strong> ${tiposNomes}</p>
-                                <div class="mb-3">
-                                    <label class="form-label fw-bold">Selecione o Cliente *</label>
-                                    <div class="client-list" style="max-height:200px;overflow-y:auto;border:1px solid #dee2e6;border-radius:8px;padding:4px;">
-                                        ${clientList}
-                                    </div>
+                                
+                                <div class="client-search-container">
+                                    <i class="fas fa-search search-icon"></i>
+                                    <input type="text" id="swalClientSearch" class="form-control" 
+                                           placeholder="Buscar cliente por nome ou telefone..." 
+                                           oninput="filtrarClientesSwal()" autocomplete="off">
                                 </div>
-                                <div class="mb-3">
+                                
+                                <div class="client-list" id="swalClientList">
+                                    ${clientListHtml}
+                                </div>
+                                
+                                <div class="btn-criar-cliente" onclick="window.abrirModalNovoCliente(); Swal.close();">
+                                    <i class="fas fa-user-plus"></i>
+                                    <span>Criar novo cliente</span>
+                                </div>
+                                
+                                <div class="mt-3">
                                     <label class="form-label fw-bold">Profissional Responsável *</label>
-                                    <select class="form-select" id="profissionalSelect">
+                                    <select class="form-select" id="swalProfissionalSelect">
                                         <option value="">Selecione um profissional</option>
                                         ${collaboratorOptions}
                                     </select>
                                 </div>
-                                <div class="mb-3">
+                                
+                                <div class="mt-3">
                                     <label class="form-label fw-bold">Data da Avaliação</label>
-                                    <input type="date" class="form-control" id="dataAvaliacao" value="${new Date().toISOString().split('T')[0]}">
+                                    <input type="date" class="form-control" id="swalDataAvaliacao" 
+                                           value="${new Date().toISOString().split('T')[0]}">
                                 </div>
                             </div>
                         `,
                         showCancelButton: true,
                         confirmButtonText: 'Abrir Fichas',
                         cancelButtonText: 'Cancelar',
-                        width: '550px',
+                        width: '580px',
+                        didOpen: () => {
+                            // Garantir que o campo de busca receba foco
+                            setTimeout(() => {
+                                const searchInput = document.getElementById('swalClientSearch');
+                                if (searchInput) searchInput.focus();
+                            }, 300);
+                        },
                         preConfirm: () => {
-                            const profissional = document.getElementById('profissionalSelect').value;
-                            const data = document.getElementById('dataAvaliacao').value;
-                            const clienteSelecionado = document.querySelector('.client-item.selected');
+                            const clienteSelecionado = document.querySelector('#swalClientList .client-item.selected');
+                            const profissional = document.getElementById('swalProfissionalSelect').value;
+                            const data = document.getElementById('swalDataAvaliacao').value;
                             
                             if (!clienteSelecionado) {
                                 Swal.showValidationMessage('Selecione um cliente');
@@ -1464,7 +1586,7 @@
                                 return null;
                             }
 
-                            const clienteId = clienteSelecionado.getAttribute('onclick').match(/'([^']+)'/)[1];
+                            const clienteId = clienteSelecionado.getAttribute('data-client-id');
                             const cliente = clients.find(c => c.id === clienteId);
 
                             return {
@@ -1473,13 +1595,12 @@
                                 profissionalId: profissional,
                                 profissionalNome: colaboradores.find(c => c.id === profissional)?.name || 'Profissional',
                                 data: data,
-                                tipos: selectedCards
+                                tipos: [...selectedCards]
                             };
                         }
                     }).then(result => {
                         if (result.isConfirmed && result.value) {
                             const data = result.value;
-                            // Salvar no Firebase
                             const fichaData = {
                                 clienteId: data.clienteId,
                                 clienteNome: data.clienteNome,
@@ -1501,7 +1622,6 @@
                                 .then(docRef => {
                                     currentFichaData = { id: docRef.id, ...fichaData };
                                     abrirModalFicha(currentFichaData);
-                                    // Limpar seleção
                                     selectedCards = [];
                                     renderizarCards();
                                 })
@@ -1515,35 +1635,84 @@
                 .catch(error => {
                     console.error('Erro ao carregar colaboradores:', error);
                     // Continuar sem colaboradores
+                    const tiposFichas = selectedCards.map(id => FICHA_TYPES[id]).filter(Boolean);
+                    const tiposNomes = tiposFichas.map(f => f.nome).join(', ');
+
+                    let clientListHtml = '';
+                    if (clients.length === 0) {
+                        clientListHtml = `
+                            <div class="text-center text-muted py-3">
+                                <i class="fas fa-users fa-2x mb-2 opacity-25"></i>
+                                <p>Nenhum cliente cadastrado</p>
+                                <button class="btn btn-sm btn-primary" onclick="window.abrirModalNovoCliente()">
+                                    <i class="fas fa-user-plus me-1"></i>Criar Cliente
+                                </button>
+                            </div>
+                        `;
+                    } else {
+                        clientListHtml = clients.map(c => `
+                            <div class="client-item" onclick="selecionarClienteFicha('${c.id}')" data-client-id="${c.id}">
+                                ${c.photoUrl ? 
+                                    `<img src="${c.photoUrl}" class="client-avatar" onerror="this.onerror=null;this.innerHTML='${c.name.charAt(0).toUpperCase()}'">` :
+                                    `<div class="client-avatar">${c.name.charAt(0).toUpperCase()}</div>`
+                                }
+                                <div class="client-info">
+                                    <div class="client-name">${c.name}</div>
+                                    <div class="client-contact">${c.phone || 'Sem telefone'} ${c.email ? `| ${c.email}` : ''}</div>
+                                </div>
+                                <div class="client-check"><i class="fas fa-check-circle"></i></div>
+                            </div>
+                        `).join('');
+                    }
+
                     Swal.fire({
                         title: 'Nova Ficha',
                         html: `
                             <div class="text-start">
-                                <p><strong>Fichas selecionadas:</strong> ${selectedCards.map(id => FICHA_TYPES[id]?.nome).filter(Boolean).join(', ')}</p>
-                                <div class="mb-3">
-                                    <label class="form-label fw-bold">Selecione o Cliente *</label>
-                                    <div class="client-list" style="max-height:200px;overflow-y:auto;border:1px solid #dee2e6;border-radius:8px;padding:4px;">
-                                        ${clientList}
-                                    </div>
+                                <p><strong>Fichas selecionadas:</strong> ${tiposNomes}</p>
+                                
+                                <div class="client-search-container">
+                                    <i class="fas fa-search search-icon"></i>
+                                    <input type="text" id="swalClientSearch2" class="form-control" 
+                                           placeholder="Buscar cliente por nome ou telefone..." 
+                                           oninput="filtrarClientesSwal2()" autocomplete="off">
                                 </div>
-                                <div class="mb-3">
+                                
+                                <div class="client-list" id="swalClientList2">
+                                    ${clientListHtml}
+                                </div>
+                                
+                                <div class="btn-criar-cliente" onclick="window.abrirModalNovoCliente(); Swal.close();">
+                                    <i class="fas fa-user-plus"></i>
+                                    <span>Criar novo cliente</span>
+                                </div>
+                                
+                                <div class="mt-3">
                                     <label class="form-label fw-bold">Profissional Responsável *</label>
-                                    <input type="text" class="form-control" id="profissionalNome" placeholder="Nome do profissional">
+                                    <input type="text" class="form-control" id="swalProfissionalNome2" placeholder="Nome do profissional">
                                 </div>
-                                <div class="mb-3">
+                                
+                                <div class="mt-3">
                                     <label class="form-label fw-bold">Data da Avaliação</label>
-                                    <input type="date" class="form-control" id="dataAvaliacao2" value="${new Date().toISOString().split('T')[0]}">
+                                    <input type="date" class="form-control" id="swalDataAvaliacao2" 
+                                           value="${new Date().toISOString().split('T')[0]}">
                                 </div>
                             </div>
                         `,
                         showCancelButton: true,
                         confirmButtonText: 'Abrir Fichas',
                         cancelButtonText: 'Cancelar',
-                        width: '550px',
+                        width: '580px',
+                        didOpen: () => {
+                            setTimeout(() => {
+                                const searchInput = document.getElementById('swalClientSearch2');
+                                if (searchInput) searchInput.focus();
+                            }, 300);
+                        },
                         preConfirm: () => {
-                            const profissional = document.getElementById('profissionalNome').value.trim();
-                            const data = document.getElementById('dataAvaliacao2').value;
-                            const clienteSelecionado = document.querySelector('.client-item.selected');
+                            const clienteSelecionado = document.querySelector('#swalClientList2 .client-item.selected');
+                            const profissional = document.getElementById('swalProfissionalNome2').value.trim();
+                            const data = document.getElementById('swalDataAvaliacao2').value;
                             
                             if (!clienteSelecionado) {
                                 Swal.showValidationMessage('Selecione um cliente');
@@ -1554,7 +1723,7 @@
                                 return null;
                             }
 
-                            const clienteId = clienteSelecionado.getAttribute('onclick').match(/'([^']+)'/)[1];
+                            const clienteId = clienteSelecionado.getAttribute('data-client-id');
                             const cliente = clients.find(c => c.id === clienteId);
 
                             return {
@@ -1563,7 +1732,7 @@
                                 profissionalId: 'manual_' + Date.now(),
                                 profissionalNome: profissional,
                                 data: data,
-                                tipos: selectedCards
+                                tipos: [...selectedCards]
                             };
                         }
                     }).then(result => {
@@ -1603,28 +1772,122 @@
         }
 
         // ==========================================
-        // 14. SELECIONAR CLIENTE NA LISTA
+        // 14. FILTRAR CLIENTES NO SWAL
         // ==========================================
-        function selecionarClienteFicha(clientId) {
-            document.querySelectorAll('.client-item').forEach(el => el.classList.remove('selected'));
-            const item = document.querySelector(`.client-item[onclick="selecionarClienteFicha('${clientId}')"]`);
-            if (item) item.classList.add('selected');
+        function filtrarClientesSwal() {
+            const searchTerm = document.getElementById('swalClientSearch').value.toLowerCase().trim();
+            const items = document.querySelectorAll('#swalClientList .client-item');
+            
+            items.forEach(item => {
+                const name = item.querySelector('.client-name')?.textContent?.toLowerCase() || '';
+                const contact = item.querySelector('.client-contact')?.textContent?.toLowerCase() || '';
+                
+                if (name.includes(searchTerm) || contact.includes(searchTerm) || searchTerm === '') {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
+
+        function filtrarClientesSwal2() {
+            const searchTerm = document.getElementById('swalClientSearch2').value.toLowerCase().trim();
+            const items = document.querySelectorAll('#swalClientList2 .client-item');
+            
+            items.forEach(item => {
+                const name = item.querySelector('.client-name')?.textContent?.toLowerCase() || '';
+                const contact = item.querySelector('.client-contact')?.textContent?.toLowerCase() || '';
+                
+                if (name.includes(searchTerm) || contact.includes(searchTerm) || searchTerm === '') {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
         }
 
         // ==========================================
-        // 15. ABRIR MODAL DE FICHA
+        // 15. SELECIONAR CLIENTE NA LISTA
+        // ==========================================
+        function selecionarClienteFicha(clientId) {
+            // Remover seleção de todos os clientes
+            document.querySelectorAll('.client-item').forEach(el => {
+                el.classList.remove('selected');
+            });
+            
+            // Selecionar o cliente clicado
+            const item = document.querySelector(`.client-item[data-client-id="${clientId}"]`);
+            if (item) {
+                item.classList.add('selected');
+            }
+        }
+
+        // ==========================================
+        // 16. ABRIR MODAL NOVO CLIENTE
+        // ==========================================
+        function abrirModalNovoCliente() {
+            Swal.fire({
+                title: 'Novo Cliente',
+                html: `
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Nome Completo *</label>
+                        <input type="text" class="form-control" id="novoClienteNome" placeholder="Nome do cliente">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Telefone / WhatsApp</label>
+                        <input type="text" class="form-control" id="novoClientePhone" placeholder="+351 912345678">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">E-mail</label>
+                        <input type="email" class="form-control" id="novoClienteEmail" placeholder="email@exemplo.com">
+                    </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'Criar Cliente',
+                cancelButtonText: 'Cancelar',
+                preConfirm: () => {
+                    const nome = document.getElementById('novoClienteNome').value.trim();
+                    if (!nome) {
+                        Swal.showValidationMessage('Digite o nome do cliente');
+                        return null;
+                    }
+                    return {
+                        nome: nome,
+                        phone: document.getElementById('novoClientePhone').value.trim(),
+                        email: document.getElementById('novoClienteEmail').value.trim()
+                    };
+                }
+            }).then(result => {
+                if (result.isConfirmed && result.value) {
+                    const data = result.value;
+                    const clientData = {
+                        name: data.nome,
+                        phone: data.phone,
+                        email: data.email,
+                        userId: currentUser.uid,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    };
+
+                    db.collection('clients').add(clientData)
+                        .then(docRef => {
+                            clients.push({ id: docRef.id, ...clientData });
+                            showSuccess('Cliente criado com sucesso!');
+                            // Reabrir a ficha com o novo cliente selecionado
+                            abrirModalNovaFicha();
+                        })
+                        .catch(error => {
+                            showError('Erro ao criar cliente: ' + error.message);
+                        });
+                }
+            });
+        }
+
+        // ==========================================
+        // 17. ABRIR MODAL DE FICHA (TELA CHEIA)
         // ==========================================
         function abrirModalFicha(fichaData) {
             const modalElement = document.getElementById('fichaModal');
             if (!modalElement) return;
-
-            // Inicializar o modal
-            if (!fichaModalInstance) {
-                fichaModalInstance = new bootstrap.Modal(modalElement, {
-                    backdrop: 'static',
-                    keyboard: true
-                });
-            }
 
             // Preparar o conteúdo
             const tipos = fichaData.tipos || [];
@@ -1814,12 +2077,14 @@
             // Salvar dados atuais
             currentFichaData = fichaData;
 
-            // Mostrar modal
-            fichaModalInstance.show();
+            // Mostrar modal em tela cheia
+            if (fichaModalInstance) {
+                fichaModalInstance.show();
+            }
         }
 
         // ==========================================
-        // 16. INICIALIZAR ASSINATURAS
+        // 18. INICIALIZAR ASSINATURAS
         // ==========================================
         function initSignaturePads() {
             // Assinatura do Cliente
@@ -1835,7 +2100,6 @@
                     signaturePadClient = null;
                 }
 
-                // Verificar se o SignaturePad está disponível
                 if (typeof SignaturePad !== 'undefined') {
                     signaturePadClient = new SignaturePad(clientCanvas, {
                         backgroundColor: 'white',
@@ -1845,7 +2109,6 @@
                         velocityFilterWeight: 0.7
                     });
                 } else {
-                    // Fallback: desenho manual
                     setupManualSignature(clientCanvas, 'client');
                 }
             }
@@ -1880,7 +2143,7 @@
         }
 
         // ==========================================
-        // 17. ASSINATURA MANUAL (FALLBACK)
+        // 19. ASSINATURA MANUAL (FALLBACK)
         // ==========================================
         function setupManualSignature(canvas, type) {
             let isDrawing = false;
@@ -1948,7 +2211,6 @@
             canvas.addEventListener('touchmove', draw, { passive: false });
             canvas.addEventListener('touchend', endDraw, { passive: false });
 
-            // Armazenar a função de limpeza
             canvas._cleanup = function() {
                 canvas.removeEventListener('mousedown', startDraw);
                 canvas.removeEventListener('mousemove', draw);
@@ -1961,7 +2223,7 @@
         }
 
         // ==========================================
-        // 18. LIMPAR ASSINATURA
+        // 20. LIMPAR ASSINATURA
         // ==========================================
         function limparAssinatura(type) {
             const canvasId = type === 'client' ? 'signatureClientCanvas' : 'signatureProfessionalCanvas';
@@ -1979,7 +2241,6 @@
                 signaturePadProfessional.clear();
             }
 
-            // Atualizar dados
             if (type === 'client') {
                 currentFichaData.assinaturaCliente = null;
             } else {
@@ -1988,7 +2249,7 @@
         }
 
         // ==========================================
-        // 19. FOTOS DA FICHA
+        // 21. FOTOS DA FICHA
         // ==========================================
         function handleFichaPhotos(event) {
             const files = event.target.files;
@@ -2013,7 +2274,6 @@
                     if (!currentFichaData.fotos) currentFichaData.fotos = [];
                     currentFichaData.fotos.push(...fotos);
 
-                    // Atualizar grid de fotos
                     const grid = document.getElementById('fichaPhotosGrid');
                     if (grid) {
                         fotos.forEach(foto => {
@@ -2067,27 +2327,23 @@
         }
 
         // ==========================================
-        // 20. SALVAR FICHA
+        // 22. SALVAR FICHA
         // ==========================================
         function salvarFicha() {
-            // Coletar respostas
             const respostas = {};
             document.querySelectorAll('[data-pergunta]').forEach(el => {
                 const perguntaId = el.getAttribute('data-pergunta');
                 respostas[perguntaId] = el.value || '';
             });
 
-            // Coletar consentimento
             const consentimentoRGPD = document.getElementById('consentimentoRGPD')?.checked || false;
 
-            // Coletar assinaturas
             let assinaturaCliente = null;
             let assinaturaProfissional = null;
 
             if (signaturePadClient && !signaturePadClient.isEmpty()) {
                 assinaturaCliente = signaturePadClient.toDataURL('image/png');
             } else {
-                // Tentar capturar do canvas manual
                 const clientCanvas = document.getElementById('signatureClientCanvas');
                 if (clientCanvas) {
                     const data = clientCanvas.toDataURL('image/png');
@@ -2109,7 +2365,6 @@
                 }
             }
 
-            // Atualizar dados
             currentFichaData.respostas = respostas;
             currentFichaData.consentimentoRGPD = consentimentoRGPD;
             currentFichaData.assinaturaCliente = assinaturaCliente;
@@ -2118,7 +2373,6 @@
             currentFichaData.status = 'completa';
             currentFichaData.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
 
-            // Validar campos obrigatórios
             const missingFields = [];
             document.querySelectorAll('[data-pergunta][required]').forEach(el => {
                 if (!el.value || el.value.trim() === '') {
@@ -2180,7 +2434,6 @@
                 return;
             }
 
-            // Remover campos que não devem ser salvos
             const saveData = {
                 respostas: currentFichaData.respostas,
                 consentimentoRGPD: currentFichaData.consentimentoRGPD,
@@ -2204,7 +2457,7 @@
         }
 
         // ==========================================
-        // 21. ADICIONAR MAIS FICHAS
+        // 23. ADICIONAR MAIS FICHAS
         // ==========================================
         function adicionarMaisFichas() {
             const tiposDisponiveis = Object.keys(FICHA_TYPES).filter(id => 
@@ -2249,7 +2502,6 @@
                     if (!currentFichaData.tipos) currentFichaData.tipos = [];
                     currentFichaData.tipos.push(...result.value);
                     
-                    // Recarregar o modal com as novas fichas
                     const modal = bootstrap.Modal.getInstance(document.getElementById('fichaModal'));
                     if (modal) modal.hide();
                     
@@ -2261,7 +2513,7 @@
         }
 
         // ==========================================
-        // 22. GERAR PDF
+        // 24. GERAR PDF
         // ==========================================
         function gerarPDF() {
             if (!currentFichaData || !currentFichaData.id) {
@@ -2275,13 +2527,11 @@
             const margin = 40;
             let y = margin;
 
-            // Título
             doc.setFontSize(18);
             doc.setTextColor(38, 25, 107);
             doc.text('FICHA DE AVALIAÇÃO', pageW / 2, y, { align: 'center' });
             y += 20;
 
-            // Informações do cliente
             doc.setFontSize(10);
             doc.setTextColor(50, 50, 70);
             const info = [
@@ -2299,7 +2549,6 @@
             doc.line(margin, y, pageW - margin, y);
             y += 16;
 
-            // Respostas
             const tipos = currentFichaData.tipos || [];
             tipos.forEach(tipoId => {
                 const tipo = FICHA_TYPES[tipoId];
@@ -2328,7 +2577,6 @@
                 y += 12;
             });
 
-            // Fotos
             if (currentFichaData.fotos && currentFichaData.fotos.length > 0) {
                 doc.addPage();
                 y = margin + 20;
@@ -2350,7 +2598,6 @@
                 }
             }
 
-            // Assinaturas
             doc.addPage();
             y = margin + 20;
             doc.setFontSize(14);
@@ -2384,7 +2631,6 @@
                 }
             }
 
-            // Rodapé
             doc.setFontSize(8);
             doc.setTextColor(150, 150, 170);
             const rodape = `Documento gerado por Studio DeVitto em ${new Date().toLocaleDateString('pt-PT')} às ${new Date().toLocaleTimeString('pt-PT')}`;
@@ -2395,7 +2641,7 @@
         }
 
         // ==========================================
-        // 23. COMPARTILHAR
+        // 25. COMPARTILHAR
         // ==========================================
         function compartilhar() {
             if (!currentFichaData || !currentFichaData.id) {
@@ -2403,7 +2649,6 @@
                 return;
             }
 
-            // Gerar resumo para compartilhar
             const cliente = currentFichaData.clienteNome || 'Cliente';
             const profissional = currentFichaData.profissionalNome || 'Profissional';
             const data = currentFichaData.data ? formatDate(currentFichaData.data) : 'Data não informada';
@@ -2418,20 +2663,17 @@
                 `Gerado por Studio DeVitto\n` +
                 `${new Date().toLocaleDateString('pt-PT')}`;
 
-            // Tentar usar a API de compartilhamento
             if (navigator.share) {
                 navigator.share({
                     title: `Ficha - ${cliente}`,
                     text: texto,
                 }).catch(() => {});
             } else {
-                // Fallback: copiar para a área de transferência
                 navigator.clipboard.writeText(texto)
                     .then(() => {
                         showSuccess('Resumo copiado para a área de transferência!');
                     })
                     .catch(() => {
-                        // Fallback final
                         const textarea = document.createElement('textarea');
                         textarea.value = texto;
                         document.body.appendChild(textarea);
@@ -2444,7 +2686,7 @@
         }
 
         // ==========================================
-        // 24. FICHAS CADASTRADAS
+        // 26. FICHAS CADASTRADAS
         // ==========================================
         function abrirFichasCadastradas() {
             const modalElement = document.getElementById('fichasCadastradasModal');
@@ -2521,7 +2763,7 @@
         }
 
         // ==========================================
-        // 25. ABRIR FICHA EXISTENTE
+        // 27. ABRIR FICHA EXISTENTE
         // ==========================================
         function abrirFichaExistente(fichaId) {
             const ficha = fichasCadastradas.find(f => f.id === fichaId);
@@ -2530,7 +2772,6 @@
                 return;
             }
 
-            // Fechar modal de fichas cadastradas
             if (fichasCadastradasModalInstance) {
                 fichasCadastradasModalInstance.hide();
             }
@@ -2540,67 +2781,7 @@
         }
 
         // ==========================================
-        // 26. ABRIR MODAL NOVO CLIENTE
-        // ==========================================
-        function abrirModalNovoCliente() {
-            Swal.fire({
-                title: 'Novo Cliente',
-                html: `
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Nome Completo *</label>
-                        <input type="text" class="form-control" id="novoClienteNome" placeholder="Nome do cliente">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Telefone / WhatsApp</label>
-                        <input type="text" class="form-control" id="novoClientePhone" placeholder="+351 912345678">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">E-mail</label>
-                        <input type="email" class="form-control" id="novoClienteEmail" placeholder="email@exemplo.com">
-                    </div>
-                `,
-                showCancelButton: true,
-                confirmButtonText: 'Criar Cliente',
-                cancelButtonText: 'Cancelar',
-                preConfirm: () => {
-                    const nome = document.getElementById('novoClienteNome').value.trim();
-                    if (!nome) {
-                        Swal.showValidationMessage('Digite o nome do cliente');
-                        return null;
-                    }
-                    return {
-                        nome: nome,
-                        phone: document.getElementById('novoClientePhone').value.trim(),
-                        email: document.getElementById('novoClienteEmail').value.trim()
-                    };
-                }
-            }).then(result => {
-                if (result.isConfirmed && result.value) {
-                    const data = result.value;
-                    const clientData = {
-                        name: data.nome,
-                        phone: data.phone,
-                        email: data.email,
-                        userId: currentUser.uid,
-                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                    };
-
-                    db.collection('clients').add(clientData)
-                        .then(docRef => {
-                            clients.push({ id: docRef.id, ...clientData });
-                            showSuccess('Cliente criado com sucesso!');
-                            // Reabrir a ficha com o novo cliente selecionado
-                            abrirModalNovaFicha();
-                        })
-                        .catch(error => {
-                            showError('Erro ao criar cliente: ' + error.message);
-                        });
-                }
-            });
-        }
-
-        // ==========================================
-        // 27. FUNÇÕES AUXILIARES
+        // 28. FUNÇÕES AUXILIARES
         // ==========================================
         function formatDate(date) {
             if (!date) return '';
@@ -2701,7 +2882,7 @@
         }
 
         // ==========================================
-        // 28. EXPOR FUNÇÕES GLOBAIS
+        // 29. EXPOR FUNÇÕES GLOBAIS
         // ==========================================
         window.goHome = goHome;
         window.refreshFichas = refreshFichas;
@@ -2712,6 +2893,8 @@
         window.handleSearchClient = handleSearchClient;
         window.clearSearchClient = clearSearchClient;
         window.selecionarClienteFicha = selecionarClienteFicha;
+        window.filtrarClientesSwal = filtrarClientesSwal;
+        window.filtrarClientesSwal2 = filtrarClientesSwal2;
         window.abrirModalNovoCliente = abrirModalNovoCliente;
         window.salvarFicha = salvarFicha;
         window.gerarPDF = gerarPDF;
@@ -2724,7 +2907,7 @@
         window.filtrarFichasCadastradas = filtrarFichasCadastradas;
 
         // ==========================================
-        // 29. RECEBER CONFIGURAÇÕES
+        // 30. RECEBER CONFIGURAÇÕES
         // ==========================================
         window.addEventListener('message', function(event) {
             if (event.data && event.data.type === 'configUpdated') {
@@ -2735,13 +2918,13 @@
         window.parent.postMessage({ type: 'getConfig' }, '*');
 
         // ==========================================
-        // 30. LOG DE INICIALIZAÇÃO
+        // 31. LOG DE INICIALIZAÇÃO
         // ==========================================
         console.log('✅ Fichas carregadas com sucesso!');
         console.log('📌 Funcionalidades:');
         console.log('   - 8 tipos de fichas (Rosto, Costas, Corporal, Pernas, Pós-Operatório, Pestanas, Unhas, Cabelo)');
         console.log('   - Seleção múltipla de fichas');
-        console.log('   - Busca de clientes com foto');
+        console.log('   - Busca de clientes com foto (campo digitável)');
         console.log('   - Criação de novos clientes');
         console.log('   - Fichas cadastradas com busca');
         console.log('   - Assinatura digital (cliente + profissional)');
