@@ -486,7 +486,7 @@
         }
 
         /* ============================================
-           LISTA DE CLIENTES COM BUSCA
+           LISTA DE CLIENTES COM BUSCA (DROPDOWN)
            ============================================ */
         .client-search-container {
             position: relative;
@@ -516,41 +516,52 @@
             color: #6c757d;
         }
 
-        .client-list {
-            max-height: 250px;
+        .client-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            max-height: 200px;
             overflow-y: auto;
-            border: 1px solid #dee2e6;
-            border-radius: 10px;
-            padding: 4px;
             background: white;
+            border: 2px solid #e0e0e0;
+            border-top: none;
+            border-radius: 0 0 25px 25px;
+            z-index: 1000;
+            display: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
 
-        .client-item {
+        .client-dropdown.show {
+            display: block;
+        }
+
+        .client-dropdown .client-item {
             display: flex;
             align-items: center;
-            padding: 10px 12px;
+            padding: 8px 14px;
             border-bottom: 1px solid #f0f0f0;
             cursor: pointer;
             transition: background 0.2s;
-            gap: 12px;
+            gap: 10px;
         }
 
-        .client-item:last-child {
+        .client-dropdown .client-item:last-child {
             border-bottom: none;
         }
 
-        .client-item:hover {
+        .client-dropdown .client-item:hover {
             background: #f8f9fa;
         }
 
-        .client-item.selected {
+        .client-dropdown .client-item.selected {
             background: #e7f1ff;
             border-left: 4px solid #26196b;
         }
 
-        .client-item .client-avatar {
-            width: 44px;
-            height: 44px;
+        .client-dropdown .client-item .client-avatar {
+            width: 36px;
+            height: 36px;
             border-radius: 50%;
             object-fit: cover;
             flex-shrink: 0;
@@ -559,36 +570,43 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 18px;
+            font-size: 14px;
             font-weight: bold;
         }
 
-        .client-item .client-info {
+        .client-dropdown .client-item .client-info {
             flex: 1;
             min-width: 0;
         }
 
-        .client-item .client-info .client-name {
+        .client-dropdown .client-item .client-info .client-name {
             font-weight: 600;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
 
-        .client-item .client-info .client-contact {
-            font-size: 0.75rem;
+        .client-dropdown .client-item .client-info .client-contact {
+            font-size: 0.7rem;
             color: #6c757d;
         }
 
-        .client-item .client-check {
+        .client-dropdown .client-item .client-check {
             color: #28a745;
-            font-size: 1.2rem;
+            font-size: 1rem;
             display: none;
         }
 
-        .client-item.selected .client-check {
+        .client-dropdown .client-item.selected .client-check {
             display: block;
+        }
+
+        .client-dropdown .no-results {
+            padding: 12px;
+            text-align: center;
+            color: #6c757d;
+            font-size: 0.85rem;
         }
 
         .btn-criar-cliente {
@@ -831,9 +849,9 @@
             .photos-grid { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); }
             .ficha-card .card-header-ficha { padding: 10px 12px; min-height: 42px; }
             .ficha-card .card-header-ficha .ficha-title { font-size: 0.75rem; }
-            .client-list { max-height: 200px; }
-            .client-item { padding: 8px 10px; }
-            .client-item .client-avatar { width: 36px; height: 36px; font-size: 14px; }
+            .client-dropdown { max-height: 150px; }
+            .client-dropdown .client-item { padding: 6px 10px; }
+            .client-dropdown .client-item .client-avatar { width: 30px; height: 30px; font-size: 12px; }
         }
 
         @media (max-width: 480px) {
@@ -845,7 +863,7 @@
             .ficha-card .card-body-ficha { padding: 8px 10px; }
             .ficha-card .card-body-ficha .ficha-desc { font-size: 0.65rem; }
             .client-search-container input { font-size: 0.8rem; padding: 8px 12px 8px 36px; }
-            .client-list { max-height: 150px; }
+            .client-dropdown { max-height: 120px; }
         }
 
         ::-webkit-scrollbar { width: 3px; height: 3px; }
@@ -1117,6 +1135,7 @@
         let fichaPhotos = [];
         let fichaModalInstance = null;
         let fichasCadastradasModalInstance = null;
+        let selectedClientId = null;
 
         // ==========================================
         // 4. TIPOS DE FICHAS
@@ -1465,7 +1484,7 @@
         }
 
         // ==========================================
-        // 13. ABRIR MODAL NOVA FICHA (COM BUSCA DE CLIENTE)
+        // 13. ABRIR MODAL NOVA FICHA (COM DROPDOWN DE CLIENTES)
         // ==========================================
         function abrirModalNovaFicha() {
             if (selectedCards.length === 0) {
@@ -1496,21 +1515,20 @@
                     const tiposFichas = selectedCards.map(id => FICHA_TYPES[id]).filter(Boolean);
                     const tiposNomes = tiposFichas.map(f => f.nome).join(', ');
 
-                    // Gerar lista de clientes com busca
-                    let clientListHtml = '';
+                    // Gerar lista de clientes para dropdown
+                    let clientOptionsHtml = '';
                     if (clients.length === 0) {
-                        clientListHtml = `
-                            <div class="text-center text-muted py-3">
+                        clientOptionsHtml = `
+                            <div class="no-results">
                                 <i class="fas fa-users fa-2x mb-2 opacity-25"></i>
                                 <p>Nenhum cliente cadastrado</p>
-                                <button class="btn btn-sm btn-primary" onclick="window.abrirModalNovoCliente()">
-                                    <i class="fas fa-user-plus me-1"></i>Criar Cliente
-                                </button>
                             </div>
                         `;
                     } else {
-                        clientListHtml = clients.map(c => `
-                            <div class="client-item" onclick="selecionarClienteFicha('${c.id}')" data-client-id="${c.id}">
+                        clientOptionsHtml = clients.map(c => `
+                            <div class="client-item ${selectedClientId === c.id ? 'selected' : ''}" 
+                                 data-client-id="${c.id}"
+                                 onclick="selecionarClienteDropdown('${c.id}')">
                                 ${c.photoUrl ? 
                                     `<img src="${c.photoUrl}" class="client-avatar" onerror="this.onerror=null;this.innerHTML='${c.name.charAt(0).toUpperCase()}'">` :
                                     `<div class="client-avatar">${c.name.charAt(0).toUpperCase()}</div>`
@@ -1534,11 +1552,10 @@
                                     <i class="fas fa-search search-icon"></i>
                                     <input type="text" id="swalClientSearch" class="form-control" 
                                            placeholder="Buscar cliente por nome ou telefone..." 
-                                           oninput="filtrarClientesSwal()" autocomplete="off">
-                                </div>
-                                
-                                <div class="client-list" id="swalClientList">
-                                    ${clientListHtml}
+                                           oninput="filtrarClientesDropdown()" autocomplete="off">
+                                    <div class="client-dropdown show" id="swalClientDropdown">
+                                        ${clientOptionsHtml}
+                                    </div>
                                 </div>
                                 
                                 <div class="btn-criar-cliente" onclick="window.abrirModalNovoCliente(); Swal.close();">
@@ -1566,14 +1583,13 @@
                         cancelButtonText: 'Cancelar',
                         width: '580px',
                         didOpen: () => {
-                            // Garantir que o campo de busca receba foco
                             setTimeout(() => {
                                 const searchInput = document.getElementById('swalClientSearch');
                                 if (searchInput) searchInput.focus();
                             }, 300);
                         },
                         preConfirm: () => {
-                            const clienteSelecionado = document.querySelector('#swalClientList .client-item.selected');
+                            const clienteSelecionado = document.querySelector('#swalClientDropdown .client-item.selected');
                             const profissional = document.getElementById('swalProfissionalSelect').value;
                             const data = document.getElementById('swalDataAvaliacao').value;
                             
@@ -1592,6 +1608,7 @@
                             return {
                                 clienteId: clienteId,
                                 clienteNome: cliente ? cliente.name : 'Cliente',
+                                clienteData: cliente || null,
                                 profissionalId: profissional,
                                 profissionalNome: colaboradores.find(c => c.id === profissional)?.name || 'Profissional',
                                 data: data,
@@ -1604,6 +1621,10 @@
                             const fichaData = {
                                 clienteId: data.clienteId,
                                 clienteNome: data.clienteNome,
+                                clienteEmail: data.clienteData?.email || '',
+                                clientePhone: data.clienteData?.phone || '',
+                                clienteNascimento: data.clienteData?.nascimento || '',
+                                clientePhoto: data.clienteData?.photoUrl || '',
                                 profissionalId: data.profissionalId,
                                 profissionalNome: data.profissionalNome,
                                 data: data.data,
@@ -1624,6 +1645,7 @@
                                     abrirModalFicha(currentFichaData);
                                     selectedCards = [];
                                     renderizarCards();
+                                    selectedClientId = null;
                                 })
                                 .catch(error => {
                                     console.error('Erro ao criar ficha:', error);
@@ -1638,20 +1660,19 @@
                     const tiposFichas = selectedCards.map(id => FICHA_TYPES[id]).filter(Boolean);
                     const tiposNomes = tiposFichas.map(f => f.nome).join(', ');
 
-                    let clientListHtml = '';
+                    let clientOptionsHtml = '';
                     if (clients.length === 0) {
-                        clientListHtml = `
-                            <div class="text-center text-muted py-3">
+                        clientOptionsHtml = `
+                            <div class="no-results">
                                 <i class="fas fa-users fa-2x mb-2 opacity-25"></i>
                                 <p>Nenhum cliente cadastrado</p>
-                                <button class="btn btn-sm btn-primary" onclick="window.abrirModalNovoCliente()">
-                                    <i class="fas fa-user-plus me-1"></i>Criar Cliente
-                                </button>
                             </div>
                         `;
                     } else {
-                        clientListHtml = clients.map(c => `
-                            <div class="client-item" onclick="selecionarClienteFicha('${c.id}')" data-client-id="${c.id}">
+                        clientOptionsHtml = clients.map(c => `
+                            <div class="client-item ${selectedClientId === c.id ? 'selected' : ''}" 
+                                 data-client-id="${c.id}"
+                                 onclick="selecionarClienteDropdown('${c.id}')">
                                 ${c.photoUrl ? 
                                     `<img src="${c.photoUrl}" class="client-avatar" onerror="this.onerror=null;this.innerHTML='${c.name.charAt(0).toUpperCase()}'">` :
                                     `<div class="client-avatar">${c.name.charAt(0).toUpperCase()}</div>`
@@ -1675,11 +1696,10 @@
                                     <i class="fas fa-search search-icon"></i>
                                     <input type="text" id="swalClientSearch2" class="form-control" 
                                            placeholder="Buscar cliente por nome ou telefone..." 
-                                           oninput="filtrarClientesSwal2()" autocomplete="off">
-                                </div>
-                                
-                                <div class="client-list" id="swalClientList2">
-                                    ${clientListHtml}
+                                           oninput="filtrarClientesDropdown2()" autocomplete="off">
+                                    <div class="client-dropdown show" id="swalClientDropdown2">
+                                        ${clientOptionsHtml}
+                                    </div>
                                 </div>
                                 
                                 <div class="btn-criar-cliente" onclick="window.abrirModalNovoCliente(); Swal.close();">
@@ -1710,7 +1730,7 @@
                             }, 300);
                         },
                         preConfirm: () => {
-                            const clienteSelecionado = document.querySelector('#swalClientList2 .client-item.selected');
+                            const clienteSelecionado = document.querySelector('#swalClientDropdown2 .client-item.selected');
                             const profissional = document.getElementById('swalProfissionalNome2').value.trim();
                             const data = document.getElementById('swalDataAvaliacao2').value;
                             
@@ -1729,6 +1749,7 @@
                             return {
                                 clienteId: clienteId,
                                 clienteNome: cliente ? cliente.name : 'Cliente',
+                                clienteData: cliente || null,
                                 profissionalId: 'manual_' + Date.now(),
                                 profissionalNome: profissional,
                                 data: data,
@@ -1741,6 +1762,10 @@
                             const fichaData = {
                                 clienteId: data.clienteId,
                                 clienteNome: data.clienteNome,
+                                clienteEmail: data.clienteData?.email || '',
+                                clientePhone: data.clienteData?.phone || '',
+                                clienteNascimento: data.clienteData?.nascimento || '',
+                                clientePhoto: data.clienteData?.photoUrl || '',
                                 profissionalId: data.profissionalId,
                                 profissionalNome: data.profissionalNome,
                                 data: data.data,
@@ -1761,6 +1786,7 @@
                                     abrirModalFicha(currentFichaData);
                                     selectedCards = [];
                                     renderizarCards();
+                                    selectedClientId = null;
                                 })
                                 .catch(error => {
                                     console.error('Erro ao criar ficha:', error);
@@ -1772,66 +1798,112 @@
         }
 
         // ==========================================
-        // 14. FILTRAR CLIENTES NO SWAL
+        // 14. FILTRAR CLIENTES NO DROPDOWN
         // ==========================================
-        function filtrarClientesSwal() {
+        function filtrarClientesDropdown() {
             const searchTerm = document.getElementById('swalClientSearch').value.toLowerCase().trim();
-            const items = document.querySelectorAll('#swalClientList .client-item');
+            const items = document.querySelectorAll('#swalClientDropdown .client-item');
             
+            let hasVisible = false;
             items.forEach(item => {
                 const name = item.querySelector('.client-name')?.textContent?.toLowerCase() || '';
                 const contact = item.querySelector('.client-contact')?.textContent?.toLowerCase() || '';
                 
                 if (name.includes(searchTerm) || contact.includes(searchTerm) || searchTerm === '') {
                     item.style.display = 'flex';
+                    hasVisible = true;
                 } else {
                     item.style.display = 'none';
                 }
             });
+
+            // Mostrar mensagem se nenhum resultado
+            const noResults = document.querySelector('#swalClientDropdown .no-results');
+            if (!hasVisible && !noResults) {
+                const dropdown = document.getElementById('swalClientDropdown');
+                const div = document.createElement('div');
+                div.className = 'no-results';
+                div.innerHTML = 'Nenhum cliente encontrado';
+                dropdown.appendChild(div);
+            } else if (hasVisible) {
+                const noResultsEl = document.querySelector('#swalClientDropdown .no-results');
+                if (noResultsEl) noResultsEl.remove();
+            }
         }
 
-        function filtrarClientesSwal2() {
+        function filtrarClientesDropdown2() {
             const searchTerm = document.getElementById('swalClientSearch2').value.toLowerCase().trim();
-            const items = document.querySelectorAll('#swalClientList2 .client-item');
+            const items = document.querySelectorAll('#swalClientDropdown2 .client-item');
             
+            let hasVisible = false;
             items.forEach(item => {
                 const name = item.querySelector('.client-name')?.textContent?.toLowerCase() || '';
                 const contact = item.querySelector('.client-contact')?.textContent?.toLowerCase() || '';
                 
                 if (name.includes(searchTerm) || contact.includes(searchTerm) || searchTerm === '') {
                     item.style.display = 'flex';
+                    hasVisible = true;
                 } else {
                     item.style.display = 'none';
                 }
             });
-        }
 
-        // ==========================================
-        // 15. SELECIONAR CLIENTE NA LISTA
-        // ==========================================
-        function selecionarClienteFicha(clientId) {
-            // Remover seleção de todos os clientes
-            document.querySelectorAll('.client-item').forEach(el => {
-                el.classList.remove('selected');
-            });
-            
-            // Selecionar o cliente clicado
-            const item = document.querySelector(`.client-item[data-client-id="${clientId}"]`);
-            if (item) {
-                item.classList.add('selected');
+            const noResults = document.querySelector('#swalClientDropdown2 .no-results');
+            if (!hasVisible && !noResults) {
+                const dropdown = document.getElementById('swalClientDropdown2');
+                const div = document.createElement('div');
+                div.className = 'no-results';
+                div.innerHTML = 'Nenhum cliente encontrado';
+                dropdown.appendChild(div);
+            } else if (hasVisible) {
+                const noResultsEl = document.querySelector('#swalClientDropdown2 .no-results');
+                if (noResultsEl) noResultsEl.remove();
             }
         }
 
         // ==========================================
-        // 16. ABRIR MODAL NOVO CLIENTE
+        // 15. SELECIONAR CLIENTE NO DROPDOWN
+        // ==========================================
+        function selecionarClienteDropdown(clientId) {
+            // Remover seleção de todos os clientes
+            document.querySelectorAll('.client-dropdown .client-item').forEach(el => {
+                el.classList.remove('selected');
+            });
+            
+            // Selecionar o cliente clicado
+            const item = document.querySelector(`.client-dropdown .client-item[data-client-id="${clientId}"]`);
+            if (item) {
+                item.classList.add('selected');
+                selectedClientId = clientId;
+            }
+        }
+
+        // ==========================================
+        // 16. ABRIR MODAL NOVO CLIENTE (COM FOTO, DATA NASCIMENTO)
         // ==========================================
         function abrirModalNovoCliente() {
+            let fotoPreview = '';
+            let fotoUrl = '';
+
             Swal.fire({
                 title: 'Novo Cliente',
                 html: `
+                    <div class="text-center mb-3">
+                        <div id="novoClienteFotoPreview" style="width:100px;height:100px;border-radius:50%;overflow:hidden;margin:0 auto;border:2px solid #dee2e6;display:flex;align-items:center;justify-content:center;background:#f8f9fa;">
+                            <i class="fas fa-user fa-3x text-muted"></i>
+                        </div>
+                        <button class="btn btn-sm btn-outline-primary mt-2" onclick="document.getElementById('novoClienteFotoInput').click()">
+                            <i class="fas fa-camera me-1"></i>Adicionar Foto
+                        </button>
+                        <input type="file" id="novoClienteFotoInput" accept="image/*" style="display:none" onchange="previewNovoClienteFoto(event)">
+                    </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">Nome Completo *</label>
                         <input type="text" class="form-control" id="novoClienteNome" placeholder="Nome do cliente">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Data de Nascimento</label>
+                        <input type="date" class="form-control" id="novoClienteNascimento">
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">Telefone / WhatsApp</label>
@@ -1845,6 +1917,7 @@
                 showCancelButton: true,
                 confirmButtonText: 'Criar Cliente',
                 cancelButtonText: 'Cancelar',
+                width: '500px',
                 preConfirm: () => {
                     const nome = document.getElementById('novoClienteNome').value.trim();
                     if (!nome) {
@@ -1853,37 +1926,89 @@
                     }
                     return {
                         nome: nome,
+                        nascimento: document.getElementById('novoClienteNascimento').value,
                         phone: document.getElementById('novoClientePhone').value.trim(),
-                        email: document.getElementById('novoClienteEmail').value.trim()
+                        email: document.getElementById('novoClienteEmail').value.trim(),
+                        fotoUrl: fotoUrl
                     };
                 }
             }).then(result => {
                 if (result.isConfirmed && result.value) {
                     const data = result.value;
-                    const clientData = {
-                        name: data.nome,
-                        phone: data.phone,
-                        email: data.email,
-                        userId: currentUser.uid,
-                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    
+                    // Função para criar o cliente (com ou sem foto)
+                    const criarCliente = (photoUrl) => {
+                        const clientData = {
+                            name: data.nome,
+                            nascimento: data.nascimento,
+                            phone: data.phone,
+                            email: data.email,
+                            userId: currentUser.uid,
+                            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                        };
+                        
+                        if (photoUrl) {
+                            clientData.photoUrl = photoUrl;
+                        }
+
+                        db.collection('clients').add(clientData)
+                            .then(docRef => {
+                                const newClient = { id: docRef.id, ...clientData };
+                                clients.push(newClient);
+                                showSuccess('Cliente criado com sucesso!');
+                                // Reabrir a ficha com o novo cliente selecionado
+                                selectedClientId = docRef.id;
+                                abrirModalNovaFicha();
+                            })
+                            .catch(error => {
+                                showError('Erro ao criar cliente: ' + error.message);
+                            });
                     };
 
-                    db.collection('clients').add(clientData)
-                        .then(docRef => {
-                            clients.push({ id: docRef.id, ...clientData });
-                            showSuccess('Cliente criado com sucesso!');
-                            // Reabrir a ficha com o novo cliente selecionado
-                            abrirModalNovaFicha();
-                        })
-                        .catch(error => {
-                            showError('Erro ao criar cliente: ' + error.message);
-                        });
+                    if (data.fotoUrl) {
+                        criarCliente(data.fotoUrl);
+                    } else {
+                        criarCliente(null);
+                    }
                 }
             });
         }
 
         // ==========================================
-        // 17. ABRIR MODAL DE FICHA (TELA CHEIA)
+        // 17. PREVIEW DA FOTO DO NOVO CLIENTE
+        // ==========================================
+        function previewNovoClienteFoto(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const preview = document.getElementById('novoClienteFotoPreview');
+                preview.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;">`;
+                
+                // Upload para Cloudinary
+                Swal.fire({
+                    title: 'Enviando foto...',
+                    allowOutsideClick: false,
+                    didOpen: () => { Swal.showLoading(); }
+                });
+
+                uploadImageToCloudinary(file)
+                    .then(url => {
+                        window.fotoUrl = url;
+                        Swal.close();
+                        showSuccess('Foto enviada com sucesso!');
+                    })
+                    .catch(error => {
+                        Swal.close();
+                        showError('Erro ao enviar foto: ' + error.message);
+                    });
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // ==========================================
+        // 18. ABRIR MODAL DE FICHA (TELA CHEIA)
         // ==========================================
         function abrirModalFicha(fichaData) {
             const modalElement = document.getElementById('fichaModal');
@@ -2084,7 +2209,7 @@
         }
 
         // ==========================================
-        // 18. INICIALIZAR ASSINATURAS
+        // 19. INICIALIZAR ASSINATURAS
         // ==========================================
         function initSignaturePads() {
             // Assinatura do Cliente
@@ -2143,7 +2268,7 @@
         }
 
         // ==========================================
-        // 19. ASSINATURA MANUAL (FALLBACK)
+        // 20. ASSINATURA MANUAL (FALLBACK)
         // ==========================================
         function setupManualSignature(canvas, type) {
             let isDrawing = false;
@@ -2223,7 +2348,7 @@
         }
 
         // ==========================================
-        // 20. LIMPAR ASSINATURA
+        // 21. LIMPAR ASSINATURA
         // ==========================================
         function limparAssinatura(type) {
             const canvasId = type === 'client' ? 'signatureClientCanvas' : 'signatureProfessionalCanvas';
@@ -2249,7 +2374,7 @@
         }
 
         // ==========================================
-        // 21. FOTOS DA FICHA
+        // 22. FOTOS DA FICHA
         // ==========================================
         function handleFichaPhotos(event) {
             const files = event.target.files;
@@ -2327,7 +2452,7 @@
         }
 
         // ==========================================
-        // 22. SALVAR FICHA
+        // 23. SALVAR FICHA
         // ==========================================
         function salvarFicha() {
             const respostas = {};
@@ -2457,7 +2582,7 @@
         }
 
         // ==========================================
-        // 23. ADICIONAR MAIS FICHAS
+        // 24. ADICIONAR MAIS FICHAS
         // ==========================================
         function adicionarMaisFichas() {
             const tiposDisponiveis = Object.keys(FICHA_TYPES).filter(id => 
@@ -2513,7 +2638,7 @@
         }
 
         // ==========================================
-        // 24. GERAR PDF
+        // 25. GERAR PDF (MELHORADO COM DADOS DO CLIENTE)
         // ==========================================
         function gerarPDF() {
             if (!currentFichaData || !currentFichaData.id) {
@@ -2527,121 +2652,223 @@
             const margin = 40;
             let y = margin;
 
-            doc.setFontSize(18);
+            // Título
+            doc.setFontSize(20);
             doc.setTextColor(38, 25, 107);
             doc.text('FICHA DE AVALIAÇÃO', pageW / 2, y, { align: 'center' });
+            y += 25;
+
+            // Linha separadora
+            doc.setDrawColor(200, 200, 220);
+            doc.line(margin, y, pageW - margin, y);
             y += 20;
+
+            // DADOS DO CLIENTE
+            doc.setFontSize(14);
+            doc.setTextColor(38, 25, 107);
+            doc.text('DADOS DO CLIENTE', margin, y);
+            y += 18;
 
             doc.setFontSize(10);
             doc.setTextColor(50, 50, 70);
-            const info = [
-                ['Cliente:', currentFichaData.clienteNome || 'Não informado'],
-                ['Profissional:', currentFichaData.profissionalNome || 'Não informado'],
-                ['Data:', currentFichaData.data ? formatDate(currentFichaData.data) : 'Não informada']
+            
+            // Buscar dados completos do cliente
+            let clienteData = null;
+            if (currentFichaData.clienteId) {
+                const cliente = clients.find(c => c.id === currentFichaData.clienteId);
+                if (cliente) clienteData = cliente;
+            }
+
+            const clienteNome = clienteData?.name || currentFichaData.clienteNome || 'Não informado';
+            const clienteNascimento = clienteData?.nascimento || currentFichaData.clienteNascimento || '';
+            const clientePhone = clienteData?.phone || currentFichaData.clientePhone || '';
+            const clienteEmail = clienteData?.email || currentFichaData.clienteEmail || '';
+            const clientePhoto = clienteData?.photoUrl || currentFichaData.clientePhoto || '';
+
+            const infoCliente = [
+                ['Nome:', clienteNome],
+                ['Data de Nascimento:', clienteNascimento ? formatDate(clienteNascimento) : 'Não informada'],
+                ['Telefone:', clientePhone || 'Não informado'],
+                ['E-mail:', clienteEmail || 'Não informado']
             ];
-            info.forEach(([label, value]) => {
+            
+            // Se tiver foto, adicionar no canto direito
+            if (clientePhoto) {
+                try {
+                    doc.addImage(clientePhoto, 'JPEG', pageW - margin - 60, y - 10, 50, 50);
+                } catch(e) {}
+            }
+
+            infoCliente.forEach(([label, value]) => {
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'bold');
                 doc.text(label, margin, y);
-                doc.text(value, margin + 120, y);
+                doc.setFont('helvetica', 'normal');
+                doc.text(value, margin + 80, y);
                 y += 16;
             });
 
-            y += 10;
-            doc.line(margin, y, pageW - margin, y);
+            // Informações da ficha
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Profissional:', margin, y);
+            doc.setFont('helvetica', 'normal');
+            doc.text(currentFichaData.profissionalNome || 'Não informado', margin + 80, y);
             y += 16;
 
+            doc.setFont('helvetica', 'bold');
+            doc.text('Data da Avaliação:', margin, y);
+            doc.setFont('helvetica', 'normal');
+            doc.text(currentFichaData.data ? formatDate(currentFichaData.data) : 'Não informada', margin + 80, y);
+            y += 16;
+
+            y += 10;
+            doc.line(margin, y, pageW - margin, y);
+            y += 20;
+
+            // AVALIAÇÕES
             const tipos = currentFichaData.tipos || [];
             tipos.forEach(tipoId => {
                 const tipo = FICHA_TYPES[tipoId];
                 if (!tipo) return;
 
-                if (y > 700) {
+                // Verificar se precisa de nova página
+                if (y > 650) {
                     doc.addPage();
                     y = margin + 20;
                 }
 
-                doc.setFontSize(12);
+                doc.setFontSize(13);
                 doc.setTextColor(tipo.cor || '#26196b');
+                doc.setFont('helvetica', 'bold');
                 doc.text(`📋 ${tipo.nome}`, margin, y);
-                y += 14;
+                y += 16;
+                doc.setFont('helvetica', 'normal');
 
                 doc.setFontSize(9);
                 doc.setTextColor(50, 50, 70);
                 tipo.perguntas.forEach(p => {
                     const resposta = currentFichaData.respostas ? currentFichaData.respostas[p.id] || '-' : '-';
-                    doc.text(`${p.label}: ${resposta}`, margin + 10, y);
+                    doc.text(`${p.label}:`, margin + 10, y);
+                    doc.text(resposta, margin + 120, y);
                     y += 14;
                 });
 
                 y += 8;
+                doc.setDrawColor(220, 220, 235);
                 doc.line(margin, y, pageW - margin, y);
-                y += 12;
+                y += 14;
             });
 
+            // FOTOS
             if (currentFichaData.fotos && currentFichaData.fotos.length > 0) {
                 doc.addPage();
                 y = margin + 20;
                 doc.setFontSize(14);
                 doc.setTextColor(38, 25, 107);
-                doc.text('FOTOS', pageW / 2, y, { align: 'center' });
+                doc.setFont('helvetica', 'bold');
+                doc.text('REGISTRO FOTOGRÁFICO', pageW / 2, y, { align: 'center' });
                 y += 20;
+                doc.setFont('helvetica', 'normal');
 
                 const fotos = currentFichaData.fotos;
-                for (let i = 0; i < fotos.length && i < 4; i++) {
-                    try {
-                        const imgData = fotos[i].url;
-                        const imgWidth = 120;
-                        const imgHeight = 120;
-                        const x = margin + (i % 2) * (imgWidth + 20);
-                        const yPos = y + Math.floor(i / 2) * (imgHeight + 20);
-                        doc.addImage(imgData, 'JPEG', x, yPos, imgWidth, imgHeight);
-                    } catch(e) {}
+                const maxPerRow = 2;
+                const imgWidth = 160;
+                const imgHeight = 160;
+                const spacing = 20;
+
+                for (let i = 0; i < Math.min(fotos.length, 8); i++) {
+                    const row = Math.floor(i / maxPerRow);
+                    const col = i % maxPerRow;
+                    const x = margin + col * (imgWidth + spacing);
+                    const yPos = y + row * (imgHeight + spacing);
+                    
+                    if (yPos + imgHeight > doc.internal.pageSize.getHeight() - margin) {
+                        doc.addPage();
+                        y = margin + 20;
+                        const newRow = 0;
+                        const newCol = i % maxPerRow;
+                        const newX = margin + newCol * (imgWidth + spacing);
+                        const newY = y + newRow * (imgHeight + spacing);
+                        try {
+                            doc.addImage(fotos[i].url, 'JPEG', newX, newY, imgWidth, imgHeight);
+                        } catch(e) {}
+                    } else {
+                        try {
+                            doc.addImage(fotos[i].url, 'JPEG', x, yPos, imgWidth, imgHeight);
+                        } catch(e) {}
+                    }
                 }
             }
 
+            // ASSINATURAS
             doc.addPage();
             y = margin + 20;
             doc.setFontSize(14);
             doc.setTextColor(38, 25, 107);
+            doc.setFont('helvetica', 'bold');
             doc.text('ASSINATURAS', pageW / 2, y, { align: 'center' });
-            y += 20;
+            y += 25;
+            doc.setFont('helvetica', 'normal');
 
+            // Assinatura do Cliente
+            doc.setFontSize(10);
+            doc.setTextColor(50, 50, 70);
+            doc.text('Assinatura do Cliente:', margin, y);
+            y += 16;
             if (currentFichaData.assinaturaCliente) {
-                doc.setFontSize(10);
-                doc.text('Cliente:', margin, y);
-                y += 16;
                 try {
-                    doc.addImage(currentFichaData.assinaturaCliente, 'PNG', margin, y, 150, 40);
-                    y += 50;
+                    doc.addImage(currentFichaData.assinaturaCliente, 'PNG', margin, y, 200, 50);
+                    y += 60;
                 } catch(e) {
-                    doc.text('[Assinatura digital]', margin, y);
+                    doc.text('[Assinatura digital capturada]', margin, y);
                     y += 16;
                 }
+            } else {
+                doc.text('________________________________________', margin, y);
+                y += 16;
             }
 
+            // Assinatura do Profissional
+            doc.setFontSize(10);
+            doc.text('Assinatura do Profissional:', margin, y);
+            y += 16;
             if (currentFichaData.assinaturaProfissional) {
-                doc.setFontSize(10);
-                doc.text('Profissional:', margin, y);
-                y += 16;
                 try {
-                    doc.addImage(currentFichaData.assinaturaProfissional, 'PNG', margin, y, 150, 40);
-                    y += 50;
+                    doc.addImage(currentFichaData.assinaturaProfissional, 'PNG', margin, y, 200, 50);
+                    y += 60;
                 } catch(e) {
-                    doc.text('[Assinatura digital]', margin, y);
+                    doc.text('[Assinatura digital capturada]', margin, y);
                     y += 16;
                 }
+            } else {
+                doc.text('________________________________________', margin, y);
+                y += 16;
             }
 
+            // RGPD
+            y += 10;
+            doc.setFontSize(9);
+            doc.setTextColor(100, 100, 130);
+            const rgpdText = currentFichaData.consentimentoRGPD ? 
+                '☑ Consentimento RGPD: Aceito' : 
+                '☐ Consentimento RGPD: Não aceito';
+            doc.text(rgpdText, margin, y);
+            y += 16;
+
+            // Rodapé
+            y = doc.internal.pageSize.getHeight() - 30;
             doc.setFontSize(8);
             doc.setTextColor(150, 150, 170);
             const rodape = `Documento gerado por Studio DeVitto em ${new Date().toLocaleDateString('pt-PT')} às ${new Date().toLocaleTimeString('pt-PT')}`;
-            doc.text(rodape, pageW / 2, doc.internal.pageSize.getHeight() - 20, { align: 'center' });
+            doc.text(rodape, pageW / 2, y, { align: 'center' });
 
-            doc.save(`Ficha_${currentFichaData.clienteNome || 'Cliente'}_${new Date().toISOString().slice(0,10)}.pdf`);
+            doc.save(`Ficha_${clienteNome.replace(/\s/g, '_')}_${new Date().toISOString().slice(0,10)}.pdf`);
             showSuccess('PDF gerado com sucesso!');
         }
 
         // ==========================================
-        // 25. COMPARTILHAR
+        // 26. COMPARTILHAR
         // ==========================================
         function compartilhar() {
             if (!currentFichaData || !currentFichaData.id) {
@@ -2654,18 +2881,33 @@
             const data = currentFichaData.data ? formatDate(currentFichaData.data) : 'Data não informada';
             const tipos = (currentFichaData.tipos || []).map(id => FICHA_TYPES[id]?.nome || id).join(', ');
 
-            const texto = `📋 Ficha de Avaliação\n\n` +
-                `👤 Cliente: ${cliente}\n` +
+            // Buscar dados do cliente
+            let clienteData = null;
+            if (currentFichaData.clienteId) {
+                const cliente = clients.find(c => c.id === currentFichaData.clienteId);
+                if (cliente) clienteData = cliente;
+            }
+
+            const clienteNome = clienteData?.name || currentFichaData.clienteNome || 'Cliente';
+            const clienteNascimento = clienteData?.nascimento || currentFichaData.clienteNascimento || '';
+            const clientePhone = clienteData?.phone || currentFichaData.clientePhone || '';
+            const clienteEmail = clienteData?.email || currentFichaData.clienteEmail || '';
+
+            const texto = `📋 FICHA DE AVALIAÇÃO\n\n` +
+                `👤 Cliente: ${clienteNome}\n` +
+                `${clienteNascimento ? `📅 Nascimento: ${formatDate(clienteNascimento)}\n` : ''}` +
+                `${clientePhone ? `📱 Telefone: ${clientePhone}\n` : ''}` +
+                `${clienteEmail ? `✉️ E-mail: ${clienteEmail}\n` : ''}` +
                 `👩‍⚕️ Profissional: ${profissional}\n` +
                 `📅 Data: ${data}\n` +
                 `📂 Fichas: ${tipos}\n\n` +
                 `---\n` +
                 `Gerado por Studio DeVitto\n` +
-                `${new Date().toLocaleDateString('pt-PT')}`;
+                `${new Date().toLocaleDateString('pt-PT')} às ${new Date().toLocaleTimeString('pt-PT')}`;
 
             if (navigator.share) {
                 navigator.share({
-                    title: `Ficha - ${cliente}`,
+                    title: `Ficha - ${clienteNome}`,
                     text: texto,
                 }).catch(() => {});
             } else {
@@ -2686,7 +2928,7 @@
         }
 
         // ==========================================
-        // 26. FICHAS CADASTRADAS
+        // 27. FICHAS CADASTRADAS
         // ==========================================
         function abrirFichasCadastradas() {
             const modalElement = document.getElementById('fichasCadastradasModal');
@@ -2763,7 +3005,7 @@
         }
 
         // ==========================================
-        // 27. ABRIR FICHA EXISTENTE
+        // 28. ABRIR FICHA EXISTENTE
         // ==========================================
         function abrirFichaExistente(fichaId) {
             const ficha = fichasCadastradas.find(f => f.id === fichaId);
@@ -2781,7 +3023,7 @@
         }
 
         // ==========================================
-        // 28. FUNÇÕES AUXILIARES
+        // 29. FUNÇÕES AUXILIARES
         // ==========================================
         function formatDate(date) {
             if (!date) return '';
@@ -2882,7 +3124,7 @@
         }
 
         // ==========================================
-        // 29. EXPOR FUNÇÕES GLOBAIS
+        // 30. EXPOR FUNÇÕES GLOBAIS
         // ==========================================
         window.goHome = goHome;
         window.refreshFichas = refreshFichas;
@@ -2892,10 +3134,11 @@
         window.toggleCardSelect = toggleCardSelect;
         window.handleSearchClient = handleSearchClient;
         window.clearSearchClient = clearSearchClient;
-        window.selecionarClienteFicha = selecionarClienteFicha;
-        window.filtrarClientesSwal = filtrarClientesSwal;
-        window.filtrarClientesSwal2 = filtrarClientesSwal2;
+        window.selecionarClienteDropdown = selecionarClienteDropdown;
+        window.filtrarClientesDropdown = filtrarClientesDropdown;
+        window.filtrarClientesDropdown2 = filtrarClientesDropdown2;
         window.abrirModalNovoCliente = abrirModalNovoCliente;
+        window.previewNovoClienteFoto = previewNovoClienteFoto;
         window.salvarFicha = salvarFicha;
         window.gerarPDF = gerarPDF;
         window.compartilhar = compartilhar;
@@ -2907,7 +3150,7 @@
         window.filtrarFichasCadastradas = filtrarFichasCadastradas;
 
         // ==========================================
-        // 30. RECEBER CONFIGURAÇÕES
+        // 31. RECEBER CONFIGURAÇÕES
         // ==========================================
         window.addEventListener('message', function(event) {
             if (event.data && event.data.type === 'configUpdated') {
@@ -2918,19 +3161,19 @@
         window.parent.postMessage({ type: 'getConfig' }, '*');
 
         // ==========================================
-        // 31. LOG DE INICIALIZAÇÃO
+        // 32. LOG DE INICIALIZAÇÃO
         // ==========================================
         console.log('✅ Fichas carregadas com sucesso!');
         console.log('📌 Funcionalidades:');
         console.log('   - 8 tipos de fichas (Rosto, Costas, Corporal, Pernas, Pós-Operatório, Pestanas, Unhas, Cabelo)');
         console.log('   - Seleção múltipla de fichas');
-        console.log('   - Busca de clientes com foto (campo digitável)');
-        console.log('   - Criação de novos clientes');
+        console.log('   - Busca de clientes com dropdown dinâmico');
+        console.log('   - Criação de novos clientes com foto e data de nascimento');
         console.log('   - Fichas cadastradas com busca');
         console.log('   - Assinatura digital (cliente + profissional)');
         console.log('   - Consentimento RGPD');
         console.log('   - Upload de fotos');
-        console.log('   - Geração de PDF');
+        console.log('   - Geração de PDF com dados completos do cliente');
         console.log('   - Compartilhamento');
         console.log('   - Tela cheia em mobile');
         console.log('   - Responsivo desktop/mobile');
