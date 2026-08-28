@@ -2663,7 +2663,7 @@
         }
 
         // ============================================
-        // GERAR PDF - CORRIGIDO (SEM SOBREPOSIÇÃO)
+        // GERAR PDF - ALINHAMENTO CORRETO (SEM SOBREPOSIÇÃO)
         // ============================================
         function gerarPDF() {
             if (!currentFichaData || !currentFichaData.id) {
@@ -2726,52 +2726,36 @@
             doc.setTextColor(50, 50, 70);
             doc.setFont('helvetica', 'normal');
 
-            // Definir largura da coluna do label
-            const labelWidth = 80;
-            const valueX = margin + labelWidth + 10;
+            // Função para escrever label e valor na mesma linha
+            function escreverLinha(label, valor, yPos) {
+                doc.setFont('helvetica', 'bold');
+                doc.text(label + ':', margin, yPos);
+                const labelWidth = doc.getStringUnitWidth(label + ': ') * 10 / 1.5;
+                const valorX = margin + labelWidth + 4;
+                doc.setFont('helvetica', 'normal');
+                doc.text(valor, valorX, yPos);
+                return yPos + 16;
+            }
 
             // Nome
-            doc.setFont('helvetica', 'bold');
-            doc.text('Nome:', margin, y);
-            doc.setFont('helvetica', 'normal');
-            doc.text(clienteNome, valueX, y);
-            y += 16;
-
+            y = escreverLinha('Nome', clienteNome, y);
+            
             // Data de Nascimento
-            doc.setFont('helvetica', 'bold');
-            doc.text('Data de Nascimento:', margin, y);
-            doc.setFont('helvetica', 'normal');
-            doc.text(clienteNascimento ? formatDate(clienteNascimento) : 'Não informada', valueX, y);
-            y += 16;
-
+            y = escreverLinha('Data de Nascimento', clienteNascimento ? formatDate(clienteNascimento) : 'Não informada', y);
+            
             // Telefone
-            doc.setFont('helvetica', 'bold');
-            doc.text('Telefone:', margin, y);
-            doc.setFont('helvetica', 'normal');
-            doc.text(clientePhone || 'Não informado', valueX, y);
-            y += 16;
-
+            y = escreverLinha('Telefone', clientePhone || 'Não informado', y);
+            
             // E-mail
-            doc.setFont('helvetica', 'bold');
-            doc.text('E-mail:', margin, y);
-            doc.setFont('helvetica', 'normal');
-            doc.text(clienteEmail || 'Não informado', valueX, y);
-            y += 16;
-
+            y = escreverLinha('E-mail', clienteEmail || 'Não informado', y);
+            
             // Profissional
-            doc.setFont('helvetica', 'bold');
-            doc.text('Profissional:', margin, y);
-            doc.setFont('helvetica', 'normal');
-            doc.text(currentFichaData.profissionalNome || 'Não informado', valueX, y);
-            y += 16;
-
+            y = escreverLinha('Profissional', currentFichaData.profissionalNome || 'Não informado', y);
+            
             // Data da Avaliação
-            doc.setFont('helvetica', 'bold');
-            doc.text('Data da Avaliação:', margin, y);
-            doc.setFont('helvetica', 'normal');
-            doc.text(currentFichaData.data ? formatDate(currentFichaData.data) : 'Não informada', valueX, y);
-            y += 18;
+            y = escreverLinha('Data da Avaliação', currentFichaData.data ? formatDate(currentFichaData.data) : 'Não informada', y);
 
+            y += 4;
             doc.setDrawColor(200, 200, 220);
             doc.setLineWidth(0.5);
             doc.line(margin, y, pageW - margin, y);
@@ -2808,29 +2792,24 @@
                 doc.setTextColor(50, 50, 70);
                 doc.setFont('helvetica', 'normal');
 
-                const perguntaLabelWidth = 100;
-                const perguntaValueX = margin + perguntaLabelWidth + 15;
+                // Função para escrever pergunta e resposta na mesma linha
+                function escreverPergunta(pergunta, resposta, yPos) {
+                    doc.setFont('helvetica', 'bold');
+                    doc.text(pergunta + ':', margin + 8, yPos);
+                    const perguntaWidth = doc.getStringUnitWidth(pergunta + ': ') * 9.5 / 1.5;
+                    const respostaX = margin + 8 + perguntaWidth + 4;
+                    doc.setFont('helvetica', 'normal');
+                    
+                    // Verificar se a resposta cabe na mesma linha
+                    const maxWidth = pageW - respostaX - margin - 10;
+                    const respostaLines = doc.splitTextToSize(resposta, maxWidth);
+                    doc.text(respostaLines, respostaX, yPos);
+                    return yPos + 12 * Math.max(1, respostaLines.length);
+                }
 
                 tipo.perguntas.forEach(p => {
                     let resposta = currentFichaData.respostas ? currentFichaData.respostas[p.id] || '-' : '-';
-                    
-                    // Verificar se a resposta é muito longa e precisa de quebra
-                    const labelText = `${p.label}:`;
-                    
-                    doc.setFont('helvetica', 'bold');
-                    doc.text(labelText, margin + 8, y);
-                    
-                    doc.setFont('helvetica', 'normal');
-                    
-                    // Calcular espaço disponível para a resposta
-                    const maxWidth = pageW - perguntaValueX - margin - 20;
-                    const respostaLines = doc.splitTextToSize(resposta, maxWidth);
-                    
-                    // Desenhar a resposta
-                    doc.text(respostaLines, perguntaValueX, y);
-                    
-                    // Avançar y baseado no número de linhas
-                    y += 12 * Math.max(1, respostaLines.length);
+                    y = escreverPergunta(p.label, resposta, y);
                 });
 
                 y += 8;
@@ -3275,7 +3254,7 @@
         console.log('   - Assinatura digital (cliente + profissional)');
         console.log('   - Consentimento RGPD');
         console.log('   - Upload de fotos');
-        console.log('   - Geração de PDF com dados completos e alinhamento corrigido');
+        console.log('   - Geração de PDF com alinhamento correto (label: valor)');
         console.log('   - Cuidados pós-depilação a laser na assinatura');
         console.log('   - Checkbox para seleção múltipla de áreas na depilação');
 
