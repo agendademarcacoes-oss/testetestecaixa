@@ -2174,7 +2174,6 @@
 
             document.getElementById('fichaModalBody').innerHTML = html;
 
-            // Event listener para checkboxes da depilação
             document.querySelectorAll('.checkbox-group input[type="checkbox"]').forEach(cb => {
                 cb.addEventListener('change', function() {
                     const hidden = this.closest('.question-group').querySelector('.checkbox-hidden');
@@ -2198,7 +2197,6 @@
                     if (input) {
                         input.value = fichaData.respostas[key] || '';
                     }
-                    // Para checkboxes
                     const checkboxes = document.querySelectorAll(`.checkbox-group input[data-pergunta="${key}"]`);
                     if (checkboxes.length > 0) {
                         const values = fichaData.respostas[key] ? fichaData.respostas[key].split(',').map(s => s.trim()) : [];
@@ -2472,17 +2470,14 @@
         function salvarFicha() {
             const respostas = {};
             
-            // Campos normais (select, text, textarea, number, date)
             document.querySelectorAll('[data-pergunta]:not(.checkbox-hidden)').forEach(el => {
                 const perguntaId = el.getAttribute('data-pergunta');
                 if (el.type === 'checkbox') {
-                    // Ignorar checkboxes individuais, serão coletados pelo hidden
                     return;
                 }
                 respostas[perguntaId] = el.value || '';
             });
 
-            // Campos hidden dos checkboxes
             document.querySelectorAll('.checkbox-hidden').forEach(el => {
                 const perguntaId = el.getAttribute('data-pergunta');
                 respostas[perguntaId] = el.value || '';
@@ -2532,7 +2527,6 @@
                     if (label) missingFields.push(label);
                 }
             });
-            // Verificar checkboxes obrigatórios
             document.querySelectorAll('.checkbox-hidden[required]').forEach(el => {
                 if (!el.value || el.value.trim() === '') {
                     const label = el.closest('.question-group')?.querySelector('.question-label')?.textContent?.trim();
@@ -2669,7 +2663,7 @@
         }
 
         // ============================================
-        // GERAR PDF - NOVO COMPLETAMENTE FUNCIONAL
+        // GERAR PDF - CORRIGIDO (SEM SOBREPOSIÇÃO)
         // ============================================
         function gerarPDF() {
             if (!currentFichaData || !currentFichaData.id) {
@@ -2732,31 +2726,50 @@
             doc.setTextColor(50, 50, 70);
             doc.setFont('helvetica', 'normal');
 
-            const infoCliente = [
-                ['Nome:', clienteNome],
-                ['Data de Nascimento:', clienteNascimento ? formatDate(clienteNascimento) : 'Não informada'],
-                ['Telefone:', clientePhone || 'Não informado'],
-                ['E-mail:', clienteEmail || 'Não informado']
-            ];
+            // Definir largura da coluna do label
+            const labelWidth = 80;
+            const valueX = margin + labelWidth + 10;
 
-            infoCliente.forEach(([label, value]) => {
-                doc.setFont('helvetica', 'bold');
-                doc.text(label, margin, y);
-                doc.setFont('helvetica', 'normal');
-                doc.text(value, margin + 80, y);
-                y += 16;
-            });
+            // Nome
+            doc.setFont('helvetica', 'bold');
+            doc.text('Nome:', margin, y);
+            doc.setFont('helvetica', 'normal');
+            doc.text(clienteNome, valueX, y);
+            y += 16;
 
+            // Data de Nascimento
+            doc.setFont('helvetica', 'bold');
+            doc.text('Data de Nascimento:', margin, y);
+            doc.setFont('helvetica', 'normal');
+            doc.text(clienteNascimento ? formatDate(clienteNascimento) : 'Não informada', valueX, y);
+            y += 16;
+
+            // Telefone
+            doc.setFont('helvetica', 'bold');
+            doc.text('Telefone:', margin, y);
+            doc.setFont('helvetica', 'normal');
+            doc.text(clientePhone || 'Não informado', valueX, y);
+            y += 16;
+
+            // E-mail
+            doc.setFont('helvetica', 'bold');
+            doc.text('E-mail:', margin, y);
+            doc.setFont('helvetica', 'normal');
+            doc.text(clienteEmail || 'Não informado', valueX, y);
+            y += 16;
+
+            // Profissional
             doc.setFont('helvetica', 'bold');
             doc.text('Profissional:', margin, y);
             doc.setFont('helvetica', 'normal');
-            doc.text(currentFichaData.profissionalNome || 'Não informado', margin + 80, y);
+            doc.text(currentFichaData.profissionalNome || 'Não informado', valueX, y);
             y += 16;
 
+            // Data da Avaliação
             doc.setFont('helvetica', 'bold');
             doc.text('Data da Avaliação:', margin, y);
             doc.setFont('helvetica', 'normal');
-            doc.text(currentFichaData.data ? formatDate(currentFichaData.data) : 'Não informada', margin + 80, y);
+            doc.text(currentFichaData.data ? formatDate(currentFichaData.data) : 'Não informada', valueX, y);
             y += 18;
 
             doc.setDrawColor(200, 200, 220);
@@ -2795,23 +2808,28 @@
                 doc.setTextColor(50, 50, 70);
                 doc.setFont('helvetica', 'normal');
 
+                const perguntaLabelWidth = 100;
+                const perguntaValueX = margin + perguntaLabelWidth + 15;
+
                 tipo.perguntas.forEach(p => {
                     let resposta = currentFichaData.respostas ? currentFichaData.respostas[p.id] || '-' : '-';
                     
-                    // Se for checkbox, mostrar os valores selecionados
-                    if (p.type === 'checkbox' && resposta && resposta !== '-') {
-                        // Já está no formato de string separada por vírgula
-                    }
+                    // Verificar se a resposta é muito longa e precisa de quebra
+                    const labelText = `${p.label}:`;
                     
                     doc.setFont('helvetica', 'bold');
-                    doc.text(`${p.label}:`, margin + 8, y);
-                    const labelWidth = doc.getStringUnitWidth(`${p.label}:`) * 9.5 / 1.5;
+                    doc.text(labelText, margin + 8, y);
                     
                     doc.setFont('helvetica', 'normal');
-                    const maxWidth = pageW - margin - 8 - labelWidth - 30;
+                    
+                    // Calcular espaço disponível para a resposta
+                    const maxWidth = pageW - perguntaValueX - margin - 20;
                     const respostaLines = doc.splitTextToSize(resposta, maxWidth);
                     
-                    doc.text(respostaLines, margin + 8 + labelWidth + 5, y);
+                    // Desenhar a resposta
+                    doc.text(respostaLines, perguntaValueX, y);
+                    
+                    // Avançar y baseado no número de linhas
                     y += 12 * Math.max(1, respostaLines.length);
                 });
 
@@ -3249,7 +3267,7 @@
 
         console.log('✅ Fichas carregadas com sucesso!');
         console.log('📌 Funcionalidades:');
-        console.log('   - 10 tipos de fichas (Rosto, Costas, Corporal, Pernas, Pós-Operatório, Pestanas, Unhas, Cabelo, Podal, Depilação)');
+        console.log('   - 10 tipos de fichas');
         console.log('   - Seleção múltipla de fichas');
         console.log('   - Busca de clientes com dropdown dinâmico');
         console.log('   - Criação de novos clientes com foto e data de nascimento');
@@ -3257,7 +3275,7 @@
         console.log('   - Assinatura digital (cliente + profissional)');
         console.log('   - Consentimento RGPD');
         console.log('   - Upload de fotos');
-        console.log('   - Geração de PDF com dados completos');
+        console.log('   - Geração de PDF com dados completos e alinhamento corrigido');
         console.log('   - Cuidados pós-depilação a laser na assinatura');
         console.log('   - Checkbox para seleção múltipla de áreas na depilação');
 
