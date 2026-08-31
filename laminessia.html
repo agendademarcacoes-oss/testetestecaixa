@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
@@ -641,6 +641,29 @@
             color: #8a84a0;
         }
 
+        .client-dropdown .client-loading {
+            padding: 18px;
+            text-align: center;
+            color: #8a84a0;
+        }
+
+        .client-dropdown .client-create-inline {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 14px;
+            border-top: 1px solid #f0edf7;
+            color: var(--primary-color);
+            font-weight: 600;
+            cursor: pointer;
+            background: #faf9fd;
+        }
+
+        .client-dropdown .client-create-inline:hover {
+            background: #f0edf7;
+        }
+
         .btn-create-client {
             display: flex;
             align-items: center;
@@ -929,13 +952,11 @@
             padding: 20px !important;
             overflow-y: auto !important;
         }
-
         .swal2-fullscreen-popup .swal2-html-container {
             height: auto !important;
             max-height: none !important;
             overflow-y: visible !important;
         }
-
         @media (max-width: 768px) {
             .swal2-fullscreen-popup { padding: 12px !important; }
         }
@@ -1541,9 +1562,7 @@
                                     <input type="text" id="swalClientSearch" class="form-control" 
                                            placeholder="Digite para buscar cliente..." 
                                            oninput="filtrarClientesSwal()" autocomplete="off">
-                                    <div class="client-dropdown show" id="swalClientDropdown">
-                                        ${clientOptionsHtml}
-                                    </div>
+                                    <div class="client-dropdown" id="swalClientDropdown"></div>
                                 </div>
                                 
                                 <div class="btn-create-client" onclick="window.abrirNovoCliente(); Swal.close();">
@@ -1576,21 +1595,11 @@
                             popup: 'swal2-fullscreen-popup'
                         },
                         didOpen: () => {
+                            renderClientesSwal('swalClientSearch', 'swalClientDropdown');
                             setTimeout(() => {
                                 const input = document.getElementById('swalClientSearch');
-                                if (input) {
-                                    input.focus();
-                                    document.getElementById('swalClientDropdown').classList.add('show');
-                                }
-                            }, 300);
-
-                            document.addEventListener('click', function(e) {
-                                const wrapper = document.querySelector('.client-search-wrapper');
-                                if (wrapper && !wrapper.contains(e.target)) {
-                                    const dropdown = document.getElementById('swalClientDropdown');
-                                    if (dropdown) dropdown.classList.remove('show');
-                                }
-                            });
+                                if (input) input.focus();
+                            }, 100);
                         },
                         preConfirm: () => {
                             const clienteSelecionado = document.querySelector('#swalClientDropdown .client-item.selected');
@@ -1702,9 +1711,7 @@
                                     <input type="text" id="swalClientSearch2" class="form-control" 
                                            placeholder="Digite para buscar cliente..." 
                                            oninput="filtrarClientesSwal2()" autocomplete="off">
-                                    <div class="client-dropdown show" id="swalClientDropdown2">
-                                        ${clientOptionsHtml}
-                                    </div>
+                                    <div class="client-dropdown" id="swalClientDropdown2"></div>
                                 </div>
                                 
                                 <div class="btn-create-client" onclick="window.abrirNovoCliente(); Swal.close();">
@@ -1734,21 +1741,11 @@
                             popup: 'swal2-fullscreen-popup'
                         },
                         didOpen: () => {
+                            renderClientesSwal('swalClientSearch2', 'swalClientDropdown2');
                             setTimeout(() => {
                                 const input = document.getElementById('swalClientSearch2');
-                                if (input) {
-                                    input.focus();
-                                    document.getElementById('swalClientDropdown2').classList.add('show');
-                                }
-                            }, 300);
-
-                            document.addEventListener('click', function(e) {
-                                const wrapper = document.querySelector('.client-search-wrapper');
-                                if (wrapper && !wrapper.contains(e.target)) {
-                                    const dropdown = document.getElementById('swalClientDropdown2');
-                                    if (dropdown) dropdown.classList.remove('show');
-                                }
-                            });
+                                if (input) input.focus();
+                            }, 100);
                         },
                         preConfirm: () => {
                             const clienteSelecionado = document.querySelector('#swalClientDropdown2 .client-item.selected');
@@ -1820,70 +1817,84 @@
         }
 
         // ============================================================
-        // FILTRAR CLIENTES SWAL
+        // FILTRO DINÂMICO DE CLIENTES
         // ============================================================
-        function filtrarClientesSwal() {
-            const searchTerm = document.getElementById('swalClientSearch').value.toLowerCase().trim();
-            const dropdown = document.getElementById('swalClientDropdown');
-            const items = dropdown.querySelectorAll('.client-item');
-            
-            let hasVisible = false;
-            items.forEach(item => {
-                const name = item.querySelector('.client-name')?.textContent?.toLowerCase() || '';
-                const contact = item.querySelector('.client-contact')?.textContent?.toLowerCase() || '';
-                
-                if (name.includes(searchTerm) || contact.includes(searchTerm) || searchTerm === '') {
-                    item.style.display = 'flex';
-                    hasVisible = true;
-                } else {
-                    item.style.display = 'none';
-                }
-            });
+        function normalizarTexto(texto) {
+            return String(texto || '')
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .trim();
+        }
+
+        function escaparHtml(texto) {
+            return String(texto || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function renderClientesSwal(inputId, dropdownId) {
+            const input = document.getElementById(inputId);
+            const dropdown = document.getElementById(dropdownId);
+            if (!input || !dropdown) return;
+
+            const searchTerm = normalizarTexto(input.value);
+            const resultados = clients
+                .filter(c => {
+                    const nome = normalizarTexto(c.name);
+                    const telefone = normalizarTexto(c.phone);
+                    const email = normalizarTexto(c.email);
+                    return !searchTerm || nome.includes(searchTerm) || telefone.includes(searchTerm) || email.includes(searchTerm);
+                })
+                .slice(0, 80);
+
+            if (resultados.length === 0) {
+                dropdown.innerHTML = `
+                    <div class="no-results">
+                        <i class="fas fa-user-slash mb-2"></i>
+                        <div>Nenhum cliente encontrado</div>
+                        ${searchTerm ? `<div class="small mt-1">Você pode criar um novo cliente abaixo.</div>` : ''}
+                    </div>
+                    <div class="client-create-inline" onclick="window.abrirNovoCliente(); Swal.close();">
+                        <i class="fas fa-user-plus"></i> Criar novo cliente
+                    </div>
+                `;
+                dropdown.classList.add('show');
+                return;
+            }
+
+            dropdown.innerHTML = resultados.map(c => {
+                const nome = escaparHtml(c.name || 'Cliente');
+                const telefone = escaparHtml(c.phone || 'Sem telefone');
+                const email = c.email ? ` | ${escaparHtml(c.email)}` : '';
+                const inicial = escaparHtml((c.name || 'C').charAt(0).toUpperCase());
+                const avatar = c.photoUrl
+                    ? `<img src="${escaparHtml(c.photoUrl)}" class="client-avatar" onerror="this.outerHTML='<div class="client-avatar">${inicial}</div>'">`
+                    : `<div class="client-avatar">${inicial}</div>`;
+                return `
+                    <div class="client-item ${selectedClientId === c.id ? 'selected' : ''}" data-client-id="${escaparHtml(c.id)}" onclick="selecionarCliente('${String(c.id).replace(/'/g, "\\'")}')">
+                        ${avatar}
+                        <div class="client-info">
+                            <div class="client-name">${nome}</div>
+                            <div class="client-contact">${telefone}${email}</div>
+                        </div>
+                        <div class="client-check"><i class="fas fa-check-circle"></i></div>
+                    </div>
+                `;
+            }).join('');
 
             dropdown.classList.add('show');
+        }
 
-            const noResults = dropdown.querySelector('.no-results');
-            if (!hasVisible && !noResults && searchTerm.length > 0) {
-                const div = document.createElement('div');
-                div.className = 'no-results';
-                div.innerHTML = 'Nenhum cliente encontrado';
-                dropdown.appendChild(div);
-            } else if (hasVisible) {
-                const noResultsEl = dropdown.querySelector('.no-results');
-                if (noResultsEl) noResultsEl.remove();
-            }
+        function filtrarClientesSwal() {
+            renderClientesSwal('swalClientSearch', 'swalClientDropdown');
         }
 
         function filtrarClientesSwal2() {
-            const searchTerm = document.getElementById('swalClientSearch2').value.toLowerCase().trim();
-            const dropdown = document.getElementById('swalClientDropdown2');
-            const items = dropdown.querySelectorAll('.client-item');
-            
-            let hasVisible = false;
-            items.forEach(item => {
-                const name = item.querySelector('.client-name')?.textContent?.toLowerCase() || '';
-                const contact = item.querySelector('.client-contact')?.textContent?.toLowerCase() || '';
-                
-                if (name.includes(searchTerm) || contact.includes(searchTerm) || searchTerm === '') {
-                    item.style.display = 'flex';
-                    hasVisible = true;
-                } else {
-                    item.style.display = 'none';
-                }
-            });
-
-            dropdown.classList.add('show');
-
-            const noResults = dropdown.querySelector('.no-results');
-            if (!hasVisible && !noResults && searchTerm.length > 0) {
-                const div = document.createElement('div');
-                div.className = 'no-results';
-                div.innerHTML = 'Nenhum cliente encontrado';
-                dropdown.appendChild(div);
-            } else if (hasVisible) {
-                const noResultsEl = dropdown.querySelector('.no-results');
-                if (noResultsEl) noResultsEl.remove();
-            }
+            renderClientesSwal('swalClientSearch2', 'swalClientDropdown2');
         }
 
         function selecionarCliente(clientId) {
@@ -1988,7 +1999,7 @@
                                 showError('Erro ao criar cliente: ' + error.message);
                             });
                     };
-                    
+
                     if (data.fotoUrl) {
                         criarCliente(data.fotoUrl);
                     } else {
@@ -2015,7 +2026,7 @@
 
                 uploadImageToCloudinary(file)
                     .then(url => {
-                        window.fotoUrl = url;
+                        fotoUrl = url;
                         Swal.close();
                         showSuccess('Foto enviada com sucesso!');
                     })
@@ -2648,62 +2659,84 @@
         // ADICIONAR MAIS ANAMNESES
         // ============================================================
         function adicionarMaisAnamneses() {
-            const tiposDisponiveis = Object.keys(ANAMNESE_TYPES).filter(id => 
-                !currentAnamnese.tipos || !currentAnamnese.tipos.includes(id)
-            );
+            if (!currentAnamnese || !currentAnamnese.id) {
+                showError('Abra uma anamnese cadastrada antes de adicionar outra ficha.');
+                return;
+            }
+
+            const tiposAtuais = Array.isArray(currentAnamnese.tipos) ? currentAnamnese.tipos : [];
+            const tiposDisponiveis = Object.keys(ANAMNESE_TYPES).filter(id => !tiposAtuais.includes(id));
 
             if (tiposDisponiveis.length === 0) {
-                showError('Todas as anamneses já foram adicionadas.');
+                showError('Todas as anamneses já foram adicionadas a esta ficha.');
                 return;
             }
 
             Swal.fire({
-                title: 'Adicionar Anamneses',
+                title: 'Adicionar mais anamneses',
                 html: `
                     <div class="text-start">
-                        <p>Selecione as anamneses para adicionar:</p>
-                        ${tiposDisponiveis.map(id => {
-                            const tipo = ANAMNESE_TYPES[id];
-                            return `
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="add_${id}" value="${id}">
-                                    <label class="form-check-label" for="add_${id}">
-                                        <i class="fas ${tipo.icone} me-1"></i> ${tipo.nome}
+                        <p class="mb-3">Escolha uma ou mais fichas para anexar à anamnese já cadastrada:</p>
+                        <div style="max-height:55vh;overflow-y:auto;">
+                            ${tiposDisponiveis.map(id => {
+                                const tipo = ANAMNESE_TYPES[id];
+                                return `
+                                    <label class="form-check d-flex align-items-center gap-2 p-2 mb-1" style="cursor:pointer;border:1px solid #eee;border-radius:10px;">
+                                        <input class="form-check-input m-0" type="checkbox" name="tiposAdicionar" value="${id}">
+                                        <i class="fas ${tipo.icone}" style="color:${tipo.cor || '#26196b'};width:22px;text-align:center;"></i>
+                                        <span>${escaparHtml(tipo.nome)}</span>
                                     </label>
-                                </div>
-                            `;
-                        }).join('')}
+                                `;
+                            }).join('')}
+                        </div>
                     </div>
                 `,
                 showCancelButton: true,
-                confirmButtonText: 'Adicionar',
+                confirmButtonText: 'Adicionar fichas',
                 cancelButtonText: 'Cancelar',
+                width: 620,
                 preConfirm: () => {
-                    const selected = [];
-                    document.querySelectorAll('#modalBody input[type="checkbox"]:checked').forEach(cb => {
-                        if (cb.id && cb.id.startsWith('add_')) {
-                            selected.push(cb.value);
-                        }
-                    });
+                    const selected = Array.from(document.querySelectorAll('input[name="tiposAdicionar"]:checked')).map(cb => cb.value);
+                    if (!selected.length) {
+                        Swal.showValidationMessage('Selecione pelo menos uma ficha.');
+                        return null;
+                    }
                     return selected;
                 }
             }).then(result => {
-                if (result.isConfirmed && result.value.length > 0) {
-                    if (!currentAnamnese.tipos) currentAnamnese.tipos = [];
-                    currentAnamnese.tipos.push(...result.value);
-                    
+                if (!result.isConfirmed || !result.value) return;
+
+                const novosTipos = [...new Set([...tiposAtuais, ...result.value])];
+
+                Swal.fire({
+                    title: 'Salvando...',
+                    allowOutsideClick: false,
+                    didOpen: () => Swal.showLoading()
+                });
+
+                db.collection('anamneses').doc(currentAnamnese.id).update({
+                    tipos: novosTipos,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                }).then(() => {
+                    currentAnamnese.tipos = novosTipos;
+                    const idx = anamneses.findIndex(a => a.id === currentAnamnese.id);
+                    if (idx !== -1) anamneses[idx].tipos = novosTipos;
+                    Swal.close();
                     anamneseModalInstance.hide();
-                    setTimeout(() => {
-                        abrirModalAnamnese(currentAnamnese);
-                    }, 300);
-                }
+                    setTimeout(() => abrirModalAnamnese(currentAnamnese), 250);
+                    showSuccess('Novas fichas adicionadas à anamnese.');
+                }).catch(error => {
+                    Swal.close();
+                    console.error('Erro ao adicionar anamneses:', error);
+                    showError('Erro ao adicionar fichas: ' + error.message);
+                });
             });
         }
 
         // ============================================================
         // GERAR PDF - COMPLETO E ALINHADO (SEM SOBREPOSIÇÃO)
         // ============================================================
-        function gerarPDF() {
+        function criarPDFDocumento() {
             if (!currentAnamnese || !currentAnamnese.id) {
                 showError('Salve a anamnese antes de gerar o PDF.');
                 return;
@@ -2770,8 +2803,7 @@
                 const labelText = label + ':';
                 doc.text(labelText, margin, yPos);
                 
-                // Calcular largura REAL do label para posicionar o valor
-                // CORREÇÃO: getTextWidth() usa a fonte/tamanho atuais do jsPDF
+                // Calcular largura do label para posicionar o valor
                 const labelWidth = doc.getTextWidth(labelText);
                 const valorX = margin + labelWidth + 4;
                 
@@ -2780,7 +2812,7 @@
                 
                 // Quebrar texto se necessário
                 const maxWidth = pageW - valorX - margin - 20;
-                const lines = doc.splitTextToSize(String(valor || ''), maxWidth);
+                const lines = doc.splitTextToSize(valor, maxWidth);
                 doc.text(lines, valorX, yPos);
                 
                 return yPos + 14 * Math.max(1, lines.length);
@@ -2831,29 +2863,42 @@
 
                 // FUNÇÃO PARA ESCREVER PERGUNTA: RESPOSTA NA MESMA LINHA
                 function escreverPergunta(pergunta, resposta, yPos) {
-                    // Pergunta em negrito
-                    doc.setFont('helvetica', 'bold');
                     const perguntaText = pergunta + ':';
-                    doc.text(perguntaText, margin + 8, yPos);
-                    
-                    // Calcular largura REAL da pergunta
-                    // CORREÇÃO: getTextWidth() evita que a resposta fique sobre a pergunta
+                    const perguntaX = margin + 8;
+                    const maxLineWidth = pageW - margin * 2 - 16;
+
+                    doc.setFont('helvetica', 'bold');
                     const perguntaWidth = doc.getTextWidth(perguntaText);
-                    const respostaX = margin + 8 + perguntaWidth + 4;
-                    
-                    // Resposta em normal
+                    const respostaX = perguntaX + perguntaWidth + 5;
+
+                    // Se a pergunta ocupar quase toda a linha, a resposta começa na linha seguinte.
+                    if (respostaX > pageW - margin - 90) {
+                        const perguntaLines = doc.splitTextToSize(perguntaText, maxLineWidth);
+                        doc.text(perguntaLines, perguntaX, yPos);
+                        yPos += 12 * perguntaLines.length;
+                        doc.setFont('helvetica', 'normal');
+                        const respostaLines = doc.splitTextToSize(String(resposta || '-'), maxLineWidth);
+                        doc.text(respostaLines, perguntaX, yPos);
+                        return yPos + 12 * Math.max(1, respostaLines.length) + 2;
+                    }
+
+                    doc.text(perguntaText, perguntaX, yPos);
                     doc.setFont('helvetica', 'normal');
-                    
-                    // Quebrar texto se necessário
-                    const maxWidth = pageW - respostaX - margin - 10;
+                    const maxWidth = Math.max(80, pageW - respostaX - margin - 10);
                     const respostaLines = doc.splitTextToSize(String(resposta || '-'), maxWidth);
                     doc.text(respostaLines, respostaX, yPos);
-                    
                     return yPos + 12 * Math.max(1, respostaLines.length);
                 }
 
                 tipo.perguntas.forEach(p => {
                     let resposta = currentAnamnese.respostas ? currentAnamnese.respostas[p.id] || '-' : '-';
+                    if (Array.isArray(resposta)) resposta = resposta.join(', ');
+                    resposta = String(resposta);
+
+                    if (y > pageH - margin - 45) {
+                        doc.addPage();
+                        y = margin + 20;
+                    }
                     y = escreverPergunta(p.label, resposta, y);
                 });
 
@@ -3013,56 +3058,64 @@
             doc.text(rodape, pageW / 2, y, { align: 'center' });
 
             const nomeCliente = clienteNome.replace(/\s/g, '_').substring(0, 30);
+            return doc;
+        }
+
+        function gerarPDF() {
+            if (!currentAnamnese || !currentAnamnese.id) {
+                showError('Salve a anamnese antes de gerar o PDF.');
+                return;
+            }
+
+            const doc = criarPDFDocumento();
+            const clienteData = currentAnamnese.clienteId ? clients.find(c => c.id === currentAnamnese.clienteId) : null;
+            const clienteNome = clienteData?.name || currentAnamnese.clienteNome || 'Não informado';
+            const nomeCliente = clienteNome.replace(/[^a-zA-Z0-9À-ÿ _-]/g, '').replace(/\s+/g, '_').substring(0, 30) || 'Cliente';
             doc.save(`Anamnese_${nomeCliente}_${new Date().toISOString().slice(0,10)}.pdf`);
             showSuccess('PDF gerado com sucesso!');
         }
 
         // ============================================================
-        // COMPARTILHAR
+        // COMPARTILHAR PDF
         // ============================================================
-        function compartilhar() {
+        async function compartilhar() {
             if (!currentAnamnese || !currentAnamnese.id) {
                 showError('Salve antes de compartilhar.');
                 return;
             }
 
-            let clienteData = null;
-            if (currentAnamnese.clienteId) {
-                const cliente = clients.find(c => c.id === currentAnamnese.clienteId);
-                if (cliente) clienteData = cliente;
-            }
+            try {
+                const pdfData = criarPDFDocumento();
+                const clienteData = currentAnamnese.clienteId ? clients.find(c => c.id === currentAnamnese.clienteId) : null;
+                const clienteNome = clienteData?.name || currentAnamnese.clienteNome || 'Cliente';
+                const nomeSeguro = clienteNome.replace(/[^a-zA-Z0-9À-ÿ _-]/g, '').replace(/\s+/g, '_').substring(0, 50) || 'Cliente';
+                const filename = `Anamnese_${nomeSeguro}_${new Date().toISOString().slice(0,10)}.pdf`;
+                const blob = pdfData.output('blob');
+                const file = new File([blob], filename, { type: 'application/pdf' });
 
-            const clienteNome = clienteData?.name || currentAnamnese.clienteNome || 'Cliente';
-            const clienteNascimento = clienteData?.nascimento || currentAnamnese.clienteNascimento || '';
-            const clientePhone = clienteData?.phone || currentAnamnese.clientePhone || '';
-            const clienteEmail = clienteData?.email || currentAnamnese.clienteEmail || '';
-            const profissional = currentAnamnese.profissionalNome || 'Profissional';
-            const data = currentAnamnese.data ? formatDate(currentAnamnese.data) : 'Data não informada';
-            const tipos = (currentAnamnese.tipos || []).map(id => ANAMNESE_TYPES[id]?.nome || id).join(', ');
+                const texto = `Anamnese - ${clienteNome}`;
 
-            const texto = `📋 ANAMNESE\n\n` +
-                `👤 Cliente: ${clienteNome}\n` +
-                `${clienteNascimento ? `📅 Nascimento: ${formatDate(clienteNascimento)}\n` : ''}` +
-                `${clientePhone ? `📱 Telefone: ${clientePhone}\n` : ''}` +
-                `${clienteEmail ? `✉️ E-mail: ${clienteEmail}\n` : ''}` +
-                `👩‍⚕️ Profissional: ${profissional}\n` +
-                `📅 Data: ${data}\n` +
-                `📂 Anamneses: ${tipos}\n\n` +
-                `---\n` +
-                `Studio DeVitto\n` +
-                `${new Date().toLocaleDateString('pt-PT')} às ${new Date().toLocaleTimeString('pt-PT')}`;
+                if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({
+                        title: texto,
+                        text: 'Segue a anamnese em PDF.',
+                        files: [file]
+                    });
+                    return;
+                }
 
-            if (navigator.share) {
-                navigator.share({
-                    title: 'Anamnese - Studio DeVitto',
-                    text: texto
-                }).catch(error => {
-                    console.log('Compartilhamento cancelado:', error);
-                });
-            } else {
-                navigator.clipboard.writeText(texto)
-                    .then(() => showSuccess('Anamnese copiada para a área de transferência!'))
-                    .catch(() => showError('Não foi possível copiar a anamnese.'));
+                // Navegadores sem compartilhamento de arquivos: baixa o PDF e tenta abrir a tela de compartilhamento.
+                pdfData.save(filename);
+
+                if (navigator.share) {
+                    await navigator.share({ title: texto, text: 'Segue a anamnese em PDF.' }).catch(() => {});
+                } else {
+                    showSuccess('PDF gerado. O navegador não permite anexar arquivos diretamente pelo compartilhamento.');
+                }
+            } catch (error) {
+                if (error && error.name === 'AbortError') return;
+                console.error('Erro ao compartilhar PDF:', error);
+                showError('Não foi possível compartilhar o PDF: ' + (error.message || 'erro desconhecido'));
             }
         }
 
@@ -3076,107 +3129,100 @@
 
         function renderizarCadastradas() {
             const container = document.getElementById('cadastradasList');
-            if (!container) return;
+            const searchTerm = document.getElementById('searchCadastrada')?.value.toLowerCase().trim() || '';
 
-            const searchTerm = document.getElementById('searchCadastrada')?.value?.toLowerCase().trim() || '';
+            let filtered = anamneses;
+            if (searchTerm) {
+                filtered = filtered.filter(a => 
+                    (a.clienteNome || '').toLowerCase().includes(searchTerm) ||
+                    (a.tipos || []).some(t => (ANAMNESE_TYPES[t]?.nome || '').toLowerCase().includes(searchTerm)) ||
+                    (a.profissionalNome || '').toLowerCase().includes(searchTerm)
+                );
+            }
 
-            let lista = anamneses.filter(a => {
-                const cliente = (a.clienteNome || '').toLowerCase();
-                const profissional = (a.profissionalNome || '').toLowerCase();
-                const tipos = (a.tipos || []).map(id => ANAMNESE_TYPES[id]?.nome || id).join(' ').toLowerCase();
-
-                return cliente.includes(searchTerm) ||
-                       profissional.includes(searchTerm) ||
-                       tipos.includes(searchTerm);
-            });
-
-            if (lista.length === 0) {
+            if (filtered.length === 0) {
                 container.innerHTML = `
                     <div class="text-center py-5">
-                        <i class="fas fa-folder-open fa-3x mb-3 opacity-25"></i>
-                        <h5 class="text-muted">Nenhuma anamnese encontrada</h5>
-                        <p class="text-muted small">As anamneses salvas aparecerão aqui.</p>
+                        <i class="fas fa-notes-medical fa-4x mb-3 opacity-25" style="color:#8a84a0;"></i>
+                        <h5 class="text-muted">Nenhuma anamnese cadastrada</h5>
+                        <p class="text-muted small">Clique em "Nova Anamnese" para começar.</p>
                     </div>
                 `;
                 return;
             }
 
-            container.innerHTML = lista.map(a => {
-                const firstTipo = a.tipos?.[0];
-                const tipoInfo = firstTipo ? ANAMNESE_TYPES[firstTipo] : null;
-                const status = a.status === 'completa' ? 'completed' : 'pending';
-                const statusText = a.status === 'completa' ? 'Completa' : 'Pendente';
-                const data = a.data ? formatDate(a.data) : 'Sem data';
+            let html = '';
+            filtered.forEach(anamnese => {
+                const tipos = (anamnese.tipos || []).map(id => ANAMNESE_TYPES[id]?.nome || id).join(', ');
+                const status = anamnese.status === 'completa' ? 'completed' : 'pending';
+                const statusLabel = anamnese.status === 'completa' ? '✅ Completa' : '⏳ Pendente';
+                const dataCriacao = anamnese.createdAt ? new Date(anamnese.createdAt).toLocaleDateString('pt-PT') : 'Data desconhecida';
 
-                return `
-                    <div class="ficha-list-item" onclick="abrirAnamneseCadastrada('${a.id}')">
-                        <div class="ficha-icon" style="background:${tipoInfo?.cor || '#26196b'};">
-                            <i class="fas ${tipoInfo?.icone || 'fa-notes-medical'}"></i>
+                const cores = ['#d63384', '#0d6efd', '#198754', '#fd7e14', '#dc3545', '#6f42c1', '#e83e8c', '#8b4513', '#20c997', '#e83e8c'];
+                const cor = cores[anamnese.tipos?.length % cores.length] || '#26196b';
+
+                html += `
+                    <div class="ficha-list-item">
+                        <div class="ficha-icon" style="background:${cor};">
+                            <i class="fas fa-notes-medical"></i>
                         </div>
-                        <div class="ficha-info">
-                            <div class="ficha-name">${a.clienteNome || 'Cliente'}</div>
+                        <div class="ficha-info" onclick="abrirAnamneseExistente('${anamnese.id}')">
+                            <div class="ficha-name">${anamnese.clienteNome || 'Cliente não informado'}</div>
                             <div class="ficha-meta">
-                                ${tipoInfo?.nome || 'Anamnese'} • ${data}
-                                ${a.profissionalNome ? ` • ${a.profissionalNome}` : ''}
+                                <i class="fas fa-user-tie me-1"></i>${anamnese.profissionalNome || 'Profissional'} |
+                                <i class="fas fa-calendar me-1"></i>${dataCriacao} |
+                                📂 ${tipos || 'Sem anamneses'}
                             </div>
                         </div>
-                        <span class="ficha-status ${status}">${statusText}</span>
+                        <span class="ficha-status ${status}">${statusLabel}</span>
                         <div class="ficha-actions">
-                            <button class="btn-icon" onclick="event.stopPropagation(); editarAnamnese('${a.id}')" title="Editar">
+                            <button class="btn-icon" onclick="event.stopPropagation(); editarAnamnese('${anamnese.id}')" title="Editar">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            <button class="btn-icon" onclick="event.stopPropagation(); excluirAnamnese('${a.id}')" title="Excluir">
-                                <i class="fas fa-trash"></i>
+                            <button class="btn-icon" onclick="event.stopPropagation(); excluirAnamnese('${anamnese.id}')" title="Excluir" style="color:#dc3545;">
+                                <i class="fas fa-trash-alt"></i>
                             </button>
                         </div>
                     </div>
                 `;
-            }).join('');
+            });
+
+            container.innerHTML = html;
         }
 
         function filtrarCadastradas() {
             renderizarCadastradas();
         }
 
-        function abrirAnamneseCadastrada(id) {
-            const anamnese = anamneses.find(a => a.id === id);
+        // ============================================================
+        // ABRIR ANAMNESE EXISTENTE
+        // ============================================================
+        function abrirAnamneseExistente(anamneseId) {
+            const anamnese = anamneses.find(a => a.id === anamneseId);
             if (!anamnese) {
                 showError('Anamnese não encontrada.');
                 return;
             }
 
-            currentAnamnese = anamnese;
+            currentAnamnese = { ...anamnese };
             isEditing = true;
             cadastradasModalInstance.hide();
-
             setTimeout(() => {
-                abrirModalAnamnese(anamnese);
+                abrirModalAnamnese(currentAnamnese);
             }, 300);
         }
 
-        function editarAnamnese(id) {
-            const anamnese = anamneses.find(a => a.id === id);
-            if (!anamnese) {
-                showError('Anamnese não encontrada.');
-                return;
-            }
-
-            currentAnamnese = anamnese;
-            isEditing = true;
-            cadastradasModalInstance.hide();
-
-            setTimeout(() => {
-                abrirModalAnamnese(anamnese);
-            }, 300);
+        function editarAnamnese(anamneseId) {
+            abrirAnamneseExistente(anamneseId);
         }
 
-        function excluirAnamnese(id) {
-            const anamnese = anamneses.find(a => a.id === id);
-            if (!anamnese) return;
-
+        // ============================================================
+        // EXCLUIR ANAMNESE
+        // ============================================================
+        function excluirAnamnese(anamneseId) {
             Swal.fire({
-                title: 'Excluir anamnese?',
-                text: `A anamnese de ${anamnese.clienteNome || 'Cliente'} será excluída permanentemente.`,
+                title: 'Confirmar exclusão',
+                text: 'Tem certeza que deseja excluir esta anamnese? Esta ação não pode ser desfeita.',
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonText: 'Sim, excluir',
@@ -3184,21 +3230,14 @@
                 confirmButtonColor: '#dc3545'
             }).then(result => {
                 if (result.isConfirmed) {
-                    Swal.fire({
-                        title: 'Excluindo...',
-                        allowOutsideClick: false,
-                        didOpen: () => Swal.showLoading()
-                    });
-
-                    db.collection('anamneses').doc(id).delete()
+                    db.collection('anamneses').doc(anamneseId).delete()
                         .then(() => {
-                            anamneses = anamneses.filter(a => a.id !== id);
-                            Swal.close();
+                            anamneses = anamneses.filter(a => a.id !== anamneseId);
                             showSuccess('Anamnese excluída com sucesso!');
                             renderizarCadastradas();
+                            carregarDados();
                         })
                         .catch(error => {
-                            Swal.close();
                             showError('Erro ao excluir: ' + error.message);
                         });
                 }
@@ -3206,169 +3245,109 @@
         }
 
         // ============================================================
-        // UPLOAD CLOUDINARY
+        // REFRESH DATA
+        // ============================================================
+        function refreshData() {
+            const btn = document.querySelector('.btn-header .fa-sync-alt')?.closest('button');
+            if (btn) {
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i><span>Carregando...</span>';
+                btn.disabled = true;
+            }
+
+            carregarDados();
+            renderizarCards();
+
+            setTimeout(() => {
+                if (btn) {
+                    btn.innerHTML = '<i class="fas fa-sync-alt"></i><span>Atualizar</span>';
+                    btn.disabled = false;
+                }
+                Swal.fire('✅ Atualizado!', 'Dados carregados com sucesso.', 'success');
+            }, 1500);
+        }
+
+        // ============================================================
+        // UPLOAD IMAGE
         // ============================================================
         function uploadImageToCloudinary(file) {
             return new Promise((resolve, reject) => {
-                if (!window.cloudinary) {
-                    reject(new Error('Cloudinary não carregado.'));
-                    return;
-                }
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('upload_preset', cloudinaryConfig.uploadPreset);
 
-                const widget = cloudinary.createUploadWidget(
-                    {
-                        cloudName: cloudinaryConfig.cloudName,
-                        uploadPreset: cloudinaryConfig.uploadPreset,
-                        sources: ['local'],
-                        multiple: false,
-                        maxFileSize: 5000000,
-                        clientAllowedFormats: ['jpg', 'jpeg', 'png', 'webp']
-                    },
-                    (error, result) => {
-                        if (error) {
-                            reject(error);
-                            return;
-                        }
-
-                        if (result && result.event === 'success') {
-                            resolve(result.info.secure_url);
-                        }
+                fetch(`https://api.cloudinary.com/v1_1/${cloudinaryConfig.cloudName}/image/upload`, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.secure_url) {
+                        resolve(data.secure_url);
+                    } else {
+                        reject('Erro no upload: ' + JSON.stringify(data));
                     }
-                );
-
-                widget.open();
+                })
+                .catch(error => reject(error));
             });
         }
 
         // ============================================================
-        // FORMATAR DATA
+        // FUNÇÕES AUXILIARES
         // ============================================================
-        function formatDate(dateString) {
-            if (!dateString) return '';
-            
-            try {
-                const date = new Date(dateString + 'T00:00:00');
-                if (isNaN(date.getTime())) return dateString;
-                
-                return date.toLocaleDateString('pt-PT');
-            } catch(e) {
-                return dateString;
-            }
+        function formatDate(date) {
+            if (!date) return '';
+            if (typeof date === 'string') date = new Date(date);
+            return date.toLocaleDateString('pt-PT');
         }
 
-        // ============================================================
-        // ATUALIZAR DADOS
-        // ============================================================
-        function refreshData() {
-            if (!currentUser) {
-                showError('Usuário não autenticado.');
-                return;
-            }
-
-            Swal.fire({
-                title: 'Atualizando...',
-                allowOutsideClick: false,
-                didOpen: () => Swal.showLoading()
-            });
-
-            Promise.all([
-                db.collection('clients')
-                    .where('userId', '==', currentUser.uid)
-                    .get(),
-                db.collection('anamneses')
-                    .where('userId', '==', currentUser.uid)
-                    .get()
-            ])
-            .then(([clientsSnapshot, anamnesesSnapshot]) => {
-                clients = [];
-                clientsSnapshot.forEach(doc => {
-                    clients.push({ id: doc.id, ...doc.data() });
-                });
-
-                clients.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-
-                anamneses = [];
-                anamnesesSnapshot.forEach(doc => {
-                    anamneses.push({ id: doc.id, ...doc.data() });
-                });
-
-                anamneses.sort((a, b) => {
-                    const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
-                    const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
-                    return dateB - dateA;
-                });
-
-                atualizarUltimaAtualizacao();
-                renderizarCards();
-                renderizarCadastradas();
-
-                Swal.close();
-                showSuccess('Dados atualizados!');
-            })
-            .catch(error => {
-                Swal.close();
-                showError('Erro ao atualizar dados: ' + error.message);
-            });
-        }
-
-        // ============================================================
-        // LOGIN PROMPT
-        // ============================================================
-        function mostrarLoginPrompt() {
-            Swal.fire({
-                title: 'Não autenticado',
-                text: 'Faça login para acessar o sistema.',
-                icon: 'warning',
-                confirmButtonText: 'Ir para Login'
-            }).then(() => {
-                if (window.parent && window.parent !== window) {
-                    window.parent.postMessage({ action: 'goLogin' }, '*');
-                } else {
-                    window.location.href = 'index.html';
-                }
-            });
-        }
-
-        // ============================================================
-        // MENSAGENS
-        // ============================================================
         function showSuccess(message) {
             Swal.fire({
-                toast: true,
-                position: 'top-end',
                 icon: 'success',
-                title: message,
-                showConfirmButton: false,
-                timer: 2500,
-                timerProgressBar: true
+                title: 'Sucesso!',
+                text: message,
+                timer: 2000,
+                showConfirmButton: false
             });
         }
 
         function showError(message) {
             Swal.fire({
-                toast: true,
-                position: 'top-end',
                 icon: 'error',
-                title: message,
-                showConfirmButton: false,
-                timer: 3500,
-                timerProgressBar: true
+                title: 'Erro!',
+                text: message,
+                timer: 3000,
+                showConfirmButton: true
+            });
+        }
+
+        function mostrarLoginPrompt() {
+            Swal.fire({
+                title: 'Acesso Restrito',
+                text: 'Faça login para acessar as anamneses.',
+                icon: 'warning',
+                confirmButtonText: 'Ir para Login',
+                showCancelButton: true,
+                cancelButtonText: 'Cancelar'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    window.location.href = '/login.html';
+                }
             });
         }
 
         // ============================================================
-        // EXPOR FUNÇÕES
+        // EXPOR FUNÇÕES GLOBAIS
         // ============================================================
-        window.refreshData = refreshData;
         window.goHome = goHome;
+        window.refreshData = refreshData;
         window.abrirNovaAnamnese = abrirNovaAnamnese;
+        window.abrirAnamnesesCadastradas = abrirAnamnesesCadastradas;
+        window.abrirAnamneseExistente = abrirAnamneseExistente;
+        window.editarAnamnese = editarAnamnese;
+        window.excluirAnamnese = excluirAnamnese;
         window.toggleCard = toggleCard;
         window.handleSearch = handleSearch;
         window.clearSearch = clearSearch;
-        window.abrirAnamnesesCadastradas = abrirAnamnesesCadastradas;
-        window.abrirAnamneseCadastrada = abrirAnamneseCadastrada;
-        window.editarAnamnese = editarAnamnese;
-        window.excluirAnamnese = excluirAnamnese;
         window.selecionarCliente = selecionarCliente;
         window.filtrarClientesSwal = filtrarClientesSwal;
         window.filtrarClientesSwal2 = filtrarClientesSwal2;
@@ -3376,6 +3355,7 @@
         window.previewNovoClienteFoto = previewNovoClienteFoto;
         window.salvarAnamnese = salvarAnamnese;
         window.gerarPDF = gerarPDF;
+        window.criarPDFDocumento = criarPDFDocumento;
         window.compartilhar = compartilhar;
         window.limparAssinatura = limparAssinatura;
         window.removerFoto = removerFoto;
@@ -3396,4 +3376,4 @@
         console.log('📌 Tipos disponíveis:', Object.keys(ANAMNESE_TYPES).length);
     </script>
 </body>
-</html>
+</Html>
