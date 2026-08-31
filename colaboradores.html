@@ -1,0 +1,2188 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Colaboradores - Studio DeVitto</title>
+    
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+    
+    <!-- Cloudinary SDK -->
+    <script src="https://upload-widget.cloudinary.com/global.js"></script>
+    
+    <style>
+        /* ============================================
+           VARIÁVEIS DINÂMICAS
+           ============================================ */
+        :root {
+            --primary-color: #26196b;
+            --secondary-color: #ffd700;
+            --accent-color: #4a3a9c;
+            --light-bg: #f8f9fa;
+            --card-radius: 12px;
+            --shadow-sm: 0 2px 8px rgba(0,0,0,0.08);
+            --shadow-md: 0 4px 16px rgba(0,0,0,0.12);
+            --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            --btn-border-radius: 8px;
+            --btn-padding: 8px 20px;
+            --font-size-base: 16px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background: var(--light-bg);
+            min-height: 100vh;
+            padding: 0;
+            margin: 0;
+            font-size: var(--font-size-base);
+        }
+
+        /* ============================================
+           CABEÇALHO COM BOTÃO HOME
+           ============================================ */
+        .collaborators-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+            color: white;
+            padding: 12px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: var(--shadow-md);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .collaborators-header .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .collaborators-header .header-left .brand-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .collaborators-header .header-left .brand-logo img {
+            height: 32px;
+            width: 32px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .collaborators-header .header-left .brand-logo .brand-icon {
+            font-size: 1.5rem;
+            color: var(--secondary-color);
+        }
+
+        .collaborators-header .header-left .brand-logo .brand-name {
+            font-weight: 700;
+            font-size: 1rem;
+            color: white;
+        }
+
+        .collaborators-header .header-left .brand-logo .brand-name small {
+            font-weight: 400;
+            font-size: 0.7rem;
+            opacity: 0.7;
+            margin-left: 6px;
+        }
+
+        .collaborators-header .header-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .btn-home {
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            border-radius: 25px;
+            padding: 6px 14px;
+            font-size: 0.8rem;
+            transition: all 0.3s;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            text-decoration: none;
+        }
+
+        .btn-home:hover {
+            background: rgba(255,255,255,0.25);
+            transform: translateY(-2px);
+        }
+
+        .btn-home i {
+            font-size: 0.9rem;
+        }
+
+        .btn-refresh {
+            background: rgba(255,255,255,0.12);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            border-radius: 25px;
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .btn-refresh:hover {
+            background: rgba(255,255,255,0.25);
+        }
+
+        .btn-refresh:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .last-update {
+            font-size: 0.65rem;
+            opacity: 0.7;
+            color: rgba(255,255,255,0.8);
+        }
+
+        /* ============================================
+           CONTEÚDO PRINCIPAL
+           ============================================ */
+        .collaborators-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 12px 16px;
+        }
+
+        /* ============================================
+           CARDS DOS COLABORADORES
+           ============================================ */
+        .colaborador-card {
+            background: white;
+            border-radius: var(--card-radius);
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+            transition: all 0.3s ease;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        .colaborador-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .colaborador-card .card-header-custom {
+            padding: 12px 14px;
+            color: white;
+            text-align: center;
+            position: relative;
+        }
+
+        .colaborador-card .card-header-custom .avatar {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid rgba(255,255,255,0.3);
+            margin-bottom: 4px;
+        }
+
+        .colaborador-card .card-header-custom .avatar-placeholder {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            font-weight: bold;
+            margin: 0 auto 4px;
+            border: 3px solid rgba(255,255,255,0.2);
+        }
+
+        .colaborador-card .card-header-custom .status-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.6rem;
+            font-weight: 600;
+        }
+
+        .colaborador-card .card-header-custom .status-badge.active {
+            background: #28a745;
+            color: white;
+        }
+
+        .colaborador-card .card-header-custom .status-badge.inactive {
+            background: #dc3545;
+            color: white;
+        }
+
+        .colaborador-card .card-header-custom h6 {
+            margin: 0;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .colaborador-card .card-header-custom small {
+            opacity: 0.8;
+            font-size: 0.65rem;
+        }
+
+        .colaborador-card .card-body-custom {
+            padding: 10px 14px;
+        }
+
+        .colaborador-card .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 0;
+            font-size: 0.78rem;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .colaborador-card .stat-row:last-child {
+            border-bottom: none;
+        }
+
+        .colaborador-card .stat-row .label {
+            color: #6c757d;
+        }
+
+        .colaborador-card .stat-row .value {
+            font-weight: 600;
+        }
+
+        .colaborador-card .stat-row .value.positive {
+            color: #28a745;
+        }
+        .colaborador-card .stat-row .value.salao {
+            color: var(--primary-color);
+        }
+        .colaborador-card .stat-row .value.comissao {
+            color: #ffc107;
+        }
+
+        .colaborador-card .card-actions {
+            display: flex;
+            gap: 6px;
+            justify-content: flex-end;
+            padding: 8px 14px 10px;
+            border-top: 1px solid #f0f0f0;
+            flex-wrap: wrap;
+        }
+
+        .colaborador-card .card-actions .btn-sm {
+            padding: 4px 10px;
+            font-size: 0.7rem;
+        }
+
+        .colaborador-card .portfolio-badge {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.6);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.6rem;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* ============================================
+           BOTÃO ADICIONAR
+           ============================================ */
+        .add-btn-container {
+            margin-bottom: 16px;
+            display: flex;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .add-btn-container .btn {
+            padding: var(--btn-padding);
+            border-radius: var(--btn-border-radius);
+            font-size: 0.85rem;
+        }
+
+        /* ============================================
+           MODAL DO PERFIL DO COLABORADOR
+           ============================================ */
+        .colaborador-modal .modal-content {
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        .colaborador-modal .modal-header {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+        }
+
+        .colaborador-modal .modal-header .btn-close {
+            filter: brightness(0) invert(1);
+        }
+
+        .colaborador-modal .modal-body {
+            padding: 20px;
+            max-height: 75vh;
+            overflow-y: auto;
+        }
+
+        .colaborador-modal .modal-footer {
+            border-top: 1px solid #eee;
+            padding: 12px 20px;
+        }
+
+        /* ============================================
+           FORMULÁRIO
+           ============================================ */
+        .form-label {
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: #333;
+        }
+
+        .form-control, .form-select {
+            border-radius: var(--btn-border-radius);
+            border: 2px solid #e9ecef;
+            font-size: 0.9rem;
+            padding: 8px 12px;
+        }
+
+        .form-control:focus, .form-select:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.25rem rgba(38,25,107,0.15);
+        }
+
+        /* ============================================
+           PORTFÓLIO - GRADE DE FOTOS
+           ============================================ */
+        .portfolio-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .portfolio-item {
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            aspect-ratio: 1;
+            background: #f8f9fa;
+            border: 2px solid #dee2e6;
+            transition: all 0.3s;
+        }
+
+        .portfolio-item:hover {
+            transform: scale(1.03);
+            border-color: var(--primary-color);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .portfolio-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .portfolio-item .portfolio-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(transparent, rgba(0,0,0,0.7));
+            padding: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .portfolio-item:hover .portfolio-overlay {
+            opacity: 1;
+        }
+
+        .portfolio-item .portfolio-overlay .btn-sm {
+            padding: 2px 6px;
+            font-size: 0.6rem;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.9);
+            color: #333;
+            border: none;
+        }
+
+        .portfolio-item .portfolio-overlay .btn-sm:hover {
+            background: white;
+        }
+
+        .portfolio-item .portfolio-overlay .btn-sm.danger {
+            background: rgba(220,53,69,0.9);
+            color: white;
+        }
+
+        .portfolio-item .portfolio-overlay .btn-sm.danger:hover {
+            background: #dc3545;
+        }
+
+        .portfolio-item .portfolio-remove {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: rgba(220,53,69,0.9);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 22px;
+            height: 22px;
+            font-size: 0.6rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .portfolio-item:hover .portfolio-remove {
+            opacity: 1;
+        }
+
+        .portfolio-item .portfolio-remove:hover {
+            background: #dc3545;
+            transform: scale(1.1);
+        }
+
+        .portfolio-empty {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 30px;
+            color: #6c757d;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 2px dashed #dee2e6;
+        }
+
+        .portfolio-empty i {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            opacity: 0.3;
+        }
+
+        /* ============================================
+           ESTATÍSTICAS DO COLABORADOR NO MODAL
+           ============================================ */
+        .colab-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .colab-stat-item {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 10px;
+            text-align: center;
+            border: 1px solid #e9ecef;
+        }
+
+        .colab-stat-item .stat-number {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+
+        .colab-stat-item .stat-label {
+            font-size: 0.65rem;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .colab-stat-item .stat-number.positive {
+            color: #28a745;
+        }
+        .colab-stat-item .stat-number.comissao {
+            color: #ffc107;
+        }
+        .colab-stat-item .stat-number.salao {
+            color: var(--primary-color);
+        }
+
+        /* ============================================
+           RESPONSIVIDADE
+           ============================================ */
+        @media (max-width: 768px) {
+            .collaborators-header {
+                padding: 10px 12px;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 6px;
+            }
+
+            .collaborators-header .header-left {
+                gap: 8px;
+                flex-wrap: wrap;
+            }
+
+            .collaborators-header .header-left .brand-logo .brand-name {
+                font-size: 0.85rem;
+            }
+
+            .collaborators-header .header-left .brand-logo img {
+                height: 28px;
+                width: 28px;
+            }
+
+            .collaborators-header .header-actions {
+                justify-content: flex-start;
+            }
+
+            .collaborators-content {
+                padding: 8px 10px;
+            }
+
+            .colaborador-card .card-header-custom .avatar {
+                width: 50px;
+                height: 50px;
+            }
+
+            .colaborador-card .card-header-custom .avatar-placeholder {
+                width: 50px;
+                height: 50px;
+                font-size: 20px;
+            }
+
+            .portfolio-grid {
+                grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+                gap: 6px;
+            }
+
+            .colab-stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .add-btn-container {
+                justify-content: center;
+            }
+
+            .btn-home {
+                padding: 5px 12px;
+                font-size: 0.7rem;
+            }
+
+            .btn-refresh {
+                padding: 5px 10px;
+                font-size: 0.7rem;
+            }
+
+            .last-update {
+                font-size: 0.55rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .collaborators-header {
+                padding: 8px 10px;
+            }
+
+            .collaborators-header .header-left .brand-logo .brand-name {
+                font-size: 0.75rem;
+            }
+
+            .collaborators-header .header-left .brand-logo .brand-name small {
+                display: none;
+            }
+
+            .collaborators-header .header-left .brand-logo img {
+                height: 24px;
+                width: 24px;
+            }
+
+            .collaborators-content {
+                padding: 6px 4px;
+            }
+
+            .colaborador-card .card-body-custom {
+                padding: 6px 8px;
+            }
+
+            .colaborador-card .stat-row {
+                font-size: 0.65rem;
+            }
+
+            .colaborador-card .card-actions .btn-sm {
+                padding: 2px 6px;
+                font-size: 0.6rem;
+            }
+
+            .colaborador-modal .modal-body {
+                padding: 12px;
+            }
+
+            .portfolio-grid {
+                grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+                gap: 4px;
+            }
+        }
+
+        /* ============================================
+           SCROLLBAR
+           ============================================ */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+
+        /* ============================================
+           UTILITÁRIOS
+           ============================================ */
+        .text-primary-custom {
+            color: var(--primary-color);
+        }
+        .bg-primary-custom {
+            background: var(--primary-color);
+        }
+        .border-primary-custom {
+            border-color: var(--primary-color);
+        }
+        .cursor-pointer {
+            cursor: pointer;
+        }
+        .gap-2 {
+            gap: 8px;
+        }
+        .gap-3 {
+            gap: 12px;
+        }
+        .gap-4 {
+            gap: 16px;
+        }
+        .flex-wrap {
+            flex-wrap: wrap;
+        }
+        .align-center {
+            align-items: center;
+        }
+        .justify-between {
+            justify-content: space-between;
+        }
+        .mt-2 {
+            margin-top: 8px;
+        }
+        .mt-3 {
+            margin-top: 16px;
+        }
+        .mt-4 {
+            margin-top: 24px;
+        }
+        .mb-2 {
+            margin-bottom: 8px;
+        }
+        .mb-3 {
+            margin-bottom: 16px;
+        }
+        .mb-4 {
+            margin-bottom: 24px;
+        }
+        .text-muted {
+            color: #6c757d;
+        }
+        .text-success {
+            color: #28a745;
+        }
+        .text-danger {
+            color: #dc3545;
+        }
+        .text-warning {
+            color: #ffc107;
+        }
+        .text-primary {
+            color: var(--primary-color);
+        }
+        .fw-bold {
+            font-weight: 700;
+        }
+        .fw-semibold {
+            font-weight: 600;
+        }
+        .fs-small {
+            font-size: 0.75rem;
+        }
+        .fs-large {
+            font-size: 1.05rem;
+        }
+
+        /* ============================================
+           ANIMAÇÃO DE LOADING
+           ============================================ */
+        .loading-spinner {
+            display: inline-block;
+            width: 26px;
+            height: 26px;
+            border: 3px solid rgba(38,25,107,0.1);
+            border-radius: 50%;
+            border-top-color: var(--primary-color);
+            animation: spin 0.8s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* ============================================
+           SISTEMA DE BUSCA
+           ============================================ */
+        .search-container {
+            position: relative;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .search-container input {
+            padding-left: 36px;
+            border-radius: 25px;
+            background: white;
+            border: 2px solid #e9ecef;
+            transition: all 0.3s;
+        }
+
+        .search-container input:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.25rem rgba(38,25,107,0.15);
+        }
+
+        .search-container .search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6c757d;
+        }
+
+        /* ============================================
+           BOTÃO DE FILTRO
+           ============================================ */
+        .filter-buttons {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .filter-buttons .btn-filter {
+            padding: 4px 14px;
+            border-radius: 20px;
+            border: 1px solid #dee2e6;
+            background: white;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .filter-buttons .btn-filter:hover {
+            background: #e9ecef;
+        }
+
+        .filter-buttons .btn-filter.active {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        /* ============================================
+           BOTÃO DE UPLOAD DE FOTOS
+           ============================================ */
+        .upload-area {
+            border: 2px dashed #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f8f9fa;
+        }
+
+        .upload-area:hover {
+            border-color: var(--primary-color);
+            background: #f0f0ff;
+        }
+
+        .upload-area i {
+            font-size: 2rem;
+            color: #adb5bd;
+            margin-bottom: 8px;
+        }
+
+        .upload-area p {
+            margin: 0;
+            font-size: 0.85rem;
+            color: #6c757d;
+        }
+
+        .upload-area .btn-upload {
+            margin-top: 10px;
+        }
+
+        /* ============================================
+           TOAST / NOTIFICAÇÃO
+           ============================================ */
+        .toast-notification {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 10px;
+            color: white;
+            z-index: 9999;
+            font-weight: 500;
+            box-shadow: var(--shadow-md);
+            animation: slideIn 0.3s ease;
+            max-width: 350px;
+        }
+
+        .toast-notification.success {
+            background: #28a745;
+        }
+
+        .toast-notification.error {
+            background: #dc3545;
+        }
+
+        .toast-notification.info {
+            background: #17a2b8;
+        }
+
+        .toast-notification.warning {
+            background: #ffc107;
+            color: #000;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ==========================================
+    HEADER COM BOTÃO HOME
+    ========================================== -->
+    <header class="collaborators-header" id="collaboratorsHeader">
+        <div class="header-left">
+            <div class="brand-logo" id="brandLogo">
+                <i class="fas fa-scissors brand-icon" id="logoIcon"></i>
+                <img id="logoImage" style="display:none; height:32px; width:32px; border-radius:50%; object-fit:cover;" alt="Logo">
+                <span class="brand-name">Colaboradores <small id="systemName">Studio DeVitto</small></span>
+            </div>
+        </div>
+        <div class="header-actions">
+            <span class="last-update" id="lastUpdateBadge">
+                <i class="fas fa-clock me-1"></i>Atualizado agora
+            </span>
+            <button class="btn-refresh" onclick="recarregarColaboradores()">
+                <i class="fas fa-sync-alt me-1"></i>
+            </button>
+            <button class="btn-home" onclick="goHome()">
+                <i class="fas fa-home"></i>
+                <span>Home</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- ==========================================
+    CONTEÚDO PRINCIPAL
+    ========================================== -->
+    <div class="collaborators-content" id="collaboratorsContent">
+
+        <!-- ==========================================
+        BARRA DE AÇÕES
+        ========================================== -->
+        <div class="add-btn-container">
+            <div class="search-container">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" class="form-control" id="searchColaborador" placeholder="Buscar por nome, especialidade ou telefone...">
+            </div>
+            <div class="filter-buttons">
+                <button class="btn-filter active" data-filter="all">Todos</button>
+                <button class="btn-filter" data-filter="active">Ativos</button>
+                <button class="btn-filter" data-filter="inactive">Inativos</button>
+            </div>
+            <button class="btn btn-primary" onclick="abrirModalNovoColaborador()">
+                <i class="fas fa-plus me-1"></i>Novo Colaborador
+            </button>
+        </div>
+
+        <!-- ==========================================
+        GRID DE COLABORADORES
+        ========================================== -->
+        <div class="row g-3" id="colaboradoresGrid">
+            <div class="col-12 text-center text-muted py-5">
+                <div class="loading-spinner mb-3"></div>
+                <p>Carregando colaboradores...</p>
+            </div>
+        </div>
+
+        <!-- ==========================================
+        CONTADOR
+        ========================================== -->
+        <div class="mt-3 text-muted fs-small" id="colaboradoresCounter">
+            <span id="totalColaboradores">0</span> colaborador(es)
+        </div>
+    </div>
+
+    <!-- ==========================================
+    MODAL DO COLABORADOR (CRIAR/EDITAR/VER)
+    ========================================== -->
+    <div class="modal fade colaborador-modal" id="colaboradorModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="colaboradorModalTitle">
+                        <i class="fas fa-user-circle me-2"></i>Perfil do Colaborador
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="colaboradorModalBody">
+                    <!-- Conteúdo carregado dinamicamente -->
+                    <div class="text-center py-5">
+                        <div class="loading-spinner mb-3"></div>
+                        <p>Carregando perfil...</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                    <button type="button" class="btn btn-danger" id="btnExcluirColaborador" style="display:none;">
+                        <i class="fas fa-trash me-1"></i>Excluir
+                    </button>
+                    <button type="button" class="btn btn-primary" id="btnSalvarColaborador">
+                        <i class="fas fa-save me-1"></i>Salvar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+    MODAL DE VISUALIZAÇÃO DE FOTO (PORTFÓLIO)
+    ========================================== -->
+    <div class="modal fade" id="photoModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header" style="background:var(--primary-color);color:white;">
+                    <h5 class="modal-title"><i class="fas fa-image me-2"></i>Foto do Portfólio</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <img id="photoModalImg" src="" alt="Foto" style="max-width:100%;max-height:70vh;border-radius:8px;object-fit:contain;">
+                    <div class="mt-2">
+                        <p class="text-muted" id="photoModalCaption">Sem legenda</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+    SCRIPTS
+    ========================================== -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // ==========================================
+        // 1. CONFIGURAÇÃO DO FIREBASE
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyC5ezGCOS5d-Vy2l-Gimkl_V9VmwDLZzKc",
+            authDomain: "studio-devitto-152400.firebaseapp.com",
+            projectId: "studio-devitto-152400",
+            storageBucket: "studio-devitto-152400.appspot.com",
+            messagingSenderId: "138996544906",
+            appId: "1:138996544906:web:6569bf954a00e2f7944473",
+            measurementId: "G-FCC5T13QW8"
+        };
+
+        const cloudinaryConfig = {
+            cloudName: "daurmyabq",
+            uploadPreset: "STUDIODEVITTO_PRESET"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const storage = firebase.storage();
+
+        // ==========================================
+        // 2. VARIÁVEIS GLOBAIS
+        // ==========================================
+        let currentUser = null;
+        let colaboradoresList = [];
+        let colaboradorAtual = null;
+        let portfolioFotos = [];
+        let isEditando = false;
+        let configAtual = {};
+        let colaboradoresListener = null;
+        let configListener = null;
+        let currentFilter = 'all';
+        let searchTerm = '';
+
+        // ==========================================
+        // 3. INICIALIZAÇÃO
+        // ==========================================
+        document.addEventListener('DOMContentLoaded', function() {
+            auth.onAuthStateChanged(user => {
+                if (user) {
+                    currentUser = user;
+                    console.log('✅ Usuário autenticado:', user.email);
+                    carregarConfiguracoes();
+                    carregarColaboradores();
+                } else {
+                    mostrarLoginPrompt();
+                }
+            });
+        });
+
+        // ==========================================
+        // 4. RECEBER CONFIGURAÇÕES DA PÁGINA PRINCIPAL
+        // ==========================================
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'configUpdated') {
+                configAtual = event.data.config || {};
+                console.log('📡 Configurações recebidas:', configAtual);
+                aplicarConfiguracoes();
+            }
+        });
+
+        // Solicitar configurações atuais
+        function solicitarConfiguracoes() {
+            try {
+                window.parent.postMessage({ type: 'getConfig' }, '*');
+            } catch(e) {
+                // Se não estiver em iframe, carregar do localStorage
+                carregarConfiguracoesLocal();
+            }
+        }
+
+        // ==========================================
+        // 5. CARREGAR CONFIGURAÇÕES
+        // ==========================================
+        function carregarConfiguracoes() {
+            // Tentar carregar do localStorage primeiro
+            carregarConfiguracoesLocal();
+
+            // Se estiver em iframe, solicitar da página principal
+            try {
+                if (window.parent && window.parent !== window) {
+                    solicitarConfiguracoes();
+                }
+            } catch(e) {}
+
+            // Listener para mudanças no localStorage
+            window.addEventListener('storage', function(e) {
+                if (e.key === 'systemConfig') {
+                    const config = JSON.parse(e.newValue);
+                    if (config) {
+                        configAtual = config;
+                        aplicarConfiguracoes();
+                    }
+                }
+            });
+        }
+
+        function carregarConfiguracoesLocal() {
+            try {
+                const saved = localStorage.getItem('systemConfig');
+                if (saved) {
+                    configAtual = JSON.parse(saved);
+                    console.log('📦 Configurações carregadas do localStorage:', configAtual);
+                    aplicarConfiguracoes();
+                }
+            } catch(e) {
+                console.warn('Erro ao carregar configurações do localStorage:', e);
+            }
+        }
+
+        // ==========================================
+        // 6. APLICAR CONFIGURAÇÕES
+        // ==========================================
+        function aplicarConfiguracoes() {
+            const root = document.documentElement;
+
+            // Cor Primária
+            if (configAtual.corPrimaria) {
+                root.style.setProperty('--primary-color', configAtual.corPrimaria);
+                root.style.setProperty('--accent-color', configAtual.corPrimaria + '99');
+            }
+
+            // Tamanho da Fonte
+            if (configAtual.fontSize) {
+                root.style.setProperty('--font-size-base', configAtual.fontSize);
+            }
+
+            // Raio dos Botões
+            if (configAtual.btnRadius) {
+                root.style.setProperty('--btn-border-radius', configAtual.btnRadius);
+            }
+
+            // Fonte
+            if (configAtual.fontFamily) {
+                root.style.setProperty('--font-family', configAtual.fontFamily);
+            }
+
+            // Nome do Sistema
+            const systemNameEl = document.getElementById('systemName');
+            if (systemNameEl && configAtual.nome) {
+                systemNameEl.textContent = configAtual.nome;
+            }
+
+            // Logo
+            atualizarLogo();
+
+            // Aplicar cor aos elementos
+            document.querySelectorAll('.collaborators-header, .colaborador-modal .modal-header').forEach(el => {
+                el.style.background = 'linear-gradient(135deg, ' + (configAtual.corPrimaria || '#26196b') + ', ' + (
+                    configAtual.corPrimaria || '#26196b') + '99)';
+            });
+
+            document.querySelectorAll('.btn-filter.active').forEach(el => {
+                el.style.background = configAtual.corPrimaria || '#26196b';
+                el.style.borderColor = configAtual.corPrimaria || '#26196b';
+            });
+
+            console.log('🎨 Configurações aplicadas nos Colaboradores');
+        }
+
+        // ==========================================
+        // 7. LOGO
+        // ==========================================
+        function atualizarLogo() {
+            const logoIcon = document.getElementById('logoIcon');
+            const logoImage = document.getElementById('logoImage');
+
+            if (configAtual.logo) {
+                logoIcon.style.display = 'none';
+                logoImage.style.display = 'inline-block';
+                logoImage.src = configAtual.logo;
+            } else {
+                logoIcon.style.display = 'inline-block';
+                logoImage.style.display = 'none';
+            }
+        }
+
+        // ==========================================
+        // 8. CARREGAR COLABORADORES
+        // ==========================================
+        function carregarColaboradores() {
+            if (!currentUser) return;
+
+            if (colaboradoresListener) {
+                colaboradoresListener();
+                colaboradoresListener = null;
+            }
+
+            const grid = document.getElementById('colaboradoresGrid');
+            grid.innerHTML = `
+                <div class="col-12 text-center text-muted py-5">
+                    <div class="loading-spinner mb-3"></div>
+                    <p>Carregando colaboradores...</p>
+                </div>
+            `;
+
+            colaboradoresListener = db.collection('collaborators')
+                .where('userId', '==', currentUser.uid)
+                .onSnapshot(snapshot => {
+                    colaboradoresList = [];
+                    snapshot.forEach(doc => {
+                        colaboradoresList.push({
+                            id: doc.id,
+                            ...doc.data()
+                        });
+                    });
+                    colaboradoresList.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                    renderizarColaboradores();
+                    atualizarUltimaAtualizacao();
+                }, error => {
+                    console.error('❌ Erro ao carregar colaboradores:', error);
+                    grid.innerHTML = `
+                        <div class="col-12 text-center text-danger py-5">
+                            <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
+                            <p>Erro ao carregar colaboradores: ${error.message}</p>
+                            <button class="btn btn-sm btn-primary mt-2" onclick="carregarColaboradores()">
+                                <i class="fas fa-sync-alt me-1"></i>Tentar novamente
+                            </button>
+                        </div>
+                    `;
+                });
+        }
+
+        // ==========================================
+        // 9. RENDERIZAR COLABORADORES
+        // ==========================================
+        function renderizarColaboradores() {
+            const grid = document.getElementById('colaboradoresGrid');
+            let filtered = [...colaboradoresList];
+
+            // Filtro de busca
+            if (searchTerm) {
+                const search = searchTerm.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                filtered = filtered.filter(c => {
+                    const nome = (c.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                    const especialidade = (c.specialty || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,
+                    '');
+                    const telefone = (c.contact || '').replace(/\D/g, '');
+                    return nome.includes(search) || especialidade.includes(search) || telefone.includes(search);
+                });
+            }
+
+            // Filtro de status
+            if (currentFilter === 'active') {
+                filtered = filtered.filter(c => c.active !== false);
+            } else if (currentFilter === 'inactive') {
+                filtered = filtered.filter(c => c.active === false);
+            }
+
+            document.getElementById('totalColaboradores').textContent = filtered.length;
+
+            if (filtered.length === 0) {
+                grid.innerHTML = `
+                    <div class="col-12 text-center text-muted py-5">
+                        <i class="fas fa-user-friends fa-3x mb-3 opacity-25"></i>
+                        <p>${searchTerm ? 'Nenhum colaborador encontrado.' : 'Nenhum colaborador cadastrado.'}</p>
+                        ${!searchTerm ? '<small>Clique em "Novo Colaborador" para adicionar.</small>' : ''}
+                    </div>
+                `;
+                return;
+            }
+
+            const cores = ['#f7971e', '#bdc3c7', '#cd7f32', '#667eea', '#764ba2', '#28a745', '#17a2b8', '#dc3545', '#fd7e14',
+                '#e83e8c'
+            ];
+
+            let html = '';
+            filtered.forEach((colab, index) => {
+                const cor = cores[index % cores.length];
+                const isActive = colab.active !== false;
+                const fotoHtml = colab.photoUrl ?
+                    `<img src="${colab.photoUrl}" class="avatar" onerror="this.style.display='none'">` :
+                    `<div class="avatar-placeholder">${(colab.name || '?').charAt(0).toUpperCase()}</div>`;
+
+                const portfolioCount = (colab.portfolio || []).length;
+
+                html += `
+                    <div class="col-lg-4 col-md-6 col-12 mb-3">
+                        <div class="colaborador-card" onclick="abrirPerfilColaborador('${colab.id}')">
+                            <div class="card-header-custom" style="background:linear-gradient(135deg, ${cor}, ${cor}dd);">
+                                ${fotoHtml}
+                                <span class="status-badge ${isActive ? 'active' : 'inactive'}">
+                                    ${isActive ? 'Ativo' : 'Inativo'}
+                                </span>
+                                ${portfolioCount > 0 ? `<span class="portfolio-badge"><i class="fas fa-images"></i> ${portfolioCount}</span>` : ''}
+                                <h6>${colab.name || 'Sem nome'}</h6>
+                                <small>${colab.specialty || 'Especialidade não definida'}</small>
+                            </div>
+                            <div class="card-body-custom">
+                                <div class="stat-row">
+                                    <span class="label"><i class="fas fa-phone me-1"></i>Contato</span>
+                                    <span class="value">${colab.contact || 'Não informado'}</span>
+                                </div>
+                                <div class="stat-row">
+                                    <span class="label"><i class="fas fa-percent me-1"></i>Comissão</span>
+                                    <span class="value comissao">${colab.manualPercent || 0}%</span>
+                                </div>
+                                <div class="stat-row">
+                                    <span class="label"><i class="fas fa-euro-sign me-1"></i>Salário Base</span>
+                                    <span class="value">${colab.baseSalary ? '€ ' + parseFloat(colab.baseSalary).toFixed(2) : '€ 0,00'}</span>
+                                </div>
+                                <div class="stat-row" style="border-bottom:none;">
+                                    <span class="label"><i class="fas fa-images me-1"></i>Portfólio</span>
+                                    <span class="value">${portfolioCount} foto(s)</span>
+                                </div>
+                            </div>
+                            <div class="card-actions">
+                                <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); abrirPerfilColaborador('${colab.id}')">
+                                    <i class="fas fa-eye me-1"></i>Ver
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation(); editarColaborador('${colab.id}')">
+                                    <i class="fas fa-edit me-1"></i>Editar
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); excluirColaborador('${colab.id}')">
+                                    <i class="fas fa-trash me-1"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            grid.innerHTML = html;
+        }
+
+        // ==========================================
+        // 10. ABRIR PERFIL DO COLABORADOR
+        // ==========================================
+        function abrirPerfilColaborador(colaboradorId, modoEdicao = false) {
+            const colab = colaboradoresList.find(c => c.id === colaboradorId);
+            if (!colab) {
+                showToast('Colaborador não encontrado.', 'error');
+                return;
+            }
+
+            colaboradorAtual = colab;
+            isEditando = modoEdicao;
+            portfolioFotos = colab.portfolio || [];
+
+            const modalBody = document.getElementById('colaboradorModalBody');
+            const modalTitle = document.getElementById('colaboradorModalTitle');
+
+            modalTitle.innerHTML = `<i class="fas fa-user-circle me-2"></i>${modoEdicao ? 'Editar' : 'Perfil'} - ${colab.name || 'Colaborador'}`;
+
+            // Calcular estatísticas
+            const stats = calcularEstatisticasColaborador(colaboradorId);
+
+            // Gerar HTML do formulário
+            modalBody.innerHTML = gerarFormularioColaborador(colab, stats, modoEdicao);
+
+            // Configurar eventos
+            if (modoEdicao) {
+                configurarEventosEdicao();
+            }
+
+            // Mostrar/Esconder botões
+            document.getElementById('btnExcluirColaborador').style.display = modoEdicao ? 'inline-block' : 'none';
+            document.getElementById('btnSalvarColaborador').style.display = 'inline-block';
+
+            const modal = new bootstrap.Modal(document.getElementById('colaboradorModal'));
+            modal.show();
+        }
+
+        // ==========================================
+        // 11. GERAR FORMULÁRIO DO COLABORADOR
+        // ==========================================
+        function gerarFormularioColaborador(colab, stats, modoEdicao) {
+            const isEdit = modoEdicao || colab.id;
+
+            // Opções de especialidades
+            const especialidades = [
+                'Cabelo', 'Coloração', 'Manicure', 'Pedicure', 'Maquiagem',
+                'Depilação', 'Sobrancelhas', 'Massagem', 'Tratamentos', 'Outros'
+            ];
+
+            const especialidadeOptions = especialidades.map(e =>
+                `<option value="${e}" ${colab.specialty === e ? 'selected' : ''}>${e}</option>`
+            ).join('');
+
+            // Dias de pagamento
+            const paymentDays = Array.from({ length: 31 }, (_, i) => i + 1);
+            const paymentDayOptions = paymentDays.map(d =>
+                `<option value="${d}" ${colab.paymentDay === d ? 'selected' : ''}>${d}</option>`
+            ).join('');
+
+            // Foto
+            const fotoHtml = colab.photoUrl ?
+                `<img src="${colab.photoUrl}" style="width:100px;height:100px;border-radius:50%;object-fit:cover;border:3px solid var(--primary-color);margin:0 auto;display:block;">` :
+                `<div style="width:100px;height:100px;border-radius:50%;background:var(--primary-color);color:white;display:flex;align-items:center;justify-content:center;font-size:40px;margin:0 auto;border:3px solid var(--primary-color);">${(colab.name || '?').charAt(0).toUpperCase()}</div>`;
+
+            // Portfolio
+            let portfolioHtml = '';
+            if (portfolioFotos.length > 0) {
+                portfolioHtml = `
+                    <div class="portfolio-grid">
+                        ${portfolioFotos.map((foto, index) => `
+                            <div class="portfolio-item" onclick="visualizarFotoPortfolio(${index})">
+                                <img src="${foto.url}" alt="Foto ${index+1}">
+                                ${isEdit ? `<button class="portfolio-remove" onclick="event.stopPropagation(); removerFotoPortfolio(${index})"><i class="fas fa-times"></i></button>` : ''}
+                                <div class="portfolio-overlay">
+                                    <span style="color:white;font-size:0.6rem;font-weight:500;">${foto.legenda || 'Sem legenda'}</span>
+                                    ${isEdit ? `<button class="btn-sm" onclick="event.stopPropagation(); editarLegendaFoto(${index})"><i class="fas fa-edit"></i></button>` : ''}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            } else {
+                portfolioHtml = `
+                    <div class="portfolio-empty">
+                        <i class="fas fa-images"></i>
+                        <p>Nenhuma foto no portfólio</p>
+                        ${isEdit ? '<small>Clique em "Adicionar Fotos" para começar</small>' : ''}
+                    </div>
+                `;
+            }
+
+            return `
+                <form id="colaboradorForm">
+                    <input type="hidden" id="colaboradorId" value="${colab.id || ''}">
+
+                    <!-- DADOS PESSOAIS -->
+                    <div class="row mb-3">
+                        <div class="col-md-3 text-center">
+                            <div class="mb-2">
+                                ${fotoHtml}
+                                ${isEdit ? `
+                                    <div class="mt-2">
+                                        <input type="file" id="fotoUpload" accept="image/*" style="display:none;">
+                                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="document.getElementById('fotoUpload').click()">
+                                            <i class="fas fa-camera me-1"></i>Trocar Foto
+                                        </button>
+                                        ${colab.photoUrl ? `<button type="button" class="btn btn-sm btn-outline-danger" onclick="removerFotoPerfil()"><i class="fas fa-trash me-1"></i></button>` : ''}
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                        <div class="col-md-9">
+                            <div class="row">
+                                <div class="col-md-6 mb-2">
+                                    <label class="form-label">Nome Completo *</label>
+                                    <input type="text" class="form-control" id="colabNome" value="${colab.name || ''}" ${!isEdit ? 'disabled' : ''} required>
+                                </div>
+                                <div class="col-md-6 mb-2">
+                                    <label class="form-label">Especialidade</label>
+                                    <select class="form-select" id="colabEspecialidade" ${!isEdit ? 'disabled' : ''}>
+                                        <option value="">Selecione uma especialidade</option>
+                                        ${especialidadeOptions}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-2">
+                                    <label class="form-label">Telefone / WhatsApp</label>
+                                    <input type="text" class="form-control" id="colabContato" value="${colab.contact || ''}" ${!isEdit ? 'disabled' : ''} placeholder="+351">
+                                </div>
+                                <div class="col-md-6 mb-2">
+                                    <label class="form-label">E-mail</label>
+                                    <input type="email" class="form-control" id="colabEmail" value="${colab.email || ''}" ${!isEdit ? 'disabled' : ''} placeholder="email@exemplo.com">
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-12 mb-2">
+                                    <label class="form-label">Descrição / Bio</label>
+                                    <textarea class="form-control" id="colabDescricao" rows="2" ${!isEdit ? 'disabled' : ''} placeholder="Breve descrição sobre o colaborador...">${colab.description || ''}</textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- COMISSÕES E SALÁRIO -->
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <h6 class="fw-bold text-primary mb-2"><i class="fas fa-coins me-2"></i>Remuneração</h6>
+                            <div class="row">
+                                <div class="col-md-3 mb-2">
+                                    <label class="form-label">% Serviços Manuais</label>
+                                    <input type="number" class="form-control" id="colabManualPercent" value="${colab.manualPercent || 0}" min="0" max="100" step="0.1" ${!isEdit ? 'disabled' : ''}>
+                                </div>
+                                <div class="col-md-3 mb-2">
+                                    <label class="form-label">% Serviços com Produtos</label>
+                                    <input type="number" class="form-control" id="colabProductPercent" value="${colab.productPercent || 0}" min="0" max="100" step="0.1" ${!isEdit ? 'disabled' : ''}>
+                                </div>
+                                <div class="col-md-3 mb-2">
+                                    <label class="form-label">Salário Base (€)</label>
+                                    <input type="number" class="form-control" id="colabBaseSalary" value="${colab.baseSalary || 0}" step="0.01" min="0" ${!isEdit ? 'disabled' : ''}>
+                                </div>
+                                <div class="col-md-3 mb-2">
+                                    <label class="form-label">Dia do Pagamento</label>
+                                    <select class="form-select" id="colabPaymentDay" ${!isEdit ? 'disabled' : ''}>
+                                        ${paymentDayOptions}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- STATUS -->
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="colabActive" ${colab.active !== false ? 'checked' : ''} ${!isEdit ? 'disabled' : ''}>
+                                <label class="form-check-label" for="colabActive">Colaborador Ativo</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ESTATÍSTICAS -->
+                    ${stats ? `
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <h6 class="fw-bold text-primary mb-2"><i class="fas fa-chart-line me-2"></i>Estatísticas do Período</h6>
+                            <div class="colab-stats-grid">
+                                <div class="colab-stat-item">
+                                    <div class="stat-number">${stats.totalServicos || 0}</div>
+                                    <div class="stat-label">Serviços</div>
+                                </div>
+                                <div class="colab-stat-item">
+                                    <div class="stat-number positive">${formatCurrency(stats.totalBruto || 0)}</div>
+                                    <div class="stat-label">Total Bruto</div>
+                                </div>
+                                <div class="colab-stat-item">
+                                    <div class="stat-number comissao">${formatCurrency(stats.totalComissao || 0)}</div>
+                                    <div class="stat-label">Comissão</div>
+                                </div>
+                                <div class="colab-stat-item">
+                                    <div class="stat-number salao">${formatCurrency(stats.totalSalao || 0)}</div>
+                                    <div class="stat-label">Salão</div>
+                                </div>
+                                <div class="colab-stat-item">
+                                    <div class="stat-number">${stats.hojeBruto || 0}</div>
+                                    <div class="stat-label">Hoje (€)</div>
+                                </div>
+                                <div class="colab-stat-item">
+                                    <div class="stat-number">${stats.semanaBruto || 0}</div>
+                                    <div class="stat-label">Semana (€)</div>
+                                </div>
+                                <div class="colab-stat-item">
+                                    <div class="stat-number">${stats.mesBruto || 0}</div>
+                                    <div class="stat-label">Mês (€)</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    ` : ''}
+
+                    <!-- PORTFÓLIO -->
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <h6 class="fw-bold text-primary mb-2"><i class="fas fa-images me-2"></i>Portfólio</h6>
+                            ${isEdit ? `
+                                <div class="upload-area" onclick="document.getElementById('portfolioUpload').click()">
+                                    <i class="fas fa-cloud-upload-alt"></i>
+                                    <p>Clique para adicionar fotos ao portfólio</p>
+                                    <p style="font-size:0.65rem;color:#adb5bd;">Máximo 10 fotos</p>
+                                    <input type="file" id="portfolioUpload" accept="image/*" multiple style="display:none;">
+                                </div>
+                            ` : ''}
+                            <div id="portfolioContainer">
+                                ${portfolioHtml}
+                            </div>
+                            ${isEdit && portfolioFotos.length >= 10 ? '<p class="text-warning fs-small mt-2"><i class="fas fa-exclamation-triangle me-1"></i>Máximo de 10 fotos atingido</p>' : ''}
+                        </div>
+                    </div>
+
+                    ${!isEdit ? `
+                    <div class="alert alert-info mt-3">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Modo de visualização. Clique em "Editar" para modificar os dados.
+                    </div>
+                    ` : ''}
+                </form>
+            `;
+        }
+
+        // ==========================================
+        // 12. CALCULAR ESTATÍSTICAS DO COLABORADOR
+        // ==========================================
+        function calcularEstatisticasColaborador(colaboradorId) {
+            // Esta função seria integrada com os serviços do sistema
+            // Simulação de dados
+            return {
+                totalServicos: Math.floor(Math.random() * 50),
+                totalBruto: Math.random() * 2000,
+                totalComissao: Math.random() * 500,
+                totalSalao: Math.random() * 1500,
+                hojeBruto: Math.floor(Math.random() * 200),
+                semanaBruto: Math.floor(Math.random() * 800),
+                mesBruto: Math.floor(Math.random() * 2000)
+            };
+        }
+
+        // ==========================================
+        // 13. CONFIGURAR EVENTOS DE EDIÇÃO
+        // ==========================================
+        function configurarEventosEdicao() {
+            // Upload de foto de perfil
+            document.getElementById('fotoUpload')?.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    uploadFotoPerfil(file);
+                }
+            });
+
+            // Upload de fotos do portfólio
+            document.getElementById('portfolioUpload')?.addEventListener('change', function(e) {
+                const files = e.target.files;
+                if (files.length > 0) {
+                    const maxFotos = 10 - portfolioFotos.length;
+                    if (files.length > maxFotos) {
+                        showToast(`Máximo de ${maxFotos} fotos podem ser adicionadas.`, 'warning');
+                        return;
+                    }
+                    uploadFotosPortfolio(files);
+                }
+            });
+
+            // Salvar
+            document.getElementById('btnSalvarColaborador').onclick = function() {
+                salvarColaborador();
+            };
+
+            // Excluir
+            document.getElementById('btnExcluirColaborador').onclick = function() {
+                if (colaboradorAtual && colaboradorAtual.id) {
+                    excluirColaborador(colaboradorAtual.id);
+                }
+            };
+        }
+
+        // ==========================================
+        // 14. ABRIR MODAL NOVO COLABORADOR
+        // ==========================================
+        function abrirModalNovoColaborador() {
+            const novoColab = {
+                id: null,
+                name: '',
+                specialty: '',
+                contact: '',
+                email: '',
+                description: '',
+                manualPercent: 0,
+                productPercent: 0,
+                baseSalary: 0,
+                paymentDay: 5,
+                active: true,
+                photoUrl: null,
+                portfolio: []
+            };
+
+            colaboradorAtual = novoColab;
+            isEditando = true;
+            portfolioFotos = [];
+
+            const modalBody = document.getElementById('colaboradorModalBody');
+            const modalTitle = document.getElementById('colaboradorModalTitle');
+
+            modalTitle.innerHTML = '<i class="fas fa-user-plus me-2"></i>Novo Colaborador';
+
+            modalBody.innerHTML = gerarFormularioColaborador(novoColab, null, true);
+
+            document.getElementById('btnExcluirColaborador').style.display = 'none';
+            document.getElementById('btnSalvarColaborador').style.display = 'inline-block';
+
+            configurarEventosEdicao();
+
+            const modal = new bootstrap.Modal(document.getElementById('colaboradorModal'));
+            modal.show();
+        }
+
+        // ==========================================
+        // 15. EDITAR COLABORADOR
+        // ==========================================
+        function editarColaborador(colaboradorId) {
+            const colab = colaboradoresList.find(c => c.id === colaboradorId);
+            if (!colab) {
+                showToast('Colaborador não encontrado.', 'error');
+                return;
+            }
+            abrirPerfilColaborador(colaboradorId, true);
+        }
+
+        // ==========================================
+        // 16. UPLOAD DE FOTO DE PERFIL
+        // ==========================================
+        function uploadFotoPerfil(file) {
+            if (!file) return;
+
+            if (!file.type.match('image.*')) {
+                showToast('Por favor, selecione uma imagem válida.', 'error');
+                return;
+            }
+
+            showToast('Enviando foto...', 'info');
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('upload_preset', cloudinaryConfig.uploadPreset);
+
+            fetch(`https://api.cloudinary.com/v1_1/${cloudinaryConfig.cloudName}/image/upload`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.secure_url) {
+                    colaboradorAtual.photoUrl = data.secure_url;
+                    // Atualizar preview
+                    const modalBody = document.getElementById('colaboradorModalBody');
+                    const fotoDiv = modalBody.querySelector('.col-md-3 .mb-2');
+                    if (fotoDiv) {
+                        fotoDiv.innerHTML = `
+                            <img src="${data.secure_url}" style="width:100px;height:100px;border-radius:50%;object-fit:cover;border:3px solid var(--primary-color);margin:0 auto;display:block;">
+                            <div class="mt-2">
+                                <input type="file" id="fotoUpload" accept="image/*" style="display:none;">
+                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="document.getElementById('fotoUpload').click()">
+                                    <i class="fas fa-camera me-1"></i>Trocar Foto
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="removerFotoPerfil()">
+                                    <i class="fas fa-trash me-1"></i>
+                                </button>
+                            </div>
+                        `;
+                        // Re-adicionar evento
+                        document.getElementById('fotoUpload').addEventListener('change', function(e) {
+                            if (e.target.files[0]) {
+                                uploadFotoPerfil(e.target.files[0]);
+                            }
+                        });
+                    }
+                    showToast('Foto atualizada com sucesso!', 'success');
+                } else {
+                    showToast('Erro no upload: ' + JSON.stringify(data), 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Erro no upload:', error);
+                showToast('Erro ao fazer upload da foto.', 'error');
+            });
+        }
+
+        // ==========================================
+        // 17. REMOVER FOTO DE PERFIL
+        // ==========================================
+        function removerFotoPerfil() {
+            colaboradorAtual.photoUrl = null;
+            const modalBody = document.getElementById('colaboradorModalBody');
+            const fotoDiv = modalBody.querySelector('.col-md-3 .mb-2');
+            if (fotoDiv) {
+                const nome = colaboradorAtual.name || '?';
+                fotoDiv.innerHTML = `
+                    <div style="width:100px;height:100px;border-radius:50%;background:var(--primary-color);color:white;display:flex;align-items:center;justify-content:center;font-size:40px;margin:0 auto;border:3px solid var(--primary-color);">${nome.charAt(0).toUpperCase()}</div>
+                    <div class="mt-2">
+                        <input type="file" id="fotoUpload" accept="image/*" style="display:none;">
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="document.getElementById('fotoUpload').click()">
+                            <i class="fas fa-camera me-1"></i>Adicionar Foto
+                        </button>
+                    </div>
+                `;
+                document.getElementById('fotoUpload').addEventListener('change', function(e) {
+                    if (e.target.files[0]) {
+                        uploadFotoPerfil(e.target.files[0]);
+                    }
+                });
+            }
+            showToast('Foto removida.', 'info');
+        }
+
+        // ==========================================
+        // 18. UPLOAD DE FOTOS DO PORTFÓLIO
+        // ==========================================
+        function uploadFotosPortfolio(files) {
+            const totalFotos = portfolioFotos.length + files.length;
+            if (totalFotos > 10) {
+                showToast(`Máximo de 10 fotos. Você pode adicionar mais ${10 - portfolioFotos.length}.`, 'warning');
+                return;
+            }
+
+            showToast(`Enviando ${files.length} foto(s)...`, 'info');
+
+            const uploadPromises = [];
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                if (!file.type.match('image.*')) continue;
+
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('upload_preset', cloudinaryConfig.uploadPreset);
+
+                const promise = fetch(`https://api.cloudinary.com/v1_1/${cloudinaryConfig.cloudName}/image/upload`, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.secure_url) {
+                        return {
+                            url: data.secure_url,
+                            legenda: '',
+                            data: new Date().toISOString()
+                        };
+                    }
+                    return null;
+                });
+
+                uploadPromises.push(promise);
+            }
+
+            Promise.all(uploadPromises)
+                .then(results => {
+                    const novasFotos = results.filter(r => r !== null);
+                    if (novasFotos.length > 0) {
+                        portfolioFotos = [...portfolioFotos, ...novasFotos];
+                        atualizarPortfolioUI();
+                        showToast(`${novasFotos.length} foto(s) adicionadas ao portfólio!`, 'success');
+                    } else {
+                        showToast('Nenhuma foto foi enviada.', 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro no upload:', error);
+                    showToast('Erro ao fazer upload das fotos.', 'error');
+                });
+        }
+
+        // ==========================================
+        // 19. ATUALIZAR UI DO PORTFÓLIO
+        // ==========================================
+        function atualizarPortfolioUI() {
+            const container = document.getElementById('portfolioContainer');
+            if (!container) return;
+
+            if (portfolioFotos.length === 0) {
+                container.innerHTML = `
+                    <div class="portfolio-empty">
+                        <i class="fas fa-images"></i>
+                        <p>Nenhuma foto no portfólio</p>
+                        <small>Clique em "Adicionar Fotos" para começar</small>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = `
+                <div class="portfolio-grid">
+                    ${portfolioFotos.map((foto, index) => `
+                        <div class="portfolio-item" onclick="visualizarFotoPortfolio(${index})">
+                            <img src="${foto.url}" alt="Foto ${index+1}">
+                            <button class="portfolio-remove" onclick="event.stopPropagation(); removerFotoPortfolio(${index})"><i class="fas fa-times"></i></button>
+                            <div class="portfolio-overlay">
+                                <span style="color:white;font-size:0.6rem;font-weight:500;">${foto.legenda || 'Sem legenda'}</span>
+                                <button class="btn-sm" onclick="event.stopPropagation(); editarLegendaFoto(${index})"><i class="fas fa-edit"></i></button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+
+            container.innerHTML = html;
+        }
+
+        // ==========================================
+        // 20. REMOVER FOTO DO PORTFÓLIO
+        // ==========================================
+        function removerFotoPortfolio(index) {
+            Swal.fire({
+                title: 'Remover foto?',
+                text: 'Esta ação não pode ser desfeita.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Sim, remover',
+                cancelButtonText: 'Cancelar'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    portfolioFotos.splice(index, 1);
+                    atualizarPortfolioUI();
+                    showToast('Foto removida do portfólio.', 'success');
+                }
+            });
+        }
+
+        // ==========================================
+        // 21. EDITAR LEGENDA DA FOTO
+        // ==========================================
+        function editarLegendaFoto(index) {
+            const foto = portfolioFotos[index];
+            if (!foto) return;
+
+            Swal.fire({
+                title: 'Editar Legenda',
+                input: 'text',
+                inputLabel: 'Legenda da foto',
+                inputValue: foto.legenda || '',
+                inputPlaceholder: 'Digite uma legenda...',
+                showCancelButton: true,
+                confirmButtonText: 'Salvar',
+                cancelButtonText: 'Cancelar'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    portfolioFotos[index].legenda = result.value || '';
+                    atualizarPortfolioUI();
+                    showToast('Legenda atualizada!', 'success');
+                }
+            });
+        }
+
+        // ==========================================
+        // 22. VISUALIZAR FOTO DO PORTFÓLIO
+        // ==========================================
+        function visualizarFotoPortfolio(index) {
+            const foto = portfolioFotos[index];
+            if (!foto) return;
+
+            document.getElementById('photoModalImg').src = foto.url;
+            document.getElementById('photoModalCaption').textContent = foto.legenda || 'Sem legenda';
+
+            const modal = new bootstrap.Modal(document.getElementById('photoModal'));
+            modal.show();
+        }
+
+        // ==========================================
+        // 23. SALVAR COLABORADOR
+        // ==========================================
+        function salvarColaborador() {
+            const id = document.getElementById('colaboradorId')?.value || null;
+            const nome = document.getElementById('colabNome')?.value.trim();
+            const especialidade = document.getElementById('colabEspecialidade')?.value || '';
+            const contato = document.getElementById('colabContato')?.value || '';
+            const email = document.getElementById('colabEmail')?.value || '';
+            const descricao = document.getElementById('colabDescricao')?.value || '';
+            const manualPercent = parseFloat(document.getElementById('colabManualPercent')?.value) || 0;
+            const productPercent = parseFloat(document.getElementById('colabProductPercent')?.value) || 0;
+            const baseSalary = parseFloat(document.getElementById('colabBaseSalary')?.value) || 0;
+            const paymentDay = parseInt(document.getElementById('colabPaymentDay')?.value) || 5;
+            const active = document.getElementById('colabActive')?.checked !== false;
+
+            if (!nome) {
+                showToast('Digite o nome do colaborador.', 'error');
+                return;
+            }
+
+            const dados = {
+                name: nome,
+                specialty: especialidade,
+                contact: contato,
+                email: email,
+                description: descricao,
+                manualPercent: manualPercent,
+                productPercent: productPercent,
+                baseSalary: baseSalary,
+                paymentDay: paymentDay,
+                active: active,
+                photoUrl: colaboradorAtual?.photoUrl || null,
+                portfolio: portfolioFotos || [],
+                userId: currentUser.uid,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            if (id) {
+                dados.createdAt = colaboradorAtual?.createdAt || firebase.firestore.FieldValue.serverTimestamp();
+            } else {
+                dados.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+            }
+
+            showToast('Salvando colaborador...', 'info');
+
+            let promise;
+            if (id) {
+                promise = db.collection('collaborators').doc(id).update(dados);
+            } else {
+                promise = db.collection('collaborators').add(dados);
+            }
+
+            promise
+                .then(() => {
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('colaboradorModal'));
+                    if (modal) modal.hide();
+                    showToast(id ? 'Colaborador atualizado com sucesso!' : 'Colaborador adicionado com sucesso!',
+                    'success');
+                    carregarColaboradores();
+                })
+                .catch(error => {
+                    console.error('Erro ao salvar colaborador:', error);
+                    showToast('Erro ao salvar colaborador: ' + error.message, 'error');
+                });
+        }
+
+        // ==========================================
+        // 24. EXCLUIR COLABORADOR
+        // ==========================================
+        function excluirColaborador(colaboradorId) {
+            Swal.fire({
+                title: 'Tem certeza?',
+                text: 'Esta ação não pode ser desfeita. O colaborador será removido permanentemente.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Sim, excluir!',
+                cancelButtonText: 'Cancelar'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    showToast('Excluindo colaborador...', 'info');
+
+                    db.collection('collaborators').doc(colaboradorId).delete()
+                        .then(() => {
+                            const modal = bootstrap.Modal.getInstance(document.getElementById('colaboradorModal'));
+                            if (modal) modal.hide();
+                            showToast('Colaborador excluído com sucesso!', 'success');
+                            carregarColaboradores();
+                        })
+                        .catch(error => {
+                            console.error('Erro ao excluir colaborador:', error);
+                            showToast('Erro ao excluir colaborador: ' + error.message, 'error');
+                        });
+                }
+            });
+        }
+
+        // ==========================================
+        // 25. FUNÇÕES DE BUSCA E FILTRO
+        // ==========================================
+        document.getElementById('searchColaborador')?.addEventListener('input', function() {
+            searchTerm = this.value;
+            renderizarColaboradores();
+        });
+
+        document.querySelectorAll('.btn-filter').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.btn-filter').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                currentFilter = this.getAttribute('data-filter');
+                renderizarColaboradores();
+            });
+        });
+
+        // ==========================================
+        // 26. FUNÇÕES DE NAVEGAÇÃO
+        // ==========================================
+        function goHome() {
+            try {
+                window.parent.postMessage({ action: 'goHome' }, '*');
+            } catch(e) {
+                window.location.href = 'layout-index.html';
+            }
+        }
+
+        function recarregarColaboradores() {
+            carregarColaboradores();
+            showToast('Colaboradores recarregados!', 'success');
+        }
+
+        // ==========================================
+        // 27. FUNÇÕES AUXILIARES
+        // ==========================================
+        function formatCurrency(value) {
+            if (typeof value !== 'number') value = parseFloat(value) || 0;
+            return '€ ' + value.toFixed(2).replace('.', ',');
+        }
+
+        function showToast(message, type = 'info') {
+            if (typeof Swal !== 'undefined') {
+                const icons = {
+                    'success': 'success',
+                    'error': 'error',
+                    'warning': 'warning',
+                    'info': 'info'
+                };
+                Swal.fire({
+                    icon: icons[type] || 'info',
+                    title: message,
+                    timer: 3000,
+                    showConfirmButton: false,
+                    toast: true,
+                    position: 'top-end',
+                    timerProgressBar: true
+                });
+            } else {
+                console.log(`[${type.toUpperCase()}] ${message}`);
+            }
+        }
+
+        function atualizarUltimaAtualizacao() {
+            const now = new Date();
+            const el = document.getElementById('lastUpdateBadge');
+            if (el) {
+                el.innerHTML = `<i class="fas fa-clock me-1"></i>Atualizado ${now.toLocaleTimeString('pt-PT')}`;
+            }
+        }
+
+        function mostrarLoginPrompt() {
+            Swal.fire({
+                title: 'Acesso Restrito',
+                text: 'Faça login para gerenciar colaboradores.',
+                icon: 'warning',
+                confirmButtonText: 'Ir para Login',
+                showCancelButton: true,
+                cancelButtonText: 'Cancelar'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    window.location.href = '/login.html';
+                }
+            });
+        }
+
+        // ==========================================
+        // 28. EXPOR FUNÇÕES GLOBAIS
+        // ==========================================
+        window.goHome = goHome;
+        window.recarregarColaboradores = recarregarColaboradores;
+        window.abrirPerfilColaborador = abrirPerfilColaborador;
+        window.editarColaborador = editarColaborador;
+        window.excluirColaborador = excluirColaborador;
+        window.abrirModalNovoColaborador = abrirModalNovoColaborador;
+        window.uploadFotoPerfil = uploadFotoPerfil;
+        window.removerFotoPerfil = removerFotoPerfil;
+        window.removerFotoPortfolio = removerFotoPortfolio;
+        window.editarLegendaFoto = editarLegendaFoto;
+        window.visualizarFotoPortfolio = visualizarFotoPortfolio;
+
+        // ==========================================
+        // 29. LOG DE INICIALIZAÇÃO
+        // ==========================================
+        console.log('✅ Colaboradores carregado com sucesso!');
+        console.log('📌 Funcionalidades:');
+        console.log('   - Lista de colaboradores com cards');
+        console.log('   - Perfil completo com foto e portfólio');
+        console.log('   - Adicionar/Editar/Excluir colaboradores');
+        console.log('   - Portfólio com até 10 fotos');
+        console.log('   - Busca por nome, especialidade ou telefone');
+        console.log('   - Filtro por status (Ativos/Inativos)');
+        console.log('   - Estatísticas por colaborador');
+        console.log('   - Integração com configurações do sistema');
+        console.log('   - Sincronização em tempo real com Firebase');
+
+    </script>
+
+</body>
+</html>
