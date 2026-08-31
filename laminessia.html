@@ -929,11 +929,13 @@
             padding: 20px !important;
             overflow-y: auto !important;
         }
+
         .swal2-fullscreen-popup .swal2-html-container {
             height: auto !important;
             max-height: none !important;
             overflow-y: visible !important;
         }
+
         @media (max-width: 768px) {
             .swal2-fullscreen-popup { padding: 12px !important; }
         }
@@ -1986,7 +1988,7 @@
                                 showError('Erro ao criar cliente: ' + error.message);
                             });
                     };
-
+                    
                     if (data.fotoUrl) {
                         criarCliente(data.fotoUrl);
                     } else {
@@ -2768,8 +2770,9 @@
                 const labelText = label + ':';
                 doc.text(labelText, margin, yPos);
                 
-                // Calcular largura do label para posicionar o valor
-                const labelWidth = doc.getStringUnitWidth(labelText) * 10 / 1.5;
+                // Calcular largura REAL do label para posicionar o valor
+                // CORREÇÃO: getTextWidth() usa a fonte/tamanho atuais do jsPDF
+                const labelWidth = doc.getTextWidth(labelText);
                 const valorX = margin + labelWidth + 4;
                 
                 // Valor em normal
@@ -2777,7 +2780,7 @@
                 
                 // Quebrar texto se necessário
                 const maxWidth = pageW - valorX - margin - 20;
-                const lines = doc.splitTextToSize(valor, maxWidth);
+                const lines = doc.splitTextToSize(String(valor || ''), maxWidth);
                 doc.text(lines, valorX, yPos);
                 
                 return yPos + 14 * Math.max(1, lines.length);
@@ -2833,8 +2836,9 @@
                     const perguntaText = pergunta + ':';
                     doc.text(perguntaText, margin + 8, yPos);
                     
-                    // Calcular largura da pergunta
-                    const perguntaWidth = doc.getStringUnitWidth(perguntaText) * 9.5 / 1.5;
+                    // Calcular largura REAL da pergunta
+                    // CORREÇÃO: getTextWidth() evita que a resposta fique sobre a pergunta
+                    const perguntaWidth = doc.getTextWidth(perguntaText);
                     const respostaX = margin + 8 + perguntaWidth + 4;
                     
                     // Resposta em normal
@@ -2842,7 +2846,7 @@
                     
                     // Quebrar texto se necessário
                     const maxWidth = pageW - respostaX - margin - 10;
-                    const respostaLines = doc.splitTextToSize(resposta, maxWidth);
+                    const respostaLines = doc.splitTextToSize(String(resposta || '-'), maxWidth);
                     doc.text(respostaLines, respostaX, yPos);
                     
                     return yPos + 12 * Math.max(1, respostaLines.length);
@@ -3050,21 +3054,15 @@
 
             if (navigator.share) {
                 navigator.share({
-                    title: `Anamnese - ${clienteNome}`,
-                    text: texto,
-                }).catch(() => {});
+                    title: 'Anamnese - Studio DeVitto',
+                    text: texto
+                }).catch(error => {
+                    console.log('Compartilhamento cancelado:', error);
+                });
             } else {
                 navigator.clipboard.writeText(texto)
-                    .then(() => showSuccess('Copiado para área de transferência!'))
-                    .catch(() => {
-                        const textarea = document.createElement('textarea');
-                        textarea.value = texto;
-                        document.body.appendChild(textarea);
-                        textarea.select();
-                        document.execCommand('copy');
-                        document.body.removeChild(textarea);
-                        showSuccess('Copiado para área de transferência!');
-                    });
+                    .then(() => showSuccess('Anamnese copiada para a área de transferência!'))
+                    .catch(() => showError('Não foi possível copiar a anamnese.'));
             }
         }
 
@@ -3078,100 +3076,107 @@
 
         function renderizarCadastradas() {
             const container = document.getElementById('cadastradasList');
-            const searchTerm = document.getElementById('searchCadastrada')?.value.toLowerCase().trim() || '';
+            if (!container) return;
 
-            let filtered = anamneses;
-            if (searchTerm) {
-                filtered = filtered.filter(a => 
-                    (a.clienteNome || '').toLowerCase().includes(searchTerm) ||
-                    (a.tipos || []).some(t => (ANAMNESE_TYPES[t]?.nome || '').toLowerCase().includes(searchTerm)) ||
-                    (a.profissionalNome || '').toLowerCase().includes(searchTerm)
-                );
-            }
+            const searchTerm = document.getElementById('searchCadastrada')?.value?.toLowerCase().trim() || '';
 
-            if (filtered.length === 0) {
+            let lista = anamneses.filter(a => {
+                const cliente = (a.clienteNome || '').toLowerCase();
+                const profissional = (a.profissionalNome || '').toLowerCase();
+                const tipos = (a.tipos || []).map(id => ANAMNESE_TYPES[id]?.nome || id).join(' ').toLowerCase();
+
+                return cliente.includes(searchTerm) ||
+                       profissional.includes(searchTerm) ||
+                       tipos.includes(searchTerm);
+            });
+
+            if (lista.length === 0) {
                 container.innerHTML = `
                     <div class="text-center py-5">
-                        <i class="fas fa-notes-medical fa-4x mb-3 opacity-25" style="color:#8a84a0;"></i>
-                        <h5 class="text-muted">Nenhuma anamnese cadastrada</h5>
-                        <p class="text-muted small">Clique em "Nova Anamnese" para começar.</p>
+                        <i class="fas fa-folder-open fa-3x mb-3 opacity-25"></i>
+                        <h5 class="text-muted">Nenhuma anamnese encontrada</h5>
+                        <p class="text-muted small">As anamneses salvas aparecerão aqui.</p>
                     </div>
                 `;
                 return;
             }
 
-            let html = '';
-            filtered.forEach(anamnese => {
-                const tipos = (anamnese.tipos || []).map(id => ANAMNESE_TYPES[id]?.nome || id).join(', ');
-                const status = anamnese.status === 'completa' ? 'completed' : 'pending';
-                const statusLabel = anamnese.status === 'completa' ? '✅ Completa' : '⏳ Pendente';
-                const dataCriacao = anamnese.createdAt ? new Date(anamnese.createdAt).toLocaleDateString('pt-PT') : 'Data desconhecida';
+            container.innerHTML = lista.map(a => {
+                const firstTipo = a.tipos?.[0];
+                const tipoInfo = firstTipo ? ANAMNESE_TYPES[firstTipo] : null;
+                const status = a.status === 'completa' ? 'completed' : 'pending';
+                const statusText = a.status === 'completa' ? 'Completa' : 'Pendente';
+                const data = a.data ? formatDate(a.data) : 'Sem data';
 
-                const cores = ['#d63384', '#0d6efd', '#198754', '#fd7e14', '#dc3545', '#6f42c1', '#e83e8c', '#8b4513', '#20c997', '#e83e8c'];
-                const cor = cores[anamnese.tipos?.length % cores.length] || '#26196b';
-
-                html += `
-                    <div class="ficha-list-item">
-                        <div class="ficha-icon" style="background:${cor};">
-                            <i class="fas fa-notes-medical"></i>
+                return `
+                    <div class="ficha-list-item" onclick="abrirAnamneseCadastrada('${a.id}')">
+                        <div class="ficha-icon" style="background:${tipoInfo?.cor || '#26196b'};">
+                            <i class="fas ${tipoInfo?.icone || 'fa-notes-medical'}"></i>
                         </div>
-                        <div class="ficha-info" onclick="abrirAnamneseExistente('${anamnese.id}')">
-                            <div class="ficha-name">${anamnese.clienteNome || 'Cliente não informado'}</div>
+                        <div class="ficha-info">
+                            <div class="ficha-name">${a.clienteNome || 'Cliente'}</div>
                             <div class="ficha-meta">
-                                <i class="fas fa-user-tie me-1"></i>${anamnese.profissionalNome || 'Profissional'} |
-                                <i class="fas fa-calendar me-1"></i>${dataCriacao} |
-                                📂 ${tipos || 'Sem anamneses'}
+                                ${tipoInfo?.nome || 'Anamnese'} • ${data}
+                                ${a.profissionalNome ? ` • ${a.profissionalNome}` : ''}
                             </div>
                         </div>
-                        <span class="ficha-status ${status}">${statusLabel}</span>
+                        <span class="ficha-status ${status}">${statusText}</span>
                         <div class="ficha-actions">
-                            <button class="btn-icon" onclick="event.stopPropagation(); editarAnamnese('${anamnese.id}')" title="Editar">
+                            <button class="btn-icon" onclick="event.stopPropagation(); editarAnamnese('${a.id}')" title="Editar">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            <button class="btn-icon" onclick="event.stopPropagation(); excluirAnamnese('${anamnese.id}')" title="Excluir" style="color:#dc3545;">
-                                <i class="fas fa-trash-alt"></i>
+                            <button class="btn-icon" onclick="event.stopPropagation(); excluirAnamnese('${a.id}')" title="Excluir">
+                                <i class="fas fa-trash"></i>
                             </button>
                         </div>
                     </div>
                 `;
-            });
-
-            container.innerHTML = html;
+            }).join('');
         }
 
         function filtrarCadastradas() {
             renderizarCadastradas();
         }
 
-        // ============================================================
-        // ABRIR ANAMNESE EXISTENTE
-        // ============================================================
-        function abrirAnamneseExistente(anamneseId) {
-            const anamnese = anamneses.find(a => a.id === anamneseId);
+        function abrirAnamneseCadastrada(id) {
+            const anamnese = anamneses.find(a => a.id === id);
             if (!anamnese) {
                 showError('Anamnese não encontrada.');
                 return;
             }
 
-            currentAnamnese = { ...anamnese };
+            currentAnamnese = anamnese;
             isEditing = true;
             cadastradasModalInstance.hide();
+
             setTimeout(() => {
-                abrirModalAnamnese(currentAnamnese);
+                abrirModalAnamnese(anamnese);
             }, 300);
         }
 
-        function editarAnamnese(anamneseId) {
-            abrirAnamneseExistente(anamneseId);
+        function editarAnamnese(id) {
+            const anamnese = anamneses.find(a => a.id === id);
+            if (!anamnese) {
+                showError('Anamnese não encontrada.');
+                return;
+            }
+
+            currentAnamnese = anamnese;
+            isEditing = true;
+            cadastradasModalInstance.hide();
+
+            setTimeout(() => {
+                abrirModalAnamnese(anamnese);
+            }, 300);
         }
 
-        // ============================================================
-        // EXCLUIR ANAMNESE
-        // ============================================================
-        function excluirAnamnese(anamneseId) {
+        function excluirAnamnese(id) {
+            const anamnese = anamneses.find(a => a.id === id);
+            if (!anamnese) return;
+
             Swal.fire({
-                title: 'Confirmar exclusão',
-                text: 'Tem certeza que deseja excluir esta anamnese? Esta ação não pode ser desfeita.',
+                title: 'Excluir anamnese?',
+                text: `A anamnese de ${anamnese.clienteNome || 'Cliente'} será excluída permanentemente.`,
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonText: 'Sim, excluir',
@@ -3179,14 +3184,21 @@
                 confirmButtonColor: '#dc3545'
             }).then(result => {
                 if (result.isConfirmed) {
-                    db.collection('anamneses').doc(anamneseId).delete()
+                    Swal.fire({
+                        title: 'Excluindo...',
+                        allowOutsideClick: false,
+                        didOpen: () => Swal.showLoading()
+                    });
+
+                    db.collection('anamneses').doc(id).delete()
                         .then(() => {
-                            anamneses = anamneses.filter(a => a.id !== anamneseId);
+                            anamneses = anamneses.filter(a => a.id !== id);
+                            Swal.close();
                             showSuccess('Anamnese excluída com sucesso!');
                             renderizarCadastradas();
-                            carregarDados();
                         })
                         .catch(error => {
+                            Swal.close();
                             showError('Erro ao excluir: ' + error.message);
                         });
                 }
@@ -3194,109 +3206,169 @@
         }
 
         // ============================================================
-        // REFRESH DATA
-        // ============================================================
-        function refreshData() {
-            const btn = document.querySelector('.btn-header .fa-sync-alt')?.closest('button');
-            if (btn) {
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i><span>Carregando...</span>';
-                btn.disabled = true;
-            }
-
-            carregarDados();
-            renderizarCards();
-
-            setTimeout(() => {
-                if (btn) {
-                    btn.innerHTML = '<i class="fas fa-sync-alt"></i><span>Atualizar</span>';
-                    btn.disabled = false;
-                }
-                Swal.fire('✅ Atualizado!', 'Dados carregados com sucesso.', 'success');
-            }, 1500);
-        }
-
-        // ============================================================
-        // UPLOAD IMAGE
+        // UPLOAD CLOUDINARY
         // ============================================================
         function uploadImageToCloudinary(file) {
             return new Promise((resolve, reject) => {
-                const formData = new FormData();
-                formData.append('file', file);
-                formData.append('upload_preset', cloudinaryConfig.uploadPreset);
+                if (!window.cloudinary) {
+                    reject(new Error('Cloudinary não carregado.'));
+                    return;
+                }
 
-                fetch(`https://api.cloudinary.com/v1_1/${cloudinaryConfig.cloudName}/image/upload`, {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.secure_url) {
-                        resolve(data.secure_url);
-                    } else {
-                        reject('Erro no upload: ' + JSON.stringify(data));
+                const widget = cloudinary.createUploadWidget(
+                    {
+                        cloudName: cloudinaryConfig.cloudName,
+                        uploadPreset: cloudinaryConfig.uploadPreset,
+                        sources: ['local'],
+                        multiple: false,
+                        maxFileSize: 5000000,
+                        clientAllowedFormats: ['jpg', 'jpeg', 'png', 'webp']
+                    },
+                    (error, result) => {
+                        if (error) {
+                            reject(error);
+                            return;
+                        }
+
+                        if (result && result.event === 'success') {
+                            resolve(result.info.secure_url);
+                        }
                     }
-                })
-                .catch(error => reject(error));
+                );
+
+                widget.open();
             });
         }
 
         // ============================================================
-        // FUNÇÕES AUXILIARES
+        // FORMATAR DATA
         // ============================================================
-        function formatDate(date) {
-            if (!date) return '';
-            if (typeof date === 'string') date = new Date(date);
-            return date.toLocaleDateString('pt-PT');
+        function formatDate(dateString) {
+            if (!dateString) return '';
+            
+            try {
+                const date = new Date(dateString + 'T00:00:00');
+                if (isNaN(date.getTime())) return dateString;
+                
+                return date.toLocaleDateString('pt-PT');
+            } catch(e) {
+                return dateString;
+            }
         }
 
+        // ============================================================
+        // ATUALIZAR DADOS
+        // ============================================================
+        function refreshData() {
+            if (!currentUser) {
+                showError('Usuário não autenticado.');
+                return;
+            }
+
+            Swal.fire({
+                title: 'Atualizando...',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+
+            Promise.all([
+                db.collection('clients')
+                    .where('userId', '==', currentUser.uid)
+                    .get(),
+                db.collection('anamneses')
+                    .where('userId', '==', currentUser.uid)
+                    .get()
+            ])
+            .then(([clientsSnapshot, anamnesesSnapshot]) => {
+                clients = [];
+                clientsSnapshot.forEach(doc => {
+                    clients.push({ id: doc.id, ...doc.data() });
+                });
+
+                clients.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+                anamneses = [];
+                anamnesesSnapshot.forEach(doc => {
+                    anamneses.push({ id: doc.id, ...doc.data() });
+                });
+
+                anamneses.sort((a, b) => {
+                    const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
+                    const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+                    return dateB - dateA;
+                });
+
+                atualizarUltimaAtualizacao();
+                renderizarCards();
+                renderizarCadastradas();
+
+                Swal.close();
+                showSuccess('Dados atualizados!');
+            })
+            .catch(error => {
+                Swal.close();
+                showError('Erro ao atualizar dados: ' + error.message);
+            });
+        }
+
+        // ============================================================
+        // LOGIN PROMPT
+        // ============================================================
+        function mostrarLoginPrompt() {
+            Swal.fire({
+                title: 'Não autenticado',
+                text: 'Faça login para acessar o sistema.',
+                icon: 'warning',
+                confirmButtonText: 'Ir para Login'
+            }).then(() => {
+                if (window.parent && window.parent !== window) {
+                    window.parent.postMessage({ action: 'goLogin' }, '*');
+                } else {
+                    window.location.href = 'index.html';
+                }
+            });
+        }
+
+        // ============================================================
+        // MENSAGENS
+        // ============================================================
         function showSuccess(message) {
             Swal.fire({
+                toast: true,
+                position: 'top-end',
                 icon: 'success',
-                title: 'Sucesso!',
-                text: message,
-                timer: 2000,
-                showConfirmButton: false
+                title: message,
+                showConfirmButton: false,
+                timer: 2500,
+                timerProgressBar: true
             });
         }
 
         function showError(message) {
             Swal.fire({
+                toast: true,
+                position: 'top-end',
                 icon: 'error',
-                title: 'Erro!',
-                text: message,
-                timer: 3000,
-                showConfirmButton: true
-            });
-        }
-
-        function mostrarLoginPrompt() {
-            Swal.fire({
-                title: 'Acesso Restrito',
-                text: 'Faça login para acessar as anamneses.',
-                icon: 'warning',
-                confirmButtonText: 'Ir para Login',
-                showCancelButton: true,
-                cancelButtonText: 'Cancelar'
-            }).then(result => {
-                if (result.isConfirmed) {
-                    window.location.href = '/login.html';
-                }
+                title: message,
+                showConfirmButton: false,
+                timer: 3500,
+                timerProgressBar: true
             });
         }
 
         // ============================================================
-        // EXPOR FUNÇÕES GLOBAIS
+        // EXPOR FUNÇÕES
         // ============================================================
-        window.goHome = goHome;
         window.refreshData = refreshData;
+        window.goHome = goHome;
         window.abrirNovaAnamnese = abrirNovaAnamnese;
-        window.abrirAnamnesesCadastradas = abrirAnamnesesCadastradas;
-        window.abrirAnamneseExistente = abrirAnamneseExistente;
-        window.editarAnamnese = editarAnamnese;
-        window.excluirAnamnese = excluirAnamnese;
         window.toggleCard = toggleCard;
         window.handleSearch = handleSearch;
         window.clearSearch = clearSearch;
+        window.abrirAnamnesesCadastradas = abrirAnamnesesCadastradas;
+        window.abrirAnamneseCadastrada = abrirAnamneseCadastrada;
+        window.editarAnamnese = editarAnamnese;
+        window.excluirAnamnese = excluirAnamnese;
         window.selecionarCliente = selecionarCliente;
         window.filtrarClientesSwal = filtrarClientesSwal;
         window.filtrarClientesSwal2 = filtrarClientesSwal2;
