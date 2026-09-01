@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
@@ -621,6 +621,7 @@
         .colab-stat-item .stat-number.salao {
             color: var(--primary-color);
         }
+        .colab-stat-item .stat-number.liquido { color: #198754; }
 
         /* Animação de atualização das estatísticas */
         .stat-updating {
@@ -1727,127 +1728,119 @@
         // 12. CALCULAR ESTATÍSTICAS REAIS DO COLABORADOR
         // ==========================================
         function calcularEstatisticasColaboradorReais(colaboradorId) {
-            const hoje = new Date();
-            const hojeStr = hoje.toISOString().split('T')[0];
-            
-            const inicioSemana = new Date(hoje);
-            inicioSemana.setDate(hoje.getDate() - hoje.getDay() + (hoje.getDay() === 0 ? -6 : 1));
-            inicioSemana.setHours(0, 0, 0, 0);
-            
-            const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-            inicioMes.setHours(0, 0, 0, 0);
+            const agora = new Date();
+            const inicio = periodoInicio ? new Date(periodoInicio) : new Date(agora.getFullYear(), agora.getMonth(), 1, 0, 0, 0, 0);
+            const fim = periodoFim ? new Date(periodoFim) : new Date(agora);
+            fim.setHours(23, 59, 59, 999);
 
-            // Usar o período selecionado ou o padrão (mês atual)
-            const inicio = periodoInicio || inicioMes;
-            const fim = periodoFim || hoje;
+            const colab = colaboradoresList.find(c => c.id === colaboradorId) || {};
+            const percManual = parseFloat(colab.manualPercent || 0) || 0;
+            const percProduct = parseFloat(colab.productPercent || 0) || 0;
 
-            // Filtrar serviços do colaborador no período
-            const servicosColaborador = allServices.filter(s => {
-                if (!s.date) return false;
-                if (s.collaboratorId !== colaboradorId) return false;
-                const data = new Date(s.date);
-                return data >= inicio && data <= fim;
+            function dataRegistro(registro) {
+                if (!registro || registro.date == null) return null;
+                if (registro.date && typeof registro.date.toDate === 'function') return registro.date.toDate();
+                if (typeof registro.date === 'string') {
+                    const m = registro.date.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                    if (m) return new Date(+m[1], +m[2]-1, +m[3], 12, 0, 0, 0);
+                }
+                const d = new Date(registro.date);
+                return isNaN(d.getTime()) ? null : d;
+            }
+
+            function numero(obj, campos) {
+                for (const campo of campos) {
+                    if (obj && obj[campo] !== undefined && obj[campo] !== null && obj[campo] !== '') {
+                        const n = parseFloat(obj[campo]);
+                        if (!isNaN(n)) return n;
+                    }
+                }
+                return 0;
+            }
+
+            function pertenceAoPeriodo(data) {
+                return data && data >= inicio && data <= fim;
+            }
+
+            const servicosPeriodo = allServices.filter(s => {
+                return s.collaboratorId === colaboradorId && pertenceAoPeriodo(dataRegistro(s));
             });
 
-            // Calcular estatísticas
-            let totalServicos = servicosColaborador.length;
+            const vendasPeriodo = allProductSales.filter(s => {
+                const id = s.collaboratorId ?? s.colaboradorId;
+                return id === colaboradorId && pertenceAoPeriodo(dataRegistro(s));
+            });
+
+            let totalServicos = servicosPeriodo.length + vendasPeriodo.length;
             let totalBruto = 0;
             let totalComissao = 0;
             let totalSalao = 0;
+            let comissoesPagas = 0;
 
-            // Buscar o colaborador para obter os percentuais
-            const colab = colaboradoresList.find(c => c.id === colaboradorId);
-            const percManual = parseFloat(colab?.manualPercent || 0);
-            const percProduct = parseFloat(colab?.productPercent || 0);
+            function registrarComissaoPaga(registro, comissao) {
+                const paga = registro.comissaoPaga === true || registro.commissionPaid === true || registro.paidCommission === true || registro.comissaoJaPaga === true || registro.commissionPaidStatus === 'paid';
+                const valorPago = numero(registro, ['comissaoPagaValor','commissionPaidAmount','paidCommissionAmount','valorComissaoPaga']);
+                if (valorPago > 0) comissoesPagas += valorPago;
+                else if (paga) comissoesPagas += comissao;
+            }
 
-            servicosColaborador.forEach(service => {
-                const valor = parseFloat(service.value || 0);
+            servicosPeriodo.forEach(service => {
+                const valor = numero(service, ['value','valor','price','totalValue','total']);
+                const tipo = String(service.type || service.tipo || 'manual').toLowerCase();
+                const percentual = (tipo === 'product' || tipo === 'produto') ? percProduct : percManual;
+                const comissao = valor * percentual / 100;
                 totalBruto += valor;
+                totalComissao += comissao;
+                totalSalao += valor - comissao;
+                registrarComissaoPaga(service, comissao);
+            });
 
-                let perc = 0;
-                if (service.type === 'manual') {
-                    perc = percManual;
-                } else if (service.type === 'product') {
-                    perc = percProduct;
+            vendasPeriodo.forEach(venda => {
+                const valor = numero(venda, ['totalValue','total','value','valor','price']);
+                let comissao = numero(venda, ['commissionAmount','comissaoValor','comissao']);
+                if (comissao === 0) {
+                    const percentual = numero(venda, ['commissionPercent','comissaoPercent','percentualComissao']) || percProduct;
+                    comissao = valor * percentual / 100;
                 }
-                totalComissao += valor * (perc / 100);
-                totalSalao += valor * ((100 - perc) / 100);
-            });
-
-            // Estatísticas por período (Hoje, Semana, Mês)
-            let hojeBruto = 0;
-            let semanaBruto = 0;
-            let mesBruto = 0;
-            let totalGeral = 0;
-
-            // Todos os serviços do colaborador (sem filtro de período)
-            const todosServicosColaborador = allServices.filter(s => {
-                if (!s.date) return false;
-                return s.collaboratorId === colaboradorId;
-            });
-
-            todosServicosColaborador.forEach(s => {
-                const valor = parseFloat(s.value || 0);
-                totalGeral += valor;
-            });
-
-            // Hoje
-            const servicosHoje = allServices.filter(s => {
-                if (!s.date) return false;
-                if (s.collaboratorId !== colaboradorId) return false;
-                return s.date === hojeStr;
-            });
-            servicosHoje.forEach(s => {
-                hojeBruto += parseFloat(s.value || 0);
-            });
-
-            // Semana
-            const servicosSemana = allServices.filter(s => {
-                if (!s.date) return false;
-                if (s.collaboratorId !== colaboradorId) return false;
-                const data = new Date(s.date);
-                return data >= inicioSemana && data <= hoje;
-            });
-            servicosSemana.forEach(s => {
-                semanaBruto += parseFloat(s.value || 0);
-            });
-
-            // Mês
-            const servicosMes = allServices.filter(s => {
-                if (!s.date) return false;
-                if (s.collaboratorId !== colaboradorId) return false;
-                const data = new Date(s.date);
-                return data >= inicioMes && data <= hoje;
-            });
-            servicosMes.forEach(s => {
-                mesBruto += parseFloat(s.value || 0);
-            });
-
-            // Adicionar vendas de produtos (se houver)
-            const vendasColaborador = allProductSales.filter(s => {
-                if (!s.date) return false;
-                if (s.colaboradorId !== colaboradorId) return false;
-                const data = new Date(s.date);
-                return data >= inicio && data <= fim;
-            });
-
-            vendasColaborador.forEach(s => {
-                const valor = parseFloat(s.totalValue || 0);
                 totalBruto += valor;
-                totalSalao += valor; // 100% para o salão em produtos
-                totalServicos += 1;
+                totalComissao += comissao;
+                totalSalao += valor - comissao;
+                registrarComissaoPaga(venda, comissao);
             });
 
-            return {
-                totalServicos: totalServicos,
-                totalBruto: totalBruto,
-                totalComissao: totalComissao,
-                totalSalao: totalSalao,
-                hojeBruto: hojeBruto,
-                semanaBruto: semanaBruto,
-                mesBruto: mesBruto,
-                totalGeral: totalGeral
-            };
+            // Hoje, Semana e Mês são calculados dentro do período selecionado.
+            const inicioHoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 0, 0, 0, 0);
+            const fimHoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 23, 59, 59, 999);
+            const diaSemana = agora.getDay();
+            const diasDesdeSegunda = diaSemana === 0 ? 6 : diaSemana - 1;
+            const inicioSemana = new Date(agora);
+            inicioSemana.setDate(agora.getDate() - diasDesdeSegunda);
+            inicioSemana.setHours(0, 0, 0, 0);
+            const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1, 0, 0, 0, 0);
+
+            function somaJanela(inicioJanela, fimJanela) {
+                const ini = new Date(Math.max(inicio.getTime(), inicioJanela.getTime()));
+                const f = new Date(Math.min(fim.getTime(), fimJanela.getTime()));
+                if (ini > f) return 0;
+                let soma = 0;
+                servicosPeriodo.forEach(r => {
+                    const d = dataRegistro(r);
+                    if (d >= ini && d <= f) soma += numero(r, ['value','valor','price','totalValue','total']);
+                });
+                vendasPeriodo.forEach(r => {
+                    const d = dataRegistro(r);
+                    if (d >= ini && d <= f) soma += numero(r, ['totalValue','total','value','valor','price']);
+                });
+                return soma;
+            }
+
+            const hojeBruto = somaJanela(inicioHoje, fimHoje);
+            const semanaBruto = somaJanela(inicioSemana, fimHoje);
+            const mesBruto = somaJanela(inicioMes, fimHoje);
+            const totalGeral = totalBruto;
+            const totalGeralLiquido = Math.max(0, totalGeral - comissoesPagas);
+
+            return { totalServicos, totalBruto, totalComissao, totalSalao, hojeBruto, semanaBruto, mesBruto, totalGeral, comissoesPagas, totalGeralLiquido };
         }
 
         // ==========================================
@@ -2056,6 +2049,11 @@
                                     <div class="stat-number">${formatCurrency(stats.totalGeral || 0)}</div>
                                     <div class="stat-label">Total Geral</div>
                                 </div>
+                                <div class="colab-stat-item">
+                                    <div class="stat-number liquido">${formatCurrency(stats.totalGeralLiquido || 0)}</div>
+                                    <div class="stat-label">Total Geral Líquido</div>
+                                    <small class="text-muted" style="font-size:.58rem;">comissões já pagas</small>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -2250,11 +2248,7 @@
         function atualizarEstatisticasModal(stats) {
             const container = document.getElementById('statsGrid');
             if (!container) return;
-
-            // Adicionar animação de atualização
             container.classList.add('stat-updating');
-            
-            // Atualizar os valores
             const items = container.querySelectorAll('.colab-stat-item');
             const valores = [
                 stats.totalServicos || 0,
@@ -2264,28 +2258,15 @@
                 stats.hojeBruto || 0,
                 stats.semanaBruto || 0,
                 stats.mesBruto || 0,
-                stats.totalGeral || 0
+                stats.totalGeral || 0,
+                stats.totalGeralLiquido || 0
             ];
-
             items.forEach((item, index) => {
-                const numberEl = item.querySelector('.stat-number');
-                if (numberEl) {
-                    // Verificar se é valor monetário (índices ímpares a partir de 1)
-                    const isCurrency = [1, 2, 3, 4, 5, 6, 7].includes(index);
-                    if (isCurrency) {
-                        numberEl.textContent = formatCurrency(valores[index] || 0);
-                    } else {
-                        numberEl.textContent = valores[index] || 0;
-                    }
-                }
+                const el = item.querySelector('.stat-number');
+                if (!el) return;
+                el.textContent = index === 0 ? String(valores[index]) : formatCurrency(valores[index]);
             });
-
-            // Remover animação após terminar
-            setTimeout(() => {
-                container.classList.remove('stat-updating');
-            }, 500);
-
-            console.log('✅ Estatísticas atualizadas sem recarregar a página');
+            setTimeout(() => container.classList.remove('stat-updating'), 500);
         }
 
         // ==========================================
@@ -2318,6 +2299,7 @@
                     this.classList.add('active');
                 });
             });
+            document.getElementById('colaboradorForm')?.addEventListener('submit', function(event) { event.preventDefault(); return false; });
 
             document.getElementById('btnSalvarColaborador').onclick = function() {
                 salvarColaborador();
