@@ -1904,6 +1904,87 @@
         // ==========================================
         // 14. GERAR RELATÓRIO DE SERVIÇOS E PRODUTOS
         // ==========================================
+        // =========================================================
+        // RESUMOS FINANCEIROS DE SERVICOS E COMISSOES
+        // =========================================================
+        function calcularResumoServicos(servicos) {
+            const total = servicos.reduce((sum, s) => sum + numero(s, ['value','valor','price']), 0);
+            const porColaborador = {};
+
+            servicos.forEach(s => {
+                const valor = numero(s, ['value','valor','price']);
+                const collaborator = dadosCache.collaborators.find(c => c.id === s.collaboratorId);
+                const nome = collaborator ? limparTexto(collaborator.name) : 'Nao informado';
+                const tipo = String(s.type || s.tipo || 'manual').toLowerCase();
+                const perc = collaborator
+                    ? ((tipo === 'product' || tipo === 'produto')
+                        ? parseFloat(collaborator.productPercent || 0)
+                        : parseFloat(collaborator.manualPercent || 0))
+                    : 0;
+                const comissao = valor * (perc / 100);
+
+                if (!porColaborador[nome]) porColaborador[nome] = 0;
+                porColaborador[nome] += comissao;
+            });
+
+            const totalComissoes = Object.values(porColaborador).reduce((sum, v) => sum + v, 0);
+
+            return {
+                quantidade: servicos.length,
+                total,
+                totalComissoes,
+                totalAposComissoes: total - totalComissoes,
+                porColaborador
+            };
+        }
+
+        function adicionarResumoFinanceiroServicos(doc, y, pageW, servicos, titulo = 'Resumo de Servicos e Comissoes') {
+            const margin = MARGIN_PADRAO;
+            const pageH = doc.internal.pageSize.getHeight();
+            const resumo = calcularResumoServicos(servicos);
+
+            if (y > pageH - 130) {
+                doc.addPage();
+                y = margin;
+            }
+
+            doc.setFontSize(12);
+            doc.setTextColor(38, 25, 107);
+            doc.text(limparTexto(titulo), margin, y);
+            y += 18;
+
+            doc.setFontSize(10);
+            doc.setTextColor(0, 0, 0);
+            doc.text(`Servicos: ${resumo.quantidade}`, margin, y);
+            y += 14;
+            doc.text(`Valor total dos servicos: ${formatCurrency(resumo.total)}`, margin, y);
+            y += 14;
+            doc.text(`Total de comissoes: ${formatCurrency(resumo.totalComissoes)}`, margin, y);
+            y += 14;
+            doc.text(`Valor apos comissoes: ${formatCurrency(resumo.totalAposComissoes)}`, margin, y);
+            y += 14;
+
+            const partes = Object.entries(resumo.porColaborador)
+                .filter(([, valor]) => valor !== 0)
+                .map(([nome, valor]) => `${nome} ${formatCurrency(valor)}`);
+
+            if (partes.length > 0) {
+                const texto = `Comissoes por colaborador: ${partes.join(' | ')}`;
+                const linhas = doc.splitTextToSize(texto, pageW - (margin * 2));
+                doc.text(linhas, margin, y);
+                y += (linhas.length * 12) + 4;
+            } else {
+                doc.setTextColor(120, 120, 120);
+                doc.text('Comissoes por colaborador: nenhum valor de comissao calculado.', margin, y);
+                y += 16;
+            }
+
+            y += 6;
+            doc.line(margin, y, pageW - margin, y);
+            y += 16;
+            return y;
+        }
+
         function gerarRelatorioServicosProdutos(doc, y, pageW, dataInicio, dataFim, tipo) {
             const margin = MARGIN_PADRAO;
             const pageH = doc.internal.pageSize.getHeight();
@@ -1942,7 +2023,7 @@
 
             doc.setFontSize(12);
             doc.setTextColor(0, 0, 0);
-            doc.text('Resumo', margin, y);
+            doc.text('Resumo Geral', margin, y);
             y += 18;
 
             doc.setFontSize(10);
@@ -1957,8 +2038,8 @@
             doc.text(`Valor total geral: ${formatCurrency(totalGeral)}`, margin, y);
             y += 20;
 
-            doc.line(margin, y, pageW - margin, y);
-            y += 16;
+            // Sempre informa o valor das comissoes e o valor restante apos comissoes.
+            y = adicionarResumoFinanceiroServicos(doc, y, pageW, servicos);
 
             // =========================================================
             // SERVICOS: NUNCA LIMITAR A 50.
@@ -2025,10 +2106,30 @@
                             y = margin;
                         }
 
+                        const resumoMes = calcularResumoServicos(servicosMes);
+
                         doc.setFontSize(11);
                         doc.setTextColor(38, 25, 107);
-                        doc.text(`${nomesMeses[mes]} de ${anoRelatorio} - ${servicosMes.length} servico(s)`, margin, y);
-                        y += 14;
+                        doc.text(`${nomesMeses[mes]} de ${anoRelatorio}`, margin, y);
+                        y += 15;
+
+                        doc.setFontSize(9);
+                        doc.setTextColor(0, 0, 0);
+                        const linhaMes = `${nomesMeses[mes]} - ${resumoMes.quantidade} servicos - Valor total ${formatCurrency(resumoMes.total)} - Comissoes ${formatCurrency(resumoMes.totalComissoes)} - Apos comissoes ${formatCurrency(resumoMes.totalAposComissoes)}`;
+                        const linhasMes = doc.splitTextToSize(linhaMes, pageW - (margin * 2));
+                        doc.text(linhasMes, margin, y);
+                        y += (linhasMes.length * 11) + 3;
+
+                        const partesComissaoMes = Object.entries(resumoMes.porColaborador)
+                            .filter(([, valor]) => valor !== 0)
+                            .map(([nome, valor]) => `${nome} ${formatCurrency(valor)}`);
+
+                        if (partesComissaoMes.length > 0) {
+                            const textoComissaoMes = `Comissoes: ${partesComissaoMes.join(' | ')}`;
+                            const linhasComissaoMes = doc.splitTextToSize(textoComissaoMes, pageW - (margin * 2));
+                            doc.text(linhasComissaoMes, margin, y);
+                            y += (linhasComissaoMes.length * 11) + 5;
+                        }
 
                         const serviceData = servicosMes.map(criarLinhaServico);
 
@@ -2041,6 +2142,35 @@
 
                         y = doc.lastAutoTable.finalY + 12;
                     }
+                    // Fechamento anual com o total de todos os meses.
+                    if (y > pageH - 110) {
+                        doc.addPage();
+                        y = margin;
+                    }
+                    const resumoAnual = calcularResumoServicos(servicos);
+                    doc.setFontSize(11);
+                    doc.setTextColor(38, 25, 107);
+                    doc.text(`TOTAL DO ANO ${anoRelatorio}`, margin, y);
+                    y += 15;
+                    doc.setFontSize(9);
+                    doc.setTextColor(0, 0, 0);
+                    const linhaTotalAnual = `Ano - ${resumoAnual.quantidade} servicos - Valor total ${formatCurrency(resumoAnual.total)} - Comissoes ${formatCurrency(resumoAnual.totalComissoes)} - Apos comissoes ${formatCurrency(resumoAnual.totalAposComissoes)}`;
+                    const linhasTotalAnual = doc.splitTextToSize(linhaTotalAnual, pageW - (margin * 2));
+                    doc.text(linhasTotalAnual, margin, y);
+                    y += (linhasTotalAnual.length * 11) + 3;
+
+                    const partesComissaoAnual = Object.entries(resumoAnual.porColaborador)
+                        .filter(([, valor]) => valor !== 0)
+                        .map(([nome, valor]) => `${nome} ${formatCurrency(valor)}`);
+                    if (partesComissaoAnual.length > 0) {
+                        const textoComissaoAnual = `Comissoes: ${partesComissaoAnual.join(' | ')}`;
+                        const linhasComissaoAnual = doc.splitTextToSize(textoComissaoAnual, pageW - (margin * 2));
+                        doc.text(linhasComissaoAnual, margin, y);
+                        y += (linhasComissaoAnual.length * 11) + 8;
+                    }
+                    doc.line(margin, y, pageW - margin, y);
+                    y += 16;
+
                 } else {
                     // Mensal, diario, semanal e personalizado:
                     // TODOS os servicos do periodo, sem slice/limite.
@@ -2466,7 +2596,20 @@
             doc.text(`Total Salarios: ${formatCurrency(totalSalarios)}`, margin, y);
             y += 14;
             doc.text(`Total Comissoes: ${formatCurrency(totalComissoes)}`, margin, y);
-            y += 16;
+            y += 14;
+
+            // Detalhamento das comissoes por colaborador no periodo.
+            const resumoComissoesFinanceiro = calcularResumoServicos(servicos);
+            const partesComissaoFinanceiro = Object.entries(resumoComissoesFinanceiro.porColaborador)
+                .filter(([, valor]) => valor !== 0)
+                .map(([nome, valor]) => `${nome} ${formatCurrency(valor)}`);
+
+            if (partesComissaoFinanceiro.length > 0) {
+                const textoComissaoFinanceiro = `Comissoes por colaborador: ${partesComissaoFinanceiro.join(' | ')}`;
+                const linhasComissaoFinanceiro = doc.splitTextToSize(textoComissaoFinanceiro, pageW - (margin * 2));
+                doc.text(linhasComissaoFinanceiro, margin, y);
+                y += (linhasComissaoFinanceiro.length * 12) + 4;
+            }
 
             doc.setFontSize(11);
             doc.setTextColor(lucroLiquido >= 0 ? 40 : 220, lucroLiquido >= 0 ? 167 : 53, lucroLiquido >= 0 ? 69 : 69);
