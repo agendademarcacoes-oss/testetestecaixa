@@ -1026,6 +1026,52 @@
             return categories[category] || category || 'Outros';
         }
 
+        // ==========================================
+        // 7. FUNÇÃO PARA DECODIFICAR CARACTERES ESPECIAIS
+        // ==========================================
+        function decodeText(text) {
+            if (!text) return '';
+            return String(text)
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/Ø/g, 'O')
+                .replace(/ø/g, 'o')
+                .replace(/Ü/g, 'U')
+                .replace(/ü/g, 'u')
+                .replace(/Ê/g, 'E')
+                .replace(/ê/g, 'e')
+                .replace(/Ã/g, 'A')
+                .replace(/ã/g, 'a')
+                .replace(/Õ/g, 'O')
+                .replace(/õ/g, 'o')
+                .replace(/Ç/g, 'C')
+                .replace(/ç/g, 'c')
+                .replace(/Á/g, 'A')
+                .replace(/á/g, 'a')
+                .replace(/À/g, 'A')
+                .replace(/à/g, 'a')
+                .replace(/Â/g, 'A')
+                .replace(/â/g, 'a')
+                .replace(/É/g, 'E')
+                .replace(/é/g, 'e')
+                .replace(/Í/g, 'I')
+                .replace(/í/g, 'i')
+                .replace(/Ó/g, 'O')
+                .replace(/ó/g, 'o')
+                .replace(/Ú/g, 'U')
+                .replace(/ú/g, 'u')
+                .replace(/Þ/g, 'P')
+                .replace(/þ/g, 'p')
+                .replace(/Ò/g, 'O')
+                .replace(/ò/g, 'o')
+                .replace(/Š/g, 'S')
+                .replace(/š/g, 's')
+                .replace(/Ž/g, 'Z')
+                .replace(/ž/g, 'z')
+                .replace(/Ð/g, 'D')
+                .replace(/ð/g, 'd');
+        }
+
         function showToast(message, type = 'info') {
             if (typeof Swal !== 'undefined') {
                 const icons = {
@@ -1093,7 +1139,7 @@
         }
 
         // ==========================================
-        // 7. RELATÓRIOS RECENTES
+        // 8. RELATÓRIOS RECENTES
         // ==========================================
         function carregarRelatoriosRecentes() {
             try {
@@ -1161,7 +1207,7 @@
 
             let html = '';
             recentReports.forEach((report, index) => {
-                const tipoLabel = tipos[report.tipo] || report.tipo;
+                const tipoLabel = decodeText(tipos[report.tipo] || report.tipo);
                 const icon = icons[report.tipo] || 'fa-file-pdf';
                 const dataGeracao = report.dataGeracao ? formatDateTime(report.dataGeracao) : 'Data desconhecida';
 
@@ -1197,14 +1243,13 @@
                 return;
             }
 
-            // Regerar o relatório com os dados atuais
             const dataInicio = report.dataInicio ? new Date(report.dataInicio) : null;
             const dataFim = report.dataFim ? new Date(report.dataFim) : null;
             gerarPDF(tipoRelatorioAtual, dataInicio, dataFim);
         }
 
         // ==========================================
-        // 8. ABRIR MODAL DO RELATÓRIO
+        // 9. ABRIR MODAL DO RELATÓRIO
         // ==========================================
         function abrirModalRelatorio(tipo) {
             tipoRelatorioAtual = tipo;
@@ -1222,12 +1267,9 @@
                 'custom': 'Relatório Personalizado'
             };
 
-            modalTitle.innerHTML = `<i class="fas fa-file-pdf me-2"></i>${tipos[tipo] || 'Gerar Relatório'}`;
+            modalTitle.innerHTML = `<i class="fas fa-file-pdf me-2"></i>${decodeText(tipos[tipo] || 'Gerar Relatório')}`;
 
-            // Gerar o formulário conforme o tipo
             modalBody.innerHTML = gerarFormularioRelatorio(tipo);
-
-            // Configurar eventos do formulário
             configurarEventosFormulario(tipo);
 
             const modal = new bootstrap.Modal(document.getElementById('reportModal'));
@@ -1235,7 +1277,7 @@
         }
 
         // ==========================================
-        // 9. GERAR FORMULÁRIO DO RELATÓRIO
+        // 10. GERAR FORMULÁRIO DO RELATÓRIO
         // ==========================================
         function gerarFormularioRelatorio(tipo) {
             const hoje = new Date();
@@ -1282,8 +1324,6 @@
                     break;
 
                 case 'monthly':
-                    const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-                    const fimMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
                     html = `
                         <div class="row">
                             <div class="col-md-6 mb-3">
@@ -1294,7 +1334,7 @@
                         </div>
                         <div class="alert alert-info">
                             <i class="fas fa-info-circle me-2"></i>
-                            O relatório mensal inclui todos os serviços e vendas do mês selecionado.
+                            O relatório mensal inclui todos os serviços e vendas do mês selecionado (do dia 01 ao último dia do mês).
                         </div>
                     `;
                     break;
@@ -1311,7 +1351,7 @@
                         </div>
                         <div class="alert alert-info">
                             <i class="fas fa-info-circle me-2"></i>
-                            O relatório anual inclui todos os serviços e vendas do ano selecionado.
+                            O relatório anual inclui todos os serviços de todos os meses do ano selecionado.
                         </div>
                     `;
                     break;
@@ -1324,7 +1364,7 @@
                                 <select class="form-select" id="collaboratorSelect">
                                     <option value="">Selecione um colaborador</option>
                                     ${dadosCache.collaborators.filter(c => c.active !== false).map(c => 
-                                        `<option value="${c.id}">${c.name}</option>`
+                                        `<option value="${c.id}">${decodeText(c.name)}</option>`
                                     ).join('')}
                                 </select>
                             </div>
@@ -1445,7 +1485,7 @@
         }
 
         // ==========================================
-        // 10. CONFIGURAR EVENTOS DO FORMULÁRIO
+        // 11. CONFIGURAR EVENTOS DO FORMULÁRIO
         // ==========================================
         function configurarEventosFormulario(tipo) {
             if (tipo === 'collaborator') {
@@ -1482,11 +1522,9 @@
                         const [year, month] = this.value.split('-').map(Number);
                         const start = new Date(year, month - 1, 1);
                         const end = new Date(year, month, 0);
-                        // Armazenar para uso no gerador
                         this.dataset.start = start.toISOString().split('T')[0];
                         this.dataset.end = end.toISOString().split('T')[0];
                     });
-                    // Inicializar
                     const [year, month] = monthStart.value.split('-').map(Number);
                     const start = new Date(year, month - 1, 1);
                     const end = new Date(year, month, 0);
@@ -1497,14 +1535,13 @@
         }
 
         // ==========================================
-        // 11. GERAR RELATÓRIO - FUNÇÃO PRINCIPAL
+        // 12. GERAR RELATÓRIO - FUNÇÃO PRINCIPAL
         // ==========================================
         function gerarRelatorio() {
             const tipo = tipoRelatorioAtual;
             let dataInicio = null;
             let dataFim = null;
 
-            // Coletar dados do formulário conforme o tipo
             switch (tipo) {
                 case 'daily':
                     const date = document.getElementById('reportDate')?.value;
@@ -1605,14 +1642,12 @@
                             return;
                         }
                     } else {
-                        // 'all' - todos os serviços do colaborador
                         dataInicio = null;
                         dataFim = null;
                     }
                     break;
 
                 case 'inventory':
-                    // Não precisa de data para estoque
                     break;
 
                 case 'financial':
@@ -1650,12 +1685,11 @@
                     break;
             }
 
-            // Gerar o PDF
             gerarPDF(tipo, dataInicio, dataFim);
         }
 
         // ==========================================
-        // 12. GERAR PDF - FUNÇÃO PRINCIPAL (CORRIGIDA)
+        // 13. GERAR PDF - FUNÇÃO PRINCIPAL (CORRIGIDA)
         // ==========================================
         function gerarPDF(tipo, dataInicio, dataFim) {
             showLoading('Gerando relatório...');
@@ -1671,145 +1705,167 @@
                 const logoUrl = configAtual.logo || '';
                 if (logoUrl) {
                     try {
-                        // Centralizar a logo (círculo)
-                        const logoSize = 60;
+                        const logoSize = 70;
                         const xCenter = (pageW - logoSize) / 2;
-                        // Adicionar a logo com clipping circular
-                        const img = new Image();
-                        img.crossOrigin = 'Anonymous';
-                        img.src = logoUrl;
                         
                         // Usar canvas para criar máscara circular
                         const canvas = document.createElement('canvas');
-                        canvas.width = 120;
-                        canvas.height = 120;
+                        canvas.width = 200;
+                        canvas.height = 200;
                         const ctx = canvas.getContext('2d');
                         
                         // Desenhar círculo
                         ctx.beginPath();
-                        ctx.arc(60, 60, 55, 0, Math.PI * 2);
+                        ctx.arc(100, 100, 90, 0, Math.PI * 2);
                         ctx.closePath();
                         ctx.clip();
                         
-                        // Desenhar imagem dentro do círculo
+                        // Carregar imagem e desenhar
                         const imgObj = new Image();
                         imgObj.crossOrigin = 'Anonymous';
                         imgObj.onload = function() {
-                            ctx.drawImage(imgObj, 0, 0, 120, 120);
-                            // Adicionar ao PDF a partir do canvas
-                            const imgData = canvas.toDataURL('image/jpeg');
+                            ctx.drawImage(imgObj, 0, 0, 200, 200);
+                            const imgData = canvas.toDataURL('image/jpeg', 0.9);
                             try {
-                                doc.addImage(imgData, 'JPEG', xCenter, y - 30, logoSize, logoSize);
+                                doc.addImage(imgData, 'JPEG', xCenter, y - 10, logoSize, logoSize);
                             } catch(e) {
                                 doc.setFontSize(16);
                                 doc.setTextColor(38, 25, 107);
-                                doc.text(configAtual.nome || 'Studio DeVitto', pageW/2, y + 20, { align: 'center' });
+                                doc.text(decodeText(configAtual.nome || 'Studio DeVitto'), pageW/2, y + 20, { align: 'center' });
                             }
+                            continuarGeracao();
                         };
                         imgObj.onerror = function() {
                             doc.setFontSize(16);
                             doc.setTextColor(38, 25, 107);
-                            doc.text(configAtual.nome || 'Studio DeVitto', pageW/2, y + 20, { align: 'center' });
+                            doc.text(decodeText(configAtual.nome || 'Studio DeVitto'), pageW/2, y + 20, { align: 'center' });
+                            continuarGeracao();
                         };
                         imgObj.src = logoUrl;
                         
-                        // Se a imagem falhar, mostrar texto
-                        setTimeout(() => {
-                            if (!imgObj.complete || imgObj.naturalWidth === 0) {
+                        // Fallback se a imagem demorar muito
+                        let fallbackExecutado = false;
+                        const fallbackTimeout = setTimeout(() => {
+                            if (!fallbackExecutado) {
+                                fallbackExecutado = true;
+                                if (!imgObj.complete || imgObj.naturalWidth === 0) {
+                                    doc.setFontSize(16);
+                                    doc.setTextColor(38, 25, 107);
+                                    doc.text(decodeText(configAtual.nome || 'Studio DeVitto'), pageW/2, y + 20, { align: 'center' });
+                                    continuarGeracao();
+                                }
+                            }
+                        }, 2000);
+                        
+                        function continuarGeracao() {
+                            clearTimeout(fallbackTimeout);
+                            fallbackExecutado = true;
+                            y += 80;
+                            gerarConteudo();
+                        }
+                        
+                        // Se a imagem já estiver carregada
+                        if (imgObj.complete && imgObj.naturalWidth > 0) {
+                            clearTimeout(fallbackTimeout);
+                            fallbackExecutado = true;
+                            ctx.drawImage(imgObj, 0, 0, 200, 200);
+                            const imgData = canvas.toDataURL('image/jpeg', 0.9);
+                            try {
+                                doc.addImage(imgData, 'JPEG', xCenter, y - 10, logoSize, logoSize);
+                            } catch(e) {
                                 doc.setFontSize(16);
                                 doc.setTextColor(38, 25, 107);
-                                doc.text(configAtual.nome || 'Studio DeVitto', pageW/2, y + 20, { align: 'center' });
+                                doc.text(decodeText(configAtual.nome || 'Studio DeVitto'), pageW/2, y + 20, { align: 'center' });
                             }
-                        }, 1000);
+                            y += 80;
+                            gerarConteudo();
+                        }
                         
-                        y += 70;
+                        return;
                     } catch(e) {
                         doc.setFontSize(16);
                         doc.setTextColor(38, 25, 107);
-                        doc.text(configAtual.nome || 'Studio DeVitto', pageW/2, y + 20, { align: 'center' });
+                        doc.text(decodeText(configAtual.nome || 'Studio DeVitto'), pageW/2, y + 20, { align: 'center' });
                         y += 40;
                     }
                 } else {
                     doc.setFontSize(16);
                     doc.setTextColor(38, 25, 107);
-                    doc.text(configAtual.nome || 'Studio DeVitto', pageW/2, y + 20, { align: 'center' });
+                    doc.text(decodeText(configAtual.nome || 'Studio DeVitto'), pageW/2, y + 20, { align: 'center' });
                     y += 40;
                 }
 
-                // ===== TÍTULO =====
-                const tipos = {
-                    'daily': 'Relatório Diário',
-                    'weekly': 'Relatório Semanal',
-                    'monthly': 'Relatório Mensal',
-                    'yearly': 'Relatório Anual',
-                    'collaborator': 'Relatório por Colaborador',
-                    'inventory': 'Relatório de Estoque',
-                    'financial': 'Relatório Financeiro',
-                    'custom': 'Relatório Personalizado'
-                };
+                gerarConteudo();
 
-                doc.setFontSize(18);
-                doc.setTextColor(38, 25, 107);
-                doc.text(tipos[tipo] || 'Relatório', pageW/2, y, { align: 'center' });
-                y += 20;
+                function gerarConteudo() {
+                    const tipos = {
+                        'daily': 'Relatório Diário',
+                        'weekly': 'Relatório Semanal',
+                        'monthly': 'Relatório Mensal',
+                        'yearly': 'Relatório Anual',
+                        'collaborator': 'Relatório por Colaborador',
+                        'inventory': 'Relatório de Estoque',
+                        'financial': 'Relatório Financeiro',
+                        'custom': 'Relatório Personalizado'
+                    };
 
-                // ===== PERÍODO =====
-                doc.setFontSize(10);
-                doc.setTextColor(100, 100, 120);
-                let periodoTexto = '';
-                if (dataInicio && dataFim) {
-                    periodoTexto = `Período: ${formatDate(dataInicio)} a ${formatDate(dataFim)}`;
-                } else if (tipo === 'inventory') {
-                    periodoTexto = 'Estoque atual';
-                } else {
-                    periodoTexto = 'Todos os registros';
+                    doc.setFontSize(18);
+                    doc.setTextColor(38, 25, 107);
+                    doc.text(decodeText(tipos[tipo] || 'Relatório'), pageW/2, y, { align: 'center' });
+                    y += 20;
+
+                    doc.setFontSize(10);
+                    doc.setTextColor(100, 100, 120);
+                    let periodoTexto = '';
+                    if (dataInicio && dataFim) {
+                        periodoTexto = `Período: ${formatDate(dataInicio)} a ${formatDate(dataFim)}`;
+                    } else if (tipo === 'inventory') {
+                        periodoTexto = 'Estoque atual';
+                    } else {
+                        periodoTexto = 'Todos os registros';
+                    }
+                    doc.text(decodeText(periodoTexto), pageW/2, y, { align: 'center' });
+                    y += 20;
+
+                    doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-PT')} às ${new Date().toLocaleTimeString('pt-PT')}`, pageW/2, y, { align: 'center' });
+                    y += 30;
+
+                    switch (tipo) {
+                        case 'daily':
+                        case 'weekly':
+                        case 'monthly':
+                        case 'yearly':
+                        case 'custom':
+                            y = gerarRelatorioServicosProdutos(doc, y, pageW, dataInicio, dataFim, tipo);
+                            break;
+                        case 'collaborator':
+                            y = gerarRelatorioColaborador(doc, y, pageW, dataInicio, dataFim);
+                            break;
+                        case 'inventory':
+                            y = gerarRelatorioEstoque(doc, y, pageW);
+                            break;
+                        case 'financial':
+                            y = gerarRelatorioFinanceiro(doc, y, pageW, dataInicio, dataFim);
+                            break;
+                    }
+
+                    doc.setFontSize(8);
+                    doc.setTextColor(150, 150, 170);
+                    doc.text(`Documento gerado por ${decodeText(configAtual.nome || 'Studio DeVitto')} em ${new Date().toLocaleDateString('pt-PT')}`, pageW/2, doc.internal.pageSize.getHeight() - 20, { align: 'center' });
+
+                    const nomeArquivo = `relatorio_${tipo}_${new Date().toISOString().slice(0,10)}.pdf`;
+                    doc.save(nomeArquivo);
+
+                    const dataInicioStr = dataInicio ? dataInicio.toISOString() : null;
+                    const dataFimStr = dataFim ? dataFim.toISOString() : null;
+                    salvarRelatorioRecente(tipo, dataInicioStr, dataFimStr, nomeArquivo);
+
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('reportModal'));
+                    if (modal) modal.hide();
+
+                    Swal.close();
+                    showToast('✅ Relatório gerado com sucesso!', 'success');
                 }
-                doc.text(periodoTexto, pageW/2, y, { align: 'center' });
-                y += 20;
-
-                doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-PT')} às ${new Date().toLocaleTimeString('pt-PT')}`, pageW/2, y, { align: 'center' });
-                y += 30;
-
-                // ===== CONTEÚDO ESPECÍFICO =====
-                switch (tipo) {
-                    case 'daily':
-                    case 'weekly':
-                    case 'monthly':
-                    case 'yearly':
-                    case 'custom':
-                        y = gerarRelatorioServicosProdutos(doc, y, pageW, dataInicio, dataFim, tipo);
-                        break;
-                    case 'collaborator':
-                        y = gerarRelatorioColaborador(doc, y, pageW, dataInicio, dataFim);
-                        break;
-                    case 'inventory':
-                        y = gerarRelatorioEstoque(doc, y, pageW);
-                        break;
-                    case 'financial':
-                        y = gerarRelatorioFinanceiro(doc, y, pageW, dataInicio, dataFim);
-                        break;
-                }
-
-                // ===== RODAPÉ =====
-                doc.setFontSize(8);
-                doc.setTextColor(150, 150, 170);
-                doc.text(`Documento gerado por ${configAtual.nome || 'Studio DeVitto'} em ${new Date().toLocaleDateString('pt-PT')}`, pageW/2, doc.internal.pageSize.getHeight() - 20, { align: 'center' });
-
-                // ===== SALVAR PDF =====
-                const nomeArquivo = `relatorio_${tipo}_${new Date().toISOString().slice(0,10)}.pdf`;
-                doc.save(nomeArquivo);
-
-                // Salvar nos relatórios recentes
-                const dataInicioStr = dataInicio ? dataInicio.toISOString() : null;
-                const dataFimStr = dataFim ? dataFim.toISOString() : null;
-                salvarRelatorioRecente(tipo, dataInicioStr, dataFimStr, nomeArquivo);
-
-                // Fechar modal
-                const modal = bootstrap.Modal.getInstance(document.getElementById('reportModal'));
-                if (modal) modal.hide();
-
-                Swal.close();
-                showToast('✅ Relatório gerado com sucesso!', 'success');
 
             } catch (error) {
                 console.error('❌ Erro ao gerar PDF:', error);
@@ -1819,12 +1875,11 @@
         }
 
         // ==========================================
-        // 13. GERAR RELATÓRIO DE SERVIÇOS E PRODUTOS (ORDEM DO DIA 01 AO ÚLTIMO)
+        // 14. GERAR RELATÓRIO DE SERVIÇOS E PRODUTOS (ORDEM DO DIA 01 AO ÚLTIMO)
         // ==========================================
         function gerarRelatorioServicosProdutos(doc, y, pageW, dataInicio, dataFim, tipo) {
             const margin = MARGIN_PADRAO;
             
-            // Filtrar serviços
             let servicos = dadosCache.services;
             let produtos = dadosCache.productSales;
 
@@ -1861,19 +1916,19 @@
 
             doc.setFontSize(12);
             doc.setTextColor(0, 0, 0);
-            doc.text('📊 Resumo', margin, y);
+            doc.text(decodeText('📊 Resumo'), margin, y);
             y += 18;
 
             doc.setFontSize(10);
-            doc.text(`Serviços realizados: ${totalServicos}`, margin, y);
+            doc.text(decodeText(`Serviços realizados: ${totalServicos}`), margin, y);
             y += 14;
-            doc.text(`Vendas de produtos: ${totalProdutos}`, margin, y);
+            doc.text(decodeText(`Vendas de produtos: ${totalProdutos}`), margin, y);
             y += 14;
-            doc.text(`Valor total de serviços: ${formatCurrency(valorServicos)}`, margin, y);
+            doc.text(decodeText(`Valor total de serviços: ${formatCurrency(valorServicos)}`), margin, y);
             y += 14;
-            doc.text(`Valor total de produtos: ${formatCurrency(valorProdutos)}`, margin, y);
+            doc.text(decodeText(`Valor total de produtos: ${formatCurrency(valorProdutos)}`), margin, y);
             y += 14;
-            doc.text(`Valor total geral: ${formatCurrency(totalGeral)}`, margin, y);
+            doc.text(decodeText(`Valor total geral: ${formatCurrency(totalGeral)}`), margin, y);
             y += 20;
 
             doc.line(margin, y, pageW - margin, y);
@@ -1883,45 +1938,12 @@
             if (servicos.length > 0) {
                 doc.setFontSize(12);
                 doc.setTextColor(38, 25, 107);
-                doc.text('📋 Serviços Realizados', margin, y);
+                doc.text(decodeText('📋 Serviços Realizados'), margin, y);
                 y += 16;
 
                 const serviceData = servicos.slice(0, 50).map(s => {
                     const client = dadosCache.clients.find(c => c.id === s.clientId);
                     const collaborator = dadosCache.collaborators.find(c => c.id === s.collaboratorId);
-                    // Função para decodificar caracteres especiais
-                    const decodeText = (text) => {
-                        if (!text) return '';
-                        return String(text)
-                            .normalize('NFD')
-                            .replace(/[\u0300-\u036f]/g, '')
-                            .replace(/Ø/g, 'O')
-                            .replace(/ø/g, 'o')
-                            .replace(/Ü/g, 'U')
-                            .replace(/ü/g, 'u')
-                            .replace(/Ê/g, 'E')
-                            .replace(/ê/g, 'e')
-                            .replace(/Ã/g, 'A')
-                            .replace(/ã/g, 'a')
-                            .replace(/Õ/g, 'O')
-                            .replace(/õ/g, 'o')
-                            .replace(/Ç/g, 'C')
-                            .replace(/ç/g, 'c')
-                            .replace(/Á/g, 'A')
-                            .replace(/á/g, 'a')
-                            .replace(/À/g, 'A')
-                            .replace(/à/g, 'a')
-                            .replace(/Â/g, 'A')
-                            .replace(/â/g, 'a')
-                            .replace(/É/g, 'E')
-                            .replace(/é/g, 'e')
-                            .replace(/Í/g, 'I')
-                            .replace(/í/g, 'i')
-                            .replace(/Ó/g, 'O')
-                            .replace(/ó/g, 'o')
-                            .replace(/Ú/g, 'U')
-                            .replace(/ú/g, 'u');
-                    };
                     return [
                         formatDate(dataRegistro(s) || s.date),
                         client ? decodeText(client.name) : 'Cliente não encontrado',
@@ -1952,7 +1974,7 @@
                 if (servicos.length > 50) {
                     doc.setFontSize(8);
                     doc.setTextColor(150, 150, 170);
-                    doc.text(`* Exibindo os 50 primeiros serviços de ${servicos.length}`, margin, y);
+                    doc.text(decodeText(`* Exibindo os 50 primeiros serviços de ${servicos.length}`), margin, y);
                     y += 14;
                 }
 
@@ -1965,44 +1987,12 @@
             if (produtos.length > 0) {
                 doc.setFontSize(12);
                 doc.setTextColor(38, 25, 107);
-                doc.text('🛒 Produtos Vendidos', margin, y);
+                doc.text(decodeText('🛒 Produtos Vendidos'), margin, y);
                 y += 16;
 
                 const productData = produtos.slice(0, 50).map(p => {
                     const product = dadosCache.products.find(pr => pr.id === p.productId);
                     const client = p.clientId ? dadosCache.clients.find(c => c.id === p.clientId) : null;
-                    const decodeText = (text) => {
-                        if (!text) return '';
-                        return String(text)
-                            .normalize('NFD')
-                            .replace(/[\u0300-\u036f]/g, '')
-                            .replace(/Ø/g, 'O')
-                            .replace(/ø/g, 'o')
-                            .replace(/Ü/g, 'U')
-                            .replace(/ü/g, 'u')
-                            .replace(/Ê/g, 'E')
-                            .replace(/ê/g, 'e')
-                            .replace(/Ã/g, 'A')
-                            .replace(/ã/g, 'a')
-                            .replace(/Õ/g, 'O')
-                            .replace(/õ/g, 'o')
-                            .replace(/Ç/g, 'C')
-                            .replace(/ç/g, 'c')
-                            .replace(/Á/g, 'A')
-                            .replace(/á/g, 'a')
-                            .replace(/À/g, 'A')
-                            .replace(/à/g, 'a')
-                            .replace(/Â/g, 'A')
-                            .replace(/â/g, 'a')
-                            .replace(/É/g, 'E')
-                            .replace(/é/g, 'e')
-                            .replace(/Í/g, 'I')
-                            .replace(/í/g, 'i')
-                            .replace(/Ó/g, 'O')
-                            .replace(/ó/g, 'o')
-                            .replace(/Ú/g, 'U')
-                            .replace(/ú/g, 'u');
-                    };
                     return [
                         formatDate(dataRegistro(p) || p.date),
                         product ? decodeText(product.name) : 'Produto não encontrado',
@@ -2033,7 +2023,7 @@
                 if (produtos.length > 50) {
                     doc.setFontSize(8);
                     doc.setTextColor(150, 150, 170);
-                    doc.text(`* Exibindo os 50 primeiros produtos de ${produtos.length}`, margin, y);
+                    doc.text(decodeText(`* Exibindo os 50 primeiros produtos de ${produtos.length}`), margin, y);
                     y += 14;
                 }
             }
@@ -2042,7 +2032,7 @@
         }
 
         // ==========================================
-        // 14. GERAR RELATÓRIO POR COLABORADOR
+        // 15. GERAR RELATÓRIO POR COLABORADOR
         // ==========================================
         function gerarRelatorioColaborador(doc, y, pageW, dataInicio, dataFim) {
             const margin = MARGIN_PADRAO;
@@ -2054,7 +2044,6 @@
                 return y + 20;
             }
 
-            // Filtrar serviços do colaborador
             let servicos = dadosCache.services.filter(s => s.collaboratorId === collaboratorId);
 
             if (dataInicio && dataFim) {
@@ -2064,14 +2053,12 @@
                 });
             }
 
-            // ORDENAR POR DATA (DO DIA 01 AO ÚLTIMO)
             servicos.sort((a, b) => {
                 const da = dataRegistro(a) || new Date(0);
                 const db = dataRegistro(b) || new Date(0);
                 return da - db;
             });
 
-            // Calcular estatísticas
             const totalServicos = servicos.length;
             const totalBruto = servicos.reduce((sum, s) => sum + numero(s, ['value','valor','price']), 0);
             const percManual = parseFloat(collaborator.manualPercent || 0);
@@ -2087,40 +2074,38 @@
 
             const totalSalao = totalBruto - totalComissao;
 
-            // ===== INFORMAÇÕES DO COLABORADOR =====
             doc.setFontSize(14);
             doc.setTextColor(38, 25, 107);
-            doc.text(`👤 ${collaborator.name}`, margin, y);
+            doc.text(decodeText(`👤 ${collaborator.name}`), margin, y);
             y += 18;
 
             doc.setFontSize(10);
             doc.setTextColor(0, 0, 0);
-            doc.text(`Especialidade: ${collaborator.specialty || 'Não definida'}`, margin, y);
+            doc.text(decodeText(`Especialidade: ${collaborator.specialty || 'Não definida'}`), margin, y);
             y += 14;
-            doc.text(`Contato: ${collaborator.contact || 'Não informado'}`, margin, y);
+            doc.text(decodeText(`Contato: ${collaborator.contact || 'Não informado'}`), margin, y);
             y += 14;
-            doc.text(`Comissão (Manual): ${percManual}%`, margin, y);
+            doc.text(decodeText(`Comissão (Manual): ${percManual}%`), margin, y);
             y += 14;
-            doc.text(`Comissão (Produtos): ${percProduct}%`, margin, y);
+            doc.text(decodeText(`Comissão (Produtos): ${percProduct}%`), margin, y);
             y += 20;
 
-            // ===== RESUMO =====
             doc.setFontSize(12);
-            doc.text('📊 Resumo do Período', margin, y);
+            doc.text(decodeText('📊 Resumo do Período'), margin, y);
             y += 18;
 
             doc.setFontSize(10);
-            doc.text(`Serviços realizados: ${totalServicos}`, margin, y);
+            doc.text(decodeText(`Serviços realizados: ${totalServicos}`), margin, y);
             y += 14;
-            doc.text(`Total Bruto: ${formatCurrency(totalBruto)}`, margin, y);
+            doc.text(decodeText(`Total Bruto: ${formatCurrency(totalBruto)}`), margin, y);
             y += 14;
-            doc.text(`Comissão Total: ${formatCurrency(totalComissao)}`, margin, y);
+            doc.text(decodeText(`Comissão Total: ${formatCurrency(totalComissao)}`), margin, y);
             y += 14;
-            doc.text(`Salão: ${formatCurrency(totalSalao)}`, margin, y);
+            doc.text(decodeText(`Salão: ${formatCurrency(totalSalao)}`), margin, y);
             y += 14;
 
             if (dataInicio && dataFim) {
-                doc.text(`Período: ${formatDate(dataInicio)} a ${formatDate(dataFim)}`, margin, y);
+                doc.text(decodeText(`Período: ${formatDate(dataInicio)} a ${formatDate(dataFim)}`), margin, y);
             } else {
                 doc.text('Período: Todos os registros', margin, y);
             }
@@ -2129,45 +2114,11 @@
             doc.line(margin, y, pageW - margin, y);
             y += 16;
 
-            // ===== LISTA DE SERVIÇOS =====
             if (servicos.length > 0) {
                 doc.setFontSize(12);
                 doc.setTextColor(38, 25, 107);
-                doc.text('📋 Serviços Realizados', margin, y);
+                doc.text(decodeText('📋 Serviços Realizados'), margin, y);
                 y += 16;
-
-                const decodeText = (text) => {
-                    if (!text) return '';
-                    return String(text)
-                        .normalize('NFD')
-                        .replace(/[\u0300-\u036f]/g, '')
-                        .replace(/Ø/g, 'O')
-                        .replace(/ø/g, 'o')
-                        .replace(/Ü/g, 'U')
-                        .replace(/ü/g, 'u')
-                        .replace(/Ê/g, 'E')
-                        .replace(/ê/g, 'e')
-                        .replace(/Ã/g, 'A')
-                        .replace(/ã/g, 'a')
-                        .replace(/Õ/g, 'O')
-                        .replace(/õ/g, 'o')
-                        .replace(/Ç/g, 'C')
-                        .replace(/ç/g, 'c')
-                        .replace(/Á/g, 'A')
-                        .replace(/á/g, 'a')
-                        .replace(/À/g, 'A')
-                        .replace(/à/g, 'a')
-                        .replace(/Â/g, 'A')
-                        .replace(/â/g, 'a')
-                        .replace(/É/g, 'E')
-                        .replace(/é/g, 'e')
-                        .replace(/Í/g, 'I')
-                        .replace(/í/g, 'i')
-                        .replace(/Ó/g, 'O')
-                        .replace(/ó/g, 'o')
-                        .replace(/Ú/g, 'U')
-                        .replace(/ú/g, 'u');
-                };
 
                 const serviceData = servicos.slice(0, 50).map(s => {
                     const client = dadosCache.clients.find(c => c.id === s.clientId);
@@ -2205,7 +2156,7 @@
                 if (servicos.length > 50) {
                     doc.setFontSize(8);
                     doc.setTextColor(150, 150, 170);
-                    doc.text(`* Exibindo os 50 primeiros serviços de ${servicos.length}`, margin, y);
+                    doc.text(decodeText(`* Exibindo os 50 primeiros serviços de ${servicos.length}`), margin, y);
                     y += 14;
                 }
             } else {
@@ -2219,7 +2170,7 @@
         }
 
         // ==========================================
-        // 15. GERAR RELATÓRIO DE ESTOQUE
+        // 16. GERAR RELATÓRIO DE ESTOQUE
         // ==========================================
         function gerarRelatorioEstoque(doc, y, pageW) {
             const margin = MARGIN_PADRAO;
@@ -2231,10 +2182,8 @@
                 produtos = produtos.filter(p => p.quantity <= p.minQuantity);
             }
 
-            // ORDENAR POR NOME
             produtos.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
-            // ===== RESUMO =====
             const totalProdutos = produtos.length;
             const totalValue = produtos.reduce((sum, p) => sum + (p.quantity * numero(p, ['salePrice','price'])), 0);
             const totalInvestment = produtos.reduce((sum, p) => sum + (p.quantity * numero(p, ['purchasePrice','cost'])), 0);
@@ -2242,63 +2191,29 @@
 
             doc.setFontSize(12);
             doc.setTextColor(0, 0, 0);
-            doc.text('📊 Resumo do Estoque', margin, y);
+            doc.text(decodeText('📊 Resumo do Estoque'), margin, y);
             y += 18;
 
             doc.setFontSize(10);
-            doc.text(`Total de produtos: ${totalProdutos}`, margin, y);
+            doc.text(decodeText(`Total de produtos: ${totalProdutos}`), margin, y);
             y += 14;
-            doc.text(`Produtos com estoque baixo: ${lowStockCount}`, margin, y);
+            doc.text(decodeText(`Produtos com estoque baixo: ${lowStockCount}`), margin, y);
             y += 14;
-            doc.text(`Valor total em estoque (venda): ${formatCurrency(totalValue)}`, margin, y);
+            doc.text(decodeText(`Valor total em estoque (venda): ${formatCurrency(totalValue)}`), margin, y);
             y += 14;
-            doc.text(`Investimento total (compra): ${formatCurrency(totalInvestment)}`, margin, y);
+            doc.text(decodeText(`Investimento total (compra): ${formatCurrency(totalInvestment)}`), margin, y);
             y += 14;
-            doc.text(`Lucro potencial: ${formatCurrency(totalValue - totalInvestment)}`, margin, y);
+            doc.text(decodeText(`Lucro potencial: ${formatCurrency(totalValue - totalInvestment)}`), margin, y);
             y += 20;
 
             doc.line(margin, y, pageW - margin, y);
             y += 16;
 
-            // ===== LISTA DE PRODUTOS =====
             if (produtos.length > 0) {
                 doc.setFontSize(12);
                 doc.setTextColor(38, 25, 107);
-                doc.text('📦 Produtos', margin, y);
+                doc.text(decodeText('📦 Produtos'), margin, y);
                 y += 16;
-
-                const decodeText = (text) => {
-                    if (!text) return '';
-                    return String(text)
-                        .normalize('NFD')
-                        .replace(/[\u0300-\u036f]/g, '')
-                        .replace(/Ø/g, 'O')
-                        .replace(/ø/g, 'o')
-                        .replace(/Ü/g, 'U')
-                        .replace(/ü/g, 'u')
-                        .replace(/Ê/g, 'E')
-                        .replace(/ê/g, 'e')
-                        .replace(/Ã/g, 'A')
-                        .replace(/ã/g, 'a')
-                        .replace(/Õ/g, 'O')
-                        .replace(/õ/g, 'o')
-                        .replace(/Ç/g, 'C')
-                        .replace(/ç/g, 'c')
-                        .replace(/Á/g, 'A')
-                        .replace(/á/g, 'a')
-                        .replace(/À/g, 'A')
-                        .replace(/à/g, 'a')
-                        .replace(/Â/g, 'A')
-                        .replace(/â/g, 'a')
-                        .replace(/É/g, 'E')
-                        .replace(/é/g, 'e')
-                        .replace(/Í/g, 'I')
-                        .replace(/í/g, 'i')
-                        .replace(/Ó/g, 'O')
-                        .replace(/ó/g, 'o')
-                        .replace(/Ú/g, 'U')
-                        .replace(/ú/g, 'u');
-                };
 
                 const productData = produtos.map(p => {
                     const isLowStock = p.quantity <= p.minQuantity;
@@ -2337,47 +2252,14 @@
                 y += 20;
             }
 
-            // ===== ALERTAS DE ESTOQUE BAIXO =====
             if (!includeLowStock && lowStockCount > 0) {
                 y += 10;
                 doc.setFontSize(10);
                 doc.setTextColor(220, 53, 69);
-                doc.text(`⚠️ Atenção: ${lowStockCount} produto(s) com estoque baixo!`, margin, y);
+                doc.text(decodeText(`⚠️ Atenção: ${lowStockCount} produto(s) com estoque baixo!`), margin, y);
                 y += 16;
 
                 const lowStockProducts = dadosCache.products.filter(p => p.quantity <= p.minQuantity);
-                const decodeText = (text) => {
-                    if (!text) return '';
-                    return String(text)
-                        .normalize('NFD')
-                        .replace(/[\u0300-\u036f]/g, '')
-                        .replace(/Ø/g, 'O')
-                        .replace(/ø/g, 'o')
-                        .replace(/Ü/g, 'U')
-                        .replace(/ü/g, 'u')
-                        .replace(/Ê/g, 'E')
-                        .replace(/ê/g, 'e')
-                        .replace(/Ã/g, 'A')
-                        .replace(/ã/g, 'a')
-                        .replace(/Õ/g, 'O')
-                        .replace(/õ/g, 'o')
-                        .replace(/Ç/g, 'C')
-                        .replace(/ç/g, 'c')
-                        .replace(/Á/g, 'A')
-                        .replace(/á/g, 'a')
-                        .replace(/À/g, 'A')
-                        .replace(/à/g, 'a')
-                        .replace(/Â/g, 'A')
-                        .replace(/â/g, 'a')
-                        .replace(/É/g, 'E')
-                        .replace(/é/g, 'e')
-                        .replace(/Í/g, 'I')
-                        .replace(/í/g, 'i')
-                        .replace(/Ó/g, 'O')
-                        .replace(/ó/g, 'o')
-                        .replace(/Ú/g, 'U')
-                        .replace(/ú/g, 'u');
-                };
                 const lowStockData = lowStockProducts.map(p => [
                     p.name ? decodeText(p.name) : 'Sem nome',
                     p.quantity || 0,
@@ -2407,13 +2289,12 @@
         }
 
         // ==========================================
-        // 16. GERAR RELATÓRIO FINANCEIRO
+        // 17. GERAR RELATÓRIO FINANCEIRO
         // ==========================================
         function gerarRelatorioFinanceiro(doc, y, pageW, dataInicio, dataFim) {
             const margin = MARGIN_PADRAO;
             const includeDetails = document.getElementById('includeDetails')?.checked || false;
 
-            // Filtrar dados por período
             let servicos = dadosCache.services;
             let produtos = dadosCache.productSales;
             let despesas = dadosCache.expenses;
@@ -2438,7 +2319,6 @@
                 });
             }
 
-            // ORDENAR POR DATA (DO DIA 01 AO ÚLTIMO)
             servicos.sort((a, b) => {
                 const da = dataRegistro(a) || new Date(0);
                 const db = dataRegistro(b) || new Date(0);
@@ -2454,7 +2334,6 @@
             despesas.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
             salarios.sort((a, b) => new Date(a.paymentDate) - new Date(b.paymentDate));
 
-            // Calcular totais
             const receitaServicos = servicos.reduce((sum, s) => sum + numero(s, ['value','valor','price']), 0);
             const receitaProdutos = produtos.reduce((sum, p) => sum + numero(p, ['totalValue','total','value','valor']), 0);
             const receitaTotal = receitaServicos + receitaProdutos;
@@ -2470,7 +2349,6 @@
                 return sum + base + bonus - deductions;
             }, 0);
 
-            // Calcular comissões
             let totalComissoes = 0;
             servicos.forEach(s => {
                 const valor = numero(s, ['value','valor','price']);
@@ -2487,48 +2365,45 @@
             const lucroBruto = receitaTotal - totalDespesas;
             const lucroLiquido = lucroBruto - totalSalarios - totalComissoes;
 
-            // ===== RESUMO FINANCEIRO =====
             doc.setFontSize(14);
             doc.setTextColor(38, 25, 107);
-            doc.text('💰 Resumo Financeiro', margin, y);
+            doc.text(decodeText('💰 Resumo Financeiro'), margin, y);
             y += 18;
 
             doc.setFontSize(10);
             doc.setTextColor(0, 0, 0);
-            doc.text(`Receita de Serviços: ${formatCurrency(receitaServicos)}`, margin, y);
+            doc.text(decodeText(`Receita de Serviços: ${formatCurrency(receitaServicos)}`), margin, y);
             y += 14;
-            doc.text(`Receita de Produtos: ${formatCurrency(receitaProdutos)}`, margin, y);
+            doc.text(decodeText(`Receita de Produtos: ${formatCurrency(receitaProdutos)}`), margin, y);
             y += 14;
-            doc.text(`Receita Total: ${formatCurrency(receitaTotal)}`, margin, y);
+            doc.text(decodeText(`Receita Total: ${formatCurrency(receitaTotal)}`), margin, y);
             y += 16;
 
-            doc.text(`Despesas Pagas: ${formatCurrency(despesasPagas)}`, margin, y);
+            doc.text(decodeText(`Despesas Pagas: ${formatCurrency(despesasPagas)}`), margin, y);
             y += 14;
-            doc.text(`Despesas Pendentes: ${formatCurrency(despesasPendentes)}`, margin, y);
+            doc.text(decodeText(`Despesas Pendentes: ${formatCurrency(despesasPendentes)}`), margin, y);
             y += 14;
-            doc.text(`Total Despesas: ${formatCurrency(totalDespesas)}`, margin, y);
+            doc.text(decodeText(`Total Despesas: ${formatCurrency(totalDespesas)}`), margin, y);
             y += 16;
 
-            doc.text(`Total Salários: ${formatCurrency(totalSalarios)}`, margin, y);
+            doc.text(decodeText(`Total Salários: ${formatCurrency(totalSalarios)}`), margin, y);
             y += 14;
-            doc.text(`Total Comissões: ${formatCurrency(totalComissoes)}`, margin, y);
+            doc.text(decodeText(`Total Comissões: ${formatCurrency(totalComissoes)}`), margin, y);
             y += 16;
 
             doc.setFontSize(11);
             doc.setTextColor(lucroLiquido >= 0 ? 40 : 220, lucroLiquido >= 0 ? 167 : 53, lucroLiquido >= 0 ? 69 : 69);
-            doc.text(`Lucro Líquido: ${formatCurrency(lucroLiquido)}`, margin, y);
+            doc.text(decodeText(`Lucro Líquido: ${formatCurrency(lucroLiquido)}`), margin, y);
             y += 20;
 
             doc.line(margin, y, pageW - margin, y);
             y += 16;
 
-            // ===== DETALHES =====
             if (includeDetails) {
-                // Despesas por categoria
                 if (despesas.length > 0) {
                     doc.setFontSize(12);
                     doc.setTextColor(38, 25, 107);
-                    doc.text('📋 Despesas por Categoria', margin, y);
+                    doc.text(decodeText('📋 Despesas por Categoria'), margin, y);
                     y += 16;
 
                     const categories = {};
@@ -2541,7 +2416,7 @@
                     });
 
                     const expenseData = Object.entries(categories).map(([cat, vals]) => [
-                        cat,
+                        decodeText(cat),
                         formatCurrency(vals.paid),
                         formatCurrency(vals.pending),
                         formatCurrency(vals.paid + vals.pending)
@@ -2565,45 +2440,11 @@
                     y = doc.lastAutoTable.finalY + 10;
                 }
 
-                // Salários
                 if (salarios.length > 0) {
                     doc.setFontSize(12);
                     doc.setTextColor(38, 25, 107);
-                    doc.text('📋 Pagamentos de Salários', margin, y);
+                    doc.text(decodeText('📋 Pagamentos de Salários'), margin, y);
                     y += 16;
-
-                    const decodeText = (text) => {
-                        if (!text) return '';
-                        return String(text)
-                            .normalize('NFD')
-                            .replace(/[\u0300-\u036f]/g, '')
-                            .replace(/Ø/g, 'O')
-                            .replace(/ø/g, 'o')
-                            .replace(/Ü/g, 'U')
-                            .replace(/ü/g, 'u')
-                            .replace(/Ê/g, 'E')
-                            .replace(/ê/g, 'e')
-                            .replace(/Ã/g, 'A')
-                            .replace(/ã/g, 'a')
-                            .replace(/Õ/g, 'O')
-                            .replace(/õ/g, 'o')
-                            .replace(/Ç/g, 'C')
-                            .replace(/ç/g, 'c')
-                            .replace(/Á/g, 'A')
-                            .replace(/á/g, 'a')
-                            .replace(/À/g, 'A')
-                            .replace(/à/g, 'a')
-                            .replace(/Â/g, 'A')
-                            .replace(/â/g, 'a')
-                            .replace(/É/g, 'E')
-                            .replace(/é/g, 'e')
-                            .replace(/Í/g, 'I')
-                            .replace(/í/g, 'i')
-                            .replace(/Ó/g, 'O')
-                            .replace(/ó/g, 'o')
-                            .replace(/Ú/g, 'U')
-                            .replace(/ú/g, 'u');
-                    };
 
                     const salaryData = salarios.map(s => {
                         const collab = dadosCache.collaborators.find(c => c.id === s.collaboratorId);
@@ -2639,18 +2480,17 @@
                 }
             }
 
-            // ===== PERÍODO =====
             if (dataInicio && dataFim) {
                 doc.setFontSize(8);
                 doc.setTextColor(150, 150, 170);
-                doc.text(`Período: ${formatDate(dataInicio)} a ${formatDate(dataFim)}`, margin, y);
+                doc.text(decodeText(`Período: ${formatDate(dataInicio)} a ${formatDate(dataFim)}`), margin, y);
             }
 
             return y;
         }
 
         // ==========================================
-        // 17. EXPOR FUNÇÕES GLOBAIS
+        // 18. EXPOR FUNÇÕES GLOBAIS
         // ==========================================
         window.goHome = goHome;
         window.recarregarDados = recarregarDados;
@@ -2659,7 +2499,7 @@
         window.baixarRelatorioRecente = baixarRelatorioRecente;
 
         // ==========================================
-        // 18. LOG DE INICIALIZAÇÃO
+        // 19. LOG DE INICIALIZAÇÃO
         // ==========================================
         console.log('✅ Relatórios carregado com sucesso!');
         console.log('📌 Funcionalidades:');
