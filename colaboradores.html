@@ -2097,55 +2097,87 @@
         // Regra: os filtros apenas selecionam/preenchem o periodo.
         // Somente Aplicar recalcula e atualiza as estatisticas.
         // Nenhuma dessas funcoes recarrega a pagina.
+        function formatarDataLocalInput(data) {
+            if (!data) return '';
+            const ano = data.getFullYear();
+            const mes = String(data.getMonth() + 1).padStart(2, '0');
+            const dia = String(data.getDate()).padStart(2, '0');
+            return `${ano}-${mes}-${dia}`;
+        }
+
+        function criarDataLocal(ano, mes, dia, hora = 0, minuto = 0, segundo = 0, ms = 0) {
+            return new Date(ano, mes, dia, hora, minuto, segundo, ms);
+        }
+
         function setPeriod(tipo, event) {
             if (event) event.preventDefault();
 
             const hoje = new Date();
+            const anoAtual = hoje.getFullYear();
+            const mesAtual = hoje.getMonth();
             let inicio, fim;
 
             switch (tipo) {
+                // HOJE = somente o dia atual.
+                // Exemplo: 01/01/2000 até 01/01/2000.
                 case 'hoje':
-                    inicio = new Date(hoje);
-                    inicio.setHours(0, 0, 0, 0);
-                    fim = new Date(hoje);
-                    fim.setHours(23, 59, 59, 999);
+                    inicio = criarDataLocal(anoAtual, mesAtual, hoje.getDate(), 0, 0, 0, 0);
+                    fim = criarDataLocal(anoAtual, mesAtual, hoje.getDate(), 23, 59, 59, 999);
                     break;
 
-                case 'semana':
-                    inicio = new Date(hoje);
-                    inicio.setDate(hoje.getDate() - hoje.getDay() + (hoje.getDay() === 0 ? -6 : 1));
+                // SEMANA = semana ANTERIOR completa:
+                // segunda-feira 00:00:00 até domingo 23:59:59.
+                case 'semana': {
+                    const diaSemana = hoje.getDay(); // domingo=0, segunda=1 ... sábado=6
+                    const diasDesdeSegunda = diaSemana === 0 ? 6 : diaSemana - 1;
+
+                    // Segunda-feira da semana atual.
+                    const segundaSemanaAtual = criarDataLocal(
+                        anoAtual,
+                        mesAtual,
+                        hoje.getDate() - diasDesdeSegunda,
+                        0, 0, 0, 0
+                    );
+
+                    // Segunda-feira da semana passada.
+                    inicio = new Date(segundaSemanaAtual);
+                    inicio.setDate(inicio.getDate() - 7);
                     inicio.setHours(0, 0, 0, 0);
-                    fim = new Date(hoje);
+
+                    // Domingo da semana passada.
+                    fim = new Date(segundaSemanaAtual);
+                    fim.setDate(fim.getDate() - 1);
                     fim.setHours(23, 59, 59, 999);
                     break;
+                }
 
+                // MES = mês atual completo:
+                // dia 01 00:00:00 até o último dia do mês 23:59:59.
                 case 'mes':
-                    inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-                    inicio.setHours(0, 0, 0, 0);
-                    fim = new Date(hoje);
-                    fim.setHours(23, 59, 59, 999);
+                    inicio = criarDataLocal(anoAtual, mesAtual, 1, 0, 0, 0, 0);
+                    fim = criarDataLocal(anoAtual, mesAtual + 1, 0, 23, 59, 59, 999);
                     break;
 
+                // ULTIMO MES = mês anterior completo:
+                // dia 01 até o último dia do mês anterior.
                 case 'ultimoMes':
-                    inicio = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
-                    inicio.setHours(0, 0, 0, 0);
-                    fim = new Date(hoje.getFullYear(), hoje.getMonth(), 0);
-                    fim.setHours(23, 59, 59, 999);
+                    inicio = criarDataLocal(anoAtual, mesAtual - 1, 1, 0, 0, 0, 0);
+                    fim = criarDataLocal(anoAtual, mesAtual, 0, 23, 59, 59, 999);
                     break;
 
+                // ANO = ano atual completo:
+                // 01/01/ano 00:00:00 até 31/12/ano 23:59:59.
                 case 'ano':
-                    inicio = new Date(hoje.getFullYear(), 0, 1);
-                    inicio.setHours(0, 0, 0, 0);
-                    fim = new Date(hoje);
-                    fim.setHours(23, 59, 59, 999);
+                    inicio = criarDataLocal(anoAtual, 0, 1, 0, 0, 0, 0);
+                    fim = criarDataLocal(anoAtual, 11, 31, 23, 59, 59, 999);
                     break;
 
                 default:
                     return false;
             }
 
-            // APENAS seleciona o periodo.
-            // NAO recalcula estatisticas aqui.
+            // Os botões apenas selecionam o intervalo.
+            // NÃO recalculam as estatísticas.
             periodoInicio = inicio;
             periodoFim = fim;
             atualizarCamposPeriodo();
@@ -2158,14 +2190,14 @@
         }
 
         function aplicarPeriodo(event) {
-            // Impede submit/reload do formulario.
+            // Impede submit/reload do formulário.
             if (event) event.preventDefault();
 
             const inicioInput = document.getElementById('periodoInicioInput');
             const fimInput = document.getElementById('periodoFimInput');
 
             if (!inicioInput || !fimInput) {
-                showToast('Campos de periodo nao encontrados.', 'error');
+                showToast('Campos de período não encontrados.', 'error');
                 return false;
             }
 
@@ -2177,33 +2209,30 @@
                 return false;
             }
 
-            // Criacao local da data evita problemas de fuso horario.
+            // Datas de input[type=date] são convertidas para horário LOCAL,
+            // evitando deslocamento de dia causado por UTC.
             const [anoInicio, mesInicio, diaInicio] = inicioVal.split('-').map(Number);
             const [anoFim, mesFim, diaFim] = fimVal.split('-').map(Number);
 
-            const inicio = new Date(anoInicio, mesInicio - 1, diaInicio, 0, 0, 0, 0);
-            const fim = new Date(anoFim, mesFim - 1, diaFim, 23, 59, 59, 999);
+            const inicio = criarDataLocal(anoInicio, mesInicio - 1, diaInicio, 0, 0, 0, 0);
+            const fim = criarDataLocal(anoFim, mesFim - 1, diaFim, 23, 59, 59, 999);
 
             if (inicio > fim) {
-                showToast('Data inicial nao pode ser maior que a final.', 'error');
+                showToast('Data inicial não pode ser maior que a final.', 'error');
                 return false;
             }
 
             periodoInicio = inicio;
             periodoFim = fim;
 
-            // IMPORTANTE:
-            // Esta e a UNICA acao do botao Aplicar.
-            // Atualiza somente o bloco #statsGrid.
-            // NAO chama carregarTodosOsDados().
-            // NAO chama carregarColaboradores().
-            // NAO chama location.reload().
+            // SOMENTE AQUI as estatísticas são recalculadas.
+            // Não recarrega página, colaboradores ou dados do Firestore.
             if (colaboradorAtual && colaboradorAtual.id) {
                 const stats = calcularEstatisticasColaboradorReais(colaboradorAtual.id);
                 atualizarEstatisticasModal(stats);
-                showToast('Periodo aplicado! Estatisticas atualizadas.', 'success');
+                showToast('Período aplicado! Estatísticas atualizadas.', 'success');
             } else {
-                showToast('Periodo aplicado.', 'success');
+                showToast('Período aplicado.', 'success');
             }
 
             return false;
@@ -2213,32 +2242,33 @@
             if (event) event.preventDefault();
 
             const hoje = new Date();
-            const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-            inicioMes.setHours(0, 0, 0, 0);
-            hoje.setHours(23, 59, 59, 999);
+            const inicioMes = criarDataLocal(hoje.getFullYear(), hoje.getMonth(), 1, 0, 0, 0, 0);
+            const fimMes = criarDataLocal(hoje.getFullYear(), hoje.getMonth() + 1, 0, 23, 59, 59, 999);
 
-            // Limpar apenas redefine os campos.
-            // A estatistica somente muda depois de clicar em Aplicar.
+            // Limpar somente redefine o seletor para o mês atual.
+            // NÃO atualiza os cards até clicar em Aplicar.
             periodoInicio = inicioMes;
-            periodoFim = hoje;
+            periodoFim = fimMes;
             atualizarCamposPeriodo();
 
             document.querySelectorAll('.period-buttons button[data-periodo]').forEach(btn => {
                 btn.classList.remove('active');
             });
 
-            showToast('Periodo limpo. Clique em Aplicar para atualizar as estatisticas.', 'info');
+            showToast('Período redefinido. Clique em Aplicar para atualizar as estatísticas.', 'info');
             return false;
         }
 
         function atualizarCamposPeriodo() {
             const inicioInput = document.getElementById('periodoInicioInput');
             const fimInput = document.getElementById('periodoFimInput');
+
             if (inicioInput && periodoInicio) {
-                inicioInput.value = periodoInicio.toISOString().split('T')[0];
+                inicioInput.value = formatarDataLocalInput(periodoInicio);
             }
+
             if (fimInput && periodoFim) {
-                fimInput.value = periodoFim.toISOString().split('T')[0];
+                fimInput.value = formatarDataLocalInput(periodoFim);
             }
         }
 
