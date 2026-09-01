@@ -1354,7 +1354,7 @@
             const hoje = new Date();
             const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
             periodoInicio = inicioMes;
-            periodoFim = hoje;
+            periodoFim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0, 23, 59, 59, 999);
 
             auth.onAuthStateChanged(user => {
                 if (user) {
@@ -1568,7 +1568,12 @@
                             ...doc.data()
                         });
                     });
-                    colaboradoresList.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                    colaboradoresList.sort((a, b) => {
+                        const ativoA = a.active !== false ? 0 : 1;
+                        const ativoB = b.active !== false ? 0 : 1;
+                        if (ativoA !== ativoB) return ativoA - ativoB;
+                        return (a.name || '').localeCompare(b.name || '', 'pt-PT', { sensitivity: 'base' });
+                    });
                     renderizarColaboradores();
                     atualizarUltimaAtualizacao();
                 }, error => {
@@ -1895,8 +1900,8 @@
             }
 
             // Seletor de período
-            const inicioVal = periodoInicio ? periodoInicio.toISOString().split('T')[0] : '';
-            const fimVal = periodoFim ? periodoFim.toISOString().split('T')[0] : '';
+            const inicioVal = periodoInicio ? formatarDataLocalInput(periodoInicio) : '';
+            const fimVal = periodoFim ? formatarDataLocalInput(periodoFim) : '';
 
             return `
                 <form id="colaboradorForm" onsubmit="return false;">
@@ -1906,9 +1911,9 @@
                     <div class="period-selector mb-3">
                         <span class="period-label"><i class="fas fa-calendar-alt me-1"></i>Período:</span>
                         <div class="period-inputs">
-                            <input type="date" id="periodoInicioInput" value="${inicioVal}">
+                            <input type="date" id="periodoInicioInput" value="${inicioVal}" onchange="aoAlterarDataPeriodo()">
                             <span class="text-muted">até</span>
-                            <input type="date" id="periodoFimInput" value="${fimVal}">
+                            <input type="date" id="periodoFimInput" value="${fimVal}" onchange="aoAlterarDataPeriodo()">
                         </div>
                         <div class="period-buttons">
                             <button type="button" data-periodo="hoje" onclick="setPeriod('hoje', event)">Hoje</button>
@@ -2118,55 +2123,33 @@
             let inicio, fim;
 
             switch (tipo) {
-                // HOJE = somente o dia atual.
-                // Exemplo: 01/01/2000 até 01/01/2000.
                 case 'hoje':
                     inicio = criarDataLocal(anoAtual, mesAtual, hoje.getDate(), 0, 0, 0, 0);
                     fim = criarDataLocal(anoAtual, mesAtual, hoje.getDate(), 23, 59, 59, 999);
                     break;
 
-                // SEMANA = semana ANTERIOR completa:
-                // segunda-feira 00:00:00 até domingo 23:59:59.
                 case 'semana': {
-                    const diaSemana = hoje.getDay(); // domingo=0, segunda=1 ... sábado=6
+                    const diaSemana = hoje.getDay();
                     const diasDesdeSegunda = diaSemana === 0 ? 6 : diaSemana - 1;
-
-                    // Segunda-feira da semana atual.
-                    const segundaSemanaAtual = criarDataLocal(
-                        anoAtual,
-                        mesAtual,
-                        hoje.getDate() - diasDesdeSegunda,
-                        0, 0, 0, 0
-                    );
-
-                    // Segunda-feira da semana passada.
-                    inicio = new Date(segundaSemanaAtual);
+                    const segundaAtual = criarDataLocal(anoAtual, mesAtual, hoje.getDate() - diasDesdeSegunda, 0, 0, 0, 0);
+                    inicio = new Date(segundaAtual);
                     inicio.setDate(inicio.getDate() - 7);
-                    inicio.setHours(0, 0, 0, 0);
-
-                    // Domingo da semana passada.
-                    fim = new Date(segundaSemanaAtual);
+                    fim = new Date(segundaAtual);
                     fim.setDate(fim.getDate() - 1);
                     fim.setHours(23, 59, 59, 999);
                     break;
                 }
 
-                // MES = mês atual completo:
-                // dia 01 00:00:00 até o último dia do mês 23:59:59.
                 case 'mes':
                     inicio = criarDataLocal(anoAtual, mesAtual, 1, 0, 0, 0, 0);
                     fim = criarDataLocal(anoAtual, mesAtual + 1, 0, 23, 59, 59, 999);
                     break;
 
-                // ULTIMO MES = mês anterior completo:
-                // dia 01 até o último dia do mês anterior.
                 case 'ultimoMes':
                     inicio = criarDataLocal(anoAtual, mesAtual - 1, 1, 0, 0, 0, 0);
                     fim = criarDataLocal(anoAtual, mesAtual, 0, 23, 59, 59, 999);
                     break;
 
-                // ANO = ano atual completo:
-                // 01/01/ano 00:00:00 até 31/12/ano 23:59:59.
                 case 'ano':
                     inicio = criarDataLocal(anoAtual, 0, 1, 0, 0, 0, 0);
                     fim = criarDataLocal(anoAtual, 11, 31, 23, 59, 59, 999);
@@ -2176,8 +2159,6 @@
                     return false;
             }
 
-            // Os botões apenas selecionam o intervalo.
-            // NÃO recalculam as estatísticas.
             periodoInicio = inicio;
             periodoFim = fim;
             atualizarCamposPeriodo();
@@ -2186,36 +2167,34 @@
                 btn.classList.toggle('active', btn.dataset.periodo === tipo);
             });
 
+            // ATUALIZA AUTOMATICAMENTE ao escolher Hoje/Semana/Mês/Último Mês/Ano.
+            atualizarEstatisticasPeriodoAtual();
             return false;
         }
 
-        function aplicarPeriodo(event) {
-            // Impede submit/reload do formulário.
-            if (event) event.preventDefault();
+        function atualizarEstatisticasPeriodoAtual() {
+            if (!colaboradorAtual || !colaboradorAtual.id) return;
+            const stats = calcularEstatisticasColaboradorReais(colaboradorAtual.id);
+            atualizarEstatisticasModal(stats);
+        }
 
+        function aplicarPeriodo(event) {
+            if (event) event.preventDefault();
             const inicioInput = document.getElementById('periodoInicioInput');
             const fimInput = document.getElementById('periodoFimInput');
-
-            if (!inicioInput || !fimInput) {
-                showToast('Campos de período não encontrados.', 'error');
-                return false;
-            }
+            if (!inicioInput || !fimInput) return false;
 
             const inicioVal = inicioInput.value;
             const fimVal = fimInput.value;
-
             if (!inicioVal || !fimVal) {
                 showToast('Selecione a data inicial e a data final.', 'warning');
                 return false;
             }
 
-            // Datas de input[type=date] são convertidas para horário LOCAL,
-            // evitando deslocamento de dia causado por UTC.
-            const [anoInicio, mesInicio, diaInicio] = inicioVal.split('-').map(Number);
-            const [anoFim, mesFim, diaFim] = fimVal.split('-').map(Number);
-
-            const inicio = criarDataLocal(anoInicio, mesInicio - 1, diaInicio, 0, 0, 0, 0);
-            const fim = criarDataLocal(anoFim, mesFim - 1, diaFim, 23, 59, 59, 999);
+            const [ai, mi, di] = inicioVal.split('-').map(Number);
+            const [af, mf, df] = fimVal.split('-').map(Number);
+            const inicio = criarDataLocal(ai, mi - 1, di, 0, 0, 0, 0);
+            const fim = criarDataLocal(af, mf - 1, df, 23, 59, 59, 999);
 
             if (inicio > fim) {
                 showToast('Data inicial não pode ser maior que a final.', 'error');
@@ -2224,38 +2203,42 @@
 
             periodoInicio = inicio;
             periodoFim = fim;
-
-            // SOMENTE AQUI as estatísticas são recalculadas.
-            // Não recarrega página, colaboradores ou dados do Firestore.
-            if (colaboradorAtual && colaboradorAtual.id) {
-                const stats = calcularEstatisticasColaboradorReais(colaboradorAtual.id);
-                atualizarEstatisticasModal(stats);
-                showToast('Período aplicado! Estatísticas atualizadas.', 'success');
-            } else {
-                showToast('Período aplicado.', 'success');
-            }
-
+            atualizarEstatisticasPeriodoAtual();
             return false;
+        }
+
+        function aoAlterarDataPeriodo() {
+            const inicioInput = document.getElementById('periodoInicioInput');
+            const fimInput = document.getElementById('periodoFimInput');
+            if (!inicioInput || !fimInput || !inicioInput.value || !fimInput.value) return;
+
+            const [ai, mi, di] = inicioInput.value.split('-').map(Number);
+            const [af, mf, df] = fimInput.value.split('-').map(Number);
+            const inicio = criarDataLocal(ai, mi - 1, di, 0, 0, 0, 0);
+            const fim = criarDataLocal(af, mf - 1, df, 23, 59, 59, 999);
+
+            if (inicio > fim) {
+                fimInput.setCustomValidity('A data final deve ser igual ou posterior à data inicial.');
+                return;
+            }
+            fimInput.setCustomValidity('');
+            periodoInicio = inicio;
+            periodoFim = fim;
+
+            document.querySelectorAll('.period-buttons button[data-periodo]').forEach(btn => btn.classList.remove('active'));
+
+            // DIGITOU/SELECIONOU X ATÉ Y: atualiza automaticamente.
+            atualizarEstatisticasPeriodoAtual();
         }
 
         function limparPeriodo(event) {
             if (event) event.preventDefault();
-
             const hoje = new Date();
-            const inicioMes = criarDataLocal(hoje.getFullYear(), hoje.getMonth(), 1, 0, 0, 0, 0);
-            const fimMes = criarDataLocal(hoje.getFullYear(), hoje.getMonth() + 1, 0, 23, 59, 59, 999);
-
-            // Limpar somente redefine o seletor para o mês atual.
-            // NÃO atualiza os cards até clicar em Aplicar.
-            periodoInicio = inicioMes;
-            periodoFim = fimMes;
+            periodoInicio = criarDataLocal(hoje.getFullYear(), hoje.getMonth(), 1, 0, 0, 0, 0);
+            periodoFim = criarDataLocal(hoje.getFullYear(), hoje.getMonth() + 1, 0, 23, 59, 59, 999);
             atualizarCamposPeriodo();
-
-            document.querySelectorAll('.period-buttons button[data-periodo]').forEach(btn => {
-                btn.classList.remove('active');
-            });
-
-            showToast('Período redefinido. Clique em Aplicar para atualizar as estatísticas.', 'info');
+            document.querySelectorAll('.period-buttons button[data-periodo]').forEach(btn => btn.classList.remove('active'));
+            atualizarEstatisticasPeriodoAtual();
             return false;
         }
 
@@ -2322,13 +2305,8 @@
                 }
             });
 
-            document.querySelectorAll('.period-buttons button[data-periodo]').forEach(btn => {
-                btn.addEventListener('click', function(event) {
-                    event.preventDefault();
-                    document.querySelectorAll('.period-buttons button[data-periodo]').forEach(b => b.classList.remove('active'));
-                    this.classList.add('active');
-                });
-            });
+            document.getElementById('periodoInicioInput')?.addEventListener('change', aoAlterarDataPeriodo);
+            document.getElementById('periodoFimInput')?.addEventListener('change', aoAlterarDataPeriodo);
             document.getElementById('colaboradorForm')?.addEventListener('submit', function(event) { event.preventDefault(); return false; });
 
             document.getElementById('btnSalvarColaborador').onclick = function() {
@@ -2397,58 +2375,102 @@
         // ==========================================
         // 19. UPLOAD DE FOTO DE PERFIL
         // ==========================================
-        function uploadFotoPerfil(file) {
-            if (!file) return;
-
-            if (!file.type.match('image.*')) {
+        async function uploadFotoPerfil(file) {
+            if (!file || !file.type.startsWith('image/')) {
                 showToast('Por favor, selecione uma imagem válida.', 'error');
                 return;
             }
 
-            showToast('Enviando foto...', 'info');
+            try {
+                const img = await new Promise((resolve, reject) => {
+                    const url = URL.createObjectURL(file);
+                    const image = new Image();
+                    image.onload = () => { URL.revokeObjectURL(url); resolve(image); };
+                    image.onerror = reject;
+                    image.src = url;
+                });
 
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('upload_preset', cloudinaryConfig.uploadPreset);
-
-            fetch(`https://api.cloudinary.com/v1_1/${cloudinaryConfig.cloudName}/image/upload`, {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.secure_url) {
-                    colaboradorAtual.photoUrl = data.secure_url;
-                    const modalBody = document.getElementById('colaboradorModalBody');
-                    const fotoDiv = modalBody.querySelector('.col-md-3 .mb-2');
-                    if (fotoDiv) {
-                        fotoDiv.innerHTML = `
-                            <img src="${data.secure_url}" style="width:100px;height:100px;border-radius:50%;object-fit:cover;border:3px solid var(--primary-color);margin:0 auto;display:block;">
-                            <div class="mt-2">
-                                <input type="file" id="fotoUpload" accept="image/*" style="display:none;">
-                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="document.getElementById('fotoUpload').click()">
-                                    <i class="fas fa-camera me-1"></i>Trocar Foto
-                                </button>
-                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="removerFotoPerfil()">
-                                    <i class="fas fa-trash me-1"></i>
-                                </button>
+                const resultado = await Swal.fire({
+                    title: 'Tamanho da foto de perfil',
+                    html: `
+                        <div class="text-start">
+                            <label class="form-label">Largura (px)</label>
+                            <input id="fotoLargura" type="number" class="form-control" value="600" min="100" max="2000">
+                            <label class="form-label mt-2">Altura (px)</label>
+                            <input id="fotoAltura" type="number" class="form-control" value="600" min="100" max="2000">
+                            <div class="form-check mt-2">
+                                <input id="fotoQuadrada" class="form-check-input" type="checkbox" checked>
+                                <label for="fotoQuadrada" class="form-check-label">Manter formato quadrado</label>
                             </div>
-                        `;
-                        document.getElementById('fotoUpload').addEventListener('change', function(e) {
-                            if (e.target.files[0]) {
-                                uploadFotoPerfil(e.target.files[0]);
-                            }
-                        });
-                    }
-                    showToast('Foto atualizada com sucesso!', 'success');
-                } else {
-                    showToast('Erro no upload: ' + JSON.stringify(data), 'error');
+                        </div>`,
+                    showCancelButton: true,
+                    confirmButtonText: 'Redimensionar e enviar',
+                    cancelButtonText: 'Cancelar',
+                    didOpen: () => {
+                        const w = document.getElementById('fotoLargura');
+                        const h = document.getElementById('fotoAltura');
+                        const q = document.getElementById('fotoQuadrada');
+                        w.addEventListener('input', () => { if (q.checked) h.value = w.value; });
+                        h.addEventListener('input', () => { if (q.checked) w.value = h.value; });
+                    },
+                    preConfirm: () => ({
+                        largura: Math.max(100, Math.min(2000, parseInt(document.getElementById('fotoLargura').value) || 600)),
+                        altura: Math.max(100, Math.min(2000, parseInt(document.getElementById('fotoAltura').value) || 600))
+                    })
+                });
+
+                if (!resultado.isConfirmed) return;
+
+                const largura = resultado.value.largura;
+                const altura = resultado.value.altura;
+                const canvas = document.createElement('canvas');
+                canvas.width = largura;
+                canvas.height = altura;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, largura, altura);
+
+                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.88));
+                if (!blob) throw new Error('Não foi possível redimensionar a imagem.');
+
+                const formData = new FormData();
+                formData.append('file', blob, 'perfil.jpg');
+                formData.append('upload_preset', cloudinaryConfig.uploadPreset);
+
+                showToast('Enviando foto de perfil...', 'info');
+                const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudinaryConfig.cloudName}/image/upload`, {
+                    method: 'POST', body: formData
+                });
+                const data = await response.json();
+                if (!data.secure_url) throw new Error(data.error?.message || 'Upload recusado pelo Cloudinary.');
+
+                colaboradorAtual.photoUrl = data.secure_url;
+                const fotoDiv = document.getElementById('colaboradorModalBody')?.querySelector('.col-md-3 .mb-2');
+                if (fotoDiv) {
+                    fotoDiv.innerHTML = `
+                        <img src="${data.secure_url}" style="width:100px;height:100px;border-radius:50%;object-fit:cover;border:3px solid var(--primary-color);margin:0 auto;display:block;">
+                        <div class="mt-2">
+                            <input type="file" id="fotoUpload" accept="image/*" style="display:none;">
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="document.getElementById('fotoUpload').click()"><i class="fas fa-camera me-1"></i>Trocar Foto</button>
+                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="removerFotoPerfil()"><i class="fas fa-trash me-1"></i></button>
+                        </div>`;
+                    document.getElementById('fotoUpload').addEventListener('change', e => {
+                        if (e.target.files[0]) uploadFotoPerfil(e.target.files[0]);
+                    });
                 }
-            })
-            .catch(error => {
-                console.error('Erro no upload:', error);
-                showToast('Erro ao fazer upload da foto.', 'error');
-            });
+
+                // Para colaborador existente, persiste a foto imediatamente.
+                if (colaboradorAtual.id) {
+                    await db.collection('collaborators').doc(colaboradorAtual.id).set({
+                        photoUrl: data.secure_url,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
+                    colaboradorAtual = { ...colaboradorAtual, photoUrl: data.secure_url };
+                }
+                showToast('Foto de perfil salva com sucesso!', 'success');
+            } catch (error) {
+                console.error('Erro no upload da foto:', error);
+                showToast('Erro ao enviar foto: ' + (error.message || error), 'error');
+            }
         }
 
         // ==========================================
@@ -2525,6 +2547,20 @@
                     if (novasFotos.length > 0) {
                         portfolioFotos = [...portfolioFotos, ...novasFotos];
                         atualizarPortfolioUI();
+                        if (colaboradorAtual?.id && currentUser) {
+                            db.collection('collaborators').doc(colaboradorAtual.id).set({
+                                portfolio: portfolioFotos,
+                                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                            }, { merge: true }).then(() => {
+                                colaboradorAtual.portfolio = [...portfolioFotos];
+                                const idx = colaboradoresList.findIndex(c => c.id === colaboradorAtual.id);
+                                if (idx >= 0) colaboradoresList[idx].portfolio = [...portfolioFotos];
+                                renderizarColaboradores();
+                            }).catch(err => {
+                                console.error('Erro ao salvar portfólio:', err);
+                                showToast('Fotos enviadas, mas não foi possível salvar o portfólio.', 'warning');
+                            });
+                        }
                         showToast(`${novasFotos.length} foto(s) adicionadas ao portfólio!`, 'success');
                     } else {
                         showToast('Nenhuma foto foi enviada.', 'error');
@@ -2589,6 +2625,9 @@
                 if (result.isConfirmed) {
                     portfolioFotos.splice(index, 1);
                     atualizarPortfolioUI();
+                    if (colaboradorAtual?.id && currentUser) {
+                        db.collection('collaborators').doc(colaboradorAtual.id).set({ portfolio: portfolioFotos, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+                    }
                     showToast('Foto removida do portfólio.', 'success');
                 }
             });
@@ -2614,6 +2653,9 @@
                 if (result.isConfirmed) {
                     portfolioFotos[index].legenda = result.value || '';
                     atualizarPortfolioUI();
+                    if (colaboradorAtual?.id && currentUser) {
+                        db.collection('collaborators').doc(colaboradorAtual.id).set({ portfolio: portfolioFotos, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+                    }
                     showToast('Legenda atualizada!', 'success');
                 }
             });
@@ -2636,68 +2678,70 @@
         // ==========================================
         // 26. SALVAR COLABORADOR
         // ==========================================
-        function salvarColaborador() {
-            const id = document.getElementById('colaboradorId')?.value || null;
-            const nome = document.getElementById('colabNome')?.value.trim();
-            const especialidade = document.getElementById('colabEspecialidade')?.value || '';
-            const contato = document.getElementById('colabContato')?.value || '';
-            const email = document.getElementById('colabEmail')?.value || '';
-            const descricao = document.getElementById('colabDescricao')?.value || '';
-            const manualPercent = parseFloat(document.getElementById('colabManualPercent')?.value) || 0;
-            const productPercent = parseFloat(document.getElementById('colabProductPercent')?.value) || 0;
-            const baseSalary = parseFloat(document.getElementById('colabBaseSalary')?.value) || 0;
-            const paymentDay = parseInt(document.getElementById('colabPaymentDay')?.value) || 5;
-            const active = document.getElementById('colabActive')?.checked !== false;
+        async function salvarColaborador() {
+            try {
+                if (!currentUser) {
+                    showToast('Usuário não autenticado. Faça login novamente.', 'error');
+                    return;
+                }
 
-            if (!nome) {
-                showToast('Digite o nome do colaborador.', 'error');
-                return;
-            }
+                const id = document.getElementById('colaboradorId')?.value || null;
+                const nome = document.getElementById('colabNome')?.value.trim();
+                if (!nome) {
+                    showToast('Digite o nome do colaborador.', 'error');
+                    return;
+                }
 
-            const dados = {
-                name: nome,
-                specialty: especialidade,
-                contact: contato,
-                email: email,
-                description: descricao,
-                manualPercent: manualPercent,
-                productPercent: productPercent,
-                baseSalary: baseSalary,
-                paymentDay: paymentDay,
-                active: active,
-                photoUrl: colaboradorAtual?.photoUrl || null,
-                portfolio: portfolioFotos || [],
-                userId: currentUser.uid,
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            };
+                const dados = {
+                    name: nome,
+                    specialty: document.getElementById('colabEspecialidade')?.value || '',
+                    contact: document.getElementById('colabContato')?.value || '',
+                    email: document.getElementById('colabEmail')?.value || '',
+                    description: document.getElementById('colabDescricao')?.value || '',
+                    manualPercent: parseFloat(document.getElementById('colabManualPercent')?.value) || 0,
+                    productPercent: parseFloat(document.getElementById('colabProductPercent')?.value) || 0,
+                    baseSalary: parseFloat(document.getElementById('colabBaseSalary')?.value) || 0,
+                    paymentDay: parseInt(document.getElementById('colabPaymentDay')?.value) || 5,
+                    active: document.getElementById('colabActive')?.checked !== false,
+                    photoUrl: colaboradorAtual?.photoUrl || null,
+                    portfolio: Array.isArray(portfolioFotos) ? portfolioFotos : [],
+                    userId: currentUser.uid,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                };
 
-            if (id) {
-                dados.createdAt = colaboradorAtual?.createdAt || firebase.firestore.FieldValue.serverTimestamp();
-            } else {
-                dados.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-            }
+                showToast('Salvando colaborador...', 'info');
 
-            showToast('Salvando colaborador...', 'info');
+                let ref;
+                if (id) {
+                    ref = db.collection('collaborators').doc(id);
+                    await ref.set(dados, { merge: true });
+                } else {
+                    ref = await db.collection('collaborators').add({
+                        ...dados,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    colaboradorAtual = { ...colaboradorAtual, id: ref.id, ...dados };
+                }
 
-            let promise;
-            if (id) {
-                promise = db.collection('collaborators').doc(id).update(dados);
-            } else {
-                promise = db.collection('collaborators').add(dados);
-            }
-
-            promise
-                .then(() => {
-                    const modal = bootstrap.Modal.getInstance(document.getElementById('colaboradorModal'));
-                    if (modal) modal.hide();
-                    showToast(id ? 'Colaborador atualizado com sucesso!' : 'Colaborador adicionado com sucesso!',
-                    'success');
-                    carregarColaboradores();
-                })
-                .catch(error => {
-                    console.error('Erro ao salvar colaborador:', error);
-                    showToast('Erro ao salvar colaborador: ' + error.message, 'error');
+                // Atualiza imediatamente a lista local sem depender de reload.
+                const salvo = { id: ref.id, ...dados };
+                const idx = colaboradoresList.findIndex(c => c.id === ref.id);
+                if (idx >= 0) colaboradoresList[idx] = { ...colaboradoresList[idx], ...salvo };
+                else colaboradoresList.push(salvo);
+                colaboradoresList.sort((a, b) => {
+                    const ativoA = a.active !== false ? 0 : 1;
+                    const ativoB = b.active !== false ? 0 : 1;
+                    return ativoA - ativoB || (a.name || '').localeCompare(b.name || '', 'pt-PT', { sensitivity: 'base' });
                 });
+                renderizarColaboradores();
+
+                const modal = bootstrap.Modal.getInstance(document.getElementById('colaboradorModal'));
+                if (modal) modal.hide();
+                showToast(id ? 'Colaborador atualizado com sucesso!' : 'Colaborador adicionado com sucesso!', 'success');
+            } catch (error) {
+                console.error('Erro ao salvar colaborador:', error);
+                showToast('Erro ao salvar colaborador: ' + (error.message || error), 'error');
+            }
         }
 
         // ==========================================
@@ -2835,6 +2879,7 @@
         window.setPeriod = setPeriod;
         window.aplicarPeriodo = aplicarPeriodo;
         window.limparPeriodo = limparPeriodo;
+        window.aoAlterarDataPeriodo = aoAlterarDataPeriodo;
 
         // ==========================================
         // 32. LOG DE INICIALIZAÇÃO
