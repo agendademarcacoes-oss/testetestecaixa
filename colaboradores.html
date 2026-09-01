@@ -2378,87 +2378,250 @@
                 return;
             }
 
-            // Verificar se temos um colaborador selecionado
             if (!colaboradorAtual) {
                 showToast('Nenhum colaborador selecionado para adicionar a foto.', 'error');
                 return;
             }
 
             try {
-                // Carregar a imagem para obter dimensões
                 const imagem = await carregarImagem(file);
 
-                // Mostrar dialog para redimensionar
+                // Configuração inicial do enquadramento.
+                // A imagem é apresentada dentro de uma área quadrada, como nos
+                // editores de foto das redes sociais, permitindo arrastar e aplicar zoom.
+                const previewSize = 320;
+                const baseScale = Math.max(
+                    previewSize / imagem.naturalWidth,
+                    previewSize / imagem.naturalHeight
+                );
+                let zoom = 1;
+                let offsetX = (previewSize - imagem.naturalWidth * baseScale) / 2;
+                let offsetY = (previewSize - imagem.naturalHeight * baseScale) / 2;
+                let dragging = false;
+                let dragStartX = 0;
+                let dragStartY = 0;
+                let startOffsetX = 0;
+                let startOffsetY = 0;
+
                 const resultado = await Swal.fire({
                     title: 'Configurar foto de perfil',
+                    width: 520,
                     html: `
                         <div class="text-start">
-                            <div class="mb-2 small text-muted">Imagem original: ${imagem.naturalWidth || imagem.width} × ${imagem.naturalHeight || imagem.height}px</div>
-                            <label class="form-label">Largura (px)</label>
-                            <input id="fotoLargura" type="number" class="form-control" value="600" min="100" max="3000">
-                            <label class="form-label mt-2">Altura (px)</label>
-                            <input id="fotoAltura" type="number" class="form-control" value="600" min="100" max="3000">
+                            <div style="display:flex;justify-content:center;margin-bottom:14px;">
+                                <div id="fotoCropArea" style="position:relative;width:${previewSize}px;height:${previewSize}px;overflow:hidden;border-radius:50%;background:#111;box-shadow:0 3px 15px rgba(0,0,0,.25);cursor:grab;touch-action:none;">
+                                    <canvas id="fotoCropCanvas" width="${previewSize}" height="${previewSize}" style="width:${previewSize}px;height:${previewSize}px;display:block;"></canvas>
+                                    <div style="position:absolute;inset:0;border:2px solid rgba(255,255,255,.9);border-radius:50%;pointer-events:none;box-sizing:border-box;"></div>
+                                </div>
+                            </div>
+
+                            <div class="text-center small text-muted mb-3">
+                                Arraste a imagem para enquadrar. Use o controle de zoom para aproximar ou afastar.
+                            </div>
+
+                            <label for="fotoZoom" class="form-label mb-1">
+                                <i class="fas fa-search-plus me-1"></i>Zoom
+                            </label>
+                            <input id="fotoZoom" type="range" class="form-range" min="1" max="3" step="0.01" value="1">
+
+                            <div class="row g-2 mt-1">
+                                <div class="col-6">
+                                    <label class="form-label">Largura final (px)</label>
+                                    <input id="fotoLargura" type="number" class="form-control" value="600" min="100" max="3000">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">Altura final (px)</label>
+                                    <input id="fotoAltura" type="number" class="form-control" value="600" min="100" max="3000">
+                                </div>
+                            </div>
+
                             <div class="form-check mt-2">
                                 <input id="fotoQuadrada" class="form-check-input" type="checkbox" checked>
                                 <label for="fotoQuadrada" class="form-check-label">Manter largura e altura iguais</label>
                             </div>
+
+                            <div class="small text-muted mt-2">
+                                Imagem original: ${imagem.naturalWidth || imagem.width} × ${imagem.naturalHeight || imagem.height}px
+                            </div>
                         </div>`,
                     showCancelButton: true,
-                    confirmButtonText: 'Redimensionar e enviar',
+                    confirmButtonText: 'Recortar e enviar',
                     cancelButtonText: 'Cancelar',
                     focusConfirm: false,
                     didOpen: () => {
+                        const canvas = document.getElementById('fotoCropCanvas');
+                        const area = document.getElementById('fotoCropArea');
+                        const zoomInput = document.getElementById('fotoZoom');
                         const w = document.getElementById('fotoLargura');
                         const h = document.getElementById('fotoAltura');
                         const q = document.getElementById('fotoQuadrada');
-                        w.addEventListener('input', () => { if (q.checked) h.value = w.value; });
-                        h.addEventListener('input', () => { if (q.checked) w.value = h.value; });
+                        const ctx = canvas.getContext('2d');
+
+                        const desenharPreview = () => {
+                            const escala = baseScale * zoom;
+                            const largura = imagem.naturalWidth * escala;
+                            const altura = imagem.naturalHeight * escala;
+
+                            // Limita o movimento para que a área de recorte nunca fique vazia.
+                            const minX = previewSize - largura;
+                            const maxX = 0;
+                            const minY = previewSize - altura;
+                            const maxY = 0;
+                            offsetX = Math.min(maxX, Math.max(minX, offsetX));
+                            offsetY = Math.min(maxY, Math.max(minY, offsetY));
+
+                            ctx.clearRect(0, 0, previewSize, previewSize);
+                            ctx.fillStyle = '#111';
+                            ctx.fillRect(0, 0, previewSize, previewSize);
+                            ctx.drawImage(imagem, offsetX, offsetY, largura, altura);
+                        };
+
+                        const atualizarZoom = (novoZoom, pontoX = previewSize / 2, pontoY = previewSize / 2) => {
+                            const zoomAnterior = zoom;
+                            const escalaAnterior = baseScale * zoomAnterior;
+                            const escalaNova = baseScale * novoZoom;
+
+                            // Mantém o ponto sob o cursor/centro no mesmo lugar ao aplicar zoom.
+                            const imagemX = (pontoX - offsetX) / escalaAnterior;
+                            const imagemY = (pontoY - offsetY) / escalaAnterior;
+                            offsetX = pontoX - imagemX * escalaNova;
+                            offsetY = pontoY - imagemY * escalaNova;
+                            zoom = novoZoom;
+                            zoomInput.value = String(zoom);
+                            desenharPreview();
+                        };
+
+                        zoomInput.addEventListener('input', () => {
+                            atualizarZoom(parseFloat(zoomInput.value) || 1);
+                        });
+
+                        area.addEventListener('pointerdown', (event) => {
+                            dragging = true;
+                            area.setPointerCapture?.(event.pointerId);
+                            area.style.cursor = 'grabbing';
+                            dragStartX = event.clientX;
+                            dragStartY = event.clientY;
+                            startOffsetX = offsetX;
+                            startOffsetY = offsetY;
+                        });
+
+                        area.addEventListener('pointermove', (event) => {
+                            if (!dragging) return;
+                            offsetX = startOffsetX + (event.clientX - dragStartX);
+                            offsetY = startOffsetY + (event.clientY - dragStartY);
+                            desenharPreview();
+                        });
+
+                        const terminarArrasto = () => {
+                            dragging = false;
+                            area.style.cursor = 'grab';
+                            desenharPreview();
+                        };
+                        area.addEventListener('pointerup', terminarArrasto);
+                        area.addEventListener('pointercancel', terminarArrasto);
+                        area.addEventListener('pointerleave', () => {
+                            if (dragging) return;
+                            area.style.cursor = 'grab';
+                        });
+
+                        // Zoom com a roda do mouse, mantendo o centro do cursor.
+                        area.addEventListener('wheel', (event) => {
+                            event.preventDefault();
+                            const rect = area.getBoundingClientRect();
+                            const pontoX = event.clientX - rect.left;
+                            const pontoY = event.clientY - rect.top;
+                            const passo = event.deltaY < 0 ? 0.08 : -0.08;
+                            const novoZoom = Math.min(3, Math.max(1, zoom + passo));
+                            atualizarZoom(novoZoom, pontoX, pontoY);
+                        }, { passive: false });
+
+                        w.addEventListener('input', () => {
+                            if (q.checked) h.value = w.value;
+                        });
+                        h.addEventListener('input', () => {
+                            if (q.checked) w.value = h.value;
+                        });
+
+                        desenharPreview();
                     },
                     preConfirm: () => {
-                        const w = parseInt(document.getElementById('fotoLargura')?.value, 10);
-                        const h = parseInt(document.getElementById('fotoAltura')?.value, 10);
-                        if (!Number.isFinite(w) || !Number.isFinite(h) || w < 100 || h < 100 || w > 3000 || h > 3000) {
+                        const largura = parseInt(document.getElementById('fotoLargura')?.value, 10);
+                        const altura = parseInt(document.getElementById('fotoAltura')?.value, 10);
+                        if (!Number.isFinite(largura) || !Number.isFinite(altura) || largura < 100 || altura < 100 || largura > 3000 || altura > 3000) {
                             Swal.showValidationMessage('Informe largura e altura entre 100 e 3000 pixels.');
                             return false;
                         }
-                        return { largura: w, altura: h };
+
+                        return {
+                            largura,
+                            altura,
+                            zoom,
+                            offsetX,
+                            offsetY,
+                            previewSize,
+                            naturalWidth: imagem.naturalWidth,
+                            naturalHeight: imagem.naturalHeight
+                        };
                     }
                 });
 
                 if (!resultado.isConfirmed) return;
 
-                showToast('Redimensionando e enviando foto...', 'info');
+                showToast('Recortando e enviando foto...', 'info');
 
-                // Redimensionar a imagem
-                const blob = await redimensionarImagem(imagem, resultado.value.largura, resultado.value.altura, 'image/jpeg', 0.90);
+                // Cria o recorte exatamente igual ao enquadramento mostrado no preview.
+                const dados = resultado.value;
+                const escalaPreview = baseScale * dados.zoom;
+                const cropCanvas = document.createElement('canvas');
+                cropCanvas.width = dados.previewSize;
+                cropCanvas.height = dados.previewSize;
+                const cropCtx = cropCanvas.getContext('2d');
+                cropCtx.fillStyle = '#111';
+                cropCtx.fillRect(0, 0, dados.previewSize, dados.previewSize);
+                cropCtx.drawImage(
+                    imagem,
+                    dados.offsetX,
+                    dados.offsetY,
+                    dados.naturalWidth * escalaPreview,
+                    dados.naturalHeight * escalaPreview
+                );
 
-                // Upload para o Cloudinary
+                // Redimensiona o recorte para o tamanho final solicitado.
+                const finalCanvas = document.createElement('canvas');
+                finalCanvas.width = dados.largura;
+                finalCanvas.height = dados.altura;
+                const finalCtx = finalCanvas.getContext('2d');
+                finalCtx.imageSmoothingEnabled = true;
+                finalCtx.imageSmoothingQuality = 'high';
+                finalCtx.drawImage(cropCanvas, 0, 0, dados.largura, dados.altura);
+
+                const blob = await new Promise((resolve, reject) => {
+                    finalCanvas.toBlob((resultadoBlob) => {
+                        if (resultadoBlob) resolve(resultadoBlob);
+                        else reject(new Error('Não foi possível preparar a imagem para envio.'));
+                    }, 'image/jpeg', 0.90);
+                });
+
                 const secureUrl = await enviarParaCloudinary(blob, 'perfil.jpg');
 
-                // Atualizar o colaborador atual
                 colaboradorAtual.photoUrl = secureUrl;
-
-                // Atualizar a UI
                 atualizarFotoPerfilUI(secureUrl);
 
-                // Se o colaborador já existe no Firestore (tem ID), salvar imediatamente
                 const colaboradorId = colaboradorAtual?.id || colaboradorAtual?.docId || null;
-            if (colaboradorId && currentUser) {
+                if (colaboradorId && currentUser) {
                     await db.collection('collaborators').doc(colaboradorId).set({
                         photoUrl: secureUrl,
                         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                     }, { merge: true });
 
-                    // Atualizar a lista local
                     atualizarColaboradorLocal(colaboradorId, { photoUrl: secureUrl });
                     showToast('Foto de perfil salva com sucesso!', 'success');
                 } else {
-                    // Novo colaborador - a foto será salva junto com o resto
                     showToast('Foto adicionada. Clique em Salvar para gravar o colaborador.', 'success');
                 }
 
             } catch (error) {
-                console.error('❌ Erro ao enviar foto de perfil:', error);
+                console.error('❌ Erro ao configurar/enviar foto de perfil:', error);
                 showToast('Não foi possível salvar a foto: ' + obterMensagemErro(error), 'error');
             } finally {
                 const input = document.getElementById('fotoUpload');
