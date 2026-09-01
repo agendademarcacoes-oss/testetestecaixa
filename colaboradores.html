@@ -1906,7 +1906,7 @@
             const fimVal = periodoFim ? periodoFim.toISOString().split('T')[0] : '';
 
             return `
-                <form id="colaboradorForm">
+                <form id="colaboradorForm" onsubmit="return false;">
                     <input type="hidden" id="colaboradorId" value="${colab.id || ''}">
 
                     <!-- SELETOR DE PERÍODO -->
@@ -1918,15 +1918,15 @@
                             <input type="date" id="periodoFimInput" value="${fimVal}">
                         </div>
                         <div class="period-buttons">
-                            <button onclick="setPeriod('hoje')">Hoje</button>
-                            <button onclick="setPeriod('semana')">Semana</button>
-                            <button onclick="setPeriod('mes')">Mês</button>
-                            <button onclick="setPeriod('ultimoMes')">Último Mês</button>
-                            <button onclick="setPeriod('ano')">Ano</button>
-                            <button onclick="aplicarPeriodo()" class="btn-aplicar-periodo">
+                            <button type="button" data-periodo="hoje" onclick="setPeriod('hoje', event)">Hoje</button>
+                            <button type="button" data-periodo="semana" onclick="setPeriod('semana', event)">Semana</button>
+                            <button type="button" data-periodo="mes" onclick="setPeriod('mes', event)">Mês</button>
+                            <button type="button" data-periodo="ultimoMes" onclick="setPeriod('ultimoMes', event)">Último Mês</button>
+                            <button type="button" data-periodo="ano" onclick="setPeriod('ano', event)">Ano</button>
+                            <button type="button" onclick="aplicarPeriodo(event)" class="btn-aplicar-periodo">
                                 <i class="fas fa-check me-1"></i>Aplicar
                             </button>
-                            <button onclick="limparPeriodo()" class="btn btn-sm btn-outline-secondary" style="padding:3px 12px;font-size:0.7rem;border-radius:16px;">
+                            <button type="button" onclick="limparPeriodo(event)" class="btn btn-sm btn-outline-secondary" style="padding:3px 12px;font-size:0.7rem;border-radius:16px;">
                                 <i class="fas fa-undo me-1"></i>Limpar
                             </button>
                         </div>
@@ -2093,7 +2093,15 @@
         // ==========================================
         // 14. FUNÇÕES DE PERÍODO - APENAS ATUALIZA ESTATÍSTICAS
         // ==========================================
-        function setPeriod(tipo) {
+        // ==========================================================
+        // 14. FUNCOES DE PERIODO
+        // ==========================================================
+        // Regra: os filtros apenas selecionam/preenchem o periodo.
+        // Somente Aplicar recalcula e atualiza as estatisticas.
+        // Nenhuma dessas funcoes recarrega a pagina.
+        function setPeriod(tipo, event) {
+            if (event) event.preventDefault();
+
             const hoje = new Date();
             let inicio, fim;
 
@@ -2104,6 +2112,7 @@
                     fim = new Date(hoje);
                     fim.setHours(23, 59, 59, 999);
                     break;
+
                 case 'semana':
                     inicio = new Date(hoje);
                     inicio.setDate(hoje.getDate() - hoje.getDay() + (hoje.getDay() === 0 ? -6 : 1));
@@ -2111,79 +2120,117 @@
                     fim = new Date(hoje);
                     fim.setHours(23, 59, 59, 999);
                     break;
+
                 case 'mes':
                     inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
                     inicio.setHours(0, 0, 0, 0);
                     fim = new Date(hoje);
                     fim.setHours(23, 59, 59, 999);
                     break;
+
                 case 'ultimoMes':
                     inicio = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
                     inicio.setHours(0, 0, 0, 0);
                     fim = new Date(hoje.getFullYear(), hoje.getMonth(), 0);
                     fim.setHours(23, 59, 59, 999);
                     break;
+
                 case 'ano':
                     inicio = new Date(hoje.getFullYear(), 0, 1);
                     inicio.setHours(0, 0, 0, 0);
                     fim = new Date(hoje);
                     fim.setHours(23, 59, 59, 999);
                     break;
+
                 default:
-                    return;
+                    return false;
+            }
+
+            // APENAS seleciona o periodo.
+            // NAO recalcula estatisticas aqui.
+            periodoInicio = inicio;
+            periodoFim = fim;
+            atualizarCamposPeriodo();
+
+            document.querySelectorAll('.period-buttons button[data-periodo]').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.periodo === tipo);
+            });
+
+            return false;
+        }
+
+        function aplicarPeriodo(event) {
+            // Impede submit/reload do formulario.
+            if (event) event.preventDefault();
+
+            const inicioInput = document.getElementById('periodoInicioInput');
+            const fimInput = document.getElementById('periodoFimInput');
+
+            if (!inicioInput || !fimInput) {
+                showToast('Campos de periodo nao encontrados.', 'error');
+                return false;
+            }
+
+            const inicioVal = inicioInput.value;
+            const fimVal = fimInput.value;
+
+            if (!inicioVal || !fimVal) {
+                showToast('Selecione a data inicial e a data final.', 'warning');
+                return false;
+            }
+
+            // Criacao local da data evita problemas de fuso horario.
+            const [anoInicio, mesInicio, diaInicio] = inicioVal.split('-').map(Number);
+            const [anoFim, mesFim, diaFim] = fimVal.split('-').map(Number);
+
+            const inicio = new Date(anoInicio, mesInicio - 1, diaInicio, 0, 0, 0, 0);
+            const fim = new Date(anoFim, mesFim - 1, diaFim, 23, 59, 59, 999);
+
+            if (inicio > fim) {
+                showToast('Data inicial nao pode ser maior que a final.', 'error');
+                return false;
             }
 
             periodoInicio = inicio;
             periodoFim = fim;
-            atualizarCamposPeriodo();
-            
-            // ATUALIZAR APENAS AS ESTATÍSTICAS - SEM RECARREGAR A PÁGINA
+
+            // IMPORTANTE:
+            // Esta e a UNICA acao do botao Aplicar.
+            // Atualiza somente o bloco #statsGrid.
+            // NAO chama carregarTodosOsDados().
+            // NAO chama carregarColaboradores().
+            // NAO chama location.reload().
             if (colaboradorAtual && colaboradorAtual.id) {
                 const stats = calcularEstatisticasColaboradorReais(colaboradorAtual.id);
                 atualizarEstatisticasModal(stats);
-                showToast('Período atualizado!', 'success');
+                showToast('Periodo aplicado! Estatisticas atualizadas.', 'success');
+            } else {
+                showToast('Periodo aplicado.', 'success');
             }
+
+            return false;
         }
 
-        function aplicarPeriodo() {
-            const inicioVal = document.getElementById('periodoInicioInput').value;
-            const fimVal = document.getElementById('periodoFimInput').value;
+        function limparPeriodo(event) {
+            if (event) event.preventDefault();
 
-            if (inicioVal && fimVal) {
-                const inicio = new Date(inicioVal);
-                const fim = new Date(fimVal);
-                fim.setHours(23, 59, 59, 999);
-
-                if (inicio > fim) {
-                    showToast('Data inicial não pode ser maior que a final.', 'error');
-                    return;
-                }
-
-                periodoInicio = inicio;
-                periodoFim = fim;
-                
-                // ATUALIZAR APENAS AS ESTATÍSTICAS - SEM RECARREGAR A PÁGINA
-                if (colaboradorAtual && colaboradorAtual.id) {
-                    const stats = calcularEstatisticasColaboradorReais(colaboradorAtual.id);
-                    atualizarEstatisticasModal(stats);
-                    showToast('Período aplicado!', 'success');
-                }
-            }
-        }
-
-        function limparPeriodo() {
             const hoje = new Date();
             const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+            inicioMes.setHours(0, 0, 0, 0);
+            hoje.setHours(23, 59, 59, 999);
+
+            // Limpar apenas redefine os campos.
+            // A estatistica somente muda depois de clicar em Aplicar.
             periodoInicio = inicioMes;
             periodoFim = hoje;
             atualizarCamposPeriodo();
-            
-            // ATUALIZAR APENAS AS ESTATÍSTICAS - SEM RECARREGAR A PÁGINA
-            if (colaboradorAtual && colaboradorAtual.id) {
-                const stats = calcularEstatisticasColaboradorReais(colaboradorAtual.id);
-                atualizarEstatisticasModal(stats);
-                showToast('Período limpo!', 'success');
-            }
+
+            document.querySelectorAll('.period-buttons button[data-periodo]').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            showToast('Periodo limpo. Clique em Aplicar para atualizar as estatisticas.', 'info');
+            return false;
         }
 
         function atualizarCamposPeriodo() {
@@ -2264,9 +2311,10 @@
                 }
             });
 
-            document.querySelectorAll('.period-buttons button').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    document.querySelectorAll('.period-buttons button').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.period-buttons button[data-periodo]').forEach(btn => {
+                btn.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    document.querySelectorAll('.period-buttons button[data-periodo]').forEach(b => b.classList.remove('active'));
                     this.classList.add('active');
                 });
             });
