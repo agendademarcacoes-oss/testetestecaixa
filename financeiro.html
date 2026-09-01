@@ -1,0 +1,2607 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Controle Financeiro - Studio DeVitto</title>
+    
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="Sistema de controle financeiro para salão de beleza Studio DeVitto. Gerencie receitas, despesas, salários e comissões.">
+    <meta name="keywords" content="financeiro, controle, salão de beleza, Studio DeVitto, gestão, receitas, despesas">
+    <meta name="robots" content="index, follow">
+    <meta name="author" content="Studio DeVitto">
+    
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#26196b">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Controle Financeiro">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%2326196b'/%3E%3Ctext x='50' y='70' font-size='50' text-anchor='middle' fill='%23ffd700' font-family='Arial'%3E💰%3C/text%3E%3C/svg%3E">
+    
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        /* ============================================
+           BLOQUEIO DE DESLIZE LATERAL
+           ============================================ */
+        html, body {
+            overflow-x: hidden !important;
+            max-width: 100vw !important;
+            width: 100% !important;
+            position: relative !important;
+        }
+        
+        * {
+            overflow-x: hidden !important;
+            max-width: 100% !important;
+        }
+        
+        .container-fluid {
+            overflow-x: hidden !important;
+        }
+        
+        .row {
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+        }
+        
+        .col-12, .col-md-6, .col-lg-4, .col-lg-3 {
+            padding-left: 8px !important;
+            padding-right: 8px !important;
+        }
+
+        /* ============================================
+           VARIÁVEIS DINÂMICAS
+           ============================================ */
+        :root {
+            --primary-color: #26196b;
+            --secondary-color: #ffd700;
+            --accent-color: #4a3a9c;
+            --light-bg: #f8f9fa;
+            --card-radius: 12px;
+            --shadow-sm: 0 2px 8px rgba(0,0,0,0.08);
+            --shadow-md: 0 4px 16px rgba(0,0,0,0.12);
+            --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            --btn-border-radius: 8px;
+            --btn-padding: 8px 20px;
+            --font-size-base: 16px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background: var(--light-bg);
+            min-height: 100vh;
+            padding: 0;
+            margin: 0;
+            font-size: var(--font-size-base);
+            overflow-x: hidden !important;
+            max-width: 100vw !important;
+            width: 100% !important;
+            position: relative !important;
+        }
+
+        /* ============================================
+           CABEÇALHO COM BOTÃO HOME
+           ============================================ */
+        .finance-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+            color: white;
+            padding: 12px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: var(--shadow-md);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            overflow-x: hidden !important;
+        }
+
+        .finance-header .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .finance-header .header-left .brand-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .finance-header .header-left .brand-logo img {
+            height: 32px;
+            width: 32px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .finance-header .header-left .brand-logo .brand-icon {
+            font-size: 1.5rem;
+            color: var(--secondary-color);
+        }
+
+        .finance-header .header-left .brand-logo .brand-name {
+            font-weight: 700;
+            font-size: 1rem;
+            color: white;
+        }
+
+        .finance-header .header-left .brand-logo .brand-name small {
+            font-weight: 400;
+            font-size: 0.7rem;
+            opacity: 0.7;
+            margin-left: 6px;
+        }
+
+        .finance-header .header-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .btn-home {
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            border-radius: 25px;
+            padding: 6px 14px;
+            font-size: 0.8rem;
+            transition: all 0.3s;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            text-decoration: none;
+        }
+
+        .btn-home:hover {
+            background: rgba(255,255,255,0.25);
+            transform: translateY(-2px);
+        }
+
+        .btn-home i {
+            font-size: 0.9rem;
+        }
+
+        .btn-refresh {
+            background: rgba(255,255,255,0.12);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            border-radius: 25px;
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .btn-refresh:hover {
+            background: rgba(255,255,255,0.25);
+        }
+
+        .btn-refresh:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .last-update {
+            font-size: 0.65rem;
+            opacity: 0.7;
+            color: rgba(255,255,255,0.8);
+        }
+
+        /* ============================================
+           CONTEÚDO PRINCIPAL
+           ============================================ */
+        .finance-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 12px 16px;
+            overflow-x: hidden !important;
+            max-width: 100% !important;
+        }
+
+        /* ============================================
+           CARDS DE MÉTRICAS
+           ============================================ */
+        .metric-card {
+            background: white;
+            border-radius: var(--card-radius);
+            padding: 16px 18px;
+            box-shadow: var(--shadow-sm);
+            transition: all 0.3s ease;
+            height: 100%;
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .metric-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .metric-card .metric-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .metric-card .metric-icon.purple { background: var(--primary-color); }
+        .metric-card .metric-icon.green { background: #28a745; }
+        .metric-card .metric-icon.blue { background: #17a2b8; }
+        .metric-card .metric-icon.gold { background: #ffc107; }
+        .metric-card .metric-icon.red { background: #dc3545; }
+        .metric-card .metric-icon.orange { background: #fd7e14; }
+        .metric-card .metric-icon.pink { background: #e83e8c; }
+
+        .metric-card .metric-label {
+            font-size: 0.75rem;
+            color: #6c757d;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .metric-card .metric-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #2d2d2d;
+            line-height: 1.2;
+        }
+
+        .metric-card .metric-value .currency {
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+
+        .metric-card .metric-sub {
+            font-size: 0.7rem;
+            color: #adb5bd;
+            margin-top: 2px;
+        }
+
+        /* ============================================
+           RESUMO FINANCEIRO
+           ============================================ */
+        .financial-summary {
+            background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+            color: white;
+            border-radius: var(--card-radius);
+            padding: 20px 24px;
+            box-shadow: var(--shadow-md);
+            margin-bottom: 20px;
+        }
+
+        .financial-summary h3 {
+            color: white;
+            font-weight: 600;
+            margin-bottom: 16px;
+            font-size: 1.1rem;
+        }
+
+        .financial-summary .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 10px;
+        }
+
+        .financial-summary .summary-item {
+            background: rgba(255,255,255,0.12);
+            border-radius: 10px;
+            padding: 12px 14px;
+            text-align: center;
+        }
+
+        .financial-summary .summary-item .summary-value {
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
+
+        .financial-summary .summary-item .summary-label {
+            font-size: 0.65rem;
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .financial-summary .summary-item .summary-value.positive {
+            color: #28a745;
+        }
+        .financial-summary .summary-item .summary-value.negative {
+            color: #dc3545;
+        }
+
+        /* ============================================
+           TABELAS
+           ============================================ */
+        .table-custom {
+            font-size: 0.85rem;
+        }
+
+        .table-custom thead th {
+            background: var(--primary-color);
+            color: white;
+            font-weight: 600;
+            border: none;
+            padding: 10px 12px;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .table-custom tbody td {
+            padding: 8px 12px;
+            vertical-align: middle;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .table-custom tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        .table-custom .status-badge {
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.65rem;
+            font-weight: 600;
+        }
+
+        .table-custom .status-badge.paid {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .table-custom .status-badge.pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .table-custom .status-badge.overdue {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        /* ============================================
+           FORMULÁRIO
+           ============================================ */
+        .form-label {
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: #333;
+        }
+
+        .form-control, .form-select {
+            border-radius: var(--btn-border-radius);
+            border: 2px solid #e9ecef;
+            font-size: 0.9rem;
+            padding: 8px 12px;
+        }
+
+        .form-control:focus, .form-select:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.25rem rgba(38,25,107,0.15);
+        }
+
+        .btn-primary-custom {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: var(--btn-padding);
+            border-radius: var(--btn-border-radius);
+            font-weight: 600;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .btn-primary-custom:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(38,25,107,0.3);
+        }
+
+        .btn-primary-custom:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* ============================================
+           MODAL
+           ============================================ */
+        .finance-modal .modal-content {
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        .finance-modal .modal-header {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+        }
+
+        .finance-modal .modal-header .btn-close {
+            filter: brightness(0) invert(1);
+        }
+
+        .finance-modal .modal-body {
+            padding: 24px;
+            max-height: 75vh;
+            overflow-y: auto;
+        }
+
+        .finance-modal .modal-footer {
+            border-top: 1px solid #eee;
+            padding: 16px 24px;
+        }
+
+        /* ============================================
+           GRÁFICO
+           ============================================ */
+        .chart-container {
+            background: white;
+            border-radius: var(--card-radius);
+            padding: 16px 18px;
+            box-shadow: var(--shadow-sm);
+            height: 280px;
+            position: relative;
+        }
+
+        .chart-container h6 {
+            color: var(--primary-color);
+            font-weight: 600;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+        }
+
+        /* ============================================
+           RESPONSIVIDADE
+           ============================================ */
+        @media (max-width: 768px) {
+            .finance-header {
+                padding: 10px 12px;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 6px;
+            }
+
+            .finance-header .header-left {
+                gap: 8px;
+                flex-wrap: wrap;
+            }
+
+            .finance-header .header-left .brand-logo .brand-name {
+                font-size: 0.85rem;
+            }
+
+            .finance-header .header-left .brand-logo img {
+                height: 28px;
+                width: 28px;
+            }
+
+            .finance-header .header-actions {
+                justify-content: flex-start;
+            }
+
+            .finance-content {
+                padding: 8px 10px;
+            }
+
+            .metric-card {
+                padding: 12px 14px;
+            }
+
+            .metric-card .metric-value {
+                font-size: 1.2rem;
+            }
+
+            .metric-card .metric-icon {
+                width: 36px;
+                height: 36px;
+                font-size: 0.9rem;
+            }
+
+            .financial-summary {
+                padding: 14px 16px;
+            }
+
+            .financial-summary .summary-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 6px;
+            }
+
+            .financial-summary .summary-item .summary-value {
+                font-size: 1rem;
+            }
+
+            .financial-summary .summary-item .summary-label {
+                font-size: 0.55rem;
+            }
+
+            .table-custom {
+                font-size: 0.75rem;
+            }
+
+            .table-custom thead th {
+                font-size: 0.65rem;
+                padding: 6px 8px;
+            }
+
+            .table-custom tbody td {
+                padding: 6px 8px;
+            }
+
+            .chart-container {
+                height: 200px;
+                padding: 12px 14px;
+            }
+
+            .btn-home {
+                padding: 5px 12px;
+                font-size: 0.7rem;
+            }
+
+            .btn-refresh {
+                padding: 5px 10px;
+                font-size: 0.7rem;
+            }
+
+            .last-update {
+                font-size: 0.55rem;
+            }
+
+            .finance-modal .modal-body {
+                padding: 14px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .finance-header {
+                padding: 8px 10px;
+            }
+
+            .finance-header .header-left .brand-logo .brand-name {
+                font-size: 0.75rem;
+            }
+
+            .finance-header .header-left .brand-logo .brand-name small {
+                display: none;
+            }
+
+            .finance-header .header-left .brand-logo img {
+                height: 24px;
+                width: 24px;
+            }
+
+            .finance-content {
+                padding: 6px 4px;
+            }
+
+            .metric-card {
+                padding: 10px 12px;
+            }
+
+            .metric-card .metric-value {
+                font-size: 1rem;
+            }
+
+            .metric-card .metric-label {
+                font-size: 0.65rem;
+            }
+
+            .financial-summary {
+                padding: 12px 14px;
+            }
+
+            .financial-summary .summary-grid {
+                grid-template-columns: 1fr 1fr;
+                gap: 4px;
+            }
+
+            .financial-summary .summary-item {
+                padding: 6px 8px;
+            }
+
+            .financial-summary .summary-item .summary-value {
+                font-size: 0.85rem;
+            }
+
+            .financial-summary .summary-item .summary-label {
+                font-size: 0.5rem;
+            }
+
+            .table-custom {
+                font-size: 0.65rem;
+            }
+
+            .table-custom thead th {
+                font-size: 0.55rem;
+                padding: 4px 6px;
+            }
+
+            .table-custom tbody td {
+                padding: 4px 6px;
+            }
+
+            .chart-container {
+                height: 160px;
+                padding: 8px 10px;
+            }
+
+            .chart-container h6 {
+                font-size: 0.7rem;
+            }
+
+            .finance-modal .modal-body {
+                padding: 10px;
+            }
+        }
+
+        /* ============================================
+           SCROLLBAR
+           ============================================ */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+
+        /* ============================================
+           UTILITÁRIOS
+           ============================================ */
+        .text-primary-custom { color: var(--primary-color); }
+        .bg-primary-custom { background: var(--primary-color); }
+        .border-primary-custom { border-color: var(--primary-color); }
+        .cursor-pointer { cursor: pointer; }
+        .gap-2 { gap: 8px; }
+        .gap-3 { gap: 12px; }
+        .mt-2 { margin-top: 8px; }
+        .mt-3 { margin-top: 16px; }
+        .mt-4 { margin-top: 24px; }
+        .mb-2 { margin-bottom: 8px; }
+        .mb-3 { margin-bottom: 16px; }
+        .mb-4 { margin-bottom: 24px; }
+        .text-muted { color: #6c757d; }
+        .text-success { color: #28a745; }
+        .text-danger { color: #dc3545; }
+        .text-warning { color: #ffc107; }
+        .text-primary { color: var(--primary-color); }
+        .fw-bold { font-weight: 700; }
+        .fw-semibold { font-weight: 600; }
+        .fs-small { font-size: 0.75rem; }
+        .fs-large { font-size: 1.05rem; }
+
+        /* ============================================
+           ANIMAÇÃO DE LOADING
+           ============================================ */
+        .loading-spinner {
+            display: inline-block;
+            width: 26px;
+            height: 26px;
+            border: 3px solid rgba(38,25,107,0.1);
+            border-radius: 50%;
+            border-top-color: var(--primary-color);
+            animation: spin 0.8s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* ============================================
+           TOAST / NOTIFICAÇÃO
+           ============================================ */
+        .toast-notification {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 10px;
+            color: white;
+            z-index: 9999;
+            font-weight: 500;
+            box-shadow: var(--shadow-md);
+            animation: slideIn 0.3s ease;
+            max-width: 350px;
+        }
+
+        .toast-notification.success {
+            background: #28a745;
+        }
+
+        .toast-notification.error {
+            background: #dc3545;
+        }
+
+        .toast-notification.info {
+            background: #17a2b8;
+        }
+
+        .toast-notification.warning {
+            background: #ffc107;
+            color: #000;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        /* ============================================
+           CORREÇÃO MOBILE - DESLIZE LATERAL
+           ============================================ */
+        .container, .container-fluid, .row, .col-*, .col-lg-*, .col-md-*, .col-sm-* {
+            max-width: 100% !important;
+            overflow-x: hidden !important;
+        }
+
+        .row > * {
+            padding-left: 6px !important;
+            padding-right: 6px !important;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ==========================================
+    HEADER COM BOTÃO HOME
+    ========================================== -->
+    <header class="finance-header" id="financeHeader">
+        <div class="header-left">
+            <div class="brand-logo" id="brandLogo">
+                <i class="fas fa-chart-line brand-icon" id="logoIcon"></i>
+                <img id="logoImage" style="display:none; height:32px; width:32px; border-radius:50%; object-fit:cover;" alt="Logo">
+                <span class="brand-name">Controle Financeiro <small id="systemName">Studio DeVitto</small></span>
+            </div>
+        </div>
+        <div class="header-actions">
+            <span class="last-update" id="lastUpdateBadge">
+                <i class="fas fa-clock me-1"></i>Atualizado agora
+            </span>
+            <button class="btn-refresh" onclick="recarregarDados()">
+                <i class="fas fa-sync-alt me-1"></i>
+            </button>
+            <button class="btn-home" onclick="goHome()">
+                <i class="fas fa-home"></i>
+                <span>Home</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- ==========================================
+    CONTEÚDO PRINCIPAL
+    ========================================== -->
+    <div class="finance-content" id="financeContent">
+
+        <!-- ==========================================
+        CARDS DE MÉTRICAS
+        ========================================== -->
+        <div class="row g-3 mb-4" id="metricsRow">
+            <div class="col-lg-3 col-md-6 col-12">
+                <div class="metric-card">
+                    <div class="d-flex justify-content-between align-center">
+                        <div>
+                            <div class="metric-label">Receita Total</div>
+                            <div class="metric-value text-success" id="totalRevenue">€ 0,00</div>
+                            <div class="metric-sub" id="revenuePeriod">Este mês</div>
+                        </div>
+                        <div class="metric-icon green"><i class="fas fa-arrow-up"></i></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6 col-12">
+                <div class="metric-card" style="border-left-color: #dc3545;">
+                    <div class="d-flex justify-content-between align-center">
+                        <div>
+                            <div class="metric-label">Despesas Totais</div>
+                            <div class="metric-value text-danger" id="totalExpenses">€ 0,00</div>
+                            <div class="metric-sub" id="expensesPeriod">Este mês</div>
+                        </div>
+                        <div class="metric-icon red"><i class="fas fa-arrow-down"></i></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6 col-12">
+                <div class="metric-card" style="border-left-color: #ffc107;">
+                    <div class="d-flex justify-content-between align-center">
+                        <div>
+                            <div class="metric-label">Comissões</div>
+                            <div class="metric-value text-warning" id="totalCommissions">€ 0,00</div>
+                            <div class="metric-sub" id="commissionsPeriod">Este mês</div>
+                        </div>
+                        <div class="metric-icon gold"><i class="fas fa-hand-holding-usd"></i></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6 col-12">
+                <div class="metric-card" style="border-left-color: #17a2b8;">
+                    <div class="d-flex justify-content-between align-center">
+                        <div>
+                            <div class="metric-label">Lucro Líquido</div>
+                            <div class="metric-value text-info" id="netProfit">€ 0,00</div>
+                            <div class="metric-sub" id="profitPeriod">Este mês</div>
+                        </div>
+                        <div class="metric-icon blue"><i class="fas fa-chart-line"></i></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==========================================
+        RESUMO FINANCEIRO
+        ========================================== -->
+        <div class="financial-summary" id="financialSummary">
+            <h3><i class="fas fa-coins me-2"></i>Resumo Financeiro</h3>
+            <div class="summary-grid" id="summaryGrid">
+                <div class="summary-item">
+                    <div class="summary-value positive" id="summaryRevenue">€ 0,00</div>
+                    <div class="summary-label">Receita</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value negative" id="summaryExpenses">€ 0,00</div>
+                    <div class="summary-label">Despesas</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value" id="summaryCommissions">€ 0,00</div>
+                    <div class="summary-label">Comissões</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value" id="summarySalaries">€ 0,00</div>
+                    <div class="summary-label">Salários</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value positive" id="summaryProfit">€ 0,00</div>
+                    <div class="summary-label">Lucro Líquido</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value" id="summaryPending">€ 0,00</div>
+                    <div class="summary-label">Despesas Pendentes</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==========================================
+        GRÁFICO E PRÓXIMOS VENCIMENTOS
+        ========================================== -->
+        <div class="row g-3 mb-4">
+            <div class="col-lg-8 col-md-12">
+                <div class="chart-container">
+                    <h6><i class="fas fa-chart-bar me-2"></i>Receitas vs Despesas</h6>
+                    <canvas id="financeChart"></canvas>
+                </div>
+            </div>
+            <div class="col-lg-4 col-md-12">
+                <div class="card-custom" style="background:white;border-radius:var(--card-radius);padding:16px 18px;box-shadow:var(--shadow-sm);height:100%;">
+                    <h6 class="fw-bold text-primary mb-3"><i class="fas fa-clock me-2"></i>Próximos Vencimentos</h6>
+                    <div id="upcomingDueList" style="max-height:220px;overflow-y:auto;">
+                        <p class="text-muted text-center py-3">Carregando...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==========================================
+        SELEÇÃO DE PERÍODO E ABAS
+        ========================================== -->
+        <div class="mb-3 d-flex flex-wrap align-items-center gap-2">
+            <label class="fw-bold me-2" style="font-size:0.85rem;"><i class="fas fa-calendar-alt me-1"></i>Período:</label>
+            <div class="d-flex gap-2 flex-wrap">
+                <button class="btn btn-sm btn-outline-primary active" data-period="month" onclick="setPeriod('month')">Mês</button>
+                <button class="btn btn-sm btn-outline-primary" data-period="quarter" onclick="setPeriod('quarter')">Trimestre</button>
+                <button class="btn btn-sm btn-outline-primary" data-period="semester" onclick="setPeriod('semester')">Semestre</button>
+                <button class="btn btn-sm btn-outline-primary" data-period="year" onclick="setPeriod('year')">Ano</button>
+                <button class="btn btn-sm btn-outline-primary" data-period="custom" onclick="setPeriod('custom')">Personalizado</button>
+            </div>
+            <div id="customPeriodInputs" style="display:none;" class="d-flex gap-2 flex-wrap align-items-center">
+                <input type="date" id="customStart" class="form-control form-control-sm" style="width:140px;">
+                <span>até</span>
+                <input type="date" id="customEnd" class="form-control form-control-sm" style="width:140px;">
+                <button class="btn btn-sm btn-success" onclick="aplicarPeriodoCustom()">Aplicar</button>
+            </div>
+        </div>
+
+        <!-- ==========================================
+        ABAS
+        ========================================== -->
+        <ul class="nav nav-tabs" id="financeTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="tab-despesas" data-bs-toggle="tab" data-bs-target="#content-despesas" type="button" role="tab">
+                    <i class="fas fa-money-bill-wave me-1"></i>Despesas
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-salarios" data-bs-toggle="tab" data-bs-target="#content-salarios" type="button" role="tab">
+                    <i class="fas fa-user-tie me-1"></i>Salários
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-comissoes" data-bs-toggle="tab" data-bs-target="#content-comissoes" type="button" role="tab">
+                    <i class="fas fa-hand-holding-usd me-1"></i>Comissões
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-adicionar" data-bs-toggle="tab" data-bs-target="#content-adicionar" type="button" role="tab">
+                    <i class="fas fa-plus me-1"></i>Adicionar
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content p-3 bg-white border border-top-0 rounded-bottom" style="border-radius:0 0 var(--card-radius) var(--card-radius);">
+            <!-- TAB DESPESAS -->
+            <div class="tab-pane fade show active" id="content-despesas" role="tabpanel">
+                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <h6 class="fw-bold text-primary mb-0"><i class="fas fa-list me-2"></i>Despesas do Período</h6>
+                    <button class="btn btn-sm btn-success" onclick="marcarTodasPagas()">
+                        <i class="fas fa-check-double me-1"></i>Marcar Todas Pagas
+                    </button>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-custom" id="expensesTable">
+                        <thead>
+                            <tr>
+                                <th>Descrição</th>
+                                <th>Categoria</th>
+                                <th>Vencimento</th>
+                                <th>Valor</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="expensesTableBody">
+                            <tr>
+                                <td colspan="6" class="text-center text-muted">Nenhuma despesa encontrada.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TAB SALÁRIOS -->
+            <div class="tab-pane fade" id="content-salarios" role="tabpanel">
+                <h6 class="fw-bold text-primary mb-3"><i class="fas fa-user-tie me-2"></i>Pagamentos de Salários</h6>
+                <div class="table-responsive">
+                    <table class="table table-custom">
+                        <thead>
+                            <tr>
+                                <th>Colaborador</th>
+                                <th>Mês</th>
+                                <th>Base</th>
+                                <th>Bônus</th>
+                                <th>Descontos</th>
+                                <th>Total</th>
+                                <th>Data Pagamento</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="salariesTableBody">
+                            <tr>
+                                <td colspan="8" class="text-center text-muted">Nenhum pagamento de salário encontrado.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TAB COMISSÕES -->
+            <div class="tab-pane fade" id="content-comissoes" role="tabpanel">
+                <h6 class="fw-bold text-primary mb-3"><i class="fas fa-hand-holding-usd me-2"></i>Comissões por Colaborador</h6>
+                <div class="table-responsive">
+                    <table class="table table-custom">
+                        <thead>
+                            <tr>
+                                <th>Colaborador</th>
+                                <th>Serviços</th>
+                                <th>Total Bruto</th>
+                                <th>% Comissão</th>
+                                <th>Valor Comissão</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="commissionsTableBody">
+                            <tr>
+                                <td colspan="7" class="text-center text-muted">Nenhuma comissão encontrada.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TAB ADICIONAR -->
+            <div class="tab-pane fade" id="content-adicionar" role="tabpanel">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card-custom" style="background:white;border-radius:var(--card-radius);padding:16px 18px;box-shadow:var(--shadow-sm);height:100%;">
+                            <h6 class="fw-bold text-primary mb-3"><i class="fas fa-plus-circle me-2"></i>Nova Despesa</h6>
+                            <form id="expenseForm">
+                                <div class="mb-3">
+                                    <label for="expenseDescription" class="form-label">Descrição *</label>
+                                    <input type="text" class="form-control" id="expenseDescription" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="expenseCategory" class="form-label">Categoria *</label>
+                                    <select class="form-select" id="expenseCategory" required>
+                                        <option value="">Selecione uma categoria</option>
+                                        <option value="aluguel">Aluguel</option>
+                                        <option value="energia">Energia</option>
+                                        <option value="agua">Água</option>
+                                        <option value="internet">Internet</option>
+                                        <option value="produtos">Produtos/Estoque</option>
+                                        <option value="manutencao">Manutenção</option>
+                                        <option value="marketing">Marketing</option>
+                                        <option value="impostos">Impostos</option>
+                                        <option value="outros">Outros</option>
+                                    </select>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="expenseValue" class="form-label">Valor (€) *</label>
+                                        <input type="number" class="form-control" id="expenseValue" step="0.01" min="0" required>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="expenseDueDate" class="form-label">Vencimento *</label>
+                                        <input type="date" class="form-control" id="expenseDueDate" required>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="expenseNotes" class="form-label">Observações</label>
+                                    <textarea class="form-control" id="expenseNotes" rows="2"></textarea>
+                                </div>
+                                <div class="mb-3 form-check">
+                                    <input type="checkbox" class="form-check-input" id="expenseRecurring">
+                                    <label class="form-check-label" for="expenseRecurring">Despesa Recorrente (Mensal)</label>
+                                </div>
+                                <button type="submit" class="btn btn-primary-custom w-100">Registrar Despesa</button>
+                            </form>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card-custom" style="background:white;border-radius:var(--card-radius);padding:16px 18px;box-shadow:var(--shadow-sm);height:100%;">
+                            <h6 class="fw-bold text-primary mb-3"><i class="fas fa-user-plus me-2"></i>Registrar Salário</h6>
+                            <form id="salaryForm">
+                                <div class="mb-3">
+                                    <label for="salaryCollaborator" class="form-label">Colaborador *</label>
+                                    <select class="form-select" id="salaryCollaborator" required>
+                                        <option value="">Selecione um colaborador</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="salaryMonth" class="form-label">Mês de Referência *</label>
+                                    <input type="month" class="form-control" id="salaryMonth" required>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-4 mb-3">
+                                        <label for="salaryBase" class="form-label">Base (€) *</label>
+                                        <input type="number" class="form-control" id="salaryBase" step="0.01" min="0" required>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label for="salaryBonus" class="form-label">Bônus (€)</label>
+                                        <input type="number" class="form-control" id="salaryBonus" step="0.01" min="0" value="0">
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label for="salaryDeductions" class="form-label">Descontos (€)</label>
+                                        <input type="number" class="form-control" id="salaryDeductions" step="0.01" min="0" value="0">
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="salaryPaymentDate" class="form-label">Data Pagamento *</label>
+                                    <input type="date" class="form-control" id="salaryPaymentDate" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="salaryNotes" class="form-label">Observações</label>
+                                    <textarea class="form-control" id="salaryNotes" rows="2"></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-primary-custom w-100">Registrar Salário</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ==========================================
+    MODAL DE EDIÇÃO
+    ========================================== -->
+    <div class="modal fade finance-modal" id="editModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Editar</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="editModalBody">
+                    <!-- Conteúdo carregado dinamicamente -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="btnSalvarEdicao">
+                        <i class="fas fa-save me-1"></i>Salvar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+    SCRIPTS
+    ========================================== -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // ==========================================
+        // 1. CONFIGURAÇÃO DO FIREBASE
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyC5ezGCOS5d-Vy2l-Gimkl_V9VmwDLZzKc",
+            authDomain: "studio-devitto-152400.firebaseapp.com",
+            projectId: "studio-devitto-152400",
+            storageBucket: "studio-devitto-152400.appspot.com",
+            messagingSenderId: "138996544906",
+            appId: "1:138996544906:web:6569bf954a00e2f7944473",
+            measurementId: "G-FCC5T13QW8"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // ==========================================
+        // 2. VARIÁVEIS GLOBAIS
+        // ==========================================
+        let currentUser = null;
+        let configAtual = {};
+        let configListener = null;
+        let dadosCache = {
+            services: [],
+            productSales: [],
+            clients: [],
+            collaborators: [],
+            products: [],
+            expenses: [],
+            salaryPayments: []
+        };
+        let periodoAtual = 'month';
+        let customStartDate = null;
+        let customEndDate = null;
+        let financeChart = null;
+        let editandoId = null;
+        let editandoTipo = null;
+
+        // ==========================================
+        // 3. INICIALIZAÇÃO
+        // ==========================================
+        document.addEventListener('DOMContentLoaded', function() {
+            auth.onAuthStateChanged(user => {
+                if (user) {
+                    currentUser = user;
+                    console.log('✅ Usuário autenticado:', user.email);
+                    carregarConfiguracoes();
+                    carregarTodosOsDados();
+                    
+                    // Definir data padrão no formulário
+                    const hoje = new Date().toISOString().split('T')[0];
+                    document.getElementById('expenseDueDate').value = hoje;
+                    document.getElementById('salaryPaymentDate').value = hoje;
+                    document.getElementById('salaryMonth').value = hoje.substring(0, 7);
+                    document.getElementById('customStart').value = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+                    document.getElementById('customEnd').value = hoje;
+                } else {
+                    mostrarLoginPrompt();
+                }
+            });
+
+            // Eventos dos formulários
+            document.getElementById('expenseForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                salvarDespesa();
+            });
+
+            document.getElementById('salaryForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                salvarSalario();
+            });
+
+            document.getElementById('btnSalvarEdicao').addEventListener('click', function() {
+                salvarEdicao();
+            });
+        });
+
+        // ==========================================
+        // 4. RECEBER CONFIGURAÇÕES DA PÁGINA PRINCIPAL
+        // ==========================================
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'configUpdated') {
+                configAtual = event.data.config || {};
+                console.log('📡 Configurações recebidas:', configAtual);
+                aplicarConfiguracoes();
+            }
+        });
+
+        function solicitarConfiguracoes() {
+            try {
+                window.parent.postMessage({ type: 'getConfig' }, '*');
+            } catch(e) {
+                carregarConfiguracoesLocal();
+            }
+        }
+
+        function carregarConfiguracoes() {
+            carregarConfiguracoesLocal();
+            try {
+                if (window.parent && window.parent !== window) {
+                    solicitarConfiguracoes();
+                }
+            } catch(e) {}
+
+            window.addEventListener('storage', function(e) {
+                if (e.key === 'systemConfig') {
+                    const config = JSON.parse(e.newValue);
+                    if (config) {
+                        configAtual = config;
+                        aplicarConfiguracoes();
+                    }
+                }
+            });
+        }
+
+        function carregarConfiguracoesLocal() {
+            try {
+                const saved = localStorage.getItem('systemConfig');
+                if (saved) {
+                    configAtual = JSON.parse(saved);
+                    console.log('📦 Configurações carregadas do localStorage:', configAtual);
+                    aplicarConfiguracoes();
+                }
+            } catch(e) {
+                console.warn('Erro ao carregar configurações do localStorage:', e);
+            }
+        }
+
+        function aplicarConfiguracoes() {
+            const root = document.documentElement;
+
+            if (configAtual.corPrimaria) {
+                root.style.setProperty('--primary-color', configAtual.corPrimaria);
+                root.style.setProperty('--accent-color', configAtual.corPrimaria + '99');
+            }
+
+            if (configAtual.fontSize) {
+                root.style.setProperty('--font-size-base', configAtual.fontSize);
+            }
+
+            if (configAtual.btnRadius) {
+                root.style.setProperty('--btn-border-radius', configAtual.btnRadius);
+            }
+
+            if (configAtual.fontFamily) {
+                root.style.setProperty('--font-family', configAtual.fontFamily);
+            }
+
+            const systemNameEl = document.getElementById('systemName');
+            if (systemNameEl && configAtual.nome) {
+                systemNameEl.textContent = configAtual.nome;
+            }
+
+            atualizarLogo();
+
+            document.querySelectorAll('.finance-header, .finance-modal .modal-header, .financial-summary').forEach(el => {
+                if (el.classList.contains('financial-summary')) {
+                    el.style.background = 'linear-gradient(135deg, ' + (configAtual.corPrimaria || '#26196b') + ', ' + (
+                        configAtual.corPrimaria || '#26196b') + '99)';
+                } else {
+                    el.style.background = 'linear-gradient(135deg, ' + (configAtual.corPrimaria || '#26196b') + ', ' + (
+                        configAtual.corPrimaria || '#26196b') + '99)';
+                }
+            });
+
+            console.log('🎨 Configurações aplicadas no Controle Financeiro');
+        }
+
+        function atualizarLogo() {
+            const logoIcon = document.getElementById('logoIcon');
+            const logoImage = document.getElementById('logoImage');
+
+            if (configAtual.logo) {
+                logoIcon.style.display = 'none';
+                logoImage.style.display = 'inline-block';
+                logoImage.src = configAtual.logo;
+            } else {
+                logoIcon.style.display = 'inline-block';
+                logoImage.style.display = 'none';
+            }
+        }
+
+        // ==========================================
+        // 5. CARREGAR TODOS OS DADOS
+        // ==========================================
+        async function carregarTodosOsDados() {
+            if (!currentUser) return;
+
+            try {
+                // Serviços
+                const servicesSnap = await db.collection('services')
+                    .where('userId', '==', currentUser.uid)
+                    .get();
+                dadosCache.services = [];
+                servicesSnap.forEach(doc => dadosCache.services.push({ id: doc.id, ...doc.data() }));
+
+                // Vendas de produtos
+                const salesSnap = await db.collection('productSales')
+                    .where('userId', '==', currentUser.uid)
+                    .get();
+                dadosCache.productSales = [];
+                salesSnap.forEach(doc => dadosCache.productSales.push({ id: doc.id, ...doc.data() }));
+
+                // Clientes
+                const clientsSnap = await db.collection('clients')
+                    .where('userId', '==', currentUser.uid)
+                    .get();
+                dadosCache.clients = [];
+                clientsSnap.forEach(doc => dadosCache.clients.push({ id: doc.id, ...doc.data() }));
+
+                // Colaboradores
+                const collabSnap = await db.collection('collaborators')
+                    .where('userId', '==', currentUser.uid)
+                    .get();
+                dadosCache.collaborators = [];
+                collabSnap.forEach(doc => dadosCache.collaborators.push({ id: doc.id, ...doc.data() }));
+
+                // Produtos
+                const productsSnap = await db.collection('products')
+                    .where('userId', '==', currentUser.uid)
+                    .get();
+                dadosCache.products = [];
+                productsSnap.forEach(doc => dadosCache.products.push({ id: doc.id, ...doc.data() }));
+
+                // Despesas
+                const expensesSnap = await db.collection('expenses')
+                    .where('userId', '==', currentUser.uid)
+                    .get();
+                dadosCache.expenses = [];
+                expensesSnap.forEach(doc => dadosCache.expenses.push({ id: doc.id, ...doc.data() }));
+
+                // Salários
+                const salarySnap = await db.collection('salaryPayments')
+                    .where('userId', '==', currentUser.uid)
+                    .get();
+                dadosCache.salaryPayments = [];
+                salarySnap.forEach(doc => dadosCache.salaryPayments.push({ id: doc.id, ...doc.data() }));
+
+                console.log('✅ Todos os dados carregados com sucesso!');
+                atualizarUltimaAtualizacao();
+                atualizarTudo();
+
+            } catch (error) {
+                console.error('❌ Erro ao carregar dados:', error);
+                showToast('Erro ao carregar dados: ' + error.message, 'error');
+            }
+        }
+
+        // ==========================================
+        // 6. FUNÇÕES DE UTILIDADE
+        // ==========================================
+        function formatCurrency(value) {
+            if (typeof value !== 'number') value = parseFloat(value) || 0;
+            return '€ ' + value.toFixed(2).replace('.', ',');
+        }
+
+        function formatDate(date) {
+            if (!date) return '';
+            if (typeof date === 'string') date = new Date(date);
+            return date.toLocaleDateString('pt-PT');
+        }
+
+        function dataRegistro(registro) {
+            if (!registro || registro.date == null) return null;
+            if (registro.date && typeof registro.date.toDate === 'function') return registro.date.toDate();
+            if (typeof registro.date === 'string') {
+                const m = registro.date.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                if (m) return new Date(+m[1], +m[2]-1, +m[3], 12, 0, 0, 0);
+            }
+            const d = new Date(registro.date);
+            return isNaN(d.getTime()) ? null : d;
+        }
+
+        function numero(obj, campos) {
+            for (const campo of campos) {
+                if (obj && obj[campo] !== undefined && obj[campo] !== null && obj[campo] !== '') {
+                    const n = parseFloat(obj[campo]);
+                    if (!isNaN(n)) return n;
+                }
+            }
+            return 0;
+        }
+
+        function getCollaboratorName(collaboratorId) {
+            const collaborator = dadosCache.collaborators.find(c => c.id === collaboratorId);
+            return collaborator ? collaborator.name : 'Colaborador não encontrado';
+        }
+
+        function getExpenseCategoryName(category) {
+            const categories = {
+                'aluguel': 'Aluguel',
+                'energia': 'Energia',
+                'agua': 'Água',
+                'internet': 'Internet',
+                'produtos': 'Produtos/Estoque',
+                'manutencao': 'Manutenção',
+                'marketing': 'Marketing',
+                'impostos': 'Impostos',
+                'outros': 'Outros'
+            };
+            return categories[category] || category || 'Outros';
+        }
+
+        function showToast(message, type = 'info') {
+            if (typeof Swal !== 'undefined') {
+                const icons = {
+                    'success': 'success',
+                    'error': 'error',
+                    'warning': 'warning',
+                    'info': 'info'
+                };
+                Swal.fire({
+                    icon: icons[type] || 'info',
+                    title: message,
+                    timer: 3000,
+                    showConfirmButton: false,
+                    toast: true,
+                    position: 'top-end',
+                    timerProgressBar: true
+                });
+            } else {
+                console.log(`[${type.toUpperCase()}] ${message}`);
+            }
+        }
+
+        function showLoading(message) {
+            Swal.fire({
+                title: message,
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+        }
+
+        function atualizarUltimaAtualizacao() {
+            const now = new Date();
+            const el = document.getElementById('lastUpdateBadge');
+            if (el) {
+                el.innerHTML = `<i class="fas fa-clock me-1"></i>Atualizado ${now.toLocaleTimeString('pt-PT')}`;
+            }
+        }
+
+        function mostrarLoginPrompt() {
+            Swal.fire({
+                title: 'Acesso Restrito',
+                text: 'Faça login para acessar o controle financeiro.',
+                icon: 'warning',
+                confirmButtonText: 'Ir para Login',
+                showCancelButton: true,
+                cancelButtonText: 'Cancelar'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    window.location.href = '/login.html';
+                }
+            });
+        }
+
+        function goHome() {
+            try {
+                window.parent.postMessage({ action: 'goHome' }, '*');
+            } catch(e) {
+                window.location.href = 'layout-index.html';
+            }
+        }
+
+        function recarregarDados() {
+            carregarTodosOsDados();
+            showToast('Dados recarregados!', 'success');
+        }
+
+        // ==========================================
+        // 7. PERÍODO
+        // ==========================================
+        function setPeriod(periodo) {
+            periodoAtual = periodo;
+            document.querySelectorAll('[data-period]').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.period === periodo);
+            });
+
+            const customInputs = document.getElementById('customPeriodInputs');
+            if (periodo === 'custom') {
+                customInputs.style.display = 'flex';
+                return;
+            }
+            customInputs.style.display = 'none';
+
+            const hoje = new Date();
+            let inicio, fim;
+
+            switch (periodo) {
+                case 'month':
+                    inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+                    fim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+                    break;
+                case 'quarter':
+                    const mesTrimestre = Math.floor(hoje.getMonth() / 3) * 3;
+                    inicio = new Date(hoje.getFullYear(), mesTrimestre, 1);
+                    fim = new Date(hoje.getFullYear(), mesTrimestre + 3, 0);
+                    break;
+                case 'semester':
+                    const mesSemestre = hoje.getMonth() < 6 ? 0 : 6;
+                    inicio = new Date(hoje.getFullYear(), mesSemestre, 1);
+                    fim = new Date(hoje.getFullYear(), mesSemestre + 6, 0);
+                    break;
+                case 'year':
+                    inicio = new Date(hoje.getFullYear(), 0, 1);
+                    fim = new Date(hoje.getFullYear(), 11, 31);
+                    break;
+                default:
+                    return;
+            }
+
+            customStartDate = inicio;
+            customEndDate = fim;
+            atualizarTudo();
+        }
+
+        function aplicarPeriodoCustom() {
+            const start = document.getElementById('customStart').value;
+            const end = document.getElementById('customEnd').value;
+
+            if (!start || !end) {
+                showToast('Selecione as datas inicial e final.', 'warning');
+                return;
+            }
+
+            const inicio = new Date(start);
+            const fim = new Date(end);
+            fim.setHours(23, 59, 59, 999);
+
+            if (inicio > fim) {
+                showToast('A data inicial não pode ser maior que a final.', 'error');
+                return;
+            }
+
+            customStartDate = inicio;
+            customEndDate = fim;
+            periodoAtual = 'custom';
+            document.querySelectorAll('[data-period]').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.period === 'custom');
+            });
+            document.getElementById('customPeriodInputs').style.display = 'flex';
+            atualizarTudo();
+            showToast('Período aplicado!', 'success');
+        }
+
+        function getPeriodo() {
+            if (periodoAtual === 'custom' && customStartDate && customEndDate) {
+                return { inicio: customStartDate, fim: customEndDate };
+            }
+            const hoje = new Date();
+            let inicio, fim;
+
+            switch (periodoAtual) {
+                case 'month':
+                    inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+                    fim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+                    break;
+                case 'quarter':
+                    const mesTrimestre = Math.floor(hoje.getMonth() / 3) * 3;
+                    inicio = new Date(hoje.getFullYear(), mesTrimestre, 1);
+                    fim = new Date(hoje.getFullYear(), mesTrimestre + 3, 0);
+                    break;
+                case 'semester':
+                    const mesSemestre = hoje.getMonth() < 6 ? 0 : 6;
+                    inicio = new Date(hoje.getFullYear(), mesSemestre, 1);
+                    fim = new Date(hoje.getFullYear(), mesSemestre + 6, 0);
+                    break;
+                case 'year':
+                    inicio = new Date(hoje.getFullYear(), 0, 1);
+                    fim = new Date(hoje.getFullYear(), 11, 31);
+                    break;
+                default:
+                    inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+                    fim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+            }
+            return { inicio, fim };
+        }
+
+        // ==========================================
+        // 8. ATUALIZAR TUDO
+        // ==========================================
+        function atualizarTudo() {
+            const periodo = getPeriodo();
+            atualizarMetricas(periodo.inicio, periodo.fim);
+            atualizarResumo(periodo.inicio, periodo.fim);
+            atualizarTabelaDespesas(periodo.inicio, periodo.fim);
+            atualizarTabelaSalarios(periodo.inicio, periodo.fim);
+            atualizarTabelaComissoes(periodo.inicio, periodo.fim);
+            atualizarGrafico(periodo.inicio, periodo.fim);
+            atualizarProximosVencimentos();
+            atualizarSelectColaboradores();
+        }
+
+        // ==========================================
+        // 9. MÉTRICAS
+        // ==========================================
+        function atualizarMetricas(inicio, fim) {
+            // Receitas (serviços + produtos)
+            const servicosPeriodo = dadosCache.services.filter(s => {
+                const d = dataRegistro(s);
+                return d && d >= inicio && d <= fim;
+            });
+            const produtosPeriodo = dadosCache.productSales.filter(p => {
+                const d = dataRegistro(p);
+                return d && d >= inicio && d <= fim;
+            });
+
+            const receitaServicos = servicosPeriodo.reduce((sum, s) => sum + numero(s, ['value','valor','price']), 0);
+            const receitaProdutos = produtosPeriodo.reduce((sum, p) => sum + numero(p, ['totalValue','total','value','valor']), 0);
+            const receitaTotal = receitaServicos + receitaProdutos;
+
+            // Despesas
+            const despesasPeriodo = dadosCache.expenses.filter(e => {
+                const d = new Date(e.dueDate);
+                return d >= inicio && d <= fim;
+            });
+            const despesasPagas = despesasPeriodo.filter(e => e.paid).reduce((sum, e) => sum + numero(e, ['value','valor']), 0);
+            const despesasPendentes = despesasPeriodo.filter(e => !e.paid).reduce((sum, e) => sum + numero(e, ['value','valor']), 0);
+            const totalDespesas = despesasPagas + despesasPendentes;
+
+            // Comissões
+            let totalComissoes = 0;
+            servicosPeriodo.forEach(s => {
+                const valor = numero(s, ['value','valor','price']);
+                const collaborator = dadosCache.collaborators.find(c => c.id === s.collaboratorId);
+                if (collaborator) {
+                    const tipo = String(s.type || s.tipo || 'manual').toLowerCase();
+                    const perc = (tipo === 'product' || tipo === 'produto') ? 
+                        parseFloat(collaborator.productPercent || 0) : 
+                        parseFloat(collaborator.manualPercent || 0);
+                    totalComissoes += valor * (perc / 100);
+                }
+            });
+
+            // Salários
+            const salariosPeriodo = dadosCache.salaryPayments.filter(s => {
+                const d = new Date(s.paymentDate);
+                return d >= inicio && d <= fim;
+            });
+            const totalSalarios = salariosPeriodo.reduce((sum, s) => {
+                return sum + numero(s, ['baseValue']) + numero(s, ['bonus']) - numero(s, ['deductions']);
+            }, 0);
+
+            const lucroLiquido = receitaTotal - totalDespesas - totalSalarios - totalComissoes;
+
+            // Atualizar cards
+            document.getElementById('totalRevenue').textContent = formatCurrency(receitaTotal);
+            document.getElementById('totalExpenses').textContent = formatCurrency(totalDespesas);
+            document.getElementById('totalCommissions').textContent = formatCurrency(totalComissoes);
+            document.getElementById('netProfit').textContent = formatCurrency(lucroLiquido);
+
+            // Atualizar legendas
+            const mesNome = inicio.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
+            document.getElementById('revenuePeriod').textContent = mesNome;
+            document.getElementById('expensesPeriod').textContent = mesNome;
+            document.getElementById('commissionsPeriod').textContent = mesNome;
+            document.getElementById('profitPeriod').textContent = mesNome;
+        }
+
+        // ==========================================
+        // 10. RESUMO FINANCEIRO
+        // ==========================================
+        function atualizarResumo(inicio, fim) {
+            const servicosPeriodo = dadosCache.services.filter(s => {
+                const d = dataRegistro(s);
+                return d && d >= inicio && d <= fim;
+            });
+            const produtosPeriodo = dadosCache.productSales.filter(p => {
+                const d = dataRegistro(p);
+                return d && d >= inicio && d <= fim;
+            });
+
+            const receitaServicos = servicosPeriodo.reduce((sum, s) => sum + numero(s, ['value','valor','price']), 0);
+            const receitaProdutos = produtosPeriodo.reduce((sum, p) => sum + numero(p, ['totalValue','total','value','valor']), 0);
+            const receitaTotal = receitaServicos + receitaProdutos;
+
+            const despesasPeriodo = dadosCache.expenses.filter(e => {
+                const d = new Date(e.dueDate);
+                return d >= inicio && d <= fim;
+            });
+            const despesasPagas = despesasPeriodo.filter(e => e.paid).reduce((sum, e) => sum + numero(e, ['value','valor']), 0);
+            const despesasPendentes = despesasPeriodo.filter(e => !e.paid).reduce((sum, e) => sum + numero(e, ['value','valor']), 0);
+            const totalDespesas = despesasPagas + despesasPendentes;
+
+            let totalComissoes = 0;
+            servicosPeriodo.forEach(s => {
+                const valor = numero(s, ['value','valor','price']);
+                const collaborator = dadosCache.collaborators.find(c => c.id === s.collaboratorId);
+                if (collaborator) {
+                    const tipo = String(s.type || s.tipo || 'manual').toLowerCase();
+                    const perc = (tipo === 'product' || tipo === 'produto') ? 
+                        parseFloat(collaborator.productPercent || 0) : 
+                        parseFloat(collaborator.manualPercent || 0);
+                    totalComissoes += valor * (perc / 100);
+                }
+            });
+
+            const salariosPeriodo = dadosCache.salaryPayments.filter(s => {
+                const d = new Date(s.paymentDate);
+                return d >= inicio && d <= fim;
+            });
+            const totalSalarios = salariosPeriodo.reduce((sum, s) => {
+                return sum + numero(s, ['baseValue']) + numero(s, ['bonus']) - numero(s, ['deductions']);
+            }, 0);
+
+            const lucroLiquido = receitaTotal - totalDespesas - totalSalarios - totalComissoes;
+
+            document.getElementById('summaryRevenue').textContent = formatCurrency(receitaTotal);
+            document.getElementById('summaryExpenses').textContent = formatCurrency(totalDespesas);
+            document.getElementById('summaryCommissions').textContent = formatCurrency(totalComissoes);
+            document.getElementById('summarySalaries').textContent = formatCurrency(totalSalarios);
+            document.getElementById('summaryProfit').textContent = formatCurrency(lucroLiquido);
+            document.getElementById('summaryPending').textContent = formatCurrency(despesasPendentes);
+
+            // Cores
+            document.getElementById('summaryProfit').className = 'summary-value ' + (lucroLiquido >= 0 ? 'positive' : 'negative');
+        }
+
+        // ==========================================
+        // 11. TABELA DESPESAS
+        // ==========================================
+        function atualizarTabelaDespesas(inicio, fim) {
+            const tbody = document.getElementById('expensesTableBody');
+            const despesasPeriodo = dadosCache.expenses.filter(e => {
+                const d = new Date(e.dueDate);
+                return d >= inicio && d <= fim;
+            }).sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+
+            if (despesasPeriodo.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Nenhuma despesa encontrada.</td></tr>';
+                return;
+            }
+
+            const hoje = new Date();
+            let html = '';
+            despesasPeriodo.forEach(expense => {
+                const dueDate = new Date(expense.dueDate);
+                const isPaid = expense.paid === true;
+                const isOverdue = !isPaid && dueDate < hoje;
+
+                let statusClass = 'pending';
+                let statusText = 'Pendente';
+                if (isPaid) {
+                    statusClass = 'paid';
+                    statusText = 'Pago';
+                } else if (isOverdue) {
+                    statusClass = 'overdue';
+                    statusText = 'Vencido';
+                }
+
+                html += `
+                    <tr>
+                        <td>${expense.description || 'Sem descrição'}</td>
+                        <td>${getExpenseCategoryName(expense.category)}</td>
+                        <td>${formatDate(expense.dueDate)}</td>
+                        <td><strong>${formatCurrency(expense.value)}</strong></td>
+                        <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" onclick="editarDespesa('${expense.id}')" title="Editar">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            ${!isPaid ? `<button class="btn btn-sm btn-success" onclick="marcarPaga('${expense.id}')" title="Marcar como paga">
+                                <i class="fas fa-check"></i>
+                            </button>` : ''}
+                            <button class="btn btn-sm btn-outline-danger" onclick="excluirDespesa('${expense.id}')" title="Excluir">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            tbody.innerHTML = html;
+        }
+
+        // ==========================================
+        // 12. TABELA SALÁRIOS
+        // ==========================================
+        function atualizarTabelaSalarios(inicio, fim) {
+            const tbody = document.getElementById('salariesTableBody');
+            const salariosPeriodo = dadosCache.salaryPayments.filter(s => {
+                const d = new Date(s.paymentDate);
+                return d >= inicio && d <= fim;
+            }).sort((a, b) => new Date(a.paymentDate) - new Date(b.paymentDate));
+
+            if (salariosPeriodo.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Nenhum pagamento de salário encontrado.</td></tr>';
+                return;
+            }
+
+            let html = '';
+            salariosPeriodo.forEach(salary => {
+                const total = numero(salary, ['baseValue']) + numero(salary, ['bonus']) - numero(salary, ['deductions']);
+                const collaborator = dadosCache.collaborators.find(c => c.id === salary.collaboratorId);
+                html += `
+                    <tr>
+                        <td>${collaborator ? collaborator.name : 'Colaborador não encontrado'}</td>
+                        <td>${salary.month || 'N/A'}</td>
+                        <td>${formatCurrency(salary.baseValue)}</td>
+                        <td>${formatCurrency(salary.bonus || 0)}</td>
+                        <td>${formatCurrency(salary.deductions || 0)}</td>
+                        <td><strong>${formatCurrency(total)}</strong></td>
+                        <td>${formatDate(salary.paymentDate)}</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" onclick="editarSalario('${salary.id}')" title="Editar">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="excluirSalario('${salary.id}')" title="Excluir">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            tbody.innerHTML = html;
+        }
+
+        // ==========================================
+        // 13. TABELA COMISSÕES
+        // ==========================================
+        function atualizarTabelaComissoes(inicio, fim) {
+            const tbody = document.getElementById('commissionsTableBody');
+            const servicosPeriodo = dadosCache.services.filter(s => {
+                const d = dataRegistro(s);
+                return d && d >= inicio && d <= fim && s.collaboratorId;
+            });
+
+            if (servicosPeriodo.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Nenhuma comissão encontrada.</td></tr>';
+                return;
+            }
+
+            // Agrupar por colaborador
+            const comissoesMap = {};
+            servicosPeriodo.forEach(s => {
+                const collabId = s.collaboratorId;
+                if (!comissoesMap[collabId]) {
+                    comissoesMap[collabId] = {
+                        totalServicos: 0,
+                        totalBruto: 0,
+                        totalComissao: 0,
+                        percentual: 0
+                    };
+                }
+                const valor = numero(s, ['value','valor','price']);
+                comissoesMap[collabId].totalServicos++;
+                comissoesMap[collabId].totalBruto += valor;
+
+                const collaborator = dadosCache.collaborators.find(c => c.id === collabId);
+                if (collaborator) {
+                    const tipo = String(s.type || s.tipo || 'manual').toLowerCase();
+                    const perc = (tipo === 'product' || tipo === 'produto') ? 
+                        parseFloat(collaborator.productPercent || 0) : 
+                        parseFloat(collaborator.manualPercent || 0);
+                    comissoesMap[collabId].percentual = perc;
+                    comissoesMap[collabId].totalComissao += valor * (perc / 100);
+                }
+            });
+
+            let html = '';
+            Object.keys(comissoesMap).forEach(collabId => {
+                const data = comissoesMap[collabId];
+                const collaborator = dadosCache.collaborators.find(c => c.id === collabId);
+                const isPaid = data.totalComissao === 0;
+
+                html += `
+                    <tr>
+                        <td>${collaborator ? collaborator.name : 'Colaborador não encontrado'}</td>
+                        <td>${data.totalServicos}</td>
+                        <td>${formatCurrency(data.totalBruto)}</td>
+                        <td>${data.percentual}%</td>
+                        <td><strong>${formatCurrency(data.totalComissao)}</strong></td>
+                        <td>
+                            <span class="status-badge ${isPaid ? 'paid' : 'pending'}">
+                                ${isPaid ? 'Pago' : 'Pendente'}
+                            </span>
+                        </td>
+                        <td>
+                            ${!isPaid ? `<button class="btn btn-sm btn-success" onclick="marcarComissaoPaga('${collabId}')" title="Marcar como paga">
+                                <i class="fas fa-check"></i>
+                            </button>` : ''}
+                        </td>
+                    </tr>
+                `;
+            });
+
+            tbody.innerHTML = html;
+        }
+
+        // ==========================================
+        // 14. GRÁFICO
+        // ==========================================
+        function atualizarGrafico(inicio, fim) {
+            const ctx = document.getElementById('financeChart').getContext('2d');
+
+            // Gerar dados mensais para o período
+            const labels = [];
+            const receitasData = [];
+            const despesasData = [];
+
+            let current = new Date(inicio);
+            while (current <= fim) {
+                const mesInicio = new Date(current.getFullYear(), current.getMonth(), 1);
+                const mesFim = new Date(current.getFullYear(), current.getMonth() + 1, 0);
+
+                const servicosMes = dadosCache.services.filter(s => {
+                    const d = dataRegistro(s);
+                    return d && d >= mesInicio && d <= mesFim;
+                });
+                const produtosMes = dadosCache.productSales.filter(p => {
+                    const d = dataRegistro(p);
+                    return d && d >= mesInicio && d <= mesFim;
+                });
+
+                const receita = servicosMes.reduce((sum, s) => sum + numero(s, ['value','valor','price']), 0) +
+                    produtosMes.reduce((sum, p) => sum + numero(p, ['totalValue','total','value','valor']), 0);
+
+                const despesasMes = dadosCache.expenses.filter(e => {
+                    const d = new Date(e.dueDate);
+                    return d >= mesInicio && d <= mesFim && e.paid;
+                }).reduce((sum, e) => sum + numero(e, ['value','valor']), 0);
+
+                labels.push(current.toLocaleDateString('pt-PT', { month: 'short', year: 'numeric' }));
+                receitasData.push(receita);
+                despesasData.push(despesasMes);
+
+                current.setMonth(current.getMonth() + 1);
+            }
+
+            if (financeChart) {
+                financeChart.destroy();
+            }
+
+            financeChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Receitas',
+                            data: receitasData,
+                            backgroundColor: '#28a745',
+                            borderRadius: 4
+                        },
+                        {
+                            label: 'Despesas',
+                            data: despesasData,
+                            backgroundColor: '#dc3545',
+                            borderRadius: 4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: { boxWidth: 12, padding: 12, font: { size: 11 } }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + formatCurrency(context.raw);
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { callback: function(v) { return '€' + v; }, font: { size: 10 } }
+                        },
+                        x: {
+                            ticks: { font: { size: 10 } }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ==========================================
+        // 15. PRÓXIMOS VENCIMENTOS
+        // ==========================================
+        function atualizarProximosVencimentos() {
+            const container = document.getElementById('upcomingDueList');
+            const hoje = new Date();
+            const proximos7Dias = new Date(hoje);
+            proximos7Dias.setDate(hoje.getDate() + 7);
+
+            const proximas = dadosCache.expenses
+                .filter(e => !e.paid)
+                .filter(e => {
+                    const d = new Date(e.dueDate);
+                    return d >= hoje && d <= proximos7Dias;
+                })
+                .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
+                .slice(0, 5);
+
+            if (proximas.length === 0) {
+                container.innerHTML = '<p class="text-muted text-center py-3">Nenhum vencimento próximo.</p>';
+                return;
+            }
+
+            let html = '';
+            proximas.forEach(expense => {
+                const dueDate = new Date(expense.dueDate);
+                const daysDiff = Math.ceil((dueDate - hoje) / (1000 * 60 * 60 * 24));
+                const statusText = daysDiff === 0 ? 'Hoje!' : `Em ${daysDiff} dias`;
+
+                html += `
+                    <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                        <div>
+                            <div class="fw-semibold" style="font-size:0.85rem;">${expense.description || 'Despesa'}</div>
+                            <div class="text-muted" style="font-size:0.65rem;">${formatDate(expense.dueDate)}</div>
+                        </div>
+                        <div class="text-end">
+                            <div class="fw-bold text-danger" style="font-size:0.85rem;">${formatCurrency(expense.value)}</div>
+                            <div class="text-muted" style="font-size:0.6rem;">${statusText}</div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        // ==========================================
+        // 16. SELECT DE COLABORADORES
+        // ==========================================
+        function atualizarSelectColaboradores() {
+            const select = document.getElementById('salaryCollaborator');
+            if (!select) return;
+
+            const currentValue = select.value;
+            select.innerHTML = '<option value="">Selecione um colaborador</option>';
+
+            dadosCache.collaborators
+                .filter(c => c.active !== false)
+                .forEach(c => {
+                    const option = document.createElement('option');
+                    option.value = c.id;
+                    option.textContent = c.name;
+                    select.appendChild(option);
+                });
+
+            if (currentValue) {
+                select.value = currentValue;
+            }
+        }
+
+        // ==========================================
+        // 17. SALVAR DESPESA
+        // ==========================================
+        async function salvarDespesa() {
+            const description = document.getElementById('expenseDescription').value.trim();
+            const category = document.getElementById('expenseCategory').value;
+            const value = parseFloat(document.getElementById('expenseValue').value);
+            const dueDate = document.getElementById('expenseDueDate').value;
+            const notes = document.getElementById('expenseNotes').value.trim();
+            const recurring = document.getElementById('expenseRecurring').checked;
+
+            if (!description || !category || !value || !dueDate) {
+                showToast('Preencha todos os campos obrigatórios.', 'error');
+                return;
+            }
+
+            const data = {
+                description: description,
+                category: category,
+                value: value,
+                dueDate: dueDate,
+                notes: notes,
+                recurring: recurring,
+                paid: false,
+                userId: currentUser.uid,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            showLoading('Salvando despesa...');
+
+            try {
+                await db.collection('expenses').add(data);
+                document.getElementById('expenseForm').reset();
+                document.getElementById('expenseDueDate').value = new Date().toISOString().split('T')[0];
+                showToast('Despesa registrada com sucesso!', 'success');
+                await carregarTodosOsDados();
+            } catch (error) {
+                console.error('Erro ao salvar despesa:', error);
+                showToast('Erro ao salvar despesa: ' + error.message, 'error');
+            }
+        }
+
+        // ==========================================
+        // 18. SALVAR SALÁRIO
+        // ==========================================
+        async function salvarSalario() {
+            const collaboratorId = document.getElementById('salaryCollaborator').value;
+            const month = document.getElementById('salaryMonth').value;
+            const baseValue = parseFloat(document.getElementById('salaryBase').value);
+            const bonus = parseFloat(document.getElementById('salaryBonus').value) || 0;
+            const deductions = parseFloat(document.getElementById('salaryDeductions').value) || 0;
+            const paymentDate = document.getElementById('salaryPaymentDate').value;
+            const notes = document.getElementById('salaryNotes').value.trim();
+
+            if (!collaboratorId || !month || !baseValue || !paymentDate) {
+                showToast('Preencha todos os campos obrigatórios.', 'error');
+                return;
+            }
+
+            const data = {
+                collaboratorId: collaboratorId,
+                month: month,
+                baseValue: baseValue,
+                bonus: bonus,
+                deductions: deductions,
+                paymentDate: paymentDate,
+                notes: notes,
+                userId: currentUser.uid,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            showLoading('Registrando salário...');
+
+            try {
+                await db.collection('salaryPayments').add(data);
+                document.getElementById('salaryForm').reset();
+                document.getElementById('salaryPaymentDate').value = new Date().toISOString().split('T')[0];
+                document.getElementById('salaryMonth').value = new Date().toISOString().split('T')[0].substring(0, 7);
+                showToast('Salário registrado com sucesso!', 'success');
+                await carregarTodosOsDados();
+            } catch (error) {
+                console.error('Erro ao registrar salário:', error);
+                showToast('Erro ao registrar salário: ' + error.message, 'error');
+            }
+        }
+
+        // ==========================================
+        // 19. MARCAR DESPESA COMO PAGA
+        // ==========================================
+        async function marcarPaga(expenseId) {
+            try {
+                await db.collection('expenses').doc(expenseId).update({
+                    paid: true,
+                    paidAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                showToast('Despesa marcada como paga!', 'success');
+                await carregarTodosOsDados();
+            } catch (error) {
+                console.error('Erro ao marcar despesa como paga:', error);
+                showToast('Erro ao marcar despesa como paga: ' + error.message, 'error');
+            }
+        }
+
+        // ==========================================
+        // 20. MARCAR TODAS DESPESAS COMO PAGAS
+        // ==========================================
+        async function marcarTodasPagas() {
+            const periodo = getPeriodo();
+            const despesasPeriodo = dadosCache.expenses.filter(e => {
+                const d = new Date(e.dueDate);
+                return d >= periodo.inicio && d <= periodo.fim && !e.paid;
+            });
+
+            if (despesasPeriodo.length === 0) {
+                showToast('Nenhuma despesa pendente neste período.', 'info');
+                return;
+            }
+
+            const confirm = await Swal.fire({
+                title: 'Marcar todas como pagas?',
+                text: `Deseja marcar ${despesasPeriodo.length} despesas como pagas?`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Sim, marcar todas',
+                cancelButtonText: 'Cancelar'
+            });
+
+            if (!confirm.isConfirmed) return;
+
+            showLoading('Marcando despesas...');
+
+            try {
+                const batch = db.batch();
+                despesasPeriodo.forEach(e => {
+                    const ref = db.collection('expenses').doc(e.id);
+                    batch.update(ref, {
+                        paid: true,
+                        paidAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                });
+                await batch.commit();
+                showToast(`${despesasPeriodo.length} despesas marcadas como pagas!`, 'success');
+                await carregarTodosOsDados();
+            } catch (error) {
+                console.error('Erro ao marcar despesas:', error);
+                showToast('Erro ao marcar despesas: ' + error.message, 'error');
+            }
+        }
+
+        // ==========================================
+        // 21. MARCAR COMISSÃO COMO PAGA
+        // ==========================================
+        async function marcarComissaoPaga(collaboratorId) {
+            const periodo = getPeriodo();
+            const servicosColaborador = dadosCache.services.filter(s => {
+                const d = dataRegistro(s);
+                return d && d >= periodo.inicio && d <= periodo.fim && s.collaboratorId === collaboratorId;
+            });
+
+            if (servicosColaborador.length === 0) {
+                showToast('Nenhum serviço encontrado para este colaborador.', 'info');
+                return;
+            }
+
+            const confirm = await Swal.fire({
+                title: 'Marcar comissão como paga?',
+                text: `Deseja marcar a comissão de ${servicosColaborador.length} serviço(s) como paga?`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Sim, marcar',
+                cancelButtonText: 'Cancelar'
+            });
+
+            if (!confirm.isConfirmed) return;
+
+            showLoading('Marcando comissões...');
+
+            try {
+                const batch = db.batch();
+                servicosColaborador.forEach(s => {
+                    const ref = db.collection('services').doc(s.id);
+                    batch.update(ref, {
+                        comissaoPaga: true,
+                        comissaoPagaEm: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                });
+                await batch.commit();
+                showToast('Comissões marcadas como pagas!', 'success');
+                await carregarTodosOsDados();
+            } catch (error) {
+                console.error('Erro ao marcar comissões:', error);
+                showToast('Erro ao marcar comissões: ' + error.message, 'error');
+            }
+        }
+
+        // ==========================================
+        // 22. EDITAR DESPESA
+        // ==========================================
+        function editarDespesa(expenseId) {
+            const expense = dadosCache.expenses.find(e => e.id === expenseId);
+            if (!expense) {
+                showToast('Despesa não encontrada.', 'error');
+                return;
+            }
+
+            editandoId = expenseId;
+            editandoTipo = 'expense';
+
+            const modalBody = document.getElementById('editModalBody');
+            modalBody.innerHTML = `
+                <form id="editForm">
+                    <div class="mb-3">
+                        <label for="editDescription" class="form-label">Descrição *</label>
+                        <input type="text" class="form-control" id="editDescription" value="${expense.description || ''}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editCategory" class="form-label">Categoria *</label>
+                        <select class="form-select" id="editCategory" required>
+                            <option value="">Selecione uma categoria</option>
+                            <option value="aluguel" ${expense.category === 'aluguel' ? 'selected' : ''}>Aluguel</option>
+                            <option value="energia" ${expense.category === 'energia' ? 'selected' : ''}>Energia</option>
+                            <option value="agua" ${expense.category === 'agua' ? 'selected' : ''}>Água</option>
+                            <option value="internet" ${expense.category === 'internet' ? 'selected' : ''}>Internet</option>
+                            <option value="produtos" ${expense.category === 'produtos' ? 'selected' : ''}>Produtos/Estoque</option>
+                            <option value="manutencao" ${expense.category === 'manutencao' ? 'selected' : ''}>Manutenção</option>
+                            <option value="marketing" ${expense.category === 'marketing' ? 'selected' : ''}>Marketing</option>
+                            <option value="impostos" ${expense.category === 'impostos' ? 'selected' : ''}>Impostos</option>
+                            <option value="outros" ${expense.category === 'outros' ? 'selected' : ''}>Outros</option>
+                        </select>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="editValue" class="form-label">Valor (€) *</label>
+                            <input type="number" class="form-control" id="editValue" step="0.01" min="0" value="${expense.value}" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="editDueDate" class="form-label">Vencimento *</label>
+                            <input type="date" class="form-control" id="editDueDate" value="${expense.dueDate}" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editNotes" class="form-label">Observações</label>
+                        <textarea class="form-control" id="editNotes" rows="2">${expense.notes || ''}</textarea>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="editRecurring" ${expense.recurring ? 'checked' : ''}>
+                        <label class="form-check-label" for="editRecurring">Despesa Recorrente (Mensal)</label>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="editPaid" ${expense.paid ? 'checked' : ''}>
+                        <label class="form-check-label" for="editPaid">Já foi paga</label>
+                    </div>
+                </form>
+            `;
+
+            const modal = new bootstrap.Modal(document.getElementById('editModal'));
+            modal.show();
+        }
+
+        // ==========================================
+        // 23. EDITAR SALÁRIO
+        // ==========================================
+        function editarSalario(salaryId) {
+            const salary = dadosCache.salaryPayments.find(s => s.id === salaryId);
+            if (!salary) {
+                showToast('Salário não encontrado.', 'error');
+                return;
+            }
+
+            editandoId = salaryId;
+            editandoTipo = 'salary';
+
+            const modalBody = document.getElementById('editModalBody');
+            const collaboratorOptions = dadosCache.collaborators
+                .filter(c => c.active !== false)
+                .map(c => `<option value="${c.id}" ${c.id === salary.collaboratorId ? 'selected' : ''}>${c.name}</option>`)
+                .join('');
+
+            modalBody.innerHTML = `
+                <form id="editForm">
+                    <div class="mb-3">
+                        <label for="editCollaborator" class="form-label">Colaborador *</label>
+                        <select class="form-select" id="editCollaborator" required>
+                            <option value="">Selecione um colaborador</option>
+                            ${collaboratorOptions}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editMonth" class="form-label">Mês de Referência *</label>
+                        <input type="month" class="form-control" id="editMonth" value="${salary.month}" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="editBase" class="form-label">Base (€) *</label>
+                            <input type="number" class="form-control" id="editBase" step="0.01" min="0" value="${salary.baseValue}" required>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="editBonus" class="form-label">Bônus (€)</label>
+                            <input type="number" class="form-control" id="editBonus" step="0.01" min="0" value="${salary.bonus || 0}">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="editDeductions" class="form-label">Descontos (€)</label>
+                            <input type="number" class="form-control" id="editDeductions" step="0.01" min="0" value="${salary.deductions || 0}">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editPaymentDate" class="form-label">Data Pagamento *</label>
+                        <input type="date" class="form-control" id="editPaymentDate" value="${salary.paymentDate}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editNotes" class="form-label">Observações</label>
+                        <textarea class="form-control" id="editNotes" rows="2">${salary.notes || ''}</textarea>
+                    </div>
+                </form>
+            `;
+
+            const modal = new bootstrap.Modal(document.getElementById('editModal'));
+            modal.show();
+        }
+
+        // ==========================================
+        // 24. SALVAR EDIÇÃO
+        // ==========================================
+        async function salvarEdicao() {
+            if (!editandoId || !editandoTipo) {
+                showToast('Nenhum item sendo editado.', 'error');
+                return;
+            }
+
+            if (editandoTipo === 'expense') {
+                const description = document.getElementById('editDescription').value.trim();
+                const category = document.getElementById('editCategory').value;
+                const value = parseFloat(document.getElementById('editValue').value);
+                const dueDate = document.getElementById('editDueDate').value;
+                const notes = document.getElementById('editNotes').value.trim();
+                const recurring = document.getElementById('editRecurring').checked;
+                const paid = document.getElementById('editPaid').checked;
+
+                if (!description || !category || !value || !dueDate) {
+                    showToast('Preencha todos os campos obrigatórios.', 'error');
+                    return;
+                }
+
+                try {
+                    await db.collection('expenses').doc(editandoId).update({
+                        description: description,
+                        category: category,
+                        value: value,
+                        dueDate: dueDate,
+                        notes: notes,
+                        recurring: recurring,
+                        paid: paid,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    showToast('Despesa atualizada com sucesso!', 'success');
+                } catch (error) {
+                    console.error('Erro ao atualizar despesa:', error);
+                    showToast('Erro ao atualizar despesa: ' + error.message, 'error');
+                }
+
+            } else if (editandoTipo === 'salary') {
+                const collaboratorId = document.getElementById('editCollaborator').value;
+                const month = document.getElementById('editMonth').value;
+                const baseValue = parseFloat(document.getElementById('editBase').value);
+                const bonus = parseFloat(document.getElementById('editBonus').value) || 0;
+                const deductions = parseFloat(document.getElementById('editDeductions').value) || 0;
+                const paymentDate = document.getElementById('editPaymentDate').value;
+                const notes = document.getElementById('editNotes').value.trim();
+
+                if (!collaboratorId || !month || !baseValue || !paymentDate) {
+                    showToast('Preencha todos os campos obrigatórios.', 'error');
+                    return;
+                }
+
+                try {
+                    await db.collection('salaryPayments').doc(editandoId).update({
+                        collaboratorId: collaboratorId,
+                        month: month,
+                        baseValue: baseValue,
+                        bonus: bonus,
+                        deductions: deductions,
+                        paymentDate: paymentDate,
+                        notes: notes,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    showToast('Salário atualizado com sucesso!', 'success');
+                } catch (error) {
+                    console.error('Erro ao atualizar salário:', error);
+                    showToast('Erro ao atualizar salário: ' + error.message, 'error');
+                }
+            }
+
+            const modal = bootstrap.Modal.getInstance(document.getElementById('editModal'));
+            if (modal) modal.hide();
+            await carregarTodosOsDados();
+        }
+
+        // ==========================================
+        // 25. EXCLUIR DESPESA
+        // ==========================================
+        function excluirDespesa(expenseId) {
+            Swal.fire({
+                title: 'Excluir despesa?',
+                text: 'Esta ação não pode ser desfeita.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Sim, excluir',
+                cancelButtonText: 'Cancelar'
+            }).then(async result => {
+                if (result.isConfirmed) {
+                    try {
+                        await db.collection('expenses').doc(expenseId).delete();
+                        showToast('Despesa excluída com sucesso!', 'success');
+                        await carregarTodosOsDados();
+                    } catch (error) {
+                        console.error('Erro ao excluir despesa:', error);
+                        showToast('Erro ao excluir despesa: ' + error.message, 'error');
+                    }
+                }
+            });
+        }
+
+        // ==========================================
+        // 26. EXCLUIR SALÁRIO
+        // ==========================================
+        function excluirSalario(salaryId) {
+            Swal.fire({
+                title: 'Excluir pagamento de salário?',
+                text: 'Esta ação não pode ser desfeita.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Sim, excluir',
+                cancelButtonText: 'Cancelar'
+            }).then(async result => {
+                if (result.isConfirmed) {
+                    try {
+                        await db.collection('salaryPayments').doc(salaryId).delete();
+                        showToast('Pagamento de salário excluído com sucesso!', 'success');
+                        await carregarTodosOsDados();
+                    } catch (error) {
+                        console.error('Erro ao excluir salário:', error);
+                        showToast('Erro ao excluir salário: ' + error.message, 'error');
+                    }
+                }
+            });
+        }
+
+        // ==========================================
+        // 27. EXPOR FUNÇÕES GLOBAIS
+        // ==========================================
+        window.goHome = goHome;
+        window.recarregarDados = recarregarDados;
+        window.setPeriod = setPeriod;
+        window.aplicarPeriodoCustom = aplicarPeriodoCustom;
+        window.marcarPaga = marcarPaga;
+        window.marcarTodasPagas = marcarTodasPagas;
+        window.marcarComissaoPaga = marcarComissaoPaga;
+        window.editarDespesa = editarDespesa;
+        window.editarSalario = editarSalario;
+        window.excluirDespesa = excluirDespesa;
+        window.excluirSalario = excluirSalario;
+
+        // ==========================================
+        // 28. LOG DE INICIALIZAÇÃO
+        // ==========================================
+        console.log('✅ Controle Financeiro carregado com sucesso!');
+        console.log('📌 Funcionalidades:');
+        console.log('   - Métricas em tempo real (Receitas, Despesas, Comissões, Lucro)');
+        console.log('   - Resumo financeiro completo');
+        console.log('   - Gráfico Receitas vs Despesas');
+        console.log('   - Próximos vencimentos');
+        console.log('   - Seleção de período (Mês, Trimestre, Semestre, Ano, Personalizado)');
+        console.log('   - Gestão de despesas (CRUD)');
+        console.log('   - Gestão de salários (CRUD)');
+        console.log('   - Gestão de comissões');
+        console.log('   - Responsivo (Desktop, Tablet, Mobile)');
+        console.log('   - PWA para instalação como app');
+
+    </script>
+
+</body>
+</html>
