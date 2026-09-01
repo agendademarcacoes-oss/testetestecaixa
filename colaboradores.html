@@ -2373,39 +2373,35 @@
         }
 
         // ==========================================
-        // 19. UPLOAD DE FOTO DE PERFIL
+        // 19. UPLOAD / REDIMENSIONAMENTO DA FOTO DE PERFIL
         // ==========================================
         async function uploadFotoPerfil(file) {
-            if (!file || !file.type.startsWith('image/')) {
-                showToast('Por favor, selecione uma imagem válida.', 'error');
+            if (!file || !file.type || !file.type.startsWith('image/')) {
+                showToast('Selecione um arquivo de imagem válido.', 'error');
                 return;
             }
 
             try {
-                const img = await new Promise((resolve, reject) => {
-                    const url = URL.createObjectURL(file);
-                    const image = new Image();
-                    image.onload = () => { URL.revokeObjectURL(url); resolve(image); };
-                    image.onerror = reject;
-                    image.src = url;
-                });
+                const imagem = await carregarImagem(file);
 
                 const resultado = await Swal.fire({
-                    title: 'Tamanho da foto de perfil',
+                    title: 'Configurar foto de perfil',
                     html: `
                         <div class="text-start">
+                            <div class="mb-2 small text-muted">Imagem original: ${imagem.naturalWidth || imagem.width} × ${imagem.naturalHeight || imagem.height}px</div>
                             <label class="form-label">Largura (px)</label>
-                            <input id="fotoLargura" type="number" class="form-control" value="600" min="100" max="2000">
+                            <input id="fotoLargura" type="number" class="form-control" value="600" min="100" max="3000">
                             <label class="form-label mt-2">Altura (px)</label>
-                            <input id="fotoAltura" type="number" class="form-control" value="600" min="100" max="2000">
+                            <input id="fotoAltura" type="number" class="form-control" value="600" min="100" max="3000">
                             <div class="form-check mt-2">
                                 <input id="fotoQuadrada" class="form-check-input" type="checkbox" checked>
-                                <label for="fotoQuadrada" class="form-check-label">Manter formato quadrado</label>
+                                <label for="fotoQuadrada" class="form-check-label">Manter largura e altura iguais</label>
                             </div>
                         </div>`,
                     showCancelButton: true,
                     confirmButtonText: 'Redimensionar e enviar',
                     cancelButtonText: 'Cancelar',
+                    focusConfirm: false,
                     didOpen: () => {
                         const w = document.getElementById('fotoLargura');
                         const h = document.getElementById('fotoAltura');
@@ -2413,163 +2409,236 @@
                         w.addEventListener('input', () => { if (q.checked) h.value = w.value; });
                         h.addEventListener('input', () => { if (q.checked) w.value = h.value; });
                     },
-                    preConfirm: () => ({
-                        largura: Math.max(100, Math.min(2000, parseInt(document.getElementById('fotoLargura').value) || 600)),
-                        altura: Math.max(100, Math.min(2000, parseInt(document.getElementById('fotoAltura').value) || 600))
-                    })
+                    preConfirm: () => {
+                        const w = parseInt(document.getElementById('fotoLargura')?.value, 10);
+                        const h = parseInt(document.getElementById('fotoAltura')?.value, 10);
+                        if (!Number.isFinite(w) || !Number.isFinite(h) || w < 100 || h < 100 || w > 3000 || h > 3000) {
+                            Swal.showValidationMessage('Informe largura e altura entre 100 e 3000 pixels.');
+                            return false;
+                        }
+                        return { largura: w, altura: h };
+                    }
                 });
 
                 if (!resultado.isConfirmed) return;
 
-                const largura = resultado.value.largura;
-                const altura = resultado.value.altura;
+                showToast('Redimensionando e enviando foto...', 'info');
+                const blob = await redimensionarImagem(imagem, resultado.value.largura, resultado.value.altura, 'image/jpeg', 0.90);
+                const secureUrl = await enviarParaCloudinary(blob, 'perfil.jpg');
+
+                // Atualiza a tela imediatamente.
+                if (!colaboradorAtual) colaboradorAtual = {};
+                colaboradorAtual.photoUrl = secureUrl;
+                atualizarFotoPerfilUI(secureUrl);
+
+                // Colaborador já existente: salva imediatamente no Firestore.
+                if (colaboradorAtual.id && currentUser) {
+                    await db.collection('collaborators').doc(colaboradorAtual.id).set({
+                        photoUrl: secureUrl,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
+
+                    atualizarColaboradorLocal(colaboradorAtual.id, { photoUrl: secureUrl });
+                }
+
+                showToast('Foto de perfil salva com sucesso!', 'success');
+            } catch (error) {
+                console.error('❌ Erro ao enviar foto de perfil:', error);
+                showToast('Não foi possível salvar a foto: ' + obterMensagemErro(error), 'error');
+            } finally {
+                const input = document.getElementById('fotoUpload');
+                if (input) input.value = '';
+            }
+        }
+
+        function carregarImagem(file) {
+            return new Promise((resolve, reject) => {
+                const url = URL.createObjectURL(file);
+                const img = new Image();
+                img.onload = () => {
+                    URL.revokeObjectURL(url);
+                    resolve(img);
+                };
+                img.onerror = () => {
+                    URL.revokeObjectURL(url);
+                    reject(new Error('O navegador não conseguiu ler a imagem selecionada.'));
+                };
+                img.src = url;
+            });
+        }
+
+        function redimensionarImagem(img, largura, altura, tipo = 'image/jpeg', qualidade = 0.90) {
+            return new Promise((resolve, reject) => {
                 const canvas = document.createElement('canvas');
                 canvas.width = largura;
                 canvas.height = altura;
                 const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    reject(new Error('Canvas não disponível no navegador.'));
+                    return;
+                }
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, largura, altura);
                 ctx.drawImage(img, 0, 0, largura, altura);
+                canvas.toBlob(blob => {
+                    if (!blob) reject(new Error('Não foi possível criar a imagem redimensionada.'));
+                    else resolve(blob);
+                }, tipo, qualidade);
+            });
+        }
 
-                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.88));
-                if (!blob) throw new Error('Não foi possível redimensionar a imagem.');
-
-                const formData = new FormData();
-                formData.append('file', blob, 'perfil.jpg');
-                formData.append('upload_preset', cloudinaryConfig.uploadPreset);
-
-                showToast('Enviando foto de perfil...', 'info');
-                const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudinaryConfig.cloudName}/image/upload`, {
-                    method: 'POST', body: formData
-                });
-                const data = await response.json();
-                if (!data.secure_url) throw new Error(data.error?.message || 'Upload recusado pelo Cloudinary.');
-
-                colaboradorAtual.photoUrl = data.secure_url;
-                const fotoDiv = document.getElementById('colaboradorModalBody')?.querySelector('.col-md-3 .mb-2');
-                if (fotoDiv) {
-                    fotoDiv.innerHTML = `
-                        <img src="${data.secure_url}" style="width:100px;height:100px;border-radius:50%;object-fit:cover;border:3px solid var(--primary-color);margin:0 auto;display:block;">
-                        <div class="mt-2">
-                            <input type="file" id="fotoUpload" accept="image/*" style="display:none;">
-                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="document.getElementById('fotoUpload').click()"><i class="fas fa-camera me-1"></i>Trocar Foto</button>
-                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="removerFotoPerfil()"><i class="fas fa-trash me-1"></i></button>
-                        </div>`;
-                    document.getElementById('fotoUpload').addEventListener('change', e => {
-                        if (e.target.files[0]) uploadFotoPerfil(e.target.files[0]);
-                    });
-                }
-
-                // Para colaborador existente, persiste a foto imediatamente.
-                if (colaboradorAtual.id) {
-                    await db.collection('collaborators').doc(colaboradorAtual.id).set({
-                        photoUrl: data.secure_url,
-                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                    }, { merge: true });
-                    colaboradorAtual = { ...colaboradorAtual, photoUrl: data.secure_url };
-                }
-                showToast('Foto de perfil salva com sucesso!', 'success');
-            } catch (error) {
-                console.error('Erro no upload da foto:', error);
-                showToast('Erro ao enviar foto: ' + (error.message || error), 'error');
+        async function enviarParaCloudinary(fileOrBlob, nomeArquivo = 'imagem.jpg') {
+            if (!cloudinaryConfig.cloudName || !cloudinaryConfig.uploadPreset) {
+                throw new Error('Configuração do Cloudinary não encontrada.');
             }
+
+            const formData = new FormData();
+            formData.append('file', fileOrBlob, nomeArquivo);
+            formData.append('upload_preset', cloudinaryConfig.uploadPreset);
+
+            const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudinaryConfig.cloudName}/image/upload`, {
+                method: 'POST',
+                body: formData
+            });
+
+            let data = {};
+            try { data = await response.json(); } catch (_) {}
+
+            if (!response.ok || !data.secure_url) {
+                throw new Error(data?.error?.message || `Cloudinary recusou o upload (HTTP ${response.status}).`);
+            }
+            return data.secure_url;
+        }
+
+        function atualizarFotoPerfilUI(url) {
+            const modalBody = document.getElementById('colaboradorModalBody');
+            const fotoDiv = modalBody?.querySelector('.col-md-3 .mb-2');
+            if (!fotoDiv || !url) return;
+
+            const nome = colaboradorAtual?.name || '?';
+            fotoDiv.innerHTML = `
+                <img src="${escapeHtml(url)}" alt="Foto de perfil" style="width:100px;height:100px;border-radius:50%;object-fit:cover;border:3px solid var(--primary-color);margin:0 auto;display:block;">
+                <div class="mt-2">
+                    <input type="file" id="fotoUpload" accept="image/*" style="display:none;">
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="document.getElementById('fotoUpload').click()">
+                        <i class="fas fa-camera me-1"></i>Trocar Foto
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="removerFotoPerfil()">
+                        <i class="fas fa-trash me-1"></i>
+                    </button>
+                </div>`;
+
+            document.getElementById('fotoUpload')?.addEventListener('change', e => {
+                const file = e.target.files?.[0];
+                if (file) uploadFotoPerfil(file);
+            });
         }
 
         // ==========================================
         // 20. REMOVER FOTO DE PERFIL
         // ==========================================
-        function removerFotoPerfil() {
+        async function removerFotoPerfil() {
+            const anterior = colaboradorAtual?.photoUrl || null;
+            if (!colaboradorAtual) return;
+
             colaboradorAtual.photoUrl = null;
+            atualizarFotoPerfilUI(null);
+
+            // Recria o placeholder caso a URL seja nula.
             const modalBody = document.getElementById('colaboradorModalBody');
-            const fotoDiv = modalBody.querySelector('.col-md-3 .mb-2');
+            const fotoDiv = modalBody?.querySelector('.col-md-3 .mb-2');
             if (fotoDiv) {
                 const nome = colaboradorAtual.name || '?';
                 fotoDiv.innerHTML = `
-                    <div style="width:100px;height:100px;border-radius:50%;background:var(--primary-color);color:white;display:flex;align-items:center;justify-content:center;font-size:40px;margin:0 auto;border:3px solid var(--primary-color);">${nome.charAt(0).toUpperCase()}</div>
+                    <div style="width:100px;height:100px;border-radius:50%;background:var(--primary-color);color:white;display:flex;align-items:center;justify-content:center;font-size:40px;margin:0 auto;border:3px solid var(--primary-color);">${escapeHtml(nome.charAt(0).toUpperCase())}</div>
                     <div class="mt-2">
                         <input type="file" id="fotoUpload" accept="image/*" style="display:none;">
                         <button type="button" class="btn btn-sm btn-outline-primary" onclick="document.getElementById('fotoUpload').click()">
                             <i class="fas fa-camera me-1"></i>Adicionar Foto
                         </button>
-                    </div>
-                `;
-                document.getElementById('fotoUpload').addEventListener('change', function(e) {
-                    if (e.target.files[0]) {
-                        uploadFotoPerfil(e.target.files[0]);
-                    }
+                    </div>`;
+                document.getElementById('fotoUpload')?.addEventListener('change', e => {
+                    const file = e.target.files?.[0];
+                    if (file) uploadFotoPerfil(file);
                 });
             }
-            showToast('Foto removida.', 'info');
+
+            if (colaboradorAtual.id && currentUser) {
+                try {
+                    await db.collection('collaborators').doc(colaboradorAtual.id).set({
+                        photoUrl: null,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
+                    atualizarColaboradorLocal(colaboradorAtual.id, { photoUrl: null });
+                    showToast('Foto removida e salva.', 'success');
+                } catch (error) {
+                    colaboradorAtual.photoUrl = anterior;
+                    atualizarFotoPerfilUI(anterior);
+                    showToast('Não foi possível remover a foto: ' + obterMensagemErro(error), 'error');
+                }
+            } else {
+                showToast('Foto removida. Clique em Salvar para gravar o novo colaborador.', 'info');
+            }
         }
 
         // ==========================================
         // 21. UPLOAD DE FOTOS DO PORTFÓLIO
         // ==========================================
-        function uploadFotosPortfolio(files) {
-            const totalFotos = portfolioFotos.length + files.length;
-            if (totalFotos > 10) {
-                showToast(`Máximo de 10 fotos. Você pode adicionar mais ${10 - portfolioFotos.length}.`, 'warning');
+        async function uploadFotosPortfolio(files) {
+            const arquivos = Array.from(files || []).filter(file => file && file.type?.startsWith('image/'));
+            if (!arquivos.length) {
+                showToast('Selecione pelo menos uma imagem válida.', 'warning');
                 return;
             }
 
-            showToast(`Enviando ${files.length} foto(s)...`, 'info');
-
-            const uploadPromises = [];
-
-            for (let i = 0; i < files.length; i++) {
-                const file = files[i];
-                if (!file.type.match('image.*')) continue;
-
-                const formData = new FormData();
-                formData.append('file', file);
-                formData.append('upload_preset', cloudinaryConfig.uploadPreset);
-
-                const promise = fetch(`https://api.cloudinary.com/v1_1/${cloudinaryConfig.cloudName}/image/upload`, {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.secure_url) {
-                        return {
-                            url: data.secure_url,
-                            legenda: '',
-                            data: new Date().toISOString()
-                        };
-                    }
-                    return null;
-                });
-
-                uploadPromises.push(promise);
+            const disponiveis = 10 - portfolioFotos.length;
+            if (arquivos.length > disponiveis) {
+                showToast(`Você pode adicionar apenas mais ${Math.max(0, disponiveis)} foto(s). Limite: 10.`, 'warning');
+                return;
             }
 
-            Promise.all(uploadPromises)
-                .then(results => {
-                    const novasFotos = results.filter(r => r !== null);
-                    if (novasFotos.length > 0) {
-                        portfolioFotos = [...portfolioFotos, ...novasFotos];
-                        atualizarPortfolioUI();
-                        if (colaboradorAtual?.id && currentUser) {
-                            db.collection('collaborators').doc(colaboradorAtual.id).set({
-                                portfolio: portfolioFotos,
-                                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                            }, { merge: true }).then(() => {
-                                colaboradorAtual.portfolio = [...portfolioFotos];
-                                const idx = colaboradoresList.findIndex(c => c.id === colaboradorAtual.id);
-                                if (idx >= 0) colaboradoresList[idx].portfolio = [...portfolioFotos];
-                                renderizarColaboradores();
-                            }).catch(err => {
-                                console.error('Erro ao salvar portfólio:', err);
-                                showToast('Fotos enviadas, mas não foi possível salvar o portfólio.', 'warning');
-                            });
-                        }
-                        showToast(`${novasFotos.length} foto(s) adicionadas ao portfólio!`, 'success');
-                    } else {
-                        showToast('Nenhuma foto foi enviada.', 'error');
-                    }
-                })
-                .catch(error => {
-                    console.error('Erro no upload:', error);
-                    showToast('Erro ao fazer upload das fotos.', 'error');
-                });
+            try {
+                showToast(`Enviando ${arquivos.length} foto(s)...`, 'info');
+
+                const novasFotos = [];
+                for (const file of arquivos) {
+                    const url = await enviarParaCloudinary(file, file.name || 'portfolio.jpg');
+                    novasFotos.push({
+                        url,
+                        legenda: '',
+                        data: new Date().toISOString()
+                    });
+                }
+
+                const novoPortfolio = [...portfolioFotos, ...novasFotos];
+                portfolioFotos = novoPortfolio;
+                atualizarPortfolioUI();
+
+                // Novo colaborador: mantém no estado local até o botão Salvar.
+                if (!colaboradorAtual?.id) {
+                    showToast(`${novasFotos.length} foto(s) adicionada(s). Clique em Salvar para gravar o colaborador.`, 'success');
+                    return;
+                }
+
+                // Existente: salva imediatamente no Firestore.
+                if (!currentUser) throw new Error('Usuário não autenticado.');
+                await db.collection('collaborators').doc(colaboradorAtual.id).set({
+                    portfolio: novoPortfolio,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+
+                colaboradorAtual.portfolio = [...novoPortfolio];
+                atualizarColaboradorLocal(colaboradorAtual.id, { portfolio: [...novoPortfolio] });
+                showToast(`${novasFotos.length} foto(s) adicionada(s) e salva(s) no portfólio!`, 'success');
+            } catch (error) {
+                console.error('❌ Erro no upload do portfólio:', error);
+                showToast('Não foi possível salvar o portfólio: ' + obterMensagemErro(error), 'error');
+            } finally {
+                const input = document.getElementById('portfolioUpload');
+                if (input) input.value = '';
+            }
         }
 
         // ==========================================
@@ -2579,68 +2648,83 @@
             const container = document.getElementById('portfolioContainer');
             if (!container) return;
 
-            if (portfolioFotos.length === 0) {
+            if (!portfolioFotos.length) {
                 container.innerHTML = `
                     <div class="portfolio-empty">
                         <i class="fas fa-images"></i>
                         <p>Nenhuma foto no portfólio</p>
                         <small>Clique em "Adicionar Fotos" para começar</small>
-                    </div>
-                `;
+                    </div>`;
                 return;
             }
 
-            let html = `
+            container.innerHTML = `
                 <div class="portfolio-grid">
                     ${portfolioFotos.map((foto, index) => `
                         <div class="portfolio-item" onclick="visualizarFotoPortfolio(${index})">
-                            <img src="${foto.url}" alt="Foto ${index+1}" onerror="this.style.display='none'">
-                            <button class="portfolio-remove" onclick="event.stopPropagation(); removerFotoPortfolio(${index})"><i class="fas fa-times"></i></button>
+                            <img src="${escapeHtml(foto.url || '')}" alt="Foto ${index + 1}" onerror="this.style.display='none'">
+                            <button type="button" class="portfolio-remove" onclick="event.stopPropagation(); removerFotoPortfolio(${index})">
+                                <i class="fas fa-times"></i>
+                            </button>
                             <div class="portfolio-overlay">
-                                <span style="color:white;font-size:0.6rem;font-weight:500;">${foto.legenda || 'Sem legenda'}</span>
-                                <button class="btn-sm" onclick="event.stopPropagation(); editarLegendaFoto(${index})"><i class="fas fa-edit"></i></button>
+                                <span style="color:white;font-size:0.6rem;font-weight:500;">${escapeHtml(foto.legenda || 'Sem legenda')}</span>
+                                <button type="button" class="btn-sm" onclick="event.stopPropagation(); editarLegendaFoto(${index})">
+                                    <i class="fas fa-edit"></i>
+                                </button>
                             </div>
-                        </div>
-                    `).join('')}
-                </div>
-            `;
-
-            container.innerHTML = html;
+                        </div>`).join('')}
+                </div>`;
         }
 
         // ==========================================
         // 23. REMOVER FOTO DO PORTFÓLIO
         // ==========================================
-        function removerFotoPortfolio(index) {
-            Swal.fire({
+        async function removerFotoPortfolio(index) {
+            if (!portfolioFotos[index]) return;
+
+            const result = await Swal.fire({
                 title: 'Remover foto?',
-                text: 'Esta ação não pode ser desfeita.',
+                text: 'A foto será removida do portfólio.',
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#d33',
                 cancelButtonColor: '#3085d6',
                 confirmButtonText: 'Sim, remover',
                 cancelButtonText: 'Cancelar'
-            }).then(result => {
-                if (result.isConfirmed) {
-                    portfolioFotos.splice(index, 1);
-                    atualizarPortfolioUI();
-                    if (colaboradorAtual?.id && currentUser) {
-                        db.collection('collaborators').doc(colaboradorAtual.id).set({ portfolio: portfolioFotos, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
-                    }
-                    showToast('Foto removida do portfólio.', 'success');
-                }
             });
+            if (!result.isConfirmed) return;
+
+            const anterior = [...portfolioFotos];
+            portfolioFotos.splice(index, 1);
+            atualizarPortfolioUI();
+
+            if (colaboradorAtual?.id && currentUser) {
+                try {
+                    await db.collection('collaborators').doc(colaboradorAtual.id).set({
+                        portfolio: [...portfolioFotos],
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
+                    colaboradorAtual.portfolio = [...portfolioFotos];
+                    atualizarColaboradorLocal(colaboradorAtual.id, { portfolio: [...portfolioFotos] });
+                    showToast('Foto removida e portfólio salvo.', 'success');
+                } catch (error) {
+                    portfolioFotos = anterior;
+                    atualizarPortfolioUI();
+                    showToast('Erro ao salvar a remoção: ' + obterMensagemErro(error), 'error');
+                }
+            } else {
+                showToast('Foto removida. Clique em Salvar para gravar o novo colaborador.', 'info');
+            }
         }
 
         // ==========================================
         // 24. EDITAR LEGENDA DA FOTO
         // ==========================================
-        function editarLegendaFoto(index) {
+        async function editarLegendaFoto(index) {
             const foto = portfolioFotos[index];
             if (!foto) return;
 
-            Swal.fire({
+            const result = await Swal.fire({
                 title: 'Editar Legenda',
                 input: 'text',
                 inputLabel: 'Legenda da foto',
@@ -2649,16 +2733,30 @@
                 showCancelButton: true,
                 confirmButtonText: 'Salvar',
                 cancelButtonText: 'Cancelar'
-            }).then(result => {
-                if (result.isConfirmed) {
-                    portfolioFotos[index].legenda = result.value || '';
-                    atualizarPortfolioUI();
-                    if (colaboradorAtual?.id && currentUser) {
-                        db.collection('collaborators').doc(colaboradorAtual.id).set({ portfolio: portfolioFotos, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
-                    }
-                    showToast('Legenda atualizada!', 'success');
-                }
             });
+            if (!result.isConfirmed) return;
+
+            const anterior = foto.legenda || '';
+            foto.legenda = result.value || '';
+            atualizarPortfolioUI();
+
+            if (colaboradorAtual?.id && currentUser) {
+                try {
+                    await db.collection('collaborators').doc(colaboradorAtual.id).set({
+                        portfolio: [...portfolioFotos],
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
+                    colaboradorAtual.portfolio = [...portfolioFotos];
+                    atualizarColaboradorLocal(colaboradorAtual.id, { portfolio: [...portfolioFotos] });
+                    showToast('Legenda salva com sucesso!', 'success');
+                } catch (error) {
+                    foto.legenda = anterior;
+                    atualizarPortfolioUI();
+                    showToast('Erro ao salvar a legenda: ' + obterMensagemErro(error), 'error');
+                }
+            } else {
+                showToast('Legenda atualizada. Clique em Salvar para gravar o novo colaborador.', 'info');
+            }
         }
 
         // ==========================================
@@ -2668,80 +2766,124 @@
             const foto = portfolioFotos[index];
             if (!foto) return;
 
-            document.getElementById('photoModalImg').src = foto.url;
+            document.getElementById('photoModalImg').src = foto.url || '';
             document.getElementById('photoModalCaption').textContent = foto.legenda || 'Sem legenda';
-
-            const modal = new bootstrap.Modal(document.getElementById('photoModal'));
-            modal.show();
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('photoModal')).show();
         }
 
         // ==========================================
         // 26. SALVAR COLABORADOR
         // ==========================================
         async function salvarColaborador() {
+            if (!currentUser) {
+                showToast('Usuário não autenticado. Faça login novamente.', 'error');
+                return;
+            }
+
+            const botao = document.getElementById('btnSalvarColaborador');
+            const id = document.getElementById('colaboradorId')?.value || null;
+            const nome = document.getElementById('colabNome')?.value?.trim() || '';
+
+            if (!nome) {
+                showToast('Digite o nome do colaborador.', 'error');
+                document.getElementById('colabNome')?.focus();
+                return;
+            }
+
+            const dados = {
+                name: nome,
+                specialty: document.getElementById('colabEspecialidade')?.value || '',
+                contact: document.getElementById('colabContato')?.value || '',
+                email: document.getElementById('colabEmail')?.value || '',
+                description: document.getElementById('colabDescricao')?.value || '',
+                manualPercent: Number(document.getElementById('colabManualPercent')?.value || 0),
+                productPercent: Number(document.getElementById('colabProductPercent')?.value || 0),
+                baseSalary: Number(document.getElementById('colabBaseSalary')?.value || 0),
+                paymentDay: Number(document.getElementById('colabPaymentDay')?.value || 5),
+                active: document.getElementById('colabActive')?.checked !== false,
+                photoUrl: colaboradorAtual?.photoUrl || null,
+                portfolio: Array.isArray(portfolioFotos) ? [...portfolioFotos] : [],
+                userId: currentUser.uid,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
             try {
-                if (!currentUser) {
-                    showToast('Usuário não autenticado. Faça login novamente.', 'error');
-                    return;
+                if (botao) {
+                    botao.disabled = true;
+                    botao.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Salvando...';
                 }
 
-                const id = document.getElementById('colaboradorId')?.value || null;
-                const nome = document.getElementById('colabNome')?.value.trim();
-                if (!nome) {
-                    showToast('Digite o nome do colaborador.', 'error');
-                    return;
-                }
-
-                const dados = {
-                    name: nome,
-                    specialty: document.getElementById('colabEspecialidade')?.value || '',
-                    contact: document.getElementById('colabContato')?.value || '',
-                    email: document.getElementById('colabEmail')?.value || '',
-                    description: document.getElementById('colabDescricao')?.value || '',
-                    manualPercent: parseFloat(document.getElementById('colabManualPercent')?.value) || 0,
-                    productPercent: parseFloat(document.getElementById('colabProductPercent')?.value) || 0,
-                    baseSalary: parseFloat(document.getElementById('colabBaseSalary')?.value) || 0,
-                    paymentDay: parseInt(document.getElementById('colabPaymentDay')?.value) || 5,
-                    active: document.getElementById('colabActive')?.checked !== false,
-                    photoUrl: colaboradorAtual?.photoUrl || null,
-                    portfolio: Array.isArray(portfolioFotos) ? portfolioFotos : [],
-                    userId: currentUser.uid,
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                };
-
-                showToast('Salvando colaborador...', 'info');
-
-                let ref;
+                let docRef;
                 if (id) {
-                    ref = db.collection('collaborators').doc(id);
-                    await ref.set(dados, { merge: true });
+                    docRef = db.collection('collaborators').doc(id);
+                    await docRef.set(dados, { merge: true });
                 } else {
-                    ref = await db.collection('collaborators').add({
+                    docRef = await db.collection('collaborators').add({
                         ...dados,
                         createdAt: firebase.firestore.FieldValue.serverTimestamp()
                     });
-                    colaboradorAtual = { ...colaboradorAtual, id: ref.id, ...dados };
                 }
 
-                // Atualiza imediatamente a lista local sem depender de reload.
-                const salvo = { id: ref.id, ...dados };
-                const idx = colaboradoresList.findIndex(c => c.id === ref.id);
-                if (idx >= 0) colaboradoresList[idx] = { ...colaboradoresList[idx], ...salvo };
-                else colaboradoresList.push(salvo);
-                colaboradoresList.sort((a, b) => {
-                    const ativoA = a.active !== false ? 0 : 1;
-                    const ativoB = b.active !== false ? 0 : 1;
-                    return ativoA - ativoB || (a.name || '').localeCompare(b.name || '', 'pt-PT', { sensitivity: 'base' });
+                const salvo = {
+                    ...(colaboradorAtual || {}),
+                    ...dados,
+                    id: docRef.id
+                };
+                colaboradorAtual = salvo;
+                isEditando = false;
+
+                atualizarColaboradorLocal(docRef.id, {
+                    ...dados,
+                    id: docRef.id
                 });
+
                 renderizarColaboradores();
 
                 const modal = bootstrap.Modal.getInstance(document.getElementById('colaboradorModal'));
                 if (modal) modal.hide();
-                showToast(id ? 'Colaborador atualizado com sucesso!' : 'Colaborador adicionado com sucesso!', 'success');
+
+                showToast(id ? 'Colaborador atualizado com sucesso!' : 'Colaborador criado com sucesso!', 'success');
             } catch (error) {
-                console.error('Erro ao salvar colaborador:', error);
-                showToast('Erro ao salvar colaborador: ' + (error.message || error), 'error');
+                console.error('❌ ERRO AO SALVAR COLABORADOR:', error);
+                showToast('Erro ao salvar no Firestore: ' + obterMensagemErro(error), 'error');
+            } finally {
+                if (botao) {
+                    botao.disabled = false;
+                    botao.innerHTML = '<i class="fas fa-save me-1"></i>Salvar';
+                }
             }
+        }
+
+        function atualizarColaboradorLocal(id, alteracoes) {
+            const index = colaboradoresList.findIndex(c => c.id === id);
+            if (index === -1) return;
+            colaboradoresList[index] = { ...colaboradoresList[index], ...alteracoes };
+            ordenarColaboradores();
+            renderizarColaboradores();
+        }
+
+        function ordenarColaboradores() {
+            colaboradoresList.sort((a, b) => {
+                const ativoA = a.active !== false ? 0 : 1;
+                const ativoB = b.active !== false ? 0 : 1;
+                if (ativoA !== ativoB) return ativoA - ativoB;
+                return (a.name || '').localeCompare(b.name || '', 'pt-PT', { sensitivity: 'base' });
+            });
+        }
+
+        function obterMensagemErro(error) {
+            if (!error) return 'erro desconhecido';
+            const code = error.code ? ` [${error.code}]` : '';
+            return `${error.message || String(error)}${code}`;
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
         }
 
         // ==========================================
