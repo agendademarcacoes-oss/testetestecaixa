@@ -1704,9 +1704,9 @@
             await carregarServicos();
             await carregarVendasProdutos();
 
-            colaboradorAtual = colab;
+            colaboradorAtual = { ...colab, portfolio: Array.isArray(colab.portfolio) ? [...colab.portfolio] : [] };
             isEditando = modoEdicao;
-            portfolioFotos = colab.portfolio || [];
+            portfolioFotos = [...colaboradorAtual.portfolio];
 
             const modalBody = document.getElementById('colaboradorModalBody');
             const modalTitle = document.getElementById('colaboradorModalTitle');
@@ -1718,9 +1718,9 @@
 
             modalBody.innerHTML = gerarFormularioColaborador(colab, stats, modoEdicao);
 
-            if (modoEdicao) {
-                configurarEventosEdicao();
-            }
+            // Os recursos de mídia (foto e portfólio) ficam disponíveis
+            // para colaboradores novos, ativos e inativos.
+            configurarEventosEdicao();
 
             document.getElementById('btnExcluirColaborador').style.display = modoEdicao ? 'inline-block' : 'none';
             document.getElementById('btnSalvarColaborador').style.display = 'inline-block';
@@ -1880,10 +1880,10 @@
                         ${portfolioFotos.map((foto, index) => `
                             <div class="portfolio-item" onclick="visualizarFotoPortfolio(${index})">
                                 <img src="${foto.url}" alt="Foto ${index+1}" onerror="this.style.display='none'">
-                                ${isEdit ? `<button class="portfolio-remove" onclick="event.stopPropagation(); removerFotoPortfolio(${index})"><i class="fas fa-times"></i></button>` : ''}
+                                <button type="button" class="portfolio-remove" onclick="event.stopPropagation(); removerFotoPortfolio(${index})"><i class="fas fa-times"></i></button>
                                 <div class="portfolio-overlay">
                                     <span style="color:white;font-size:0.6rem;font-weight:500;">${foto.legenda || 'Sem legenda'}</span>
-                                    ${isEdit ? `<button class="btn-sm" onclick="event.stopPropagation(); editarLegendaFoto(${index})"><i class="fas fa-edit"></i></button>` : ''}
+                                    <button type="button" class="btn-sm" onclick="event.stopPropagation(); editarLegendaFoto(${index})"><i class="fas fa-edit"></i></button>
                                 </div>
                             </div>
                         `).join('')}
@@ -1894,7 +1894,7 @@
                     <div class="portfolio-empty">
                         <i class="fas fa-images"></i>
                         <p>Nenhuma foto no portfólio</p>
-                        ${isEdit ? '<small>Clique em "Adicionar Fotos" para começar</small>' : ''}
+                        <small>Clique em "Adicionar Fotos" para começar</small>
                     </div>
                 `;
             }
@@ -1905,7 +1905,7 @@
 
             return `
                 <form id="colaboradorForm" onsubmit="return false;">
-                    <input type="hidden" id="colaboradorId" value="${colab.id || ''}">
+                    <input type="hidden" id="colaboradorId" value="${colab.id || colab.docId || ''}">
 
                     <!-- SELETOR DE PERÍODO -->
                     <div class="period-selector mb-3">
@@ -1935,15 +1935,14 @@
                         <div class="col-md-3 text-center">
                             <div class="mb-2">
                                 ${fotoHtml}
-                                ${isEdit ? `
-                                    <div class="mt-2">
-                                        <input type="file" id="fotoUpload" accept="image/*" style="display:none;">
-                                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="document.getElementById('fotoUpload').click()">
-                                            <i class="fas fa-camera me-1"></i>Trocar Foto
-                                        </button>
-                                        ${colab.photoUrl ? `<button type="button" class="btn btn-sm btn-outline-danger" onclick="removerFotoPerfil()"><i class="fas fa-trash me-1"></i></button>` : ''}
-                                    </div>
-                                ` : ''}
+                                <div class="mt-2">
+                                    <input type="file" id="fotoUpload" accept="image/*" style="display:none;">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="document.getElementById('fotoUpload').click()">
+                                        <i class="fas fa-camera me-1"></i>${colab.photoUrl ? 'Trocar Foto' : 'Adicionar Foto'}
+                                    </button>
+                                    ${colab.photoUrl ? `<button type="button" class="btn btn-sm btn-outline-danger" onclick="removerFotoPerfil()"><i class="fas fa-trash me-1"></i></button>` : ''}
+                                    <div class="small text-muted mt-1">A foto é salva automaticamente.</div>
+                                </div>
                             </div>
                         </div>
                         <div class="col-md-9">
@@ -2068,18 +2067,16 @@
                     <div class="row mb-3">
                         <div class="col-md-12">
                             <h6 class="fw-bold text-primary mb-2"><i class="fas fa-images me-2"></i>Portfólio</h6>
-                            ${isEdit ? `
-                                <div class="upload-area" onclick="document.getElementById('portfolioUpload').click()">
-                                    <i class="fas fa-cloud-upload-alt"></i>
-                                    <p>Clique para adicionar fotos ao portfólio</p>
-                                    <p style="font-size:0.65rem;color:#adb5bd;">Máximo 10 fotos</p>
-                                    <input type="file" id="portfolioUpload" accept="image/*" multiple style="display:none;">
-                                </div>
-                            ` : ''}
+                            <div class="upload-area" onclick="document.getElementById('portfolioUpload').click()">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                                <p>Clique para adicionar fotos ao portfólio</p>
+                                <p style="font-size:0.65rem;color:#adb5bd;">Máximo 10 fotos · disponível para novos, ativos e inativos · salvamento automático</p>
+                                <input type="file" id="portfolioUpload" accept="image/*" multiple style="display:none;">
+                            </div>
                             <div id="portfolioContainer">
                                 ${portfolioHtml}
                             </div>
-                            ${isEdit && portfolioFotos.length >= 10 ? '<p class="text-warning fs-small mt-2"><i class="fas fa-exclamation-triangle me-1"></i>Máximo de 10 fotos atingido</p>' : ''}
+                            ${portfolioFotos.length >= 10 ? '<p class="text-warning fs-small mt-2"><i class="fas fa-exclamation-triangle me-1"></i>Máximo de 10 fotos atingido</p>' : ''}
                         </div>
                     </div>
 
@@ -2280,63 +2277,44 @@
         // 16. CONFIGURAR EVENTOS DE EDIÇÃO
         // ==========================================
         function configurarEventosEdicao() {
-            // ==========================================
-            // UPLOAD DE FOTO DE PERFIL - CORRIGIDO PARA FUNCIONAR EM COLABORADORES EXISTENTES
-            // ==========================================
-            document.getElementById('fotoUpload')?.addEventListener('change', function(e) {
-                const file = e.target.files[0];
-                if (file) {
-                    // Verificar se temos um colaborador selecionado
-                    if (!colaboradorAtual) {
-                        showToast('Nenhum colaborador selecionado.', 'error');
-                        this.value = '';
-                        return;
-                    }
+            // Os elementos são recriados pelo formulário/atualização da foto.
+            // Por isso usamos eventos diretamente no elemento atual e também
+            // reconfiguramos após cada renderização.
+            const fotoInput = document.getElementById('fotoUpload');
+            if (fotoInput && !fotoInput.dataset.bound) {
+                fotoInput.dataset.bound = '1';
+                fotoInput.addEventListener('change', function(e) {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
                     uploadFotoPerfil(file);
-                }
-            });
+                });
+            }
 
-            // ==========================================
-            // UPLOAD DE FOTOS DO PORTFÓLIO - CORRIGIDO PARA FUNCIONAR EM COLABORADORES EXISTENTES
-            // ==========================================
-            document.getElementById('portfolioUpload')?.addEventListener('change', function(e) {
-                const files = e.target.files;
-                if (files.length > 0) {
-                    // Verificar se temos um colaborador selecionado
-                    if (!colaboradorAtual) {
-                        showToast('Nenhum colaborador selecionado.', 'error');
-                        this.value = '';
-                        return;
-                    }
-                    const maxFotos = 10 - portfolioFotos.length;
-                    if (files.length > maxFotos) {
-                        showToast(`Máximo de ${maxFotos} fotos podem ser adicionadas.`, 'warning');
-                        this.value = '';
-                        return;
-                    }
-                    uploadFotosPortfolio(files);
-                }
-            });
+            const portfolioInput = document.getElementById('portfolioUpload');
+            if (portfolioInput && !portfolioInput.dataset.bound) {
+                portfolioInput.dataset.bound = '1';
+                portfolioInput.addEventListener('change', function(e) {
+                    const files = Array.from(e.target.files || []);
+                    if (files.length) uploadFotosPortfolio(files);
+                });
+            }
 
             document.getElementById('periodoInicioInput')?.addEventListener('change', aoAlterarDataPeriodo);
             document.getElementById('periodoFimInput')?.addEventListener('change', aoAlterarDataPeriodo);
-            document.getElementById('colaboradorForm')?.addEventListener('submit', function(event) { event.preventDefault(); return false; });
+            document.getElementById('colaboradorForm')?.addEventListener('submit', function(event) { event.preventDefault(); });
 
-            // ==========================================
-            // BOTÃO SALVAR
-            // ==========================================
-            document.getElementById('btnSalvarColaborador').onclick = function() {
-                salvarColaborador();
-            };
+            const salvar = document.getElementById('btnSalvarColaborador');
+            if (salvar) {
+                salvar.onclick = function(event) { event.preventDefault(); salvarColaborador(); };
+            }
 
-            // ==========================================
-            // BOTÃO EXCLUIR
-            // ==========================================
-            document.getElementById('btnExcluirColaborador').onclick = function() {
-                if (colaboradorAtual && colaboradorAtual.id) {
-                    excluirColaborador(colaboradorAtual.id);
-                }
-            };
+            const excluir = document.getElementById('btnExcluirColaborador');
+            if (excluir) {
+                excluir.onclick = function(event) {
+                    event.preventDefault();
+                    if (colaboradorAtual?.id) excluirColaborador(colaboradorAtual.id);
+                };
+            }
         }
 
         // ==========================================
@@ -2464,14 +2442,15 @@
                 atualizarFotoPerfilUI(secureUrl);
 
                 // Se o colaborador já existe no Firestore (tem ID), salvar imediatamente
-                if (colaboradorAtual.id && currentUser) {
-                    await db.collection('collaborators').doc(colaboradorAtual.id).set({
+                const colaboradorId = colaboradorAtual?.id || colaboradorAtual?.docId || null;
+            if (colaboradorId && currentUser) {
+                    await db.collection('collaborators').doc(colaboradorId).set({
                         photoUrl: secureUrl,
                         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                     }, { merge: true });
 
                     // Atualizar a lista local
-                    atualizarColaboradorLocal(colaboradorAtual.id, { photoUrl: secureUrl });
+                    atualizarColaboradorLocal(colaboradorId, { photoUrl: secureUrl });
                     showToast('Foto de perfil salva com sucesso!', 'success');
                 } else {
                     // Novo colaborador - a foto será salva junto com o resto
@@ -2577,18 +2556,7 @@
                     </div>`;
             }
 
-            // Re-adicionar o evento de upload
-            document.getElementById('fotoUpload')?.addEventListener('change', function(e) {
-                const file = e.target.files?.[0];
-                if (file) {
-                    if (!colaboradorAtual) {
-                        showToast('Nenhum colaborador selecionado.', 'error');
-                        this.value = '';
-                        return;
-                    }
-                    uploadFotoPerfil(file);
-                }
-            });
+            configurarEventosEdicao();
         }
 
         // ==========================================
@@ -2607,13 +2575,14 @@
             atualizarFotoPerfilUI(null);
 
             // Se o colaborador já existe no Firestore, salvar a remoção
-            if (colaboradorAtual.id && currentUser) {
+            const colaboradorId = colaboradorAtual?.id || colaboradorAtual?.docId || null;
+            if (colaboradorId && currentUser) {
                 try {
-                    await db.collection('collaborators').doc(colaboradorAtual.id).set({
+                    await db.collection('collaborators').doc(colaboradorId).set({
                         photoUrl: null,
                         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                     }, { merge: true });
-                    atualizarColaboradorLocal(colaboradorAtual.id, { photoUrl: null });
+                    atualizarColaboradorLocal(colaboradorId, { photoUrl: null });
                     showToast('Foto removida com sucesso.', 'success');
                 } catch (error) {
                     // Reverter em caso de erro
@@ -2665,13 +2634,14 @@
                 atualizarPortfolioUI();
 
                 // Se o colaborador já existe no Firestore, salvar imediatamente
-                if (colaboradorAtual.id && currentUser) {
-                    await db.collection('collaborators').doc(colaboradorAtual.id).set({
+                const colaboradorId = colaboradorAtual?.id || colaboradorAtual?.docId || null;
+            if (colaboradorId && currentUser) {
+                    await db.collection('collaborators').doc(colaboradorId).set({
                         portfolio: portfolioFotos,
                         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                     }, { merge: true });
                     colaboradorAtual.portfolio = [...portfolioFotos];
-                    atualizarColaboradorLocal(colaboradorAtual.id, { portfolio: [...portfolioFotos] });
+                    atualizarColaboradorLocal(colaboradorId, { portfolio: [...portfolioFotos] });
                     showToast(`${novasFotos.length} foto(s) adicionada(s) e salva(s) no portfólio!`, 'success');
                 } else {
                     // Novo colaborador - o portfólio será salvo junto com o resto
@@ -2748,12 +2718,12 @@
 
             if (colaboradorAtual?.id && currentUser) {
                 try {
-                    await db.collection('collaborators').doc(colaboradorAtual.id).set({
+                    await db.collection('collaborators').doc(colaboradorId).set({
                         portfolio: [...portfolioFotos],
                         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                     }, { merge: true });
                     colaboradorAtual.portfolio = [...portfolioFotos];
-                    atualizarColaboradorLocal(colaboradorAtual.id, { portfolio: [...portfolioFotos] });
+                    atualizarColaboradorLocal(colaboradorId, { portfolio: [...portfolioFotos] });
                     showToast('Foto removida e portfólio salvo.', 'success');
                 } catch (error) {
                     portfolioFotos = anterior;
@@ -2790,12 +2760,12 @@
 
             if (colaboradorAtual?.id && currentUser) {
                 try {
-                    await db.collection('collaborators').doc(colaboradorAtual.id).set({
+                    await db.collection('collaborators').doc(colaboradorId).set({
                         portfolio: [...portfolioFotos],
                         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                     }, { merge: true });
                     colaboradorAtual.portfolio = [...portfolioFotos];
-                    atualizarColaboradorLocal(colaboradorAtual.id, { portfolio: [...portfolioFotos] });
+                    atualizarColaboradorLocal(colaboradorId, { portfolio: [...portfolioFotos] });
                     showToast('Legenda salva com sucesso!', 'success');
                 } catch (error) {
                     foto.legenda = anterior;
