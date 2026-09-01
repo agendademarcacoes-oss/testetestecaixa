@@ -2280,19 +2280,38 @@
         // 16. CONFIGURAR EVENTOS DE EDIÇÃO
         // ==========================================
         function configurarEventosEdicao() {
+            // ==========================================
+            // UPLOAD DE FOTO DE PERFIL - CORRIGIDO PARA FUNCIONAR EM COLABORADORES EXISTENTES
+            // ==========================================
             document.getElementById('fotoUpload')?.addEventListener('change', function(e) {
                 const file = e.target.files[0];
                 if (file) {
+                    // Verificar se temos um colaborador selecionado
+                    if (!colaboradorAtual) {
+                        showToast('Nenhum colaborador selecionado.', 'error');
+                        this.value = '';
+                        return;
+                    }
                     uploadFotoPerfil(file);
                 }
             });
 
+            // ==========================================
+            // UPLOAD DE FOTOS DO PORTFÓLIO - CORRIGIDO PARA FUNCIONAR EM COLABORADORES EXISTENTES
+            // ==========================================
             document.getElementById('portfolioUpload')?.addEventListener('change', function(e) {
                 const files = e.target.files;
                 if (files.length > 0) {
+                    // Verificar se temos um colaborador selecionado
+                    if (!colaboradorAtual) {
+                        showToast('Nenhum colaborador selecionado.', 'error');
+                        this.value = '';
+                        return;
+                    }
                     const maxFotos = 10 - portfolioFotos.length;
                     if (files.length > maxFotos) {
                         showToast(`Máximo de ${maxFotos} fotos podem ser adicionadas.`, 'warning');
+                        this.value = '';
                         return;
                     }
                     uploadFotosPortfolio(files);
@@ -2304,14 +2323,14 @@
             document.getElementById('colaboradorForm')?.addEventListener('submit', function(event) { event.preventDefault(); return false; });
 
             // ==========================================
-            // BOTÃO SALVAR - CORRIGIDO
+            // BOTÃO SALVAR
             // ==========================================
             document.getElementById('btnSalvarColaborador').onclick = function() {
                 salvarColaborador();
             };
 
             // ==========================================
-            // BOTÃO EXCLUIR - CORRIGIDO
+            // BOTÃO EXCLUIR
             // ==========================================
             document.getElementById('btnExcluirColaborador').onclick = function() {
                 if (colaboradorAtual && colaboradorAtual.id) {
@@ -2381,6 +2400,12 @@
                 return;
             }
 
+            // Verificar se temos um colaborador selecionado
+            if (!colaboradorAtual) {
+                showToast('Nenhum colaborador selecionado para adicionar a foto.', 'error');
+                return;
+            }
+
             try {
                 // Carregar a imagem para obter dimensões
                 const imagem = await carregarImagem(file);
@@ -2433,13 +2458,12 @@
                 const secureUrl = await enviarParaCloudinary(blob, 'perfil.jpg');
 
                 // Atualizar o colaborador atual
-                if (!colaboradorAtual) colaboradorAtual = {};
                 colaboradorAtual.photoUrl = secureUrl;
 
                 // Atualizar a UI
                 atualizarFotoPerfilUI(secureUrl);
 
-                // Se o colaborador já existe no Firestore, salvar imediatamente
+                // Se o colaborador já existe no Firestore (tem ID), salvar imediatamente
                 if (colaboradorAtual.id && currentUser) {
                     await db.collection('collaborators').doc(colaboradorAtual.id).set({
                         photoUrl: secureUrl,
@@ -2448,9 +2472,11 @@
 
                     // Atualizar a lista local
                     atualizarColaboradorLocal(colaboradorAtual.id, { photoUrl: secureUrl });
+                    showToast('Foto de perfil salva com sucesso!', 'success');
+                } else {
+                    // Novo colaborador - a foto será salva junto com o resto
+                    showToast('Foto adicionada. Clique em Salvar para gravar o colaborador.', 'success');
                 }
-
-                showToast('Foto de perfil salva com sucesso!', 'success');
 
             } catch (error) {
                 console.error('❌ Erro ao enviar foto de perfil:', error);
@@ -2555,16 +2581,24 @@
             document.getElementById('fotoUpload')?.addEventListener('change', function(e) {
                 const file = e.target.files?.[0];
                 if (file) {
+                    if (!colaboradorAtual) {
+                        showToast('Nenhum colaborador selecionado.', 'error');
+                        this.value = '';
+                        return;
+                    }
                     uploadFotoPerfil(file);
                 }
             });
         }
 
         // ==========================================
-        // 20. REMOVER FOTO DE PERFIL - CORRIGIDO
+        // 20. REMOVER FOTO DE PERFIL
         // ==========================================
         async function removerFotoPerfil() {
-            if (!colaboradorAtual) return;
+            if (!colaboradorAtual) {
+                showToast('Nenhum colaborador selecionado.', 'error');
+                return;
+            }
 
             const anterior = colaboradorAtual.photoUrl || null;
 
@@ -2596,6 +2630,11 @@
         // 21. UPLOAD DE FOTOS DO PORTFÓLIO - CORRIGIDO
         // ==========================================
         async function uploadFotosPortfolio(files) {
+            if (!colaboradorAtual) {
+                showToast('Nenhum colaborador selecionado.', 'error');
+                return;
+            }
+
             const arquivos = Array.from(files || []).filter(file => file && file.type?.startsWith('image/'));
             if (!arquivos.length) {
                 showToast('Selecione pelo menos uma imagem válida.', 'warning');
@@ -2626,7 +2665,7 @@
                 atualizarPortfolioUI();
 
                 // Se o colaborador já existe no Firestore, salvar imediatamente
-                if (colaboradorAtual?.id && currentUser) {
+                if (colaboradorAtual.id && currentUser) {
                     await db.collection('collaborators').doc(colaboradorAtual.id).set({
                         portfolio: portfolioFotos,
                         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -2635,6 +2674,7 @@
                     atualizarColaboradorLocal(colaboradorAtual.id, { portfolio: [...portfolioFotos] });
                     showToast(`${novasFotos.length} foto(s) adicionada(s) e salva(s) no portfólio!`, 'success');
                 } else {
+                    // Novo colaborador - o portfólio será salvo junto com o resto
                     showToast(`${novasFotos.length} foto(s) adicionada(s). Clique em Salvar para gravar o colaborador.`, 'success');
                 }
 
@@ -2780,7 +2820,7 @@
         }
 
         // ==========================================
-        // 26. SALVAR COLABORADOR - CORRIGIDO
+        // 26. SALVAR COLABORADOR
         // ==========================================
         async function salvarColaborador() {
             if (!currentUser) {
@@ -2812,7 +2852,7 @@
                 return;
             }
 
-            // Preparar os dados
+            // Preparar os dados - GARANTIR QUE FOTO E PORTFÓLIO ESTEJAM INCLUÍDOS
             const dados = {
                 name: nome,
                 specialty: document.getElementById('colabEspecialidade')?.value || '',
@@ -3071,7 +3111,8 @@
         console.log('   - Período NÃO recarrega a página - APENAS atualiza estatísticas');
         console.log('   - Bloqueio de deslize lateral em mobile');
         console.log('   - Portfólio com upload funcional');
-        console.log('   - Upload de foto de perfil funcionando');
+        console.log('   - Upload de foto de perfil funcionando para NOVOS e EXISTENTES');
+        console.log('   - Upload de portfólio funcionando para NOVOS e EXISTENTES');
         console.log('   - Botão Salvar funcionando corretamente');
 
     </script>
