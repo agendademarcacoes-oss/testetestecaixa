@@ -1667,17 +1667,68 @@
                 const margin = 40;
                 let y = margin;
 
-                // ===== LOGO =====
+                // ===== LOGO - CENTRALIZADA E EM CÍRCULO =====
                 const logoUrl = configAtual.logo || '';
                 if (logoUrl) {
                     try {
-                        doc.addImage(logoUrl, 'PNG', margin, y - 10, 50, 50);
+                        // Centralizar a logo (círculo)
+                        const logoSize = 60;
+                        const xCenter = (pageW - logoSize) / 2;
+                        // Adicionar a logo com clipping circular
+                        const img = new Image();
+                        img.crossOrigin = 'Anonymous';
+                        img.src = logoUrl;
+                        
+                        // Usar canvas para criar máscara circular
+                        const canvas = document.createElement('canvas');
+                        canvas.width = 120;
+                        canvas.height = 120;
+                        const ctx = canvas.getContext('2d');
+                        
+                        // Desenhar círculo
+                        ctx.beginPath();
+                        ctx.arc(60, 60, 55, 0, Math.PI * 2);
+                        ctx.closePath();
+                        ctx.clip();
+                        
+                        // Desenhar imagem dentro do círculo
+                        const imgObj = new Image();
+                        imgObj.crossOrigin = 'Anonymous';
+                        imgObj.onload = function() {
+                            ctx.drawImage(imgObj, 0, 0, 120, 120);
+                            // Adicionar ao PDF a partir do canvas
+                            const imgData = canvas.toDataURL('image/jpeg');
+                            try {
+                                doc.addImage(imgData, 'JPEG', xCenter, y - 30, logoSize, logoSize);
+                            } catch(e) {
+                                doc.setFontSize(16);
+                                doc.setTextColor(38, 25, 107);
+                                doc.text(configAtual.nome || 'Studio DeVitto', pageW/2, y + 20, { align: 'center' });
+                            }
+                        };
+                        imgObj.onerror = function() {
+                            doc.setFontSize(16);
+                            doc.setTextColor(38, 25, 107);
+                            doc.text(configAtual.nome || 'Studio DeVitto', pageW/2, y + 20, { align: 'center' });
+                        };
+                        imgObj.src = logoUrl;
+                        
+                        // Se a imagem falhar, mostrar texto
+                        setTimeout(() => {
+                            if (!imgObj.complete || imgObj.naturalWidth === 0) {
+                                doc.setFontSize(16);
+                                doc.setTextColor(38, 25, 107);
+                                doc.text(configAtual.nome || 'Studio DeVitto', pageW/2, y + 20, { align: 'center' });
+                            }
+                        }, 1000);
+                        
+                        y += 70;
                     } catch(e) {
                         doc.setFontSize(16);
                         doc.setTextColor(38, 25, 107);
                         doc.text(configAtual.nome || 'Studio DeVitto', pageW/2, y + 20, { align: 'center' });
+                        y += 40;
                     }
-                    y += 60;
                 } else {
                     doc.setFontSize(16);
                     doc.setTextColor(38, 25, 107);
@@ -1768,7 +1819,7 @@
         }
 
         // ==========================================
-        // 13. GERAR RELATÓRIO DE SERVIÇOS E PRODUTOS
+        // 13. GERAR RELATÓRIO DE SERVIÇOS E PRODUTOS (ORDEM DO DIA 01 AO ÚLTIMO)
         // ==========================================
         function gerarRelatorioServicosProdutos(doc, y, pageW, dataInicio, dataFim, tipo) {
             const margin = MARGIN_PADRAO;
@@ -1787,6 +1838,19 @@
                     return d && d >= dataInicio && d <= dataFim;
                 });
             }
+
+            // ORDENAR POR DATA (DO DIA 01 AO ÚLTIMO)
+            servicos.sort((a, b) => {
+                const da = dataRegistro(a) || new Date(0);
+                const db = dataRegistro(b) || new Date(0);
+                return da - db;
+            });
+
+            produtos.sort((a, b) => {
+                const da = dataRegistro(a) || new Date(0);
+                const db = dataRegistro(b) || new Date(0);
+                return da - db;
+            });
 
             // ===== RESUMO =====
             const totalServicos = servicos.length;
@@ -1825,11 +1889,44 @@
                 const serviceData = servicos.slice(0, 50).map(s => {
                     const client = dadosCache.clients.find(c => c.id === s.clientId);
                     const collaborator = dadosCache.collaborators.find(c => c.id === s.collaboratorId);
+                    // Função para decodificar caracteres especiais
+                    const decodeText = (text) => {
+                        if (!text) return '';
+                        return String(text)
+                            .normalize('NFD')
+                            .replace(/[\u0300-\u036f]/g, '')
+                            .replace(/Ø/g, 'O')
+                            .replace(/ø/g, 'o')
+                            .replace(/Ü/g, 'U')
+                            .replace(/ü/g, 'u')
+                            .replace(/Ê/g, 'E')
+                            .replace(/ê/g, 'e')
+                            .replace(/Ã/g, 'A')
+                            .replace(/ã/g, 'a')
+                            .replace(/Õ/g, 'O')
+                            .replace(/õ/g, 'o')
+                            .replace(/Ç/g, 'C')
+                            .replace(/ç/g, 'c')
+                            .replace(/Á/g, 'A')
+                            .replace(/á/g, 'a')
+                            .replace(/À/g, 'A')
+                            .replace(/à/g, 'a')
+                            .replace(/Â/g, 'A')
+                            .replace(/â/g, 'a')
+                            .replace(/É/g, 'E')
+                            .replace(/é/g, 'e')
+                            .replace(/Í/g, 'I')
+                            .replace(/í/g, 'i')
+                            .replace(/Ó/g, 'O')
+                            .replace(/ó/g, 'o')
+                            .replace(/Ú/g, 'U')
+                            .replace(/ú/g, 'u');
+                    };
                     return [
                         formatDate(dataRegistro(s) || s.date),
-                        client ? client.name : 'Cliente não encontrado',
-                        s.description || 'Serviço',
-                        collaborator ? collaborator.name : 'Não informado',
+                        client ? decodeText(client.name) : 'Cliente não encontrado',
+                        s.description ? decodeText(s.description) : 'Serviço',
+                        collaborator ? decodeText(collaborator.name) : 'Não informado',
                         formatCurrency(numero(s, ['value','valor','price']))
                     ];
                 });
@@ -1874,11 +1971,43 @@
                 const productData = produtos.slice(0, 50).map(p => {
                     const product = dadosCache.products.find(pr => pr.id === p.productId);
                     const client = p.clientId ? dadosCache.clients.find(c => c.id === p.clientId) : null;
+                    const decodeText = (text) => {
+                        if (!text) return '';
+                        return String(text)
+                            .normalize('NFD')
+                            .replace(/[\u0300-\u036f]/g, '')
+                            .replace(/Ø/g, 'O')
+                            .replace(/ø/g, 'o')
+                            .replace(/Ü/g, 'U')
+                            .replace(/ü/g, 'u')
+                            .replace(/Ê/g, 'E')
+                            .replace(/ê/g, 'e')
+                            .replace(/Ã/g, 'A')
+                            .replace(/ã/g, 'a')
+                            .replace(/Õ/g, 'O')
+                            .replace(/õ/g, 'o')
+                            .replace(/Ç/g, 'C')
+                            .replace(/ç/g, 'c')
+                            .replace(/Á/g, 'A')
+                            .replace(/á/g, 'a')
+                            .replace(/À/g, 'A')
+                            .replace(/à/g, 'a')
+                            .replace(/Â/g, 'A')
+                            .replace(/â/g, 'a')
+                            .replace(/É/g, 'E')
+                            .replace(/é/g, 'e')
+                            .replace(/Í/g, 'I')
+                            .replace(/í/g, 'i')
+                            .replace(/Ó/g, 'O')
+                            .replace(/ó/g, 'o')
+                            .replace(/Ú/g, 'U')
+                            .replace(/ú/g, 'u');
+                    };
                     return [
                         formatDate(dataRegistro(p) || p.date),
-                        product ? product.name : 'Produto não encontrado',
+                        product ? decodeText(product.name) : 'Produto não encontrado',
                         p.quantity || 0,
-                        client ? client.name : 'Venda avulsa',
+                        client ? decodeText(client.name) : 'Venda avulsa',
                         formatCurrency(numero(p, ['totalValue','total','value','valor']))
                     ];
                 });
@@ -1934,6 +2063,13 @@
                     return d && d >= dataInicio && d <= dataFim;
                 });
             }
+
+            // ORDENAR POR DATA (DO DIA 01 AO ÚLTIMO)
+            servicos.sort((a, b) => {
+                const da = dataRegistro(a) || new Date(0);
+                const db = dataRegistro(b) || new Date(0);
+                return da - db;
+            });
 
             // Calcular estatísticas
             const totalServicos = servicos.length;
@@ -2000,6 +2136,39 @@
                 doc.text('📋 Serviços Realizados', margin, y);
                 y += 16;
 
+                const decodeText = (text) => {
+                    if (!text) return '';
+                    return String(text)
+                        .normalize('NFD')
+                        .replace(/[\u0300-\u036f]/g, '')
+                        .replace(/Ø/g, 'O')
+                        .replace(/ø/g, 'o')
+                        .replace(/Ü/g, 'U')
+                        .replace(/ü/g, 'u')
+                        .replace(/Ê/g, 'E')
+                        .replace(/ê/g, 'e')
+                        .replace(/Ã/g, 'A')
+                        .replace(/ã/g, 'a')
+                        .replace(/Õ/g, 'O')
+                        .replace(/õ/g, 'o')
+                        .replace(/Ç/g, 'C')
+                        .replace(/ç/g, 'c')
+                        .replace(/Á/g, 'A')
+                        .replace(/á/g, 'a')
+                        .replace(/À/g, 'A')
+                        .replace(/à/g, 'a')
+                        .replace(/Â/g, 'A')
+                        .replace(/â/g, 'a')
+                        .replace(/É/g, 'E')
+                        .replace(/é/g, 'e')
+                        .replace(/Í/g, 'I')
+                        .replace(/í/g, 'i')
+                        .replace(/Ó/g, 'O')
+                        .replace(/ó/g, 'o')
+                        .replace(/Ú/g, 'U')
+                        .replace(/ú/g, 'u');
+                };
+
                 const serviceData = servicos.slice(0, 50).map(s => {
                     const client = dadosCache.clients.find(c => c.id === s.clientId);
                     const valor = numero(s, ['value','valor','price']);
@@ -2008,8 +2177,8 @@
                     const comissao = valor * (perc / 100);
                     return [
                         formatDate(dataRegistro(s) || s.date),
-                        client ? client.name : 'Cliente não encontrado',
-                        s.description || 'Serviço',
+                        client ? decodeText(client.name) : 'Cliente não encontrado',
+                        s.description ? decodeText(s.description) : 'Serviço',
                         formatCurrency(valor),
                         formatCurrency(comissao)
                     ];
@@ -2062,6 +2231,9 @@
                 produtos = produtos.filter(p => p.quantity <= p.minQuantity);
             }
 
+            // ORDENAR POR NOME
+            produtos.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
             // ===== RESUMO =====
             const totalProdutos = produtos.length;
             const totalValue = produtos.reduce((sum, p) => sum + (p.quantity * numero(p, ['salePrice','price'])), 0);
@@ -2095,10 +2267,43 @@
                 doc.text('📦 Produtos', margin, y);
                 y += 16;
 
+                const decodeText = (text) => {
+                    if (!text) return '';
+                    return String(text)
+                        .normalize('NFD')
+                        .replace(/[\u0300-\u036f]/g, '')
+                        .replace(/Ø/g, 'O')
+                        .replace(/ø/g, 'o')
+                        .replace(/Ü/g, 'U')
+                        .replace(/ü/g, 'u')
+                        .replace(/Ê/g, 'E')
+                        .replace(/ê/g, 'e')
+                        .replace(/Ã/g, 'A')
+                        .replace(/ã/g, 'a')
+                        .replace(/Õ/g, 'O')
+                        .replace(/õ/g, 'o')
+                        .replace(/Ç/g, 'C')
+                        .replace(/ç/g, 'c')
+                        .replace(/Á/g, 'A')
+                        .replace(/á/g, 'a')
+                        .replace(/À/g, 'A')
+                        .replace(/à/g, 'a')
+                        .replace(/Â/g, 'A')
+                        .replace(/â/g, 'a')
+                        .replace(/É/g, 'E')
+                        .replace(/é/g, 'e')
+                        .replace(/Í/g, 'I')
+                        .replace(/í/g, 'i')
+                        .replace(/Ó/g, 'O')
+                        .replace(/ó/g, 'o')
+                        .replace(/Ú/g, 'U')
+                        .replace(/ú/g, 'u');
+                };
+
                 const productData = produtos.map(p => {
                     const isLowStock = p.quantity <= p.minQuantity;
                     return [
-                        p.name || 'Sem nome',
+                        p.name ? decodeText(p.name) : 'Sem nome',
                         p.quantity || 0,
                         p.minQuantity || 0,
                         formatCurrency(numero(p, ['purchasePrice','cost'])),
@@ -2141,8 +2346,40 @@
                 y += 16;
 
                 const lowStockProducts = dadosCache.products.filter(p => p.quantity <= p.minQuantity);
+                const decodeText = (text) => {
+                    if (!text) return '';
+                    return String(text)
+                        .normalize('NFD')
+                        .replace(/[\u0300-\u036f]/g, '')
+                        .replace(/Ø/g, 'O')
+                        .replace(/ø/g, 'o')
+                        .replace(/Ü/g, 'U')
+                        .replace(/ü/g, 'u')
+                        .replace(/Ê/g, 'E')
+                        .replace(/ê/g, 'e')
+                        .replace(/Ã/g, 'A')
+                        .replace(/ã/g, 'a')
+                        .replace(/Õ/g, 'O')
+                        .replace(/õ/g, 'o')
+                        .replace(/Ç/g, 'C')
+                        .replace(/ç/g, 'c')
+                        .replace(/Á/g, 'A')
+                        .replace(/á/g, 'a')
+                        .replace(/À/g, 'A')
+                        .replace(/à/g, 'a')
+                        .replace(/Â/g, 'A')
+                        .replace(/â/g, 'a')
+                        .replace(/É/g, 'E')
+                        .replace(/é/g, 'e')
+                        .replace(/Í/g, 'I')
+                        .replace(/í/g, 'i')
+                        .replace(/Ó/g, 'O')
+                        .replace(/ó/g, 'o')
+                        .replace(/Ú/g, 'U')
+                        .replace(/ú/g, 'u');
+                };
                 const lowStockData = lowStockProducts.map(p => [
-                    p.name || 'Sem nome',
+                    p.name ? decodeText(p.name) : 'Sem nome',
                     p.quantity || 0,
                     p.minQuantity || 0,
                     formatCurrency(numero(p, ['salePrice','price']))
@@ -2200,6 +2437,22 @@
                     return d >= dataInicio && d <= dataFim;
                 });
             }
+
+            // ORDENAR POR DATA (DO DIA 01 AO ÚLTIMO)
+            servicos.sort((a, b) => {
+                const da = dataRegistro(a) || new Date(0);
+                const db = dataRegistro(b) || new Date(0);
+                return da - db;
+            });
+
+            produtos.sort((a, b) => {
+                const da = dataRegistro(a) || new Date(0);
+                const db = dataRegistro(b) || new Date(0);
+                return da - db;
+            });
+
+            despesas.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+            salarios.sort((a, b) => new Date(a.paymentDate) - new Date(b.paymentDate));
 
             // Calcular totais
             const receitaServicos = servicos.reduce((sum, s) => sum + numero(s, ['value','valor','price']), 0);
@@ -2319,11 +2572,44 @@
                     doc.text('📋 Pagamentos de Salários', margin, y);
                     y += 16;
 
+                    const decodeText = (text) => {
+                        if (!text) return '';
+                        return String(text)
+                            .normalize('NFD')
+                            .replace(/[\u0300-\u036f]/g, '')
+                            .replace(/Ø/g, 'O')
+                            .replace(/ø/g, 'o')
+                            .replace(/Ü/g, 'U')
+                            .replace(/ü/g, 'u')
+                            .replace(/Ê/g, 'E')
+                            .replace(/ê/g, 'e')
+                            .replace(/Ã/g, 'A')
+                            .replace(/ã/g, 'a')
+                            .replace(/Õ/g, 'O')
+                            .replace(/õ/g, 'o')
+                            .replace(/Ç/g, 'C')
+                            .replace(/ç/g, 'c')
+                            .replace(/Á/g, 'A')
+                            .replace(/á/g, 'a')
+                            .replace(/À/g, 'A')
+                            .replace(/à/g, 'a')
+                            .replace(/Â/g, 'A')
+                            .replace(/â/g, 'a')
+                            .replace(/É/g, 'E')
+                            .replace(/é/g, 'e')
+                            .replace(/Í/g, 'I')
+                            .replace(/í/g, 'i')
+                            .replace(/Ó/g, 'O')
+                            .replace(/ó/g, 'o')
+                            .replace(/Ú/g, 'U')
+                            .replace(/ú/g, 'u');
+                    };
+
                     const salaryData = salarios.map(s => {
                         const collab = dadosCache.collaborators.find(c => c.id === s.collaboratorId);
                         const total = numero(s, ['baseValue']) + numero(s, ['bonus']) - numero(s, ['deductions']);
                         return [
-                            collab ? collab.name : 'Colaborador não encontrado',
+                            collab ? decodeText(collab.name) : 'Colaborador não encontrado',
                             formatDate(s.paymentDate),
                             formatCurrency(numero(s, ['baseValue'])),
                             formatCurrency(numero(s, ['bonus'])),
