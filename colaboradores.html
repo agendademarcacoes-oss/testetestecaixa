@@ -30,7 +30,6 @@
             position: relative !important;
         }
         
-        /* Bloqueio de deslize em todos os elementos */
         * {
             overflow-x: hidden !important;
             max-width: 100% !important;
@@ -38,26 +37,15 @@
         
         .colaborador-card {
             overflow: hidden !important;
-            touch-action: pan-y !important;
-            -ms-touch-action: pan-y !important;
             touch-action: manipulation !important;
             -ms-touch-action: manipulation !important;
-        }
-        
-        .colaborador-card .card-body-custom,
-        .colaborador-card .card-actions,
-        .colaborador-card .card-header-custom {
-            overflow: hidden !important;
         }
         
         .colaborador-card * {
-            touch-action: pan-y !important;
-            -ms-touch-action: pan-y !important;
             touch-action: manipulation !important;
             -ms-touch-action: manipulation !important;
         }
         
-        /* Container principal */
         .collaborators-content {
             overflow-x: hidden !important;
             max-width: 100% !important;
@@ -73,7 +61,6 @@
             padding-right: 8px !important;
         }
         
-        /* Modal - tela cheia sem deslize */
         .modal {
             overflow-x: hidden !important;
         }
@@ -258,8 +245,6 @@
             transition: all 0.3s ease;
             height: 100%;
             cursor: pointer;
-            touch-action: pan-y !important;
-            -ms-touch-action: pan-y !important;
             touch-action: manipulation !important;
             -ms-touch-action: manipulation !important;
             max-width: 100% !important;
@@ -595,7 +580,7 @@
         }
 
         /* ============================================
-           ESTATÍSTICAS DO COLABORADOR NO MODAL
+           ESTATÍSTICAS DO COLABORADOR NO MODAL - ATUALIZÁVEL
            ============================================ */
         .colab-stats-grid {
             display: grid;
@@ -610,12 +595,14 @@
             padding: 12px 10px;
             text-align: center;
             border: 1px solid #e9ecef;
+            transition: all 0.3s ease;
         }
 
         .colab-stat-item .stat-number {
             font-size: 1.3rem;
             font-weight: 700;
             color: var(--primary-color);
+            transition: all 0.3s ease;
         }
 
         .colab-stat-item .stat-label {
@@ -633,6 +620,17 @@
         }
         .colab-stat-item .stat-number.salao {
             color: var(--primary-color);
+        }
+
+        /* Animação de atualização das estatísticas */
+        .stat-updating {
+            animation: pulse-update 0.5s ease;
+        }
+
+        @keyframes pulse-update {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); background: #e7f1ff; }
+            100% { transform: scale(1); }
         }
 
         /* ============================================
@@ -1147,19 +1145,16 @@
         /* ============================================
            CORREÇÃO MOBILE - DESLIZE LATERAL
            ============================================ */
-        /* Força que nenhum elemento ultrapasse a largura da tela */
         .container, .container-fluid, .row, .col-*, .col-lg-*, .col-md-*, .col-sm-* {
             max-width: 100% !important;
             overflow-x: hidden !important;
         }
 
-        /* Remove padding que pode causar deslize */
         .row > * {
             padding-left: 6px !important;
             padding-right: 6px !important;
         }
 
-        /* Modal em mobile sem deslize */
         .modal-open {
             overflow: hidden !important;
             padding-right: 0 !important;
@@ -1170,7 +1165,6 @@
             overflow-y: auto !important;
         }
 
-        /* Força o body a não ter overflow */
         .modal-open body {
             overflow: hidden !important;
             position: fixed !important;
@@ -2026,10 +2020,10 @@
 
                     <!-- ESTATÍSTICAS DO PERÍODO - COM DADOS REAIS -->
                     ${stats ? `
-                    <div class="row mb-3">
+                    <div class="row mb-3" id="statsContainer">
                         <div class="col-md-12">
                             <h6 class="fw-bold text-primary mb-2"><i class="fas fa-chart-line me-2"></i>Estatísticas do Período</h6>
-                            <div class="colab-stats-grid">
+                            <div class="colab-stats-grid" id="statsGrid">
                                 <div class="colab-stat-item">
                                     <div class="stat-number">${stats.totalServicos || 0}</div>
                                     <div class="stat-label">Serviços</div>
@@ -2097,7 +2091,7 @@
         }
 
         // ==========================================
-        // 14. FUNÇÕES DE PERÍODO - CORRIGIDAS (NÃO RECARREGA A PÁGINA)
+        // 14. FUNÇÕES DE PERÍODO - APENAS ATUALIZA ESTATÍSTICAS
         // ==========================================
         function setPeriod(tipo) {
             const hoje = new Date();
@@ -2143,7 +2137,7 @@
             periodoFim = fim;
             atualizarCamposPeriodo();
             
-            // ATUALIZAR ESTATÍSTICAS SEM RECARREGAR A PÁGINA
+            // ATUALIZAR APENAS AS ESTATÍSTICAS - SEM RECARREGAR A PÁGINA
             if (colaboradorAtual && colaboradorAtual.id) {
                 const stats = calcularEstatisticasColaboradorReais(colaboradorAtual.id);
                 atualizarEstatisticasModal(stats);
@@ -2168,7 +2162,7 @@
                 periodoInicio = inicio;
                 periodoFim = fim;
                 
-                // ATUALIZAR ESTATÍSTICAS SEM RECARREGAR A PÁGINA
+                // ATUALIZAR APENAS AS ESTATÍSTICAS - SEM RECARREGAR A PÁGINA
                 if (colaboradorAtual && colaboradorAtual.id) {
                     const stats = calcularEstatisticasColaboradorReais(colaboradorAtual.id);
                     atualizarEstatisticasModal(stats);
@@ -2184,7 +2178,7 @@
             periodoFim = hoje;
             atualizarCamposPeriodo();
             
-            // ATUALIZAR ESTATÍSTICAS SEM RECARREGAR A PÁGINA
+            // ATUALIZAR APENAS AS ESTATÍSTICAS - SEM RECARREGAR A PÁGINA
             if (colaboradorAtual && colaboradorAtual.id) {
                 const stats = calcularEstatisticasColaboradorReais(colaboradorAtual.id);
                 atualizarEstatisticasModal(stats);
@@ -2203,48 +2197,52 @@
             }
         }
 
+        // ==========================================
+        // 15. ATUALIZAR ESTATÍSTICAS NO MODAL - SEM RECARREGAR
+        // ==========================================
         function atualizarEstatisticasModal(stats) {
-            const container = document.querySelector('.colab-stats-grid');
+            const container = document.getElementById('statsGrid');
             if (!container) return;
 
-            container.innerHTML = `
-                <div class="colab-stat-item">
-                    <div class="stat-number">${stats.totalServicos || 0}</div>
-                    <div class="stat-label">Serviços</div>
-                </div>
-                <div class="colab-stat-item">
-                    <div class="stat-number positive">${formatCurrency(stats.totalBruto || 0)}</div>
-                    <div class="stat-label">Total Bruto</div>
-                </div>
-                <div class="colab-stat-item">
-                    <div class="stat-number comissao">${formatCurrency(stats.totalComissao || 0)}</div>
-                    <div class="stat-label">Comissão</div>
-                </div>
-                <div class="colab-stat-item">
-                    <div class="stat-number salao">${formatCurrency(stats.totalSalao || 0)}</div>
-                    <div class="stat-label">Salão</div>
-                </div>
-                <div class="colab-stat-item">
-                    <div class="stat-number">${formatCurrency(stats.hojeBruto || 0)}</div>
-                    <div class="stat-label">Hoje</div>
-                </div>
-                <div class="colab-stat-item">
-                    <div class="stat-number">${formatCurrency(stats.semanaBruto || 0)}</div>
-                    <div class="stat-label">Semana</div>
-                </div>
-                <div class="colab-stat-item">
-                    <div class="stat-number">${formatCurrency(stats.mesBruto || 0)}</div>
-                    <div class="stat-label">Mês</div>
-                </div>
-                <div class="colab-stat-item">
-                    <div class="stat-number">${formatCurrency(stats.totalGeral || 0)}</div>
-                    <div class="stat-label">Total Geral</div>
-                </div>
-            `;
+            // Adicionar animação de atualização
+            container.classList.add('stat-updating');
+            
+            // Atualizar os valores
+            const items = container.querySelectorAll('.colab-stat-item');
+            const valores = [
+                stats.totalServicos || 0,
+                stats.totalBruto || 0,
+                stats.totalComissao || 0,
+                stats.totalSalao || 0,
+                stats.hojeBruto || 0,
+                stats.semanaBruto || 0,
+                stats.mesBruto || 0,
+                stats.totalGeral || 0
+            ];
+
+            items.forEach((item, index) => {
+                const numberEl = item.querySelector('.stat-number');
+                if (numberEl) {
+                    // Verificar se é valor monetário (índices ímpares a partir de 1)
+                    const isCurrency = [1, 2, 3, 4, 5, 6, 7].includes(index);
+                    if (isCurrency) {
+                        numberEl.textContent = formatCurrency(valores[index] || 0);
+                    } else {
+                        numberEl.textContent = valores[index] || 0;
+                    }
+                }
+            });
+
+            // Remover animação após terminar
+            setTimeout(() => {
+                container.classList.remove('stat-updating');
+            }, 500);
+
+            console.log('✅ Estatísticas atualizadas sem recarregar a página');
         }
 
         // ==========================================
-        // 15. CONFIGURAR EVENTOS DE EDIÇÃO
+        // 16. CONFIGURAR EVENTOS DE EDIÇÃO
         // ==========================================
         function configurarEventosEdicao() {
             document.getElementById('fotoUpload')?.addEventListener('change', function(e) {
@@ -2285,7 +2283,7 @@
         }
 
         // ==========================================
-        // 16. ABRIR MODAL NOVO COLABORADOR
+        // 17. ABRIR MODAL NOVO COLABORADOR
         // ==========================================
         function abrirModalNovoColaborador() {
             const novoColab = {
@@ -2325,7 +2323,7 @@
         }
 
         // ==========================================
-        // 17. EDITAR COLABORADOR
+        // 18. EDITAR COLABORADOR
         // ==========================================
         function editarColaborador(colaboradorId) {
             const colab = colaboradoresList.find(c => c.id === colaboradorId);
@@ -2337,7 +2335,7 @@
         }
 
         // ==========================================
-        // 18. UPLOAD DE FOTO DE PERFIL
+        // 19. UPLOAD DE FOTO DE PERFIL
         // ==========================================
         function uploadFotoPerfil(file) {
             if (!file) return;
@@ -2394,7 +2392,7 @@
         }
 
         // ==========================================
-        // 19. REMOVER FOTO DE PERFIL
+        // 20. REMOVER FOTO DE PERFIL
         // ==========================================
         function removerFotoPerfil() {
             colaboradorAtual.photoUrl = null;
@@ -2421,7 +2419,7 @@
         }
 
         // ==========================================
-        // 20. UPLOAD DE FOTOS DO PORTFÓLIO
+        // 21. UPLOAD DE FOTOS DO PORTFÓLIO
         // ==========================================
         function uploadFotosPortfolio(files) {
             const totalFotos = portfolioFotos.length + files.length;
@@ -2479,7 +2477,7 @@
         }
 
         // ==========================================
-        // 21. ATUALIZAR UI DO PORTFÓLIO
+        // 22. ATUALIZAR UI DO PORTFÓLIO
         // ==========================================
         function atualizarPortfolioUI() {
             const container = document.getElementById('portfolioContainer');
@@ -2515,7 +2513,7 @@
         }
 
         // ==========================================
-        // 22. REMOVER FOTO DO PORTFÓLIO
+        // 23. REMOVER FOTO DO PORTFÓLIO
         // ==========================================
         function removerFotoPortfolio(index) {
             Swal.fire({
@@ -2537,7 +2535,7 @@
         }
 
         // ==========================================
-        // 23. EDITAR LEGENDA DA FOTO
+        // 24. EDITAR LEGENDA DA FOTO
         // ==========================================
         function editarLegendaFoto(index) {
             const foto = portfolioFotos[index];
@@ -2562,7 +2560,7 @@
         }
 
         // ==========================================
-        // 24. VISUALIZAR FOTO DO PORTFÓLIO
+        // 25. VISUALIZAR FOTO DO PORTFÓLIO
         // ==========================================
         function visualizarFotoPortfolio(index) {
             const foto = portfolioFotos[index];
@@ -2576,7 +2574,7 @@
         }
 
         // ==========================================
-        // 25. SALVAR COLABORADOR
+        // 26. SALVAR COLABORADOR
         // ==========================================
         function salvarColaborador() {
             const id = document.getElementById('colaboradorId')?.value || null;
@@ -2643,7 +2641,7 @@
         }
 
         // ==========================================
-        // 26. EXCLUIR COLABORADOR
+        // 27. EXCLUIR COLABORADOR
         // ==========================================
         function excluirColaborador(colaboradorId) {
             Swal.fire({
@@ -2675,7 +2673,7 @@
         }
 
         // ==========================================
-        // 27. FUNÇÕES DE BUSCA E FILTRO
+        // 28. FUNÇÕES DE BUSCA E FILTRO
         // ==========================================
         document.getElementById('searchColaborador')?.addEventListener('input', function() {
             searchTerm = this.value;
@@ -2692,7 +2690,7 @@
         });
 
         // ==========================================
-        // 28. FUNÇÕES DE NAVEGAÇÃO
+        // 29. FUNÇÕES DE NAVEGAÇÃO
         // ==========================================
         function goHome() {
             try {
@@ -2708,7 +2706,7 @@
         }
 
         // ==========================================
-        // 29. FUNÇÕES AUXILIARES
+        // 30. FUNÇÕES AUXILIARES
         // ==========================================
         function formatCurrency(value) {
             if (typeof value !== 'number') value = parseFloat(value) || 0;
@@ -2761,7 +2759,7 @@
         }
 
         // ==========================================
-        // 30. EXPOR FUNÇÕES GLOBAIS
+        // 31. EXPOR FUNÇÕES GLOBAIS
         // ==========================================
         window.goHome = goHome;
         window.recarregarColaboradores = recarregarColaboradores;
@@ -2779,14 +2777,14 @@
         window.limparPeriodo = limparPeriodo;
 
         // ==========================================
-        // 31. LOG DE INICIALIZAÇÃO
+        // 32. LOG DE INICIALIZAÇÃO
         // ==========================================
         console.log('✅ Colaboradores carregado com sucesso!');
         console.log('📌 Funcionalidades:');
         console.log('   - Estatísticas com dados REAIS do sistema');
         console.log('   - Período: Hoje, Semana, Mês, Último Mês, Ano');
         console.log('   - Botão Aplicar na cor VERDE');
-        console.log('   - Período NÃO recarrega a página');
+        console.log('   - Período NÃO recarrega a página - APENAS atualiza estatísticas');
         console.log('   - Bloqueio de deslize lateral em mobile');
         console.log('   - Portfólio com upload funcional');
 
