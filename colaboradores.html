@@ -202,7 +202,7 @@
         }
 
         /* ============================================
-           CARDS DOS COLABORADORES - BLOQUEIO DE DESLIZE
+           CARDS DOS COLABORADORES
            ============================================ */
         .colaborador-card {
             background: white;
@@ -1246,12 +1246,15 @@
         // Variáveis para período
         let periodoInicio = null;
         let periodoFim = null;
+        
+        // Cache de serviços para estatísticas
+        let allServices = [];
+        let allProductSales = [];
 
         // ==========================================
         // 3. INICIALIZAÇÃO
         // ==========================================
         document.addEventListener('DOMContentLoaded', function() {
-            // Definir período padrão (mês atual)
             const hoje = new Date();
             const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
             periodoInicio = inicioMes;
@@ -1262,7 +1265,7 @@
                     currentUser = user;
                     console.log('✅ Usuário autenticado:', user.email);
                     carregarConfiguracoes();
-                    carregarColaboradores();
+                    carregarTodosOsDados();
                 } else {
                     mostrarLoginPrompt();
                 }
@@ -1270,7 +1273,64 @@
         });
 
         // ==========================================
-        // 4. RECEBER CONFIGURAÇÕES DA PÁGINA PRINCIPAL
+        // 4. CARREGAR TODOS OS DADOS DO SISTEMA
+        // ==========================================
+        async function carregarTodosOsDados() {
+            try {
+                await carregarServicos();
+                await carregarVendasProdutos();
+                await carregarColaboradores();
+            } catch (error) {
+                console.error('Erro ao carregar dados:', error);
+            }
+        }
+
+        function carregarServicos() {
+            return new Promise((resolve) => {
+                if (!currentUser) { resolve(); return; }
+                
+                db.collection('services')
+                    .where('userId', '==', currentUser.uid)
+                    .get()
+                    .then(snapshot => {
+                        allServices = [];
+                        snapshot.forEach(doc => {
+                            allServices.push({ id: doc.id, ...doc.data() });
+                        });
+                        console.log('✅ Serviços carregados:', allServices.length);
+                        resolve();
+                    })
+                    .catch(error => {
+                        console.error('Erro ao carregar serviços:', error);
+                        resolve();
+                    });
+            });
+        }
+
+        function carregarVendasProdutos() {
+            return new Promise((resolve) => {
+                if (!currentUser) { resolve(); return; }
+                
+                db.collection('productSales')
+                    .where('userId', '==', currentUser.uid)
+                    .get()
+                    .then(snapshot => {
+                        allProductSales = [];
+                        snapshot.forEach(doc => {
+                            allProductSales.push({ id: doc.id, ...doc.data() });
+                        });
+                        console.log('✅ Vendas de produtos carregadas:', allProductSales.length);
+                        resolve();
+                    })
+                    .catch(error => {
+                        console.error('Erro ao carregar vendas de produtos:', error);
+                        resolve();
+                    });
+            });
+        }
+
+        // ==========================================
+        // 5. RECEBER CONFIGURAÇÕES DA PÁGINA PRINCIPAL
         // ==========================================
         window.addEventListener('message', function(event) {
             if (event.data && event.data.type === 'configUpdated') {
@@ -1289,7 +1349,7 @@
         }
 
         // ==========================================
-        // 5. CARREGAR CONFIGURAÇÕES
+        // 6. CARREGAR CONFIGURAÇÕES
         // ==========================================
         function carregarConfiguracoes() {
             carregarConfiguracoesLocal();
@@ -1324,7 +1384,7 @@
         }
 
         // ==========================================
-        // 6. APLICAR CONFIGURAÇÕES
+        // 7. APLICAR CONFIGURAÇÕES
         // ==========================================
         function aplicarConfiguracoes() {
             const root = document.documentElement;
@@ -1367,7 +1427,7 @@
         }
 
         // ==========================================
-        // 7. LOGO
+        // 8. LOGO
         // ==========================================
         function atualizarLogo() {
             const logoIcon = document.getElementById('logoIcon');
@@ -1384,7 +1444,7 @@
         }
 
         // ==========================================
-        // 8. CARREGAR COLABORADORES
+        // 9. CARREGAR COLABORADORES
         // ==========================================
         function carregarColaboradores() {
             if (!currentUser) return;
@@ -1430,7 +1490,7 @@
         }
 
         // ==========================================
-        // 9. RENDERIZAR COLABORADORES
+        // 10. RENDERIZAR COLABORADORES
         // ==========================================
         function renderizarColaboradores() {
             const grid = document.getElementById('colaboradoresGrid');
@@ -1530,14 +1590,18 @@
         }
 
         // ==========================================
-        // 10. ABRIR PERFIL DO COLABORADOR (TELA CHEIA)
+        // 11. ABRIR PERFIL DO COLABORADOR (TELA CHEIA)
         // ==========================================
-        function abrirPerfilColaborador(colaboradorId, modoEdicao = false) {
+        async function abrirPerfilColaborador(colaboradorId, modoEdicao = false) {
             const colab = colaboradoresList.find(c => c.id === colaboradorId);
             if (!colab) {
                 showToast('Colaborador não encontrado.', 'error');
                 return;
             }
+
+            // Recarregar serviços para garantir dados atualizados
+            await carregarServicos();
+            await carregarVendasProdutos();
 
             colaboradorAtual = colab;
             isEditando = modoEdicao;
@@ -1548,8 +1612,8 @@
 
             modalTitle.innerHTML = `<i class="fas fa-user-circle me-2"></i>${modoEdicao ? 'Editar' : 'Perfil'} - ${colab.name || 'Colaborador'}`;
 
-            // Calcular estatísticas com período
-            const stats = calcularEstatisticasColaborador(colaboradorId);
+            // Calcular estatísticas com dados reais
+            const stats = calcularEstatisticasColaboradorReais(colaboradorId);
 
             modalBody.innerHTML = gerarFormularioColaborador(colab, stats, modoEdicao);
 
@@ -1565,7 +1629,133 @@
         }
 
         // ==========================================
-        // 11. GERAR FORMULÁRIO DO COLABORADOR
+        // 12. CALCULAR ESTATÍSTICAS REAIS DO COLABORADOR
+        // ==========================================
+        function calcularEstatisticasColaboradorReais(colaboradorId) {
+            const hoje = new Date();
+            const hojeStr = hoje.toISOString().split('T')[0];
+            
+            const inicioSemana = new Date(hoje);
+            inicioSemana.setDate(hoje.getDate() - hoje.getDay() + (hoje.getDay() === 0 ? -6 : 1));
+            inicioSemana.setHours(0, 0, 0, 0);
+            
+            const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+            inicioMes.setHours(0, 0, 0, 0);
+
+            // Usar o período selecionado ou o padrão (mês atual)
+            const inicio = periodoInicio || inicioMes;
+            const fim = periodoFim || hoje;
+
+            // Filtrar serviços do colaborador no período
+            const servicosColaborador = allServices.filter(s => {
+                if (!s.date) return false;
+                if (s.collaboratorId !== colaboradorId) return false;
+                const data = new Date(s.date);
+                return data >= inicio && data <= fim;
+            });
+
+            // Calcular estatísticas
+            let totalServicos = servicosColaborador.length;
+            let totalBruto = 0;
+            let totalComissao = 0;
+            let totalSalao = 0;
+
+            // Buscar o colaborador para obter os percentuais
+            const colab = colaboradoresList.find(c => c.id === colaboradorId);
+            const percManual = parseFloat(colab?.manualPercent || 0);
+            const percProduct = parseFloat(colab?.productPercent || 0);
+
+            servicosColaborador.forEach(service => {
+                const valor = parseFloat(service.value || 0);
+                totalBruto += valor;
+
+                let perc = 0;
+                if (service.type === 'manual') {
+                    perc = percManual;
+                } else if (service.type === 'product') {
+                    perc = percProduct;
+                }
+                totalComissao += valor * (perc / 100);
+                totalSalao += valor * ((100 - perc) / 100);
+            });
+
+            // Estatísticas por período (Hoje, Semana, Mês)
+            let hojeBruto = 0;
+            let semanaBruto = 0;
+            let mesBruto = 0;
+            let totalGeral = 0;
+
+            // Todos os serviços do colaborador (sem filtro de período)
+            const todosServicosColaborador = allServices.filter(s => {
+                if (!s.date) return false;
+                return s.collaboratorId === colaboradorId;
+            });
+
+            todosServicosColaborador.forEach(s => {
+                const valor = parseFloat(s.value || 0);
+                totalGeral += valor;
+            });
+
+            // Hoje
+            const servicosHoje = allServices.filter(s => {
+                if (!s.date) return false;
+                if (s.collaboratorId !== colaboradorId) return false;
+                return s.date === hojeStr;
+            });
+            servicosHoje.forEach(s => {
+                hojeBruto += parseFloat(s.value || 0);
+            });
+
+            // Semana
+            const servicosSemana = allServices.filter(s => {
+                if (!s.date) return false;
+                if (s.collaboratorId !== colaboradorId) return false;
+                const data = new Date(s.date);
+                return data >= inicioSemana && data <= hoje;
+            });
+            servicosSemana.forEach(s => {
+                semanaBruto += parseFloat(s.value || 0);
+            });
+
+            // Mês
+            const servicosMes = allServices.filter(s => {
+                if (!s.date) return false;
+                if (s.collaboratorId !== colaboradorId) return false;
+                const data = new Date(s.date);
+                return data >= inicioMes && data <= hoje;
+            });
+            servicosMes.forEach(s => {
+                mesBruto += parseFloat(s.value || 0);
+            });
+
+            // Adicionar vendas de produtos (se houver)
+            const vendasColaborador = allProductSales.filter(s => {
+                if (!s.date) return false;
+                if (s.colaboradorId !== colaboradorId) return false;
+                const data = new Date(s.date);
+                return data >= inicio && data <= fim;
+            });
+
+            vendasColaborador.forEach(s => {
+                const valor = parseFloat(s.totalValue || 0);
+                totalBruto += valor;
+                totalSalao += valor; // 100% para o salão em produtos
+            });
+
+            return {
+                totalServicos: totalServicos + vendasColaborador.length,
+                totalBruto: totalBruto,
+                totalComissao: totalComissao,
+                totalSalao: totalSalao,
+                hojeBruto: hojeBruto,
+                semanaBruto: semanaBruto,
+                mesBruto: mesBruto,
+                totalGeral: totalGeral
+            };
+        }
+
+        // ==========================================
+        // 13. GERAR FORMULÁRIO DO COLABORADOR
         // ==========================================
         function gerarFormularioColaborador(colab, stats, modoEdicao) {
             const isEdit = modoEdicao || colab.id;
@@ -1590,12 +1780,12 @@
 
             // Portfolio
             let portfolioHtml = '';
-            if (portfolioFotos.length > 0) {
+            if (portfolioFotos && portfolioFotos.length > 0) {
                 portfolioHtml = `
                     <div class="portfolio-grid">
                         ${portfolioFotos.map((foto, index) => `
                             <div class="portfolio-item" onclick="visualizarFotoPortfolio(${index})">
-                                <img src="${foto.url}" alt="Foto ${index+1}">
+                                <img src="${foto.url}" alt="Foto ${index+1}" onerror="this.style.display='none'">
                                 ${isEdit ? `<button class="portfolio-remove" onclick="event.stopPropagation(); removerFotoPortfolio(${index})"><i class="fas fa-times"></i></button>` : ''}
                                 <div class="portfolio-overlay">
                                     <span style="color:white;font-size:0.6rem;font-weight:500;">${foto.legenda || 'Sem legenda'}</span>
@@ -1728,7 +1918,7 @@
                         </div>
                     </div>
 
-                    <!-- ESTATÍSTICAS DO PERÍODO -->
+                    <!-- ESTATÍSTICAS DO PERÍODO - COM DADOS REAIS -->
                     ${stats ? `
                     <div class="row mb-3">
                         <div class="col-md-12">
@@ -1801,45 +1991,7 @@
         }
 
         // ==========================================
-        // 12. CALCULAR ESTATÍSTICAS DO COLABORADOR
-        // ==========================================
-        function calcularEstatisticasColaborador(colaboradorId) {
-            // Buscar serviços do colaborador
-            // Simulação com dados aleatórios
-            const hoje = new Date();
-            const hojeStr = hoje.toISOString().split('T')[0];
-            const inicioSemana = new Date(hoje);
-            inicioSemana.setDate(hoje.getDate() - hoje.getDay() + (hoje.getDay() === 0 ? -6 : 1));
-            inicioSemana.setHours(0, 0, 0, 0);
-            const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-
-            // Usar o período selecionado ou o padrão
-            const inicio = periodoInicio || inicioMes;
-            const fim = periodoFim || hoje;
-
-            // Simular dados
-            const servicos = Math.floor(Math.random() * 50);
-            const valorMedio = Math.random() * 80 + 20;
-            const totalBruto = servicos * valorMedio;
-            const colab = colaboradoresList.find(c => c.id === colaboradorId);
-            const perc = (colab?.manualPercent || 0) / 100;
-            const totalComissao = totalBruto * perc;
-            const totalSalao = totalBruto - totalComissao;
-
-            return {
-                totalServicos: servicos,
-                totalBruto: totalBruto,
-                totalComissao: totalComissao,
-                totalSalao: totalSalao,
-                hojeBruto: Math.floor(Math.random() * 200),
-                semanaBruto: Math.floor(Math.random() * 800),
-                mesBruto: Math.floor(Math.random() * 2000),
-                totalGeral: totalBruto + Math.floor(Math.random() * 3000)
-            };
-        }
-
-        // ==========================================
-        // 13. FUNÇÕES DE PERÍODO
+        // 14. FUNÇÕES DE PERÍODO
         // ==========================================
         function setPeriod(tipo) {
             const hoje = new Date();
@@ -1885,7 +2037,7 @@
             periodoFim = fim;
             atualizarCamposPeriodo();
             if (colaboradorAtual && colaboradorAtual.id) {
-                const stats = calcularEstatisticasColaborador(colaboradorAtual.id);
+                const stats = calcularEstatisticasColaboradorReais(colaboradorAtual.id);
                 atualizarEstatisticasModal(stats);
             }
         }
@@ -1907,7 +2059,7 @@
                 periodoInicio = inicio;
                 periodoFim = fim;
                 if (colaboradorAtual && colaboradorAtual.id) {
-                    const stats = calcularEstatisticasColaborador(colaboradorAtual.id);
+                    const stats = calcularEstatisticasColaboradorReais(colaboradorAtual.id);
                     atualizarEstatisticasModal(stats);
                     showToast('Período aplicado!', 'success');
                 }
@@ -1921,7 +2073,7 @@
             periodoFim = hoje;
             atualizarCamposPeriodo();
             if (colaboradorAtual && colaboradorAtual.id) {
-                const stats = calcularEstatisticasColaborador(colaboradorAtual.id);
+                const stats = calcularEstatisticasColaboradorReais(colaboradorAtual.id);
                 atualizarEstatisticasModal(stats);
                 showToast('Período limpo!', 'success');
             }
@@ -1979,7 +2131,7 @@
         }
 
         // ==========================================
-        // 14. CONFIGURAR EVENTOS DE EDIÇÃO
+        // 15. CONFIGURAR EVENTOS DE EDIÇÃO
         // ==========================================
         function configurarEventosEdicao() {
             document.getElementById('fotoUpload')?.addEventListener('change', function(e) {
@@ -2001,7 +2153,6 @@
                 }
             });
 
-            // Eventos do período
             document.querySelectorAll('.period-buttons button').forEach(btn => {
                 btn.addEventListener('click', function() {
                     document.querySelectorAll('.period-buttons button').forEach(b => b.classList.remove('active'));
@@ -2021,7 +2172,7 @@
         }
 
         // ==========================================
-        // 15. ABRIR MODAL NOVO COLABORADOR
+        // 16. ABRIR MODAL NOVO COLABORADOR
         // ==========================================
         function abrirModalNovoColaborador() {
             const novoColab = {
@@ -2061,7 +2212,7 @@
         }
 
         // ==========================================
-        // 16. EDITAR COLABORADOR
+        // 17. EDITAR COLABORADOR
         // ==========================================
         function editarColaborador(colaboradorId) {
             const colab = colaboradoresList.find(c => c.id === colaboradorId);
@@ -2073,7 +2224,7 @@
         }
 
         // ==========================================
-        // 17. UPLOAD DE FOTO DE PERFIL
+        // 18. UPLOAD DE FOTO DE PERFIL
         // ==========================================
         function uploadFotoPerfil(file) {
             if (!file) return;
@@ -2130,7 +2281,7 @@
         }
 
         // ==========================================
-        // 18. REMOVER FOTO DE PERFIL
+        // 19. REMOVER FOTO DE PERFIL
         // ==========================================
         function removerFotoPerfil() {
             colaboradorAtual.photoUrl = null;
@@ -2157,7 +2308,7 @@
         }
 
         // ==========================================
-        // 19. UPLOAD DE FOTOS DO PORTFÓLIO
+        // 20. UPLOAD DE FOTOS DO PORTFÓLIO - CORRIGIDO
         // ==========================================
         function uploadFotosPortfolio(files) {
             const totalFotos = portfolioFotos.length + files.length;
@@ -2215,7 +2366,7 @@
         }
 
         // ==========================================
-        // 20. ATUALIZAR UI DO PORTFÓLIO
+        // 21. ATUALIZAR UI DO PORTFÓLIO
         // ==========================================
         function atualizarPortfolioUI() {
             const container = document.getElementById('portfolioContainer');
@@ -2236,7 +2387,7 @@
                 <div class="portfolio-grid">
                     ${portfolioFotos.map((foto, index) => `
                         <div class="portfolio-item" onclick="visualizarFotoPortfolio(${index})">
-                            <img src="${foto.url}" alt="Foto ${index+1}">
+                            <img src="${foto.url}" alt="Foto ${index+1}" onerror="this.style.display='none'">
                             <button class="portfolio-remove" onclick="event.stopPropagation(); removerFotoPortfolio(${index})"><i class="fas fa-times"></i></button>
                             <div class="portfolio-overlay">
                                 <span style="color:white;font-size:0.6rem;font-weight:500;">${foto.legenda || 'Sem legenda'}</span>
@@ -2251,7 +2402,7 @@
         }
 
         // ==========================================
-        // 21. REMOVER FOTO DO PORTFÓLIO
+        // 22. REMOVER FOTO DO PORTFÓLIO
         // ==========================================
         function removerFotoPortfolio(index) {
             Swal.fire({
@@ -2273,7 +2424,7 @@
         }
 
         // ==========================================
-        // 22. EDITAR LEGENDA DA FOTO
+        // 23. EDITAR LEGENDA DA FOTO
         // ==========================================
         function editarLegendaFoto(index) {
             const foto = portfolioFotos[index];
@@ -2298,7 +2449,7 @@
         }
 
         // ==========================================
-        // 23. VISUALIZAR FOTO DO PORTFÓLIO
+        // 24. VISUALIZAR FOTO DO PORTFÓLIO
         // ==========================================
         function visualizarFotoPortfolio(index) {
             const foto = portfolioFotos[index];
@@ -2312,7 +2463,7 @@
         }
 
         // ==========================================
-        // 24. SALVAR COLABORADOR
+        // 25. SALVAR COLABORADOR
         // ==========================================
         function salvarColaborador() {
             const id = document.getElementById('colaboradorId')?.value || null;
@@ -2379,7 +2530,7 @@
         }
 
         // ==========================================
-        // 25. EXCLUIR COLABORADOR
+        // 26. EXCLUIR COLABORADOR
         // ==========================================
         function excluirColaborador(colaboradorId) {
             Swal.fire({
@@ -2411,7 +2562,7 @@
         }
 
         // ==========================================
-        // 26. FUNÇÕES DE BUSCA E FILTRO
+        // 27. FUNÇÕES DE BUSCA E FILTRO
         // ==========================================
         document.getElementById('searchColaborador')?.addEventListener('input', function() {
             searchTerm = this.value;
@@ -2428,7 +2579,7 @@
         });
 
         // ==========================================
-        // 27. FUNÇÕES DE NAVEGAÇÃO
+        // 28. FUNÇÕES DE NAVEGAÇÃO
         // ==========================================
         function goHome() {
             try {
@@ -2439,12 +2590,12 @@
         }
 
         function recarregarColaboradores() {
-            carregarColaboradores();
-            showToast('Colaboradores recarregados!', 'success');
+            carregarTodosOsDados();
+            showToast('Dados recarregados!', 'success');
         }
 
         // ==========================================
-        // 28. FUNÇÕES AUXILIARES
+        // 29. FUNÇÕES AUXILIARES
         // ==========================================
         function formatCurrency(value) {
             if (typeof value !== 'number') value = parseFloat(value) || 0;
@@ -2497,7 +2648,7 @@
         }
 
         // ==========================================
-        // 29. EXPOR FUNÇÕES GLOBAIS
+        // 30. EXPOR FUNÇÕES GLOBAIS
         // ==========================================
         window.goHome = goHome;
         window.recarregarColaboradores = recarregarColaboradores;
@@ -2515,18 +2666,16 @@
         window.limparPeriodo = limparPeriodo;
 
         // ==========================================
-        // 30. LOG DE INICIALIZAÇÃO
+        // 31. LOG DE INICIALIZAÇÃO
         // ==========================================
         console.log('✅ Colaboradores carregado com sucesso!');
         console.log('📌 Funcionalidades:');
-        console.log('   - Lista de colaboradores com cards (bloqueio de deslize)');
-        console.log('   - Perfil completo em tela cheia');
-        console.log('   - Adicionar/Editar/Excluir colaboradores');
-        console.log('   - Portfólio com até 10 fotos');
-        console.log('   - Estatísticas com período selecionável');
-        console.log('   - Calendário para selecionar período');
-        console.log('   - Total Geral, Mês, Semana, Hoje');
-        console.log('   - Integração com configurações do sistema');
+        console.log('   - Estatísticas com dados REAIS do sistema');
+        console.log('   - Busca serviços do Firestore');
+        console.log('   - Cálculo de comissões baseado nos percentuais');
+        console.log('   - Portfólio com upload funcional');
+        console.log('   - Perfil em tela cheia');
+        console.log('   - Calendário de período com dados reais');
 
     </script>
 
