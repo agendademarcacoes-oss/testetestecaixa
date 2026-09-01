@@ -1025,7 +1025,7 @@
             return String(texto)
                 .normalize('NFD')
                 .replace(/[\u0300-\u036f]/g, '')
-                .replace(/[^a-zA-Z0-9\s\-\.\,\'\"]/g, '')
+                .replace(/[^a-zA-Z0-9\s\-\.\,\/\'\"]/g, '')
                 .replace(/Ø/g, 'O')
                 .replace(/ø/g, 'o')
                 .replace(/Ü/g, 'U')
@@ -1564,20 +1564,27 @@
 
                 case 'monthly':
                     const monthInput = document.getElementById('monthStart');
-                    if (monthInput) {
-                        const start = monthInput.dataset.start;
-                        const end = monthInput.dataset.end;
-                        if (start && end) {
-                            dataInicio = new Date(start);
-                            dataInicio.setHours(0, 0, 0, 0);
-                            dataFim = new Date(end);
-                            dataFim.setHours(23, 59, 59, 999);
-                        } else {
-                            showToast('Selecione um mes valido.', 'error');
-                            return;
-                        }
+                    if (monthInput && monthInput.value) {
+                        const [year, month] = monthInput.value.split('-').map(Number);
+
+                        // O relatorio mensal SEMPRE começa no dia 01
+                        // e termina no ultimo dia do mes selecionado.
+                        dataInicio = new Date(year, month - 1, 1, 0, 0, 0, 0);
+                        dataFim = new Date(year, month, 0, 23, 59, 59, 999);
+
+                        // Mantem os limites disponiveis no formulario.
+                        monthInput.dataset.start = [
+                            year,
+                            String(month).padStart(2, '0'),
+                            '01'
+                        ].join('-');
+                        monthInput.dataset.end = [
+                            year,
+                            String(month).padStart(2, '0'),
+                            String(new Date(year, month, 0).getDate()).padStart(2, '0')
+                        ].join('-');
                     } else {
-                        showToast('Erro ao obter o mes selecionado.', 'error');
+                        showToast('Selecione um mes valido.', 'error');
                         return;
                     }
                     break;
@@ -1899,9 +1906,10 @@
         // ==========================================
         function gerarRelatorioServicosProdutos(doc, y, pageW, dataInicio, dataFim, tipo) {
             const margin = MARGIN_PADRAO;
-            
-            let servicos = dadosCache.services;
-            let produtos = dadosCache.productSales;
+            const pageH = doc.internal.pageSize.getHeight();
+
+            let servicos = [...dadosCache.services];
+            let produtos = [...dadosCache.productSales];
 
             if (dataInicio && dataFim) {
                 servicos = servicos.filter(s => {
@@ -1952,13 +1960,18 @@
             doc.line(margin, y, pageW - margin, y);
             y += 16;
 
+            // =========================================================
+            // SERVICOS: NUNCA LIMITAR A 50.
+            // No mensal, exibe TODOS os servicos do mes.
+            // No anual, exibe TODOS os servicos, separados por mes.
+            // =========================================================
             if (servicos.length > 0) {
                 doc.setFontSize(12);
                 doc.setTextColor(38, 25, 107);
                 doc.text('Servicos Realizados', margin, y);
                 y += 16;
 
-                const serviceData = servicos.slice(0, 50).map(s => {
+                const criarLinhaServico = s => {
                     const client = dadosCache.clients.find(c => c.id === s.clientId);
                     const collaborator = dadosCache.collaborators.find(c => c.id === s.collaboratorId);
                     return [
@@ -1968,12 +1981,9 @@
                         collaborator ? limparTexto(collaborator.name) : 'Nao informado',
                         formatCurrency(numero(s, ['value','valor','price']))
                     ];
-                });
+                };
 
-                doc.autoTable({
-                    startY: y,
-                    head: [['Data', 'Cliente', 'Servico', 'Colaborador', 'Valor']],
-                    body: serviceData,
+                const opcoesTabelaServicos = {
                     theme: 'striped',
                     headStyles: { fillColor: [38, 25, 107] },
                     styles: { fontSize: 8 },
@@ -1984,29 +1994,93 @@
                         3: { cellWidth: 80 },
                         4: { cellWidth: 60 }
                     }
-                });
+                };
 
-                y = doc.lastAutoTable.finalY + 10;
+                if (tipo === 'yearly') {
+                    const nomesMeses = [
+                        'Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho',
+                        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+                    ];
 
-                if (servicos.length > 50) {
-                    doc.setFontSize(8);
-                    doc.setTextColor(150, 150, 170);
-                    doc.text(`* Exibindo os 50 primeiros servicos de ${servicos.length}`, margin, y);
-                    y += 14;
+                    // Agrupa TODOS os servicos do ano por mes.
+                    const servicosPorMes = Array.from({ length: 12 }, () => []);
+                    servicos.forEach(s => {
+                        const d = dataRegistro(s);
+                        if (d) {
+                            servicosPorMes[d.getMonth()].push(s);
+                        }
+                    });
+
+                    const anoRelatorio = dataInicio ? dataInicio.getFullYear() : new Date().getFullYear();
+
+                    for (let mes = 0; mes < 12; mes++) {
+                        const servicosMes = servicosPorMes[mes];
+
+                        // Nao cria secoes vazias; todos os meses que possuem
+                        // servicos aparecem com seu respectivo detalhamento.
+                        if (servicosMes.length === 0) continue;
+
+                        if (y > pageH - 80) {
+                            doc.addPage();
+                            y = margin;
+                        }
+
+                        doc.setFontSize(11);
+                        doc.setTextColor(38, 25, 107);
+                        doc.text(`${nomesMeses[mes]} de ${anoRelatorio} - ${servicosMes.length} servico(s)`, margin, y);
+                        y += 14;
+
+                        const serviceData = servicosMes.map(criarLinhaServico);
+
+                        doc.autoTable({
+                            startY: y,
+                            head: [['Data', 'Cliente', 'Servico', 'Colaborador', 'Valor']],
+                            body: serviceData,
+                            ...opcoesTabelaServicos
+                        });
+
+                        y = doc.lastAutoTable.finalY + 12;
+                    }
+                } else {
+                    // Mensal, diario, semanal e personalizado:
+                    // TODOS os servicos do periodo, sem slice/limite.
+                    const serviceData = servicos.map(criarLinhaServico);
+
+                    doc.autoTable({
+                        startY: y,
+                        head: [['Data', 'Cliente', 'Servico', 'Colaborador', 'Valor']],
+                        body: serviceData,
+                        ...opcoesTabelaServicos
+                    });
+
+                    y = doc.lastAutoTable.finalY + 10;
                 }
 
                 y += 6;
                 doc.line(margin, y, pageW - margin, y);
                 y += 16;
+            } else {
+                doc.setFontSize(10);
+                doc.setTextColor(150, 150, 170);
+                doc.text('Nenhum servico encontrado no periodo.', margin, y);
+                y += 20;
             }
 
+            // =========================================================
+            // PRODUTOS: tambem sem limite artificial de 50 registros.
+            // =========================================================
             if (produtos.length > 0) {
+                if (y > pageH - 100) {
+                    doc.addPage();
+                    y = margin;
+                }
+
                 doc.setFontSize(12);
                 doc.setTextColor(38, 25, 107);
                 doc.text('Produtos Vendidos', margin, y);
                 y += 16;
 
-                const productData = produtos.slice(0, 50).map(p => {
+                const productData = produtos.map(p => {
                     const product = dadosCache.products.find(pr => pr.id === p.productId);
                     const client = p.clientId ? dadosCache.clients.find(c => c.id === p.clientId) : null;
                     return [
@@ -2035,13 +2109,6 @@
                 });
 
                 y = doc.lastAutoTable.finalY + 10;
-
-                if (produtos.length > 50) {
-                    doc.setFontSize(8);
-                    doc.setTextColor(150, 150, 170);
-                    doc.text(`* Exibindo os 50 primeiros produtos de ${produtos.length}`, margin, y);
-                    y += 14;
-                }
             }
 
             return y;
@@ -2136,7 +2203,7 @@
                 doc.text('Servicos Realizados', margin, y);
                 y += 16;
 
-                const serviceData = servicos.slice(0, 50).map(s => {
+                const serviceData = servicos.map(s => {
                     const client = dadosCache.clients.find(c => c.id === s.clientId);
                     const valor = numero(s, ['value','valor','price']);
                     const tipo = String(s.type || s.tipo || 'manual').toLowerCase();
@@ -2169,12 +2236,6 @@
 
                 y = doc.lastAutoTable.finalY + 10;
 
-                if (servicos.length > 50) {
-                    doc.setFontSize(8);
-                    doc.setTextColor(150, 150, 170);
-                    doc.text(`* Exibindo os 50 primeiros servicos de ${servicos.length}`, margin, y);
-                    y += 14;
-                }
             } else {
                 doc.setFontSize(10);
                 doc.setTextColor(150, 150, 170);
