@@ -23,6 +23,8 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- jsPDF para relatórios em PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     
     <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -783,6 +785,9 @@
             <button class="btn-refresh" id="refreshBtn" onclick="recarregarDados()">
                 <i class="fas fa-sync-alt me-1"></i>Atualizar
             </button>
+            <button class="btn-refresh" id="pdfReportBtn" type="button">
+                <i class="fas fa-file-pdf me-1"></i>PDF
+            </button>
             <button class="btn-home" onclick="goHome()">
                 <i class="fas fa-home"></i>
                 <span>Home</span>
@@ -1253,6 +1258,38 @@
     ========================================== -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     
+    <!-- ==========================================
+    MODAL RELATÓRIO PDF DO COLABORADOR
+    ========================================== -->
+    <div class="modal fade" id="collaboratorPdfModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-file-pdf me-2"></i>Relatório PDF do Colaborador</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Selecionar colaborador</label>
+                        <select class="form-select" id="pdfCollaboratorSelect">
+                            <option value="">Selecione um colaborador</option>
+                        </select>
+                    </div>
+                    <div class="alert alert-info mb-0">
+                        <i class="fas fa-info-circle me-1"></i>
+                        O relatório usa as vendas e os pagamentos registrados no dia atual.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger" id="generateCollaboratorPdfBtn">
+                        <i class="fas fa-file-pdf me-1"></i>Gerar PDF
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         // ==========================================
         // 1. CONFIGURAÇÃO DO FIREBASE
@@ -2295,6 +2332,15 @@
                     document.getElementById('userGreeting').textContent = 'Não autenticado';
                     mostrarLoginPrompt();
                 }
+            });
+
+            // Evento - Relatório PDF do Colaborador
+            document.getElementById('pdfReportBtn').addEventListener('click', function() {
+                abrirRelatorioPdfColaborador();
+            });
+
+            document.getElementById('generateCollaboratorPdfBtn').addEventListener('click', function() {
+                gerarPdfColaborador();
             });
 
             // Eventos - Caixa
@@ -3857,6 +3903,208 @@
             const date = new Date(dateStr);
             if (isNaN(date)) return dateStr;
             return date.toLocaleDateString('pt-PT');
+        }
+
+        // ==========================================
+        // RELATÓRIO PDF - NOVAS FUNÇÕES
+        // ==========================================
+        function abrirRelatorioPdfColaborador() {
+            const select = document.getElementById('pdfCollaboratorSelect');
+            select.innerHTML = '<option value="">Selecione um colaborador</option>';
+
+            collaborators
+                .slice()
+                .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+                .forEach(collab => {
+                    const option = document.createElement('option');
+                    option.value = collab.id;
+                    option.textContent = collab.name || 'Colaborador';
+                    select.appendChild(option);
+                });
+
+            const modal = new bootstrap.Modal(document.getElementById('collaboratorPdfModal'));
+            modal.show();
+        }
+
+        function gerarPdfColaborador() {
+            const collaboratorId = document.getElementById('pdfCollaboratorSelect').value;
+            if (!collaboratorId) {
+                Swal.fire('Aviso', 'Selecione um colaborador.', 'warning');
+                return;
+            }
+
+            const collaborator = collaborators.find(c => c.id === collaboratorId);
+            if (!collaborator) {
+                Swal.fire('Erro', 'Colaborador não encontrado.', 'error');
+                return;
+            }
+
+            if (!window.jspdf || !window.jspdf.jsPDF) {
+                Swal.fire('Erro', 'A biblioteca para gerar PDF não foi carregada.', 'error');
+                return;
+            }
+
+            const hoje = new Date().toISOString().split('T')[0];
+            const vendasColaborador = todaySales.filter(s =>
+                s.tipo === 'service' &&
+                !s.isPackage &&
+                s.collaboratorId === collaboratorId
+            );
+
+            const vendasTotal = vendasColaborador.reduce((sum, sale) => {
+                return sum + parseFloat(sale.valorOriginal || sale.value || 0);
+            }, 0);
+
+            let comissaoTotal = 0;
+            vendasColaborador.forEach(sale => {
+                const percentual = sale.type === 'manual'
+                    ? parseFloat(collaborator.manualPercent || 0)
+                    : parseFloat(collaborator.productPercent || 0);
+                const valorVenda = parseFloat(sale.valorOriginal || sale.value || 0);
+                comissaoTotal += valorVenda * (percentual / 100);
+            });
+
+            const pagamentosHoje = [];
+            const paymentRecords = todaySales
+                .filter(s => s.tipo === 'service' && s.collaboratorId === collaboratorId && s.paymentRecord)
+                .map(s => s.paymentRecord);
+
+            paymentRecords.forEach(record => pagamentosHoje.push(record));
+
+            const colaboradorRecebeu = pagamentosHoje.reduce((sum, record) =>
+                sum + parseFloat(record.colaboradorRecebeu || 0), 0);
+            const salaoRecebeu = pagamentosHoje.reduce((sum, record) =>
+                sum + parseFloat(record.salaoRecebeu || 0), 0);
+
+            // Também consulta o histórico salvo para incluir pagamentos registrados hoje.
+            db.collection('collaboratorPayments')
+                .where('userId', '==', currentUser.uid)
+                .where('collaboratorId', '==', collaboratorId)
+                .where('data', '==', hoje)
+                .get()
+                .then(snapshot => {
+                    const registros = [];
+                    snapshot.forEach(doc => registros.push(doc.data()));
+
+                    const registrosUnicos = [];
+                    const chaves = new Set();
+                    registros.forEach(record => {
+                        const chave = [
+                            record.timestamp?.seconds || '',
+                            record.valorTotal || '',
+                            record.colaboradorRecebeu || '',
+                            record.salaoRecebeu || '',
+                            record.tipo || ''
+                        ].join('|');
+                        if (!chaves.has(chave)) {
+                            chaves.add(chave);
+                            registrosUnicos.push(record);
+                        }
+                    });
+
+                    const recebidoColaboradorHistorico = registrosUnicos.reduce((sum, record) =>
+                        sum + parseFloat(record.colaboradorRecebeu || 0), 0);
+                    const recebidoSalaoHistorico = registrosUnicos.reduce((sum, record) =>
+                        sum + parseFloat(record.salaoRecebeu || 0), 0);
+
+                    const colaboradorRecebeuFinal = Math.max(colaboradorRecebeu, recebidoColaboradorHistorico);
+                    const salaoRecebeuFinal = Math.max(salaoRecebeu, recebidoSalaoHistorico);
+
+                    const faltaColaborador = comissaoTotal - colaboradorRecebeuFinal;
+                    const comissaoSalaoTotal = vendasTotal - comissaoTotal;
+                    const faltaSalao = comissaoSalaoTotal - salaoRecebeuFinal;
+
+                    let saldoFinal = 0;
+                    let direcao = 'Nenhum repasse pendente.';
+
+                    if (faltaColaborador > 0.009) {
+                        saldoFinal = faltaColaborador;
+                        direcao = 'O salão ainda deve pagar ao colaborador.';
+                    } else if (faltaColaborador < -0.009) {
+                        saldoFinal = Math.abs(faltaColaborador);
+                        direcao = 'O colaborador recebeu acima da comissão e deve pagar ao salão.';
+                    } else if (faltaSalao > 0.009) {
+                        saldoFinal = faltaSalao;
+                        direcao = 'O salão ainda deve receber do colaborador.';
+                    }
+
+                    const { jsPDF } = window.jspdf;
+                    const doc = new jsPDF();
+                    const margem = 16;
+                    let y = 18;
+
+                    doc.setFontSize(18);
+                    doc.setFont(undefined, 'bold');
+                    doc.text('CONTROLE DE CAIXA - COLABORADOR', margem, y);
+                    y += 10;
+
+                    doc.setFontSize(11);
+                    doc.setFont(undefined, 'normal');
+                    doc.text('Colaborador: ' + (collaborator.name || 'N/A'), margem, y);
+                    y += 6;
+                    doc.text('Data: ' + new Date(hoje + 'T00:00:00').toLocaleDateString('pt-PT'), margem, y);
+                    y += 12;
+
+                    const linhas = [
+                        ['Valor total das vendas', vendasTotal],
+                        ['Comissão total do colaborador', comissaoTotal],
+                        ['Já recebido na conta do colaborador', colaboradorRecebeuFinal],
+                        ['Comissão restante após recebimentos', Math.max(0, faltaColaborador)],
+                        ['Total pertencente ao salão', comissaoSalaoTotal],
+                        ['Já recebido na conta do salão', salaoRecebeuFinal],
+                        ['Saldo restante do salão', Math.max(0, faltaSalao)]
+                    ];
+
+                    doc.setFontSize(12);
+                    doc.setFont(undefined, 'bold');
+                    doc.text('Resumo financeiro', margem, y);
+                    y += 8;
+                    doc.setFont(undefined, 'normal');
+
+                    linhas.forEach(([label, valor]) => {
+                        doc.text(label, margem, y);
+                        doc.text(formatCurrency(valor), 194, y, { align: 'right' });
+                        y += 7;
+                    });
+
+                    y += 6;
+                    doc.setFontSize(12);
+                    doc.setFont(undefined, 'bold');
+                    doc.text('Acerto entre as contas', margem, y);
+                    y += 8;
+                    doc.setFont(undefined, 'normal');
+                    doc.setFontSize(11);
+                    doc.text(direcao, margem, y);
+                    y += 7;
+                    if (saldoFinal > 0.009) {
+                        doc.setFont(undefined, 'bold');
+                        doc.text('Valor do acerto: ' + formatCurrency(saldoFinal), margem, y);
+                    } else {
+                        doc.text('Valor do acerto: € 0,00', margem, y);
+                    }
+
+                    y += 14;
+                    doc.setFontSize(9);
+                    doc.setFont(undefined, 'normal');
+                    doc.text('Este relatório considera as vendas de serviços e os pagamentos registrados no dia.', margem, y);
+                    y += 5;
+                    doc.text('A comissão é calculada sobre o valor total das vendas.', margem, y);
+
+                    const nomeArquivo = 'controle-caixa-' + (collaborator.name || 'colaborador')
+                        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                        .replace(/[^a-zA-Z0-9]+/g, '-')
+                        .replace(/^-|-$/g, '')
+                        .toLowerCase() + '-' + hoje + '.pdf';
+
+                    doc.save(nomeArquivo);
+
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('collaboratorPdfModal'));
+                    if (modal) modal.hide();
+                })
+                .catch(error => {
+                    console.error('Erro ao gerar relatório PDF:', error);
+                    Swal.fire('Erro', 'Não foi possível carregar os pagamentos do colaborador: ' + error.message, 'error');
+                });
         }
 
         // ==========================================
