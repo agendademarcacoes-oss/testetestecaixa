@@ -3976,16 +3976,23 @@
 
             // O relatório mensal usa somente vendas que ainda existem no Firestore.
             // Assim, uma venda excluída deixa de participar automaticamente do PDF.
+            // Busca somente pelo usuário e filtra o período no JavaScript.
+            // Isso evita exigir índice composto do Firestore para gerar o PDF.
+            // Não usa where() nesta consulta para evitar qualquer dependência de índice.
+            // O usuário e o período são filtrados abaixo, no JavaScript.
             db.collection('services')
-                .where('userId', '==', currentUser.uid)
-                .where('date', '>=', inicioMes)
-                .where('date', '<=', fimMes)
                 .get()
             .then(servicesSnap => {
                 const vendas = [];
                 servicesSnap.forEach(docSnap => {
                     const sale = { id: docSnap.id, ...docSnap.data(), tipo: 'service' };
-                    if (sale.collaboratorId === collaboratorId && !sale.isPackage) {
+                    if (
+                        sale.userId === currentUser.uid &&
+                        sale.collaboratorId === collaboratorId &&
+                        !sale.isPackage &&
+                        sale.date >= inicioMes &&
+                        sale.date <= fimMes
+                    ) {
                         vendas.push(sale);
                     }
                 });
@@ -4286,16 +4293,13 @@
                     const salaoRecebeu = parseFloat(sale.salaoRecebeu || sale.paymentRecord?.salaoRecebeu || 0);
 
                     if (dataVenda) {
-                        let pagamentosQuery = db.collection('collaboratorPayments')
-                            .where('userId', '==', currentUser.uid)
-                            .where('data', '==', dataVenda);
+                        // Busca os pagamentos do usuário sem índice composto e filtra
+                    // os dados da venda no JavaScript.
+                    const pagamentosQuery = db.collection('collaboratorPayments')
+                        .where('userId', '==', currentUser.uid);
 
-                        if (collaboratorId) {
-                            pagamentosQuery = pagamentosQuery.where('collaboratorId', '==', collaboratorId);
-                        }
-
-                        tarefas.push(
-                            pagamentosQuery.get().then(snapshot => {
+                    tarefas.push(
+                        pagamentosQuery.get().then(snapshot => {
                                     const candidatos = [];
                                     snapshot.forEach(paymentDoc => {
                                         const payment = paymentDoc.data();
@@ -4306,6 +4310,8 @@
                                         const tipoVenda = tipo === 'service' ? 'service' : 'product';
 
                                         if (
+                                            (payment.data || '') === dataVenda &&
+                                            (!collaboratorId || payment.collaboratorId === collaboratorId) &&
                                             Math.abs(valorPagamento - valorTotal) < 0.01 &&
                                             Math.abs(colaboradorPagamento - colaboradorRecebeu) < 0.01 &&
                                             Math.abs(salaoPagamento - salaoRecebeu) < 0.01 &&
