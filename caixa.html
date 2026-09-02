@@ -280,9 +280,6 @@
             z-index: 2;
         }
 
-        /* ============================================
-           SELECT COM OPÇÕES COM FOTO - ESTILO PERSONALIZADO
-           ============================================ */
         .collaborator-select-wrapper select option {
             padding: 4px 8px;
             display: flex;
@@ -1749,7 +1746,6 @@
             collaborators.forEach(c => {
                 const opt = document.createElement('option');
                 opt.value = c.id;
-                // Adicionar foto na option via data attribute
                 opt.setAttribute('data-photo', c.photoUrl || '');
                 opt.textContent = c.name;
                 select.appendChild(opt);
@@ -1759,14 +1755,11 @@
                 select.value = currentValue;
             }
 
-            // Atualizar preview da foto ao selecionar
             select.addEventListener('change', function() {
                 atualizarPreviewColaborador(this.value);
-                // Verificar se há pagamento pendente para este colaborador
                 verificarPagamentoColaborador(this.value);
             });
 
-            // Carregar preview inicial
             if (select.value) {
                 atualizarPreviewColaborador(select.value);
             }
@@ -1799,7 +1792,7 @@
         }
 
         // ==========================================
-        // 7. FUNÇÃO DE PAGAMENTO DO COLABORADOR
+        // 7. FUNÇÃO DE PAGAMENTO DO COLABORADOR - CORRIGIDA
         // ==========================================
         let pendingCollaboratorPayment = null;
 
@@ -1809,7 +1802,6 @@
                 return;
             }
 
-            // Verificar se há serviços não pagos para este colaborador
             const servicosHoje = todaySales.filter(s => 
                 s.tipo === 'service' && 
                 s.collaboratorId === collaboratorId &&
@@ -1821,7 +1813,6 @@
                 return;
             }
 
-            // Calcular total devido ao colaborador
             let totalDevido = 0;
             servicosHoje.forEach(s => {
                 const valor = parseFloat(s.value || 0);
@@ -1840,6 +1831,11 @@
                     totalDevido: totalDevido,
                     servicos: servicosHoje
                 };
+                
+                // Abrir modal automaticamente
+                setTimeout(() => {
+                    abrirModalPagamentoColaborador();
+                }, 500);
             } else {
                 pendingCollaboratorPayment = null;
             }
@@ -1854,115 +1850,114 @@
             const collab = collaborators.find(c => c.id === pendingCollaboratorPayment.collaboratorId);
             const totalDevido = pendingCollaboratorPayment.totalDevido;
 
-            // Calcular valores
-            const valorServico = 50; // Exemplo, será calculado
-            let salaoRecebeu = 0;
-            let colaboradorRecebeu = 0;
-
-            // Buscar o primeiro serviço para calcular percentual
             const primeiroServico = pendingCollaboratorPayment.servicos[0];
-            if (primeiroServico) {
-                const valor = parseFloat(primeiroServico.value || 0);
-                const collabRef = collaborators.find(c => c.id === primeiroServico.collaboratorId);
-                if (collabRef) {
-                    const perc = primeiroServico.type === 'manual' ? 
-                        parseFloat(collabRef.manualPercent || 0) : 
-                        parseFloat(collabRef.productPercent || 0);
-                    const comissaoColaborador = valor * (perc / 100);
-                    const comissaoSalao = valor - comissaoColaborador;
-                    
-                    // Preencher campos
-                    const percentualSalao = 100 - perc;
-                    
-                    modalBody.innerHTML = `
-                        <div class="mb-3">
-                            <h6 class="fw-bold">Pagamento para <span style="color:#26196b;">${collab ? collab.name : 'Colaborador'}</span></h6>
-                            <p class="text-muted fs-small">Total devido: <strong>${formatCurrency(totalDevido)}</strong></p>
-                        </div>
-                        <div class="row g-3">
-                            <div class="col-6">
-                                <div class="summary-box" style="background:#d4edda;">
-                                    <span class="label">% Salão</span>
-                                    <span class="value positive">${percentualSalao}%</span>
-                                </div>
-                            </div>
-                            <div class="col-6">
-                                <div class="summary-box" style="background:#fff3cd;">
-                                    <span class="label">% Colaborador</span>
-                                    <span class="value">${perc}%</span>
-                                </div>
-                            </div>
-                            <div class="col-6">
-                                <div class="summary-box" style="background:#d4edda;">
-                                    <span class="label">Salão (${percentualSalao}%)</span>
-                                    <span class="value positive">${formatCurrency(comissaoSalao)}</span>
-                                </div>
-                            </div>
-                            <div class="col-6">
-                                <div class="summary-box" style="background:#fff3cd;">
-                                    <span class="label">Colaborador (${perc}%)</span>
-                                    <span class="value">${formatCurrency(comissaoColaborador)}</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="mt-3 pt-2 border-top">
-                            <label class="form-label fw-bold">O colaborador recebeu algum valor?</label>
-                            <div class="d-flex gap-3 mb-3">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="paymentType" id="paymentCash" value="cash" checked>
-                                    <label class="form-check-label" for="paymentCash">Dinheiro</label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="paymentType" id="paymentAccount" value="account">
-                                    <label class="form-check-label" for="paymentAccount">Conta</label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="paymentType" id="paymentNone" value="none">
-                                    <label class="form-check-label" for="paymentNone">Nenhum</label>
-                                </div>
-                            </div>
-                            <div class="row g-2">
-                                <div class="col-6">
-                                    <label class="form-label">Valor recebido pelo salão (€)</label>
-                                    <input type="number" class="form-control" id="salaoReceived" 
-                                           step="0.01" min="0" value="${comissaoSalao.toFixed(2)}">
-                                </div>
-                                <div class="col-6">
-                                    <label class="form-label">Valor recebido pelo colaborador (€)</label>
-                                    <input type="number" class="form-control" id="colaboradorReceived" 
-                                           step="0.01" min="0" value="0">
-                                </div>
-                            </div>
-                            <div class="mt-2 text-muted fs-small">
-                                <i class="fas fa-info-circle me-1"></i>
-                                O sistema calculará automaticamente o valor restante a ser pago.
-                            </div>
-                            <div id="paymentCalculationResult" class="mt-2 p-2 bg-light rounded" style="font-size:0.85rem;">
-                                <!-- Resultado do cálculo -->
-                            </div>
-                        </div>
-                    `;
-
-                    // Adicionar eventos para recalcular
-                    document.getElementById('salaoReceived').addEventListener('input', recalcularPagamentoColaborador);
-                    document.getElementById('colaboradorReceived').addEventListener('input', recalcularPagamentoColaborador);
-                    document.querySelectorAll('input[name="paymentType"]').forEach(el => {
-                        el.addEventListener('change', recalcularPagamentoColaborador);
-                    });
-
-                    recalcularPagamentoColaborador();
-
-                    const modal = new bootstrap.Modal(document.getElementById('collaboratorPaymentModal'), {
-                        backdrop: 'static'
-                    });
-                    modal.show();
-
-                    // Configurar botão confirmar
-                    document.getElementById('confirmCollaboratorPaymentBtn').onclick = function() {
-                        confirmarPagamentoColaborador(comissaoSalao, comissaoColaborador);
-                    };
-                }
+            if (!primeiroServico) {
+                modalBody.innerHTML = '<p class="text-muted">Nenhum serviço encontrado.</p>';
+                return;
             }
+
+            const valor = parseFloat(primeiroServico.value || 0);
+            const collabRef = collaborators.find(c => c.id === primeiroServico.collaboratorId);
+            
+            let perc = 0;
+            let percentualSalao = 0;
+            let comissaoColaborador = 0;
+            let comissaoSalao = 0;
+
+            if (collabRef) {
+                perc = primeiroServico.type === 'manual' ? 
+                    parseFloat(collabRef.manualPercent || 0) : 
+                    parseFloat(collabRef.productPercent || 0);
+                percentualSalao = 100 - perc;
+                comissaoColaborador = valor * (perc / 100);
+                comissaoSalao = valor - comissaoColaborador;
+            }
+
+            modalBody.innerHTML = `
+                <div class="mb-3">
+                    <h6 class="fw-bold">Pagamento para <span style="color:#26196b;">${collab ? collab.name : 'Colaborador'}</span></h6>
+                    <p class="text-muted fs-small">Total devido: <strong>${formatCurrency(totalDevido)}</strong></p>
+                </div>
+                <div class="row g-3">
+                    <div class="col-6">
+                        <div class="summary-box" style="background:#d4edda;">
+                            <span class="label">% Salão</span>
+                            <span class="value positive">${percentualSalao}%</span>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="summary-box" style="background:#fff3cd;">
+                            <span class="label">% Colaborador</span>
+                            <span class="value">${perc}%</span>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="summary-box" style="background:#d4edda;">
+                            <span class="label">Salão (${percentualSalao}%)</span>
+                            <span class="value positive">${formatCurrency(comissaoSalao)}</span>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="summary-box" style="background:#fff3cd;">
+                            <span class="label">Colaborador (${perc}%)</span>
+                            <span class="value">${formatCurrency(comissaoColaborador)}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-3 pt-2 border-top">
+                    <label class="form-label fw-bold">O colaborador recebeu algum valor?</label>
+                    <div class="d-flex gap-3 mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="paymentType" id="paymentCash" value="cash" checked>
+                            <label class="form-check-label" for="paymentCash">Dinheiro</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="paymentType" id="paymentAccount" value="account">
+                            <label class="form-check-label" for="paymentAccount">Conta</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="paymentType" id="paymentNone" value="none">
+                            <label class="form-check-label" for="paymentNone">Nenhum</label>
+                        </div>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label">Valor recebido pelo salão (€)</label>
+                            <input type="number" class="form-control" id="salaoReceived" 
+                                   step="0.01" min="0" value="${comissaoSalao.toFixed(2)}">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Valor recebido pelo colaborador (€)</label>
+                            <input type="number" class="form-control" id="colaboradorReceived" 
+                                   step="0.01" min="0" value="0">
+                        </div>
+                    </div>
+                    <div class="mt-2 text-muted fs-small">
+                        <i class="fas fa-info-circle me-1"></i>
+                        O sistema calculará automaticamente o valor restante a ser pago.
+                    </div>
+                    <div id="paymentCalculationResult" class="mt-2 p-2 bg-light rounded" style="font-size:0.85rem;">
+                        <!-- Resultado do cálculo -->
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('salaoReceived').addEventListener('input', recalcularPagamentoColaborador);
+            document.getElementById('colaboradorReceived').addEventListener('input', recalcularPagamentoColaborador);
+            document.querySelectorAll('input[name="paymentType"]').forEach(el => {
+                el.addEventListener('change', recalcularPagamentoColaborador);
+            });
+
+            recalcularPagamentoColaborador();
+
+            const modal = new bootstrap.Modal(document.getElementById('collaboratorPaymentModal'), {
+                backdrop: 'static'
+            });
+            modal.show();
+
+            document.getElementById('confirmCollaboratorPaymentBtn').onclick = function() {
+                confirmarPagamentoColaborador(comissaoSalao, comissaoColaborador);
+            };
         }
 
         function recalcularPagamentoColaborador() {
@@ -1970,7 +1965,6 @@
             const colaboradorReceived = parseFloat(document.getElementById('colaboradorReceived').value) || 0;
             const paymentType = document.querySelector('input[name="paymentType"]:checked')?.value || 'cash';
 
-            // Buscar o valor total devido
             const primeiroServico = pendingCollaboratorPayment?.servicos[0];
             if (!primeiroServico) return;
 
@@ -1986,37 +1980,59 @@
 
             const resultado = document.getElementById('paymentCalculationResult');
 
-            // Calcular valores reais
             const salaoDevido = comissaoSalao - salaoReceived;
             const colaboradorDevido = comissaoColaborador - colaboradorReceived;
 
-            let statusHtml = '';
-            if (salaoDevido > 0 && colaboradorDevido < 0) {
-                // Salão deve passar dinheiro para o colaborador
-                statusHtml = `
+            // Calcular o valor que precisa ser repassado
+            let valorRepassar = 0;
+            let mensagem = '';
+
+            if (salaoDevido < 0 && colaboradorDevido > 0) {
+                // Salão recebeu mais do que devia, deve repassar para o colaborador
+                valorRepassar = Math.min(Math.abs(salaoDevido), colaboradorDevido);
+                mensagem = `
                     <div class="alert alert-warning py-2 mb-0">
                         <i class="fas fa-exchange-alt me-2"></i>
-                        <strong>⚠️ Ajuste necessário:</strong> O salão recebeu <strong>${formatCurrency(salaoReceived)}</strong>, 
-                        mas deve repassar <strong>${formatCurrency(Math.abs(colaboradorDevido))}</strong> para o colaborador.
-                        <br><span class="text-muted fs-small">Salão final: ${formatCurrency(salaoDevido + Math.abs(colaboradorDevido))} | Colaborador final: ${formatCurrency(colaboradorReceived + Math.abs(colaboradorDevido))}</span>
+                        <strong>⚠️ Salão deve repassar ${formatCurrency(valorRepassar)} para o colaborador</strong>
+                        <br>
+                        <span class="text-muted fs-small">
+                            Salão recebeu ${formatCurrency(salaoReceived)} (devia ${formatCurrency(comissaoSalao)}) | 
+                            Colaborador recebeu ${formatCurrency(colaboradorReceived)} (devia ${formatCurrency(comissaoColaborador)})
+                        </span>
+                        <br>
+                        <span class="text-success fs-small fw-bold">
+                            ✅ Saldo final: Salão ${formatCurrency(comissaoSalao - valorRepassar)} | Colaborador ${formatCurrency(comissaoColaborador + valorRepassar)}
+                        </span>
                     </div>
                 `;
-            } else if (salaoDevido < 0 && colaboradorDevido > 0) {
-                // Colaborador deve passar dinheiro para o salão
-                statusHtml = `
+            } else if (salaoDevido > 0 && colaboradorDevido < 0) {
+                // Colaborador recebeu mais do que devia, deve repassar para o salão
+                valorRepassar = Math.min(salaoDevido, Math.abs(colaboradorDevido));
+                mensagem = `
                     <div class="alert alert-warning py-2 mb-0">
                         <i class="fas fa-exchange-alt me-2"></i>
-                        <strong>⚠️ Ajuste necessário:</strong> O colaborador recebeu <strong>${formatCurrency(colaboradorReceived)}</strong>, 
-                        mas deve repassar <strong>${formatCurrency(Math.abs(salaoDevido))}</strong> para o salão.
-                        <br><span class="text-muted fs-small">Salão final: ${formatCurrency(salaoReceived + Math.abs(salaoDevido))} | Colaborador final: ${formatCurrency(colaboradorDevido - Math.abs(salaoDevido))}</span>
+                        <strong>⚠️ Colaborador deve repassar ${formatCurrency(valorRepassar)} para o salão</strong>
+                        <br>
+                        <span class="text-muted fs-small">
+                            Salão recebeu ${formatCurrency(salaoReceived)} (devia ${formatCurrency(comissaoSalao)}) | 
+                            Colaborador recebeu ${formatCurrency(colaboradorReceived)} (devia ${formatCurrency(comissaoColaborador)})
+                        </span>
+                        <br>
+                        <span class="text-success fs-small fw-bold">
+                            ✅ Saldo final: Salão ${formatCurrency(comissaoSalao + valorRepassar)} | Colaborador ${formatCurrency(comissaoColaborador - valorRepassar)}
+                        </span>
                     </div>
                 `;
             } else {
-                statusHtml = `
+                mensagem = `
                     <div class="alert alert-success py-2 mb-0">
                         <i class="fas fa-check-circle me-2"></i>
                         <strong>✅ Contas equilibradas!</strong>
-                        <br>Salão: ${formatCurrency(salaoDevido)} | Colaborador: ${formatCurrency(colaboradorDevido)}
+                        <br>
+                        <span class="text-muted fs-small">
+                            Salão recebeu ${formatCurrency(salaoReceived)} (devia ${formatCurrency(comissaoSalao)}) | 
+                            Colaborador recebeu ${formatCurrency(colaboradorReceived)} (devia ${formatCurrency(comissaoColaborador)})
+                        </span>
                     </div>
                 `;
             }
@@ -2026,9 +2042,10 @@
                     <div>
                         <div class="fs-small">Salão devido: <strong>${formatCurrency(salaoDevido)}</strong></div>
                         <div class="fs-small">Colaborador devido: <strong>${formatCurrency(colaboradorDevido)}</strong></div>
+                        ${valorRepassar > 0 ? `<div class="fs-small text-danger fw-bold">Valor a repassar: ${formatCurrency(valorRepassar)}</div>` : ''}
                     </div>
                     <div class="text-end">
-                        ${statusHtml}
+                        ${mensagem}
                     </div>
                 </div>
             `;
@@ -2039,11 +2056,24 @@
             const colaboradorReceived = parseFloat(document.getElementById('colaboradorReceived').value) || 0;
             const paymentType = document.querySelector('input[name="paymentType"]:checked')?.value || 'cash';
 
-            // Calcular valores finais
             const salaoDevido = comissaoSalao - salaoReceived;
             const colaboradorDevido = comissaoColaborador - colaboradorReceived;
 
-            // Registrar pagamento
+            // Calcular valor a repassar
+            let valorRepassar = 0;
+            let repassarDe = '';
+            let repassarPara = '';
+
+            if (salaoDevido < 0 && colaboradorDevido > 0) {
+                valorRepassar = Math.min(Math.abs(salaoDevido), colaboradorDevido);
+                repassarDe = 'salão';
+                repassarPara = 'colaborador';
+            } else if (salaoDevido > 0 && colaboradorDevido < 0) {
+                valorRepassar = Math.min(salaoDevido, Math.abs(colaboradorDevido));
+                repassarDe = 'colaborador';
+                repassarPara = 'salão';
+            }
+
             const paymentData = {
                 collaboratorId: pendingCollaboratorPayment.collaboratorId,
                 valorTotal: comissaoColaborador,
@@ -2051,6 +2081,9 @@
                 valorRecebidoSalao: salaoReceived,
                 salaoDevido: salaoDevido,
                 colaboradorDevido: colaboradorDevido,
+                valorRepassar: valorRepassar,
+                repassarDe: repassarDe,
+                repassarPara: repassarPara,
                 paymentType: paymentType,
                 date: new Date().toISOString().split('T')[0],
                 timestamp: firebase.firestore.FieldValue.serverTimestamp(),
@@ -2067,8 +2100,9 @@
                         <p><strong>Valor recebido pelo colaborador:</strong> ${formatCurrency(colaboradorReceived)}</p>
                         <p><strong>Valor recebido pelo salão:</strong> ${formatCurrency(salaoReceived)}</p>
                         <p><strong>Tipo:</strong> ${paymentType === 'cash' ? 'Dinheiro' : paymentType === 'account' ? 'Conta' : 'Nenhum'}</p>
-                        <p><strong>Saldo final salão:</strong> ${formatCurrency(salaoDevido)}</p>
-                        <p><strong>Saldo final colaborador:</strong> ${formatCurrency(colaboradorDevido)}</p>
+                        ${valorRepassar > 0 ? `<p class="text-danger fw-bold"><strong>Valor a repassar:</strong> ${formatCurrency(valorRepassar)} (${repassarDe} → ${repassarPara})</p>` : ''}
+                        <p><strong>Saldo final salão:</strong> ${formatCurrency(comissaoSalao - (repassarDe === 'salão' ? valorRepassar : 0) + (repassarPara === 'salão' ? valorRepassar : 0))}</p>
+                        <p><strong>Saldo final colaborador:</strong> ${formatCurrency(comissaoColaborador - (repassarDe === 'colaborador' ? valorRepassar : 0) + (repassarPara === 'colaborador' ? valorRepassar : 0))}</p>
                     </div>
                 `,
                 icon: 'question',
@@ -2077,16 +2111,17 @@
                 cancelButtonText: 'Cancelar'
             }).then(result => {
                 if (result.isConfirmed) {
-                    // Salvar pagamento
                     db.collection('collaboratorPayments').add(paymentData)
                         .then(() => {
-                            // Marcar serviços como pagos
                             const promises = pendingCollaboratorPayment.servicos.map(s => {
                                 return db.collection('services').doc(s.id).update({
                                     pagamentoRegistrado: true,
                                     pagamentoData: firebase.firestore.FieldValue.serverTimestamp(),
                                     salaoRecebeu: salaoReceived,
-                                    colaboradorRecebeu: colaboradorReceived
+                                    colaboradorRecebeu: colaboradorReceived,
+                                    valorRepassar: valorRepassar,
+                                    repassarDe: repassarDe,
+                                    repassarPara: repassarPara
                                 });
                             });
 
@@ -2617,15 +2652,9 @@
                 renderizarVendas();
                 atualizarResumo();
                 
-                // Verificar pagamentos pendentes após carregar vendas
                 const select = document.getElementById('serviceCollaborator');
                 if (select && select.value) {
                     verificarPagamentoColaborador(select.value);
-                    if (pendingCollaboratorPayment) {
-                        setTimeout(() => {
-                            abrirModalPagamentoColaborador();
-                        }, 500);
-                    }
                 }
             }).catch(err => console.error('Erro ao carregar vendas:', err));
         }
