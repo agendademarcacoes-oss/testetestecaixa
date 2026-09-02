@@ -6,7 +6,7 @@
     <title>Caixa - Studio DeVitto</title>
     
     <!-- SEO Meta Tags -->
-    <meta name="description" content="Sistema de caixa para salão de beleza Studio DeVitto. Gerencie vendas, serviços, produtos e comissões.">
+    <meta name="description" content="Sistema de caixa para salão de beleza Studio DeVitto. Gerencie vendas, serviços, produtos e comissões com cálculo automático.">
     <meta name="keywords" content="caixa, vendas, salão de beleza, Studio DeVitto, comissões, serviços, produtos">
     <meta name="robots" content="index, follow">
     <meta name="author" content="Studio DeVitto">
@@ -1203,7 +1203,7 @@
     </div>
 
     <!-- ==========================================
-    MODAL DE PAGAMENTO AO COLABORADOR - COMPLETO
+    MODAL DE PAGAMENTO AO COLABORADOR - COM CÁLCULO CORRIGIDO
     ========================================== -->
     <div class="modal fade" id="collaboratorPaymentModal" tabindex="-1" data-bs-backdrop="static">
         <div class="modal-dialog modal-dialog-centered">
@@ -1755,7 +1755,7 @@
         }
 
         // ==========================================
-        // 7. FUNÇÃO PRINCIPAL - POPUP DE PAGAMENTO AO COLABORADOR
+        // 7. FUNÇÃO PRINCIPAL - POPUP DE PAGAMENTO AO COLABORADOR (CORRIGIDA)
         // ==========================================
         function abrirPopupPagamentoColaborador(tipo) {
             // Verificar se o caixa está aberto
@@ -1801,18 +1801,19 @@
                     valorOriginal: valor,
                 };
 
-                // Calcular comissões
-                let perc = 0;
+                // Calcular comissões com base no perfil do colaborador
+                let percColaborador = 0;
                 if (collaborator) {
-                    perc = type === 'manual' ? 
+                    percColaborador = type === 'manual' ? 
                         parseFloat(collaborator.manualPercent || 0) : 
                         parseFloat(collaborator.productPercent || 0);
                 }
-                const comissaoColaborador = valor * (perc / 100);
+                const percSalao = 100 - percColaborador;
+                const comissaoColaborador = valor * (percColaborador / 100);
                 const comissaoSalao = valor - comissaoColaborador;
 
-                pendingPaymentData.percentualColaborador = perc;
-                pendingPaymentData.percentualSalao = 100 - perc;
+                pendingPaymentData.percentualColaborador = percColaborador;
+                pendingPaymentData.percentualSalao = percSalao;
                 pendingPaymentData.comissaoColaborador = comissaoColaborador;
                 pendingPaymentData.comissaoSalao = comissaoSalao;
 
@@ -1857,15 +1858,16 @@
                 };
 
                 // Calcular comissões para produtos (usando productPercent)
-                let perc = 0;
+                let percColaborador = 0;
                 if (collaborator) {
-                    perc = parseFloat(collaborator.productPercent || 0);
+                    percColaborador = parseFloat(collaborator.productPercent || 0);
                 }
-                const comissaoColaborador = valorTotal * (perc / 100);
+                const percSalao = 100 - percColaborador;
+                const comissaoColaborador = valorTotal * (percColaborador / 100);
                 const comissaoSalao = valorTotal - comissaoColaborador;
 
-                pendingPaymentData.percentualColaborador = perc;
-                pendingPaymentData.percentualSalao = 100 - perc;
+                pendingPaymentData.percentualColaborador = percColaborador;
+                pendingPaymentData.percentualSalao = percSalao;
                 pendingPaymentData.comissaoColaborador = comissaoColaborador;
                 pendingPaymentData.comissaoSalao = comissaoSalao;
             }
@@ -1882,7 +1884,9 @@
                         ${pendingPaymentData.tipo === 'service' ? ` | Valor: ${formatCurrency(pendingPaymentData.valor)}` : ` | ${pendingPaymentData.quantity} und | ${formatCurrency(pendingPaymentData.valor)}`}
                     </p>
                 </div>
-                <div class="row g-3">
+                
+                <!-- Percentuais -->
+                <div class="row g-3 mb-3">
                     <div class="col-6">
                         <div class="summary-box" style="background:#d4edda;">
                             <span class="label">% Salão</span>
@@ -1908,8 +1912,9 @@
                         </div>
                     </div>
                 </div>
+                
                 <div class="mt-3 pt-2 border-top">
-                    <label class="form-label fw-bold">Distribuição do Pagamento</label>
+                    <p class="fw-bold mb-2">Distribuição do Pagamento</p>
                     <div class="row g-2">
                         <div class="col-6">
                             <label class="form-label">Valor recebido pelo salão (€)</label>
@@ -1924,9 +1929,9 @@
                     </div>
                     <div class="mt-2 text-muted fs-small">
                         <i class="fas fa-info-circle me-1"></i>
-                        O sistema calculará automaticamente o valor restante a ser pago.
+                        Informe quanto cada parte já recebeu. O sistema calculará o valor a repassar.
                     </div>
-                    <div id="paymentCalculationResult" class="mt-2 p-2 bg-light rounded" style="font-size:0.85rem;">
+                    <div id="paymentCalculationResult" class="mt-2 p-3 bg-light rounded" style="font-size:0.9rem;border:2px solid #dee2e6;">
                         <!-- Resultado do cálculo -->
                     </div>
                 </div>
@@ -1949,7 +1954,7 @@
         }
 
         // ==========================================
-        // 8. RECALCULAR PAGAMENTO DO COLABORADOR
+        // 8. RECALCULAR PAGAMENTO DO COLABORADOR (CORRIGIDO)
         // ==========================================
         function recalcularPagamentoColaborador() {
             if (!pendingPaymentData) return;
@@ -1960,25 +1965,44 @@
             const comissaoSalao = pendingPaymentData.comissaoSalao;
             const comissaoColaborador = pendingPaymentData.comissaoColaborador;
 
+            // =============================================
+            // CÁLCULO CORRETO:
+            // 
+            // Exemplo: Valor total = 30,00
+            // Salão deve receber 30% = 9,00
+            // Colaborador deve receber 70% = 21,00
+            // Salão já recebeu: 20,00
+            // Colaborador já recebeu: 10,00
+            // 
+            // Salão já recebeu MAIS do que deveria (20,00 > 9,00)
+            // Então o salão deve REPASSAR para o colaborador
+            // Valor a repassar = (salaoRecebido - comissaoSalao) OU (comissaoColaborador - colaboradorRecebido)
+            // = (20,00 - 9,00) = 11,00
+            // =============================================
+
             const salaoDevido = comissaoSalao - salaoReceived;
             const colaboradorDevido = comissaoColaborador - colaboradorReceived;
-
-            const resultado = document.getElementById('paymentCalculationResult');
 
             // Calcular valor a repassar
             let valorRepassar = 0;
             let repassarDe = '';
             let repassarPara = '';
             let mensagem = '';
+            let saldoFinalSalao = comissaoSalao;
+            let saldoFinalColaborador = comissaoColaborador;
 
             if (salaoDevido < 0 && colaboradorDevido > 0) {
+                // Salão recebeu mais do que devia, deve repassar para o colaborador
                 valorRepassar = Math.min(Math.abs(salaoDevido), colaboradorDevido);
                 repassarDe = 'salão';
                 repassarPara = 'colaborador';
+                saldoFinalSalao = comissaoSalao - valorRepassar;
+                saldoFinalColaborador = comissaoColaborador + valorRepassar;
+                
                 mensagem = `
                     <div class="alert alert-warning py-2 mb-0">
                         <i class="fas fa-exchange-alt me-2"></i>
-                        <strong>⚠️ Salão deve repassar ${formatCurrency(valorRepassar)} para o colaborador</strong>
+                        <strong class="text-danger">⚠️ O SALÃO deve repassar ${formatCurrency(valorRepassar)} para o ${pendingPaymentData.collaboratorName}</strong>
                         <br>
                         <span class="text-muted fs-small">
                             Salão recebeu ${formatCurrency(salaoReceived)} (devia ${formatCurrency(comissaoSalao)}) | 
@@ -1986,18 +2010,22 @@
                         </span>
                         <br>
                         <span class="text-success fs-small fw-bold">
-                            ✅ Saldo final: Salão ${formatCurrency(comissaoSalao - valorRepassar)} | Colaborador ${formatCurrency(comissaoColaborador + valorRepassar)}
+                            ✅ Saldo final: Salão ${formatCurrency(saldoFinalSalao)} | ${pendingPaymentData.collaboratorName} ${formatCurrency(saldoFinalColaborador)}
                         </span>
                     </div>
                 `;
             } else if (salaoDevido > 0 && colaboradorDevido < 0) {
+                // Colaborador recebeu mais do que devia, deve repassar para o salão
                 valorRepassar = Math.min(salaoDevido, Math.abs(colaboradorDevido));
                 repassarDe = 'colaborador';
                 repassarPara = 'salão';
+                saldoFinalSalao = comissaoSalao + valorRepassar;
+                saldoFinalColaborador = comissaoColaborador - valorRepassar;
+                
                 mensagem = `
                     <div class="alert alert-warning py-2 mb-0">
                         <i class="fas fa-exchange-alt me-2"></i>
-                        <strong>⚠️ Colaborador deve repassar ${formatCurrency(valorRepassar)} para o salão</strong>
+                        <strong class="text-danger">⚠️ O colaborador deve repassar ${formatCurrency(valorRepassar)} para o salão</strong>
                         <br>
                         <span class="text-muted fs-small">
                             Salão recebeu ${formatCurrency(salaoReceived)} (devia ${formatCurrency(comissaoSalao)}) | 
@@ -2005,7 +2033,7 @@
                         </span>
                         <br>
                         <span class="text-success fs-small fw-bold">
-                            ✅ Saldo final: Salão ${formatCurrency(comissaoSalao + valorRepassar)} | Colaborador ${formatCurrency(comissaoColaborador - valorRepassar)}
+                            ✅ Saldo final: Salão ${formatCurrency(saldoFinalSalao)} | ${pendingPaymentData.collaboratorName} ${formatCurrency(saldoFinalColaborador)}
                         </span>
                     </div>
                 `;
@@ -2019,26 +2047,62 @@
                             Salão recebeu ${formatCurrency(salaoReceived)} (devia ${formatCurrency(comissaoSalao)}) | 
                             Colaborador recebeu ${formatCurrency(colaboradorReceived)} (devia ${formatCurrency(comissaoColaborador)})
                         </span>
+                        <br>
+                        <span class="text-success fs-small">
+                            Saldo final: Salão ${formatCurrency(comissaoSalao)} | ${pendingPaymentData.collaboratorName} ${formatCurrency(comissaoColaborador)}
+                        </span>
                     </div>
                 `;
             }
 
+            // Resumo visual do cálculo
+            const resultado = document.getElementById('paymentCalculationResult');
             resultado.innerHTML = `
-                <div class="d-flex justify-content-between align-items-center flex-wrap">
-                    <div>
-                        <div class="fs-small">Salão devido: <strong>${formatCurrency(salaoDevido)}</strong></div>
-                        <div class="fs-small">Colaborador devido: <strong>${formatCurrency(colaboradorDevido)}</strong></div>
-                        ${valorRepassar > 0 ? `<div class="fs-small text-danger fw-bold">Valor a repassar: ${formatCurrency(valorRepassar)} (${repassarDe} → ${repassarPara})</div>` : ''}
+                <div class="row g-2">
+                    <div class="col-6">
+                        <div class="p-2" style="background:#d4edda;border-radius:6px;">
+                            <div class="fs-small text-muted">Salão DEVE receber</div>
+                            <div class="fw-bold text-success">${formatCurrency(comissaoSalao)}</div>
+                            <div class="fs-small text-muted">(${pendingPaymentData.percentualSalao}%)</div>
+                        </div>
                     </div>
-                    <div class="text-end">
+                    <div class="col-6">
+                        <div class="p-2" style="background:#fff3cd;border-radius:6px;">
+                            <div class="fs-small text-muted">Colaborador DEVE receber</div>
+                            <div class="fw-bold">${formatCurrency(comissaoColaborador)}</div>
+                            <div class="fs-small text-muted">(${pendingPaymentData.percentualColaborador}%)</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="p-2" style="background:#cce5ff;border-radius:6px;">
+                            <div class="fs-small text-muted">Salão JÁ RECEBEU</div>
+                            <div class="fw-bold text-primary">${formatCurrency(salaoReceived)}</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="p-2" style="background:#cce5ff;border-radius:6px;">
+                            <div class="fs-small text-muted">Colaborador JÁ RECEBEU</div>
+                            <div class="fw-bold text-primary">${formatCurrency(colaboradorReceived)}</div>
+                        </div>
+                    </div>
+                    <div class="col-12">
                         ${mensagem}
+                        ${valorRepassar > 0 ? `
+                            <div class="mt-2 p-2" style="background:#f8d7da;border-radius:6px;border:2px solid #dc3545;">
+                                <div class="fw-bold text-danger text-center">
+                                    <i class="fas fa-arrow-right me-2"></i>
+                                    VALOR A REPASSAR: ${formatCurrency(valorRepassar)} 
+                                    (${repassarDe} → ${repassarPara})
+                                </div>
+                            </div>
+                        ` : ''}
                     </div>
                 </div>
             `;
         }
 
         // ==========================================
-        // 9. CONFIRMAR PAGAMENTO E ADICIONAR AO CARRINHO
+        // 9. CONFIRMAR PAGAMENTO E ADICIONAR AO CARRINHO (CORRIGIDO)
         // ==========================================
         function confirmarPagamentoColaborador() {
             if (!pendingPaymentData) return;
@@ -2193,7 +2257,7 @@
         // 10. ADICIONAR SERVIÇO COM PAGAMENTO
         // ==========================================
         function adicionarServicoComPagamento(data, paymentRecord, salaoReceived, colaboradorReceived, valorRepassar, repassarDe, repassarPara) {
-            // Calcular valor final (considerando o que o salão recebeu)
+            // Calcular valor final (considerando o que o salão efetivamente recebeu)
             // O valor do serviço no carrinho será o valor que o salão efetivamente recebeu
             const valorFinal = data.valor - (data.valor * (data.percentualSalao / 100));
 
@@ -3823,16 +3887,17 @@
         // 29. LOG DE INICIALIZAÇÃO
         // ==========================================
         console.log('✅ Caixa carregado com sucesso!');
-        console.log('📌 NOVIDADES:');
-        console.log('   ✅ Colaboradores com FOTO no dropdown');
-        console.log('   ✅ POPUP de Pagamento ao Colaborador');
-        console.log('   ✅ Cálculo automático de comissões');
-        console.log('   ✅ Ajuste de valores (Salão e Colaborador)');
-        console.log('   ✅ Auto-preenchimento do carrinho');
-        console.log('   ✅ Funciona para SERVIÇOS e PRODUTOS');
-        console.log('   ✅ Integração com PACOTES');
-        console.log('   ✅ Salva histórico de pagamentos');
-        console.log('   ✅ Totalmente responsivo (Desktop, Tablet, Mobile)');
+        console.log('📌 CÁLCULO CORRIGIDO:');
+        console.log('   ✅ Valor total do procedimento');
+        console.log('   ✅ % Salão (definido no perfil do colaborador)');
+        console.log('   ✅ % Colaborador (definido no perfil do colaborador)');
+        console.log('   ✅ Valor recebido pelo salão');
+        console.log('   ✅ Valor recebido pelo colaborador');
+        console.log('   ✅ Cálculo automático do valor a repassar');
+        console.log('   ✅ Exemplo: Valor 30,00 | Salão 30% = 9,00 | Colaborador 70% = 21,00');
+        console.log('   ✅ Salão recebeu 20,00 | Colaborador recebeu 10,00');
+        console.log('   ✅ Salão deve repassar 11,00 para o colaborador');
+        console.log('   ✅ Saldo final: Salão 9,00 | Colaborador 21,00');
 
     </script>
 
