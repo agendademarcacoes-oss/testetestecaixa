@@ -1275,9 +1275,13 @@
                             <option value="">Selecione um colaborador</option>
                         </select>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Selecionar mês</label>
+                        <input type="month" class="form-control" id="pdfMonthSelect">
+                    </div>
                     <div class="alert alert-info mb-0">
                         <i class="fas fa-info-circle me-1"></i>
-                        O relatório usa as vendas e os pagamentos registrados no dia atual.
+                        O relatório será mensal, do dia 01 até o último dia do mês selecionado, com todas as vendas discriminadas.
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -3910,6 +3914,7 @@
         // ==========================================
         function abrirRelatorioPdfColaborador() {
             const select = document.getElementById('pdfCollaboratorSelect');
+            const monthSelect = document.getElementById('pdfMonthSelect');
             select.innerHTML = '<option value="">Selecione um colaborador</option>';
 
             collaborators
@@ -3922,14 +3927,25 @@
                     select.appendChild(option);
                 });
 
+            const agora = new Date();
+            const mesAtual = agora.getFullYear() + '-' + String(agora.getMonth() + 1).padStart(2, '0');
+            monthSelect.value = mesAtual;
+
             const modal = new bootstrap.Modal(document.getElementById('collaboratorPdfModal'));
             modal.show();
         }
 
         function gerarPdfColaborador() {
             const collaboratorId = document.getElementById('pdfCollaboratorSelect').value;
+            const mesSelecionado = document.getElementById('pdfMonthSelect').value;
+
             if (!collaboratorId) {
                 Swal.fire('Aviso', 'Selecione um colaborador.', 'warning');
+                return;
+            }
+
+            if (!mesSelecionado) {
+                Swal.fire('Aviso', 'Selecione o mês do relatório.', 'warning');
                 return;
             }
 
@@ -3944,168 +3960,398 @@
                 return;
             }
 
-            const hoje = new Date().toISOString().split('T')[0];
-            const vendasColaborador = todaySales.filter(s =>
-                s.tipo === 'service' &&
-                !s.isPackage &&
-                s.collaboratorId === collaboratorId
-            );
+            const partesMes = mesSelecionado.split('-');
+            const ano = parseInt(partesMes[0], 10);
+            const mes = parseInt(partesMes[1], 10);
+            const inicioMes = ano + '-' + String(mes).padStart(2, '0') + '-01';
+            const ultimoDia = new Date(ano, mes, 0).getDate();
+            const fimMes = ano + '-' + String(mes).padStart(2, '0') + '-' + String(ultimoDia).padStart(2, '0');
 
-            const vendasTotal = vendasColaborador.reduce((sum, sale) => {
-                return sum + parseFloat(sale.valorOriginal || sale.value || 0);
-            }, 0);
-
-            let comissaoTotal = 0;
-            vendasColaborador.forEach(sale => {
-                const percentual = sale.type === 'manual'
-                    ? parseFloat(collaborator.manualPercent || 0)
-                    : parseFloat(collaborator.productPercent || 0);
-                const valorVenda = parseFloat(sale.valorOriginal || sale.value || 0);
-                comissaoTotal += valorVenda * (percentual / 100);
+            Swal.fire({
+                title: 'Preparando relatório...',
+                text: 'Carregando as vendas do mês selecionado.',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
             });
 
-            const pagamentosHoje = [];
-            const paymentRecords = todaySales
-                .filter(s => s.tipo === 'service' && s.collaboratorId === collaboratorId && s.paymentRecord)
-                .map(s => s.paymentRecord);
-
-            paymentRecords.forEach(record => pagamentosHoje.push(record));
-
-            const colaboradorRecebeu = pagamentosHoje.reduce((sum, record) =>
-                sum + parseFloat(record.colaboradorRecebeu || 0), 0);
-            const salaoRecebeu = pagamentosHoje.reduce((sum, record) =>
-                sum + parseFloat(record.salaoRecebeu || 0), 0);
-
-            // Também consulta o histórico salvo para incluir pagamentos registrados hoje.
-            db.collection('collaboratorPayments')
+            // O relatório mensal usa somente vendas que ainda existem no Firestore.
+            // Assim, uma venda excluída deixa de participar automaticamente do PDF.
+            db.collection('services')
                 .where('userId', '==', currentUser.uid)
-                .where('collaboratorId', '==', collaboratorId)
-                .where('data', '==', hoje)
+                .where('date', '>=', inicioMes)
+                .where('date', '<=', fimMes)
                 .get()
-                .then(snapshot => {
-                    const registros = [];
-                    snapshot.forEach(doc => registros.push(doc.data()));
-
-                    const registrosUnicos = [];
-                    const chaves = new Set();
-                    registros.forEach(record => {
-                        const chave = [
-                            record.timestamp?.seconds || '',
-                            record.valorTotal || '',
-                            record.colaboradorRecebeu || '',
-                            record.salaoRecebeu || '',
-                            record.tipo || ''
-                        ].join('|');
-                        if (!chaves.has(chave)) {
-                            chaves.add(chave);
-                            registrosUnicos.push(record);
-                        }
-                    });
-
-                    const recebidoColaboradorHistorico = registrosUnicos.reduce((sum, record) =>
-                        sum + parseFloat(record.colaboradorRecebeu || 0), 0);
-                    const recebidoSalaoHistorico = registrosUnicos.reduce((sum, record) =>
-                        sum + parseFloat(record.salaoRecebeu || 0), 0);
-
-                    const colaboradorRecebeuFinal = Math.max(colaboradorRecebeu, recebidoColaboradorHistorico);
-                    const salaoRecebeuFinal = Math.max(salaoRecebeu, recebidoSalaoHistorico);
-
-                    const faltaColaborador = comissaoTotal - colaboradorRecebeuFinal;
-                    const comissaoSalaoTotal = vendasTotal - comissaoTotal;
-                    const faltaSalao = comissaoSalaoTotal - salaoRecebeuFinal;
-
-                    let saldoFinal = 0;
-                    let direcao = 'Nenhum repasse pendente.';
-
-                    if (faltaColaborador > 0.009) {
-                        saldoFinal = faltaColaborador;
-                        direcao = 'O salão ainda deve pagar ao colaborador.';
-                    } else if (faltaColaborador < -0.009) {
-                        saldoFinal = Math.abs(faltaColaborador);
-                        direcao = 'O colaborador recebeu acima da comissão e deve pagar ao salão.';
-                    } else if (faltaSalao > 0.009) {
-                        saldoFinal = faltaSalao;
-                        direcao = 'O salão ainda deve receber do colaborador.';
+            .then(servicesSnap => {
+                const vendas = [];
+                servicesSnap.forEach(docSnap => {
+                    const sale = { id: docSnap.id, ...docSnap.data(), tipo: 'service' };
+                    if (sale.collaboratorId === collaboratorId && !sale.isPackage) {
+                        vendas.push(sale);
                     }
-
-                    const { jsPDF } = window.jspdf;
-                    const doc = new jsPDF();
-                    const margem = 16;
-                    let y = 18;
-
-                    doc.setFontSize(18);
-                    doc.setFont(undefined, 'bold');
-                    doc.text('CONTROLE DE CAIXA - COLABORADOR', margem, y);
-                    y += 10;
-
-                    doc.setFontSize(11);
-                    doc.setFont(undefined, 'normal');
-                    doc.text('Colaborador: ' + (collaborator.name || 'N/A'), margem, y);
-                    y += 6;
-                    doc.text('Data: ' + new Date(hoje + 'T00:00:00').toLocaleDateString('pt-PT'), margem, y);
-                    y += 12;
-
-                    const linhas = [
-                        ['Valor total das vendas', vendasTotal],
-                        ['Comissão total do colaborador', comissaoTotal],
-                        ['Já recebido na conta do colaborador', colaboradorRecebeuFinal],
-                        ['Comissão restante após recebimentos', Math.max(0, faltaColaborador)],
-                        ['Total pertencente ao salão', comissaoSalaoTotal],
-                        ['Já recebido na conta do salão', salaoRecebeuFinal],
-                        ['Saldo restante do salão', Math.max(0, faltaSalao)]
-                    ];
-
-                    doc.setFontSize(12);
-                    doc.setFont(undefined, 'bold');
-                    doc.text('Resumo financeiro', margem, y);
-                    y += 8;
-                    doc.setFont(undefined, 'normal');
-
-                    linhas.forEach(([label, valor]) => {
-                        doc.text(label, margem, y);
-                        doc.text(formatCurrency(valor), 194, y, { align: 'right' });
-                        y += 7;
-                    });
-
-                    y += 6;
-                    doc.setFontSize(12);
-                    doc.setFont(undefined, 'bold');
-                    doc.text('Acerto entre as contas', margem, y);
-                    y += 8;
-                    doc.setFont(undefined, 'normal');
-                    doc.setFontSize(11);
-                    doc.text(direcao, margem, y);
-                    y += 7;
-                    if (saldoFinal > 0.009) {
-                        doc.setFont(undefined, 'bold');
-                        doc.text('Valor do acerto: ' + formatCurrency(saldoFinal), margem, y);
-                    } else {
-                        doc.text('Valor do acerto: € 0,00', margem, y);
-                    }
-
-                    y += 14;
-                    doc.setFontSize(9);
-                    doc.setFont(undefined, 'normal');
-                    doc.text('Este relatório considera as vendas de serviços e os pagamentos registrados no dia.', margem, y);
-                    y += 5;
-                    doc.text('A comissão é calculada sobre o valor total das vendas.', margem, y);
-
-                    const nomeArquivo = 'controle-caixa-' + (collaborator.name || 'colaborador')
-                        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-                        .replace(/[^a-zA-Z0-9]+/g, '-')
-                        .replace(/^-|-$/g, '')
-                        .toLowerCase() + '-' + hoje + '.pdf';
-
-                    doc.save(nomeArquivo);
-
-                    const modal = bootstrap.Modal.getInstance(document.getElementById('collaboratorPdfModal'));
-                    if (modal) modal.hide();
-                })
-                .catch(error => {
-                    console.error('Erro ao gerar relatório PDF:', error);
-                    Swal.fire('Erro', 'Não foi possível carregar os pagamentos do colaborador: ' + error.message, 'error');
                 });
+
+                vendas.sort((a, b) => {
+                    const dataA = a.date || '';
+                    const dataB = b.date || '';
+                    if (dataA !== dataB) return dataA.localeCompare(dataB);
+                    const timeA = a.timestamp?.toDate ? a.timestamp.toDate().getTime() : 0;
+                    const timeB = b.timestamp?.toDate ? b.timestamp.toDate().getTime() : 0;
+                    return timeA - timeB;
+                });
+
+                const obterPagamento = (sale) => {
+                    const valorVenda = parseFloat(sale.valorOriginal || sale.value || 0);
+                    const valorColaborador = parseFloat(sale.colaboradorRecebeu || 0);
+                    const valorSalao = parseFloat(sale.salaoRecebeu || 0);
+                    const pagamento = sale.paymentRecord || null;
+
+                    if (pagamento) {
+                        return {
+                            valorTotal: parseFloat(pagamento.valorTotal || valorVenda || 0),
+                            comissaoColaborador: parseFloat(pagamento.comissaoColaborador || 0),
+                            colaboradorRecebeu: valorColaborador || parseFloat(pagamento.colaboradorRecebeu || 0),
+                            salaoRecebeu: valorSalao || parseFloat(pagamento.salaoRecebeu || 0)
+                        };
+                    }
+
+                    const percentual = sale.type === 'manual'
+                        ? parseFloat(collaborator.manualPercent || 0)
+                        : parseFloat(collaborator.productPercent || 0);
+                    return {
+                        valorTotal: valorVenda,
+                        comissaoColaborador: valorVenda * (percentual / 100),
+                        colaboradorRecebeu: valorColaborador,
+                        salaoRecebeu: valorSalao
+                    };
+                };
+
+                let totalVendas = 0;
+                let totalComissao = 0;
+                let totalColaboradorRecebeu = 0;
+                let totalSalaoRecebeu = 0;
+                let totalComissaoSalao = 0;
+
+                const linhas = vendas.map(sale => {
+                    const pagamento = obterPagamento(sale);
+                    const valorVenda = pagamento.valorTotal;
+                    const comissao = pagamento.comissaoColaborador;
+                    const colaboradorRecebeu = pagamento.colaboradorRecebeu;
+                    const salaoRecebeu = pagamento.salaoRecebeu;
+
+                    totalVendas += valorVenda;
+                    totalComissao += comissao;
+                    totalColaboradorRecebeu += colaboradorRecebeu;
+                    totalSalaoRecebeu += salaoRecebeu;
+                    totalComissaoSalao += valorVenda - comissao;
+
+                    return {
+                        data: sale.date || '',
+                        cliente: clients.find(c => c.id === sale.clientId)?.name || 'Cliente não encontrado',
+                        servico: sale.description || 'Serviço',
+                        valorVenda,
+                        comissao,
+                        colaboradorRecebeu,
+                        salaoRecebeu,
+                        faltaColaborador: comissao - colaboradorRecebeu,
+                        faltaSalao: (valorVenda - comissao) - salaoRecebeu
+                    };
+                });
+
+                // Se houver pagamento histórico sem venda correspondente, ele não entra no total.
+                // Isso impede que pagamentos órfãos de vendas excluídas continuem somando no PDF.
+                const faltaColaboradorMes = totalComissao - totalColaboradorRecebeu;
+                const faltaSalaoMes = totalComissaoSalao - totalSalaoRecebeu;
+
+                let direcao = 'Contas equilibradas.';
+                let valorAcerto = 0;
+                if (faltaColaboradorMes > 0.009) {
+                    direcao = 'O salão ainda deve pagar ao colaborador.';
+                    valorAcerto = faltaColaboradorMes;
+                } else if (faltaColaboradorMes < -0.009) {
+                    direcao = 'O colaborador recebeu acima da comissão e deve pagar ao salão.';
+                    valorAcerto = Math.abs(faltaColaboradorMes);
+                } else if (faltaSalaoMes > 0.009) {
+                    direcao = 'O salão ainda deve receber do colaborador.';
+                    valorAcerto = faltaSalaoMes;
+                }
+
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+                const margem = 10;
+                const larguraPagina = 297;
+                const larguraUtil = larguraPagina - (margem * 2);
+                let y = 14;
+
+                const moeda = valor => formatCurrency(parseFloat(valor || 0));
+                const dataPt = dataStr => dataStr ? new Date(dataStr + 'T00:00:00').toLocaleDateString('pt-PT') : '';
+                const mesPt = new Date(ano, mes - 1, 1).toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
+
+                doc.setFontSize(17);
+                doc.setFont(undefined, 'bold');
+                doc.text('CONTROLE MENSAL DE CAIXA - COLABORADOR', margem, y);
+                y += 8;
+                doc.setFontSize(10);
+                doc.setFont(undefined, 'normal');
+                doc.text('Colaborador: ' + (collaborator.name || 'N/A'), margem, y);
+                doc.text('Período: 01/' + String(mes).padStart(2, '0') + '/' + ano + ' até ' + ultimoDia + '/' + String(mes).padStart(2, '0') + '/' + ano, 130, y);
+                y += 5;
+                doc.text('Mês: ' + mesPt.charAt(0).toUpperCase() + mesPt.slice(1), margem, y);
+                y += 8;
+
+                doc.setFontSize(10);
+                doc.setFont(undefined, 'bold');
+                doc.text('RESUMO DO MÊS', margem, y);
+                y += 6;
+                doc.setFont(undefined, 'normal');
+                const resumo = [
+                    ['Total de vendas', totalVendas],
+                    ['Comissão total do colaborador', totalComissao],
+                    ['Total recebido na conta do colaborador', totalColaboradorRecebeu],
+                    ['Comissão ainda não recebida pelo colaborador', Math.max(0, faltaColaboradorMes)],
+                    ['Total pertencente ao salão', totalComissaoSalao],
+                    ['Total recebido na conta do salão', totalSalaoRecebeu],
+                    ['Total ainda a receber pelo salão', Math.max(0, faltaSalaoMes)]
+                ];
+                resumo.forEach(item => {
+                    doc.text(item[0], margem, y);
+                    doc.text(moeda(item[1]), 92, y, { align: 'right' });
+                    y += 5;
+                });
+
+                y += 3;
+                doc.setFont(undefined, 'bold');
+                doc.text('ACERTO FINAL', 115, y);
+                doc.setFont(undefined, 'normal');
+                doc.text(direcao, 115, y + 6);
+                doc.setFont(undefined, 'bold');
+                doc.text('Valor: ' + moeda(valorAcerto), 115, y + 12);
+                y += 20;
+
+                doc.setFont(undefined, 'bold');
+                doc.setFontSize(10);
+                doc.text('LISTA MENSAL DE VENDAS - DO DIA 01 AO ÚLTIMO DIA DO MÊS', margem, y);
+                y += 6;
+
+                const colX = [10, 31, 86, 132, 162, 192, 222, 252, 281];
+                const headers = ['Data', 'Cliente', 'Serviço', 'Venda', 'Comissão', 'Colab. recebeu', 'Salão recebeu', 'Falta colab.', 'Falta salão'];
+                const colW = [21, 55, 46, 30, 30, 30, 30, 29, 16];
+
+                const desenharCabecalho = () => {
+                    doc.setFont(undefined, 'bold');
+                    doc.setFontSize(7.5);
+                    headers.forEach((h, i) => doc.text(h, colX[i], y));
+                    y += 4;
+                    doc.line(margem, y, larguraPagina - margem, y);
+                    y += 4;
+                    doc.setFont(undefined, 'normal');
+                };
+
+                desenharCabecalho();
+                doc.setFontSize(7.2);
+
+                if (linhas.length === 0) {
+                    doc.text('Nenhuma venda encontrada para este colaborador no mês selecionado.', margem, y);
+                } else {
+                    linhas.forEach(linha => {
+                        if (y > 190) {
+                            doc.addPage();
+                            y = 14;
+                            doc.setFontSize(10);
+                            doc.setFont(undefined, 'bold');
+                            doc.text('CONTROLE MENSAL - ' + (collaborator.name || 'COLABORADOR'), margem, y);
+                            y += 8;
+                            desenharCabecalho();
+                            doc.setFontSize(7.2);
+                        }
+
+                        const cliente = doc.splitTextToSize(linha.cliente, colW[1] - 2)[0];
+                        const servico = doc.splitTextToSize(linha.servico, colW[2] - 2)[0];
+                        const valores = [
+                            dataPt(linha.data),
+                            cliente,
+                            servico,
+                            moeda(linha.valorVenda),
+                            moeda(linha.comissao),
+                            moeda(linha.colaboradorRecebeu),
+                            moeda(linha.salaoRecebeu),
+                            moeda(Math.max(0, linha.faltaColaborador)),
+                            moeda(Math.max(0, linha.faltaSalao))
+                        ];
+
+                        valores.forEach((valor, i) => {
+                            if (i >= 3) {
+                                doc.text(valor, colX[i] + colW[i] - 2, y, { align: 'right' });
+                            } else {
+                                doc.text(valor, colX[i], y);
+                            }
+                        });
+                        y += 5;
+                    });
+                }
+
+                if (y > 180) {
+                    doc.addPage();
+                    y = 14;
+                } else {
+                    y += 7;
+                }
+
+                doc.setFontSize(9);
+                doc.setFont(undefined, 'bold');
+                doc.text('CONTROLE FINAL DAS CONTAS', margem, y);
+                y += 6;
+                doc.setFont(undefined, 'normal');
+                doc.text('Colaborador recebeu em sua conta: ' + moeda(totalColaboradorRecebeu), margem, y);
+                doc.text('Salão recebeu em sua conta: ' + moeda(totalSalaoRecebeu), 105, y);
+                y += 5;
+                doc.text('Comissão do colaborador: ' + moeda(totalComissao), margem, y);
+                doc.text('Parte do salão: ' + moeda(totalComissaoSalao), 105, y);
+                y += 5;
+                doc.setFont(undefined, 'bold');
+                doc.text(direcao + ' Valor do acerto: ' + moeda(valorAcerto), margem, y);
+                y += 6;
+                doc.setFont(undefined, 'normal');
+                doc.setFontSize(7.5);
+                doc.text('As vendas excluídas não participam deste relatório. O PDF é recalculado diretamente a partir das vendas que permanecem registradas.', margem, y);
+
+                const nomeArquivo = 'controle-caixa-' + (collaborator.name || 'colaborador')
+                    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                    .replace(/[^a-zA-Z0-9]+/g, '-')
+                    .replace(/^-|-$/g, '')
+                    .toLowerCase() + '-' + mesSelecionado + '.pdf';
+
+                Swal.close();
+                doc.save(nomeArquivo);
+
+                const modal = bootstrap.Modal.getInstance(document.getElementById('collaboratorPdfModal'));
+                if (modal) modal.hide();
+            }).catch(error => {
+                console.error('Erro ao gerar relatório PDF:', error);
+                Swal.close();
+                Swal.fire('Erro', 'Não foi possível gerar o relatório mensal: ' + error.message, 'error');
+            });
         }
+
+        // ==========================================
+        // LIMPEZA DOS DADOS RELACIONADOS À VENDA EXCLUÍDA
+        // ==========================================
+        // A função original de exclusão permanece intacta. Este controlador substitui
+        // somente a ação global chamada pelo botão de excluir para também remover o
+        // registro correspondente em collaboratorPayments.
+        window.excluirVenda = function(id, tipo) {
+            Swal.fire({
+                title: 'Excluir venda?',
+                text: 'Esta ação não pode ser desfeita. Todos os dados relacionados ao pagamento também serão removidos.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                confirmButtonText: 'Sim, excluir',
+                cancelButtonText: 'Cancelar'
+            }).then(result => {
+                if (!result.isConfirmed) return;
+
+                Swal.fire({
+                    title: 'Excluindo...',
+                    text: 'Removendo a venda e os dados de pagamento relacionados.',
+                    allowOutsideClick: false,
+                    didOpen: () => { Swal.showLoading(); }
+                });
+
+                const collectionName = tipo === 'service' ? 'services' : 'productSales';
+                const saleRef = db.collection(collectionName).doc(id);
+
+                saleRef.get().then(saleDoc => {
+                    if (!saleDoc.exists) throw new Error('Venda não encontrada.');
+                    const sale = saleDoc.data();
+                    const tarefas = [];
+
+                    if (tipo === 'product' && sale.productId) {
+                        tarefas.push(
+                            db.collection('products').doc(sale.productId).get().then(productDoc => {
+                                if (!productDoc.exists) return;
+                                const currentQty = productDoc.data().quantity || 0;
+                                return db.collection('products').doc(sale.productId).update({
+                                    quantity: currentQty + (sale.quantity || 0)
+                                });
+                            })
+                        );
+                    }
+
+                    // Remove somente um registro de collaboratorPayments que corresponda
+                    // aos dados desta venda, evitando apagar pagamentos de outras vendas.
+                    const collaboratorId = sale.collaboratorId || sale.paymentRecord?.collaboratorId;
+                    const dataVenda = sale.date || '';
+                    const valorTotal = parseFloat(sale.valorOriginal || sale.value || sale.totalValue || 0);
+                    const colaboradorRecebeu = parseFloat(sale.colaboradorRecebeu || sale.paymentRecord?.colaboradorRecebeu || 0);
+                    const salaoRecebeu = parseFloat(sale.salaoRecebeu || sale.paymentRecord?.salaoRecebeu || 0);
+
+                    if (dataVenda) {
+                        let pagamentosQuery = db.collection('collaboratorPayments')
+                            .where('userId', '==', currentUser.uid)
+                            .where('data', '==', dataVenda);
+
+                        if (collaboratorId) {
+                            pagamentosQuery = pagamentosQuery.where('collaboratorId', '==', collaboratorId);
+                        }
+
+                        tarefas.push(
+                            pagamentosQuery.get().then(snapshot => {
+                                    const candidatos = [];
+                                    snapshot.forEach(paymentDoc => {
+                                        const payment = paymentDoc.data();
+                                        const valorPagamento = parseFloat(payment.valorTotal || 0);
+                                        const colaboradorPagamento = parseFloat(payment.colaboradorRecebeu || 0);
+                                        const salaoPagamento = parseFloat(payment.salaoRecebeu || 0);
+                                        const tipoPagamento = payment.tipo || '';
+                                        const tipoVenda = tipo === 'service' ? 'service' : 'product';
+
+                                        if (
+                                            Math.abs(valorPagamento - valorTotal) < 0.01 &&
+                                            Math.abs(colaboradorPagamento - colaboradorRecebeu) < 0.01 &&
+                                            Math.abs(salaoPagamento - salaoRecebeu) < 0.01 &&
+                                            (!tipoPagamento || tipoPagamento === tipoVenda)
+                                        ) {
+                                            candidatos.push({ id: paymentDoc.id, data: payment });
+                                        }
+                                    });
+
+                                    if (candidatos.length === 0) return null;
+
+                                    // Em caso de vendas idênticas, remove somente o registro mais antigo.
+                                    candidatos.sort((a, b) => {
+                                        const ta = a.data.timestamp?.seconds || 0;
+                                        const tb = b.data.timestamp?.seconds || 0;
+                                        return ta - tb;
+                                    });
+                                    return db.collection('collaboratorPayments').doc(candidatos[0].id).delete();
+                                })
+                        );
+                    }
+
+                    tarefas.push(saleRef.delete());
+                    return Promise.all(tarefas);
+                }).then(() => {
+                    // Limpar também o estado local imediatamente.
+                    todaySales = todaySales.filter(s => !(s.id === id && s.tipo === tipo));
+                    renderizarVendas();
+                    atualizarResumo();
+                    carregarVendasDia();
+                    carregarDados();
+                    broadcastCaixaUpdate();
+                    Swal.close();
+                    Swal.fire({
+                        icon: 'success',
+                        title: '✅ Venda excluída!',
+                        text: 'A venda e o registro de pagamento relacionado foram removidos.',
+                        timer: 1800,
+                        showConfirmButton: false
+                    });
+                }).catch(error => {
+                    Swal.close();
+                    Swal.fire('Erro', 'Erro ao excluir: ' + error.message, 'error');
+                });
+            });
+        };
 
         // ==========================================
         // 29. LOG DE INICIALIZAÇÃO
