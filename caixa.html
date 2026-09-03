@@ -1234,6 +1234,103 @@
             border-radius: 16px;
             overflow: hidden;
         }
+
+        /* ============================================
+           SELETOR DE COLABORADORES COM FOTO - UI
+           Mantém os selects/valores originais e altera apenas a apresentação.
+           ============================================ */
+        .collaborator-native-select {
+            position: absolute !important;
+            width: 1px !important;
+            height: 1px !important;
+            padding: 0 !important;
+            margin: -1px !important;
+            overflow: hidden !important;
+            clip: rect(0,0,0,0) !important;
+            white-space: nowrap !important;
+            border: 0 !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+        .collaborator-picker { position: relative; width: 100%; }
+        .collaborator-picker-toggle {
+            width: 100%; min-height: 38px; display: flex; align-items: center;
+            justify-content: space-between; gap: 10px; padding: 6px 10px;
+            border: 2px solid #e9ecef; border-radius: 8px; background: #fff;
+            color: #333; font-size: .82rem; text-align: left; cursor: pointer;
+            transition: border-color .2s, box-shadow .2s;
+        }
+        .collaborator-picker-toggle:hover,
+        .collaborator-picker.open .collaborator-picker-toggle,
+        .collaborator-picker-toggle:focus {
+            border-color: #26196b; box-shadow: 0 0 0 .2rem rgba(38,25,107,.15); outline: none;
+        }
+        .collaborator-picker-value { display: flex; align-items: center; gap: 9px; min-width: 0; flex: 1; }
+        .collaborator-picker-value .collaborator-name {
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .collaborator-picker-chevron { flex-shrink: 0; color: #6c757d; transition: transform .2s; }
+        .collaborator-picker.open .collaborator-picker-chevron { transform: rotate(180deg); }
+        .collaborator-picker-avatar {
+            width: 30px; height: 30px; border-radius: 50%; object-fit: cover;
+            flex: 0 0 30px; border: 2px solid #e0e0e0; background: #f8f9fa;
+        }
+        .collaborator-picker-avatar.placeholder {
+            display: flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg,#26196b,#4a3a9c); color: #fff;
+            font-size: 12px; font-weight: 700;
+        }
+        .collaborator-picker-list {
+            position: absolute; left: 0; right: 0; top: calc(100% + 5px); z-index: 2050;
+            max-height: 280px; overflow-y: auto; display: none; padding: 5px;
+            background: #fff; border: 1px solid #ddd; border-radius: 10px;
+            box-shadow: 0 8px 24px rgba(0,0,0,.16);
+        }
+        .collaborator-picker.open .collaborator-picker-list { display: block; }
+        .collaborator-picker-option {
+            width: 100%; display: flex; align-items: center; gap: 10px; padding: 8px 9px;
+            border: 0; border-radius: 8px; background: transparent; color: #333;
+            text-align: left; cursor: pointer; font-size: .82rem;
+        }
+        .collaborator-picker-option:hover,
+        .collaborator-picker-option.selected { background: #f0edff; }
+        .collaborator-picker-option .option-info { min-width: 0; flex: 1; }
+        .collaborator-picker-option .option-name {
+            display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600;
+        }
+        .collaborator-picker-option .option-type {
+            display: block; color: #6c757d; font-size: .68rem; margin-top: 1px;
+        }
+        .collaborator-picker-option.all-option .collaborator-picker-avatar.placeholder {
+            background: #f0edff; color: #26196b;
+        }
+        .collaborator-select-wrapper > .collab-avatar-preview,
+        .collaborator-select-wrapper > .collab-avatar-placeholder { display: none !important; }
+
+        @media (max-width: 768px) {
+            .collaborator-picker-toggle { min-height: 36px; font-size: .75rem; padding: 5px 8px; }
+            .collaborator-picker-avatar { width: 28px; height: 28px; flex-basis: 28px; }
+            .collaborator-picker-list { max-height: 240px; }
+            .collaborator-picker-option { padding: 8px; font-size: .75rem; }
+        }
+        @media (max-width: 480px) {
+            .collaborator-picker-toggle { min-height: 34px; font-size: .7rem; }
+            .collaborator-picker-avatar { width: 26px; height: 26px; flex-basis: 26px; }
+        }
+
+
+        @media (max-width: 576px) {
+            .modal-dialog.modal-xl, .modal-dialog.modal-lg {
+                width: auto;
+                max-width: none;
+                margin: 6px;
+            }
+            #manageSalesModal .modal-content { min-height: calc(100vh - 12px); }
+            #manageSalesModal .modal-body { overflow-x: hidden; }
+            #manageSalesModal .calendar-container { padding: 6px; }
+            #manageSalesModal .calendar-day { min-height: clamp(30px, 11vw, 44px); }
+        }
+
     </style>
 </head>
 <body>
@@ -2451,30 +2548,166 @@
         function atualizarSelectColaboradoresComFoto(selectId) {
             const select = document.getElementById(selectId);
             if (!select) return;
+
             const currentValue = select.value;
-            select.innerHTML = '<option value="">Selecione</option>';
-            
-            collaborators.forEach(c => {
-                const opt = document.createElement('option');
-                opt.value = c.id;
-                opt.setAttribute('data-photo', c.photoUrl || '');
-                opt.textContent = c.name;
-                select.appendChild(opt);
+            const isManageSales = selectId === 'manageSalesCollaborator';
+            select.innerHTML = '';
+
+            const firstOption = document.createElement('option');
+            firstOption.value = isManageSales ? 'all' : '';
+            firstOption.textContent = isManageSales ? 'Todos os colaboradores' : 'Selecione um colaborador';
+            firstOption.setAttribute('data-photo', '');
+            select.appendChild(firstOption);
+
+            collaborators
+                .slice()
+                .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+                .forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.id;
+                    opt.setAttribute('data-photo', c.photoUrl || c.photo || '');
+                    opt.textContent = c.name || 'Colaborador';
+                    select.appendChild(opt);
+                });
+
+            if (currentValue && Array.from(select.options).some(o => o.value === currentValue)) {
+                select.value = currentValue;
+            } else if (isManageSales) {
+                select.value = 'all';
+            }
+
+            montarSeletorColaboradorComFoto(selectId);
+        }
+
+        function montarSeletorColaboradorComFoto(selectId) {
+            const select = document.getElementById(selectId);
+            if (!select || !select.parentElement) return;
+
+            let picker = select.parentElement.querySelector('.collaborator-picker[data-for="' + selectId + '"]');
+
+            if (!picker) {
+                picker = document.createElement('div');
+                picker.className = 'collaborator-picker';
+                picker.setAttribute('data-for', selectId);
+                picker.innerHTML = `
+                    <button type="button" class="collaborator-picker-toggle" aria-haspopup="listbox" aria-expanded="false">
+                        <span class="collaborator-picker-value"></span>
+                        <i class="fas fa-chevron-down collaborator-picker-chevron"></i>
+                    </button>
+                    <div class="collaborator-picker-list" role="listbox"></div>
+                `;
+                select.classList.add('collaborator-native-select');
+                select.parentElement.appendChild(picker);
+
+                picker.querySelector('.collaborator-picker-toggle').addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const aberto = picker.classList.toggle('open');
+                    this.setAttribute('aria-expanded', aberto ? 'true' : 'false');
+                    document.querySelectorAll('.collaborator-picker.open').forEach(other => {
+                        if (other !== picker) {
+                            other.classList.remove('open');
+                            const btn = other.querySelector('.collaborator-picker-toggle');
+                            if (btn) btn.setAttribute('aria-expanded', 'false');
+                        }
+                    });
+                });
+
+                select.addEventListener('change', function() {
+                    atualizarVisualSeletorColaborador(selectId);
+                });
+            }
+
+            const list = picker.querySelector('.collaborator-picker-list');
+            list.innerHTML = '';
+
+            Array.from(select.options).forEach(option => {
+                const collaborator = collaborators.find(c => c.id === option.value);
+                const isAll = option.value === 'all';
+                const name = option.textContent || 'Colaborador';
+                const photo = collaborator ? (collaborator.photoUrl || collaborator.photo || '') : '';
+
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'collaborator-picker-option' + (isAll ? ' all-option' : '');
+                item.setAttribute('role', 'option');
+                item.setAttribute('data-value', option.value);
+                item.innerHTML = `
+                    ${photo
+                        ? `<img class="collaborator-picker-avatar" src="${escapeHtml(photo)}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">`
+                        : ''}
+                    <span class="collaborator-picker-avatar placeholder" style="${photo ? 'display:none;' : ''}">
+                        <i class="fas ${isAll ? 'fa-users' : 'fa-user'}"></i>
+                    </span>
+                    <span class="option-info">
+                        <span class="option-name">${escapeHtml(name)}</span>
+                        <span class="option-type">${isAll ? 'Todos' : 'Colaborador'}</span>
+                    </span>
+                `;
+
+                item.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    select.value = this.getAttribute('data-value');
+                    select.dispatchEvent(new Event('change', { bubbles: true }));
+                    picker.classList.remove('open');
+                    picker.querySelector('.collaborator-picker-toggle').setAttribute('aria-expanded', 'false');
+                });
+
+                list.appendChild(item);
             });
 
-            if (currentValue) {
-                select.value = currentValue;
-            }
+            atualizarVisualSeletorColaborador(selectId);
+        }
+
+        function atualizarVisualSeletorColaborador(selectId) {
+            const select = document.getElementById(selectId);
+            if (!select || !select.parentElement) return;
+
+            const picker = select.parentElement.querySelector('.collaborator-picker[data-for="' + selectId + '"]');
+            if (!picker) return;
+
+            const option = select.options[select.selectedIndex];
+            if (!option) return;
+
+            const collaborator = collaborators.find(c => c.id === option.value);
+            const isAll = option.value === 'all';
+            const name = option.textContent || (isAll ? 'Todos os colaboradores' : 'Selecione um colaborador');
+            const photo = collaborator ? (collaborator.photoUrl || collaborator.photo || '') : '';
+
+            picker.querySelector('.collaborator-picker-value').innerHTML = `
+                ${photo
+                    ? `<img class="collaborator-picker-avatar" src="${escapeHtml(photo)}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">`
+                    : ''}
+                <span class="collaborator-picker-avatar placeholder" style="${photo ? 'display:none;' : ''}">
+                    <i class="fas ${isAll ? 'fa-users' : 'fa-user'}"></i>
+                </span>
+                <span class="collaborator-name">${escapeHtml(name)}</span>
+            `;
+
+            picker.querySelectorAll('.collaborator-picker-option').forEach(item => {
+                const selected = item.getAttribute('data-value') === select.value;
+                item.classList.toggle('selected', selected);
+                item.setAttribute('aria-selected', selected ? 'true' : 'false');
+            });
         }
 
         function atualizarSelectColaboradoresGeral() {
-            const selects = ['serviceCollaborator', 'pastCollaboratorSelect', 'manageSalesCollaborator', 'pdfCollaboratorSelect'];
+            const selects = ['serviceCollaborator', 'pastCollaboratorSelect', 'manageSalesCollaborator', 'pdfCollaboratorSelect', 'editSaleCollaborator'];
             selects.forEach(id => {
                 if (document.getElementById(id)) {
                     atualizarSelectColaboradoresComFoto(id);
                 }
             });
         }
+
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.collaborator-picker')) {
+                document.querySelectorAll('.collaborator-picker.open').forEach(picker => {
+                    picker.classList.remove('open');
+                    const btn = picker.querySelector('.collaborator-picker-toggle');
+                    if (btn) btn.setAttribute('aria-expanded', 'false');
+                });
+            }
+        });
 
         // ==========================================
         // 7. FUNÇÕES DE PAGAMENTO AO COLABORADOR
@@ -3541,7 +3774,7 @@
             
             // Preparar selects de colaboradores
             const collaboratorOptions = collaborators.map(c => 
-                `<option value="${c.id}" ${c.id === sale.collaboratorId ? 'selected' : ''}>${escapeHtml(c.name)}</option>`
+                `<option value="${c.id}" data-photo="${escapeHtml(c.photoUrl || c.photo || '')}" ${c.id === sale.collaboratorId ? 'selected' : ''}>${escapeHtml(c.name)}</option>`
             ).join('');
 
             let html = '';
@@ -5060,17 +5293,7 @@
         function abrirRelatorioPdfColaborador() {
             const select = document.getElementById('pdfCollaboratorSelect');
             const monthSelect = document.getElementById('pdfMonthSelect');
-            select.innerHTML = '<option value="">Selecione um colaborador</option>';
-
-            collaborators
-                .slice()
-                .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-                .forEach(collab => {
-                    const option = document.createElement('option');
-                    option.value = collab.id;
-                    option.textContent = collab.name || 'Colaborador';
-                    select.appendChild(option);
-                });
+            atualizarSelectColaboradoresComFoto('pdfCollaboratorSelect');
 
             const agora = new Date();
             const mesAtual = agora.getFullYear() + '-' + String(agora.getMonth() + 1).padStart(2, '0');
