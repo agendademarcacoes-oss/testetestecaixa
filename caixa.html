@@ -1710,7 +1710,7 @@
     </div>
 
     <!-- ==========================================
-    MODAL EDITAR VENDA
+    MODAL EDITAR VENDA - COM BUSCA DE CLIENTE POR DIGITAÇÃO
     ========================================== -->
     <div class="modal fade" id="editSaleModal" tabindex="-1" data-bs-backdrop="static">
         <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -2208,7 +2208,7 @@
         }
 
         function atualizarSelectColaboradoresGeral() {
-            const selects = ['serviceCollaborator', 'pastCollaboratorSelect', 'manageSalesCollaborator', 'pdfCollaboratorSelect', 'editSaleCollaborator'];
+            const selects = ['serviceCollaborator', 'pastCollaboratorSelect', 'manageSalesCollaborator', 'pdfCollaboratorSelect'];
             selects.forEach(id => {
                 if (document.getElementById(id)) {
                     atualizarSelectColaboradoresComFoto(id);
@@ -3018,7 +3018,7 @@
                 const date = sale.date || sale.originalDate;
                 if (!date) return;
 
-                // Filtrar por colaborador
+                // Filtrar por colaborador - se "all" mostra todos
                 if (collaboratorId !== 'all' && sale.collaboratorId !== collaboratorId) return;
 
                 if (!salesByDate[date]) salesByDate[date] = { services: [], products: [] };
@@ -3265,7 +3265,7 @@
         }
 
         // ==========================================
-        // 9.2 FUNÇÃO PARA ABRIR EDITAR VENDA
+        // 9.2 FUNÇÃO PARA ABRIR EDITAR VENDA - COM BUSCA DE CLIENTE POR DIGITAÇÃO
         // ==========================================
         function abrirEditarVenda(id, tipo, date) {
             // Buscar a venda nos dados carregados
@@ -3279,11 +3279,7 @@
 
             const modalBody = document.getElementById('editSaleBody');
             
-            // Preparar selects
-            const clientOptions = clients.map(c => 
-                `<option value="${c.id}" ${c.id === sale.clientId ? 'selected' : ''}>${escapeHtml(c.name)}</option>`
-            ).join('');
-
+            // Preparar selects de colaboradores
             const collaboratorOptions = collaborators.map(c => 
                 `<option value="${c.id}" ${c.id === sale.collaboratorId ? 'selected' : ''}>${escapeHtml(c.name)}</option>`
             ).join('');
@@ -3299,10 +3295,18 @@
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <label class="form-label fw-bold">Cliente *</label>
-                                <select class="form-select" id="editSaleClient">
-                                    <option value="">Selecione um cliente</option>
-                                    ${clientOptions}
-                                </select>
+                                <div class="autocomplete-container">
+                                    <div class="input-with-clear">
+                                        <input type="text" class="form-control" id="editSaleClientSearch" 
+                                               placeholder="Digite para buscar cliente..." autocomplete="off" 
+                                               value="${escapeHtml(clients.find(c => c.id === sale.clientId)?.name || '')}">
+                                        <button class="clear-btn" id="clearEditSaleClient" type="button" title="Limpar">
+                                            <i class="fas fa-times-circle"></i>
+                                        </button>
+                                    </div>
+                                    <div class="autocomplete-list" id="editSaleClientAutocomplete"></div>
+                                </div>
+                                <input type="hidden" id="editSaleClientId" value="${sale.clientId || ''}">
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-bold">Colaborador *</label>
@@ -3372,10 +3376,18 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-bold">Cliente (opcional)</label>
-                                <select class="form-select" id="editSaleProductClient">
-                                    <option value="">Sem cliente</option>
-                                    ${clientOptions}
-                                </select>
+                                <div class="autocomplete-container">
+                                    <div class="input-with-clear">
+                                        <input type="text" class="form-control" id="editSaleProductClientSearch" 
+                                               placeholder="Digite para buscar cliente..." autocomplete="off"
+                                               value="${escapeHtml(clients.find(c => c.id === sale.clientId)?.name || '')}">
+                                        <button class="clear-btn" id="clearEditSaleProductClient" type="button" title="Limpar">
+                                            <i class="fas fa-times-circle"></i>
+                                        </button>
+                                    </div>
+                                    <div class="autocomplete-list" id="editSaleProductClientAutocomplete"></div>
+                                </div>
+                                <input type="hidden" id="editSaleProductClientId" value="${sale.clientId || ''}">
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-bold">Data da Venda</label>
@@ -3394,6 +3406,13 @@
 
             modalBody.innerHTML = html;
 
+            // Configurar autocomplete para cliente na edição de serviço
+            if (tipo === 'service') {
+                configurarBuscaClientes('editSaleClientSearch', 'editSaleClientAutocomplete', 'editSaleClientId', 'clearEditSaleClient');
+            } else {
+                configurarBuscaClientes('editSaleProductClientSearch', 'editSaleProductClientAutocomplete', 'editSaleProductClientId', 'clearEditSaleProductClient');
+            }
+
             // Preencher selects de colaboradores com foto
             if (document.getElementById('editSaleCollaborator')) {
                 atualizarSelectColaboradoresComFoto('editSaleCollaborator');
@@ -3404,13 +3423,10 @@
                 document.getElementById('editSaleQuantity').addEventListener('change', function() {
                     const qty = parseInt(this.value) || 1;
                     const price = parseFloat(document.getElementById('editSaleUnitPrice').value) || 0;
-                    const total = qty * price;
-                    // Mostrar total ao lado
                 });
                 document.getElementById('editSaleUnitPrice').addEventListener('change', function() {
                     const qty = parseInt(document.getElementById('editSaleQuantity').value) || 1;
                     const price = parseFloat(this.value) || 0;
-                    const total = qty * price;
                 });
             }
 
@@ -3438,7 +3454,7 @@
             showLoading('Salvando alterações...');
 
             if (tipo === 'service') {
-                const clientId = document.getElementById('editSaleClient').value;
+                const clientId = document.getElementById('editSaleClientId').value;
                 const collaboratorId = document.getElementById('editSaleCollaborator').value;
                 const serviceType = document.getElementById('editSaleServiceType').value;
                 const value = parseFloat(document.getElementById('editSaleValue').value);
@@ -3487,7 +3503,7 @@
                 const productId = document.getElementById('editSaleProduct').value;
                 const quantity = parseInt(document.getElementById('editSaleQuantity').value);
                 const unitPrice = parseFloat(document.getElementById('editSaleUnitPrice').value);
-                const clientId = document.getElementById('editSaleProductClient').value || null;
+                const clientId = document.getElementById('editSaleProductClientId').value || null;
 
                 if (!productId || !quantity || quantity < 1) {
                     Swal.close();
@@ -5587,7 +5603,7 @@
         console.log('   ✅ Totalmente responsivo (Desktop, Tablet, Mobile)');
         console.log('   ✅ REGISTRAR VENDA PASSADA: Data personalizada');
         console.log('   ✅ GERENCIAR VENDAS: Calendário com marcadores e design melhorado');
-        console.log('   ✅ EDITAR VENDAS: Editar cliente, serviço, colaborador, valor e data');
+        console.log('   ✅ EDITAR VENDAS: Busca de cliente por digitação com autocomplete');
 
     </script>
 
