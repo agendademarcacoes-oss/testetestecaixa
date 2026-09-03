@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -620,6 +621,21 @@
         }
 
         /* ============================================
+           BOTÕES DE AÇÃO DO CAIXA
+           ============================================ */
+        .btn-actions-group {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .btn-actions-group .btn {
+            padding: 4px 12px;
+            font-size: 0.7rem;
+            border-radius: 20px;
+        }
+
+        /* ============================================
            RESPONSIVIDADE
            ============================================ */
         @media (max-width: 768px) {
@@ -677,6 +693,10 @@
                 padding-left: 34px;
                 font-size: 0.75rem;
             }
+            .btn-actions-group .btn {
+                font-size: 0.6rem;
+                padding: 3px 8px;
+            }
         }
 
         @media (max-width: 480px) {
@@ -716,6 +736,10 @@
             .collaborator-select-wrapper select {
                 padding-left: 28px;
                 font-size: 0.7rem;
+            }
+            .btn-actions-group .btn {
+                font-size: 0.55rem;
+                padding: 2px 6px;
             }
         }
 
@@ -786,7 +810,7 @@
                 <i class="fas fa-sync-alt me-1"></i>Atualizar
             </button>
             <button class="btn-refresh" id="pdfReportBtn" type="button">
-                <i class="fas fa-file-pdf me-1"></i>PDF
+                <i class="fas fa-file-pdf me-1"></i>PDF Colaborador
             </button>
             <button class="btn-home" onclick="goHome()">
                 <i class="fas fa-home"></i>
@@ -801,7 +825,7 @@
     <div class="caixa-content" id="caixaContent">
 
         <!-- ==========================================
-        STATUS DO CAIXA
+        STATUS DO CAIXA E AÇÕES
         ========================================== -->
         <div class="card-custom">
             <div class="card-header-custom">
@@ -816,7 +840,7 @@
                     </div>
                 </div>
                 <div class="col-md-8">
-                    <div class="d-flex gap-2 flex-wrap justify-content-end">
+                    <div class="d-flex gap-2 flex-wrap justify-content-end align-items-center">
                         <button class="btn btn-sm btn-success" id="openCashierBtn">
                             <i class="fas fa-unlock me-1"></i>Abrir Caixa
                         </button>
@@ -826,6 +850,14 @@
                         <button class="btn btn-sm btn-primary" id="finalizeSaleBtn" disabled>
                             <i class="fas fa-check-circle me-1"></i>Finalizar Venda
                         </button>
+                        <div class="btn-actions-group">
+                            <button class="btn btn-sm btn-warning" id="pastSaleBtn" disabled>
+                                <i class="fas fa-calendar-plus me-1"></i>Venda Passada
+                            </button>
+                            <button class="btn btn-sm btn-info" id="manageSalesBtn" disabled>
+                                <i class="fas fa-calendar-alt me-1"></i>Gerenciar Vendas
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1254,11 +1286,6 @@
     </div>
 
     <!-- ==========================================
-    SCRIPTS
-    ========================================== -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
-    
-    <!-- ==========================================
     MODAL RELATÓRIO PDF DO COLABORADOR
     ========================================== -->
     <div class="modal fade" id="collaboratorPdfModal" tabindex="-1" data-bs-backdrop="static">
@@ -1294,6 +1321,209 @@
         </div>
     </div>
 
+    <!-- ==========================================
+    MODAL VENDA PASSADA
+    ========================================== -->
+    <div class="modal fade" id="pastSaleModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header" style="background:linear-gradient(135deg,#26196b,#4a3a9c);color:white;">
+                    <h5 class="modal-title"><i class="fas fa-calendar-plus me-2"></i>Registrar Venda Passada</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="pastSaleForm">
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Atenção: Esta venda será registrada com a data selecionada abaixo.
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="pastSaleDate" class="form-label">Data da Venda *</label>
+                                <input type="date" class="form-control" id="pastSaleDate" required max="${new Date().toISOString().split('T')[0]}">
+                                <small class="text-muted">Selecione a data em que a venda ocorreu</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="pastSaleType" class="form-label">Tipo *</label>
+                                <select class="form-select" id="pastSaleType" required>
+                                    <option value="">Selecione...</option>
+                                    <option value="service">Serviço</option>
+                                    <option value="product">Produto</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <!-- Campos para Serviço -->
+                        <div id="pastServiceFields" style="display: none;">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="pastClientSelect" class="form-label">Cliente *</label>
+                                    <div class="autocomplete-container">
+                                        <input type="text" class="form-control" id="pastClientSelect" placeholder="Digite para buscar cliente...">
+                                        <div class="autocomplete-list" id="pastClientAutocompleteList"></div>
+                                    </div>
+                                    <input type="hidden" id="pastSelectedClientId">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="pastCollaboratorSelect" class="form-label">Colaborador *</label>
+                                    <select class="form-select" id="pastCollaboratorSelect">
+                                        <option value="">Selecione um colaborador</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="pastServiceType" class="form-label">Tipo de Serviço *</label>
+                                    <select class="form-select" id="pastServiceType">
+                                        <option value="">Selecione o tipo</option>
+                                        <option value="manual">Manual (Corte, Brushing, etc.)</option>
+                                        <option value="product">Com Produtos (Madeixas, Coloração, etc.)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="pastServiceValue" class="form-label">Valor do Serviço (€) *</label>
+                                    <input type="number" class="form-control" id="pastServiceValue" step="0.01" min="0">
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="pastServiceDescription" class="form-label">Descrição do Serviço</label>
+                                <textarea class="form-control" id="pastServiceDescription" rows="2"></textarea>
+                            </div>
+                        </div>
+                        
+                        <!-- Campos para Produto -->
+                        <div id="pastProductFields" style="display: none;">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="pastProductSelect" class="form-label">Produto *</label>
+                                    <div class="autocomplete-container">
+                                        <input type="text" class="form-control" id="pastProductSelect" placeholder="Digite para buscar produto...">
+                                        <div class="autocomplete-list" id="pastProductAutocompleteList"></div>
+                                    </div>
+                                    <input type="hidden" id="pastSelectedProductId">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="pastProductQuantity" class="form-label">Quantidade *</label>
+                                    <input type="number" class="form-control" id="pastProductQuantity" min="1" value="1">
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="pastProductClient" class="form-label">Cliente (Opcional)</label>
+                                <div class="autocomplete-container">
+                                    <input type="text" class="form-control" id="pastProductClient" placeholder="Digite para buscar cliente...">
+                                    <div class="autocomplete-list" id="pastProductClientAutocompleteList"></div>
+                                </div>
+                                <input type="hidden" id="pastSelectedProductClientId">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="savePastSaleBtn">
+                        <i class="fas fa-save me-2"></i>Salvar Venda Passada
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+    MODAL GERENCIAR VENDAS
+    ========================================== -->
+    <div class="modal fade" id="manageSalesModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header" style="background:linear-gradient(135deg,#26196b,#4a3a9c);color:white;">
+                    <h5 class="modal-title"><i class="fas fa-calendar-alt me-2"></i>Gerenciar Vendas</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Filtros -->
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">
+                                <i class="fas fa-user me-1"></i> Colaborador
+                            </label>
+                            <select class="form-select" id="manageSalesCollaborator">
+                                <option value="all">Todos os colaboradores</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">
+                                <i class="fas fa-calendar me-1"></i> Mês/Ano
+                            </label>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-sm btn-outline-secondary" type="button" id="prevMonthBtn">
+                                    <i class="fas fa-chevron-left"></i>
+                                </button>
+                                <span id="calendarMonthYear" class="flex-grow-1 text-center fw-bold py-2 bg-light rounded"></span>
+                                <button class="btn btn-sm btn-outline-secondary" type="button" id="nextMonthBtn">
+                                    <i class="fas fa-chevron-right"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end gap-2 flex-wrap">
+                            <button class="btn btn-sm btn-primary" type="button" id="todayBtn">
+                                <i class="fas fa-calendar-day me-1"></i> Hoje
+                            </button>
+                            <button class="btn btn-sm btn-warning" type="button" id="refreshSalesBtn">
+                                <i class="fas fa-sync-alt me-1"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Calendário -->
+                    <div class="calendar-container mb-4">
+                        <div class="calendar-weekdays" id="calendarWeekdays"></div>
+                        <div class="calendar-days" id="calendarDays"></div>
+                    </div>
+                    
+                    <!-- Legenda -->
+                    <div class="d-flex justify-content-center gap-4 mb-4 p-2 bg-light rounded flex-wrap">
+                        <div class="d-flex align-items-center">
+                            <div class="me-2" style="width:14px;height:14px;background-color:#FF6B35;border-radius:50%;"></div>
+                            <small><strong>Serviços</strong> (Laranja)</small>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <div class="me-2" style="width:14px;height:14px;background-color:#00C853;border-radius:50%;"></div>
+                            <small><strong>Produtos</strong> (Verde)</small>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <div class="me-2" style="width:14px;height:14px;background:linear-gradient(135deg,#FF6B35 50%,#00C853 50%);border-radius:50%;"></div>
+                            <small><strong>Ambos</strong></small>
+                        </div>
+                    </div>
+                    
+                    <!-- Resumo do Dia -->
+                    <div id="selectedDayInfo" class="alert alert-info d-none">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap">
+                            <div><i class="fas fa-calendar-day me-2"></i><strong id="selectedDayText">Selecione um dia</strong></div>
+                            <div id="selectedDaySummary"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Vendas do Dia -->
+                    <div id="daySalesContainer" style="max-height:400px;overflow-y:auto;">
+                        <div class="text-center text-muted py-4">
+                            <i class="fas fa-calendar-alt fa-3x mb-3 opacity-50"></i>
+                            <p>Selecione um dia no calendário para ver as vendas</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+    SCRIPTS
+    ========================================== -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    
     <script>
         // ==========================================
         // 1. CONFIGURAÇÃO DO FIREBASE
@@ -1323,6 +1553,7 @@
         let currentUser = null;
         let currentCashier = null;
         let todaySales = [];
+        let allSales = [];
         let clients = [];
         let products = [];
         let collaborators = [];
@@ -1333,9 +1564,9 @@
         let clientPackages = [];
         let selectedPackageId = null;
         let packageServiceInfo = null;
-
-        // Variáveis para o popup de pagamento
         let pendingPaymentData = null;
+        let currentCalendarDate = new Date();
+        let salesByDateCache = {};
 
         // ==========================================
         // 3. FUNÇÃO DE BUSCA DE CLIENTES
@@ -1743,8 +1974,9 @@
         // ==========================================
         // 6. FUNÇÕES DE COLABORADOR - COM FOTO
         // ==========================================
-        function atualizarSelectColaboradoresComFoto() {
-            const select = document.getElementById('serviceCollaborator');
+        function atualizarSelectColaboradoresComFoto(selectId) {
+            const select = document.getElementById(selectId);
+            if (!select) return;
             const currentValue = select.value;
             select.innerHTML = '<option value="">Selecione</option>';
             
@@ -1759,53 +1991,26 @@
             if (currentValue) {
                 select.value = currentValue;
             }
-
-            select.addEventListener('change', function() {
-                atualizarPreviewColaborador(this.value);
-            });
-
-            if (select.value) {
-                atualizarPreviewColaborador(select.value);
-            }
         }
 
-        function atualizarPreviewColaborador(collaboratorId) {
-            const avatarPreview = document.getElementById('collaboratorAvatarPreview');
-            const avatarPlaceholder = document.getElementById('collaboratorAvatarPlaceholder');
-
-            if (!collaboratorId) {
-                avatarPreview.style.display = 'none';
-                avatarPlaceholder.style.display = 'flex';
-                return;
-            }
-
-            const collab = collaborators.find(c => c.id === collaboratorId);
-            if (collab && collab.photoUrl) {
-                avatarPreview.src = collab.photoUrl;
-                avatarPreview.style.display = 'block';
-                avatarPlaceholder.style.display = 'none';
-            } else {
-                avatarPreview.style.display = 'none';
-                avatarPlaceholder.style.display = 'flex';
-                if (collab) {
-                    avatarPlaceholder.textContent = collab.name.charAt(0).toUpperCase();
-                } else {
-                    avatarPlaceholder.innerHTML = '<i class="fas fa-user"></i>';
+        function atualizarSelectColaboradoresGeral() {
+            const selects = ['serviceCollaborator', 'pastCollaboratorSelect', 'manageSalesCollaborator', 'pdfCollaboratorSelect'];
+            selects.forEach(id => {
+                if (document.getElementById(id)) {
+                    atualizarSelectColaboradoresComFoto(id);
                 }
-            }
+            });
         }
 
         // ==========================================
-        // 7. FUNÇÃO PRINCIPAL - POPUP DE PAGAMENTO AO COLABORADOR
+        // 7. FUNÇÕES DE PAGAMENTO AO COLABORADOR
         // ==========================================
         function abrirPopupPagamentoColaborador(tipo) {
-            // Verificar se o caixa está aberto
             if (!currentCashier) {
                 Swal.fire('Erro', 'Abra o caixa antes de adicionar vendas.', 'error');
                 return;
             }
 
-            // Coletar dados do formulário
             let clientId, collaboratorId, type, valor, description, duration, productId, quantity;
 
             if (tipo === 'service') {
@@ -1842,7 +2047,6 @@
                     valorOriginal: valor,
                 };
 
-                // Calcular comissões
                 let perc = 0;
                 if (collaborator) {
                     perc = type === 'manual' ? 
@@ -1897,7 +2101,6 @@
                     valorOriginal: valorTotal,
                 };
 
-                // Calcular comissões para produtos (usando productPercent)
                 let perc = 0;
                 if (collaborator) {
                     perc = parseFloat(collaborator.productPercent || 0);
@@ -1911,7 +2114,6 @@
                 pendingPaymentData.comissaoSalao = comissaoSalao;
             }
 
-            // Abrir modal de pagamento
             const modalBody = document.getElementById('collaboratorPaymentBody');
             
             modalBody.innerHTML = `
@@ -1973,7 +2175,6 @@
                 </div>
             `;
 
-            // Adicionar eventos para recalcular
             document.getElementById('salaoReceived').addEventListener('input', recalcularPagamentoColaborador);
             document.getElementById('colaboradorReceived').addEventListener('input', recalcularPagamentoColaborador);
 
@@ -1989,9 +2190,6 @@
             };
         }
 
-        // ==========================================
-        // 8. RECALCULAR PAGAMENTO DO COLABORADOR
-        // ==========================================
         function recalcularPagamentoColaborador() {
             if (!pendingPaymentData) return;
 
@@ -2006,7 +2204,6 @@
 
             const resultado = document.getElementById('paymentCalculationResult');
 
-            // Calcular valor a repassar
             let valorRepassar = 0;
             let repassarDe = '';
             let repassarPara = '';
@@ -2078,9 +2275,6 @@
             `;
         }
 
-        // ==========================================
-        // 9. CONFIRMAR PAGAMENTO E ADICIONAR AO CARRINHO
-        // ==========================================
         function confirmarPagamentoColaborador() {
             if (!pendingPaymentData) return;
 
@@ -2093,7 +2287,6 @@
             const salaoDevido = comissaoSalao - salaoReceived;
             const colaboradorDevido = comissaoColaborador - colaboradorReceived;
 
-            // Calcular valor a repassar
             let valorRepassar = 0;
             let repassarDe = '';
             let repassarPara = '';
@@ -2108,7 +2301,6 @@
                 repassarPara = 'salão';
             }
 
-            // Salvar dados do pagamento
             const paymentRecord = {
                 collaboratorId: pendingPaymentData.collaboratorId,
                 collaboratorName: pendingPaymentData.collaboratorName,
@@ -2128,9 +2320,7 @@
                 userId: currentUser.uid
             };
 
-            // Adicionar ao carrinho com os valores ajustados
             if (pendingPaymentData.tipo === 'service') {
-                // Verificar pacotes antes de adicionar
                 const client = clients.find(c => c.id === pendingPaymentData.clientId);
                 if (clientPackages.length > 0 && client) {
                     const pkgElegivel = verificarServicoPacote(pendingPaymentData.description);
@@ -2197,11 +2387,9 @@
                 adicionarProdutoComPagamento(pendingPaymentData, paymentRecord, salaoReceived, colaboradorReceived, valorRepassar, repassarDe, repassarPara);
             }
 
-            // Fechar modal
             const modal = bootstrap.Modal.getInstance(document.getElementById('collaboratorPaymentModal'));
             if (modal) modal.hide();
 
-            // Resetar formulário
             if (pendingPaymentData.tipo === 'service') {
                 document.getElementById('serviceForm').reset();
                 document.getElementById('serviceClientId').value = '';
@@ -2220,7 +2408,6 @@
 
             pendingPaymentData = null;
 
-            // Salvar pagamento no Firestore
             db.collection('collaboratorPayments').add(paymentRecord)
                 .then(() => {
                     console.log('✅ Pagamento registrado no Firestore');
@@ -2230,12 +2417,7 @@
                 });
         }
 
-        // ==========================================
-        // 10. ADICIONAR SERVIÇO COM PAGAMENTO
-        // ==========================================
         function adicionarServicoComPagamento(data, paymentRecord, salaoReceived, colaboradorReceived, valorRepassar, repassarDe, repassarPara) {
-            // O valor do serviço no carrinho é sempre o valor total da venda.
-            // A parte do salão é calculada separadamente pela comissão.
             const valorFinal = data.valor;
 
             const cartItem = {
@@ -2271,11 +2453,7 @@
             });
         }
 
-        // ==========================================
-        // 11. ADICIONAR PRODUTO COM PAGAMENTO
-        // ==========================================
         function adicionarProdutoComPagamento(data, paymentRecord, salaoReceived, colaboradorReceived, valorRepassar, repassarDe, repassarPara) {
-            // Para produtos, o valor final é o valor total com a comissão do salão
             const valorFinal = data.valor - data.comissaoColaborador;
 
             const cartItem = {
@@ -2302,7 +2480,6 @@
             cart.push(cartItem);
             atualizarCarrinho();
 
-            // Atualizar estoque
             const product = products.find(p => p.id === data.productId);
             if (product) {
                 const newQty = product.quantity - data.quantity;
@@ -2320,221 +2497,42 @@
         }
 
         // ==========================================
-        // 12. INICIALIZAÇÃO
+        // 8. FUNÇÕES DE VENDA PASSADA
         // ==========================================
-        document.addEventListener('DOMContentLoaded', function() {
-            initBroadcastChannel();
+        function abrirModalVendaPassada() {
+            if (!currentCashier) {
+                Swal.fire('Erro', 'Abra o caixa antes de registrar vendas passadas.', 'error');
+                return;
+            }
 
-            auth.onAuthStateChanged(user => {
-                if (user) {
-                    currentUser = user;
-                    document.getElementById('userGreeting').textContent = user.email;
-                    carregarDados();
-                    carregarConfiguracoesSistema();
-                    atualizarLogoHeader();
-                } else {
-                    document.getElementById('userGreeting').textContent = 'Não autenticado';
-                    mostrarLoginPrompt();
-                }
-            });
+            const modal = new bootstrap.Modal(document.getElementById('pastSaleModal'));
+            modal.show();
 
-            // Evento - Relatório PDF do Colaborador
-            document.getElementById('pdfReportBtn').addEventListener('click', function() {
-                abrirRelatorioPdfColaborador();
-            });
+            // Preencher selects
+            atualizarSelectColaboradoresComFoto('pastCollaboratorSelect');
+            atualizarSelectColaboradoresComFoto('pastClientSelect');
 
-            document.getElementById('generateCollaboratorPdfBtn').addEventListener('click', function() {
-                gerarPdfColaborador();
-            });
+            // Configurar autocomplete para cliente
+            configurarBuscaClientes('pastClientSelect', 'pastClientAutocompleteList', 'pastSelectedClientId', null);
+            configurarBuscaClientes('pastProductClient', 'pastProductClientAutocompleteList', 'pastSelectedProductClientId', null);
 
-            // Eventos - Caixa
-            document.getElementById('openCashierBtn').addEventListener('click', function() {
-                abrirModalAbrirCaixa();
-            });
-
-            document.getElementById('confirmOpenCashierBtn').addEventListener('click', function() {
-                confirmarAbrirCaixa();
-            });
-
-            document.getElementById('closeCashierBtn').addEventListener('click', function() {
-                fecharCaixa();
-            });
-
-            // Eventos - Serviço com Pagamento
-            document.getElementById('addServiceWithPaymentBtn').addEventListener('click', function() {
-                abrirPopupPagamentoColaborador('service');
-            });
-
-            // Eventos - Produto com Pagamento
-            document.getElementById('addProductWithPaymentBtn').addEventListener('click', function() {
-                abrirPopupPagamentoColaborador('product');
-            });
-
-            // Eventos - Carrinho
-            document.getElementById('clearCartBtn').addEventListener('click', function() {
-                limparCarrinho();
-            });
-
-            document.getElementById('checkoutCartBtn').addEventListener('click', function() {
-                abrirModalCheckout();
-            });
-
-            document.getElementById('confirmCheckoutBtn').addEventListener('click', function() {
-                finalizarVenda();
-            });
-
-            document.getElementById('finalizeSaleBtn').addEventListener('click', function() {
-                abrirModalCheckout();
-            });
-
-            // Eventos - Filtros
-            document.getElementById('salesSearch').addEventListener('input', function() {
-                filtrarVendas(this.value);
-            });
-
-            document.getElementById('clearSalesSearch').addEventListener('click', function() {
-                document.getElementById('salesSearch').value = '';
-                document.getElementById('salesSearch').dispatchEvent(new Event('input'));
-                document.getElementById('salesSearch').focus();
-                this.classList.remove('show');
-            });
-
-            document.getElementById('filterSalesBtn').addEventListener('click', function() {
-                document.getElementById('salesSearch').value = '';
-                document.getElementById('salesSearch').dispatchEvent(new Event('input'));
-                document.getElementById('salesSearch').focus();
-            });
-
-            // Eventos - Limpar campos
-            document.getElementById('clearServiceClient').addEventListener('click', function() {
-                document.getElementById('serviceClientSearch').value = '';
-                document.getElementById('serviceClientId').value = '';
-                document.getElementById('serviceClientAutocomplete').classList.remove('active');
-                document.getElementById('serviceClientSearch').focus();
-                this.classList.remove('show');
-                clientPackages = [];
-                selectedPackageId = null;
-                packageServiceInfo = null;
-            });
-
-            document.getElementById('clearProduct').addEventListener('click', function() {
-                document.getElementById('productSearch').value = '';
-                document.getElementById('productId').value = '';
-                document.getElementById('productAutocomplete').classList.remove('active');
-                document.getElementById('productSearch').focus();
-                this.classList.remove('show');
-            });
-
-            document.getElementById('clearProductClient').addEventListener('click', function() {
-                document.getElementById('productClientSearch').value = '';
-                document.getElementById('productClientId').value = '';
-                document.getElementById('productClientAutocomplete').classList.remove('active');
-                document.getElementById('productClientSearch').focus();
-                this.classList.remove('show');
-            });
-
-            // Configurar busca de clientes
-            configurarBuscaClientes('serviceClientSearch', 'serviceClientAutocomplete', 'serviceClientId', 'clearServiceClient');
-            configurarBuscaClientes('productClientSearch', 'productClientAutocomplete', 'productClientId', 'clearProductClient');
-
-            // Eventos - Novo Cliente
-            document.getElementById('newClientFromService').addEventListener('click', function() {
-                const nome = document.getElementById('serviceClientSearch').value.trim();
-                abrirModalNovoCliente(nome);
-            });
-
-            document.getElementById('newClientFromProduct').addEventListener('click', function() {
-                const nome = document.getElementById('productClientSearch').value.trim();
-                abrirModalNovoCliente(nome);
-            });
-
-            document.getElementById('saveNewClientBtn').addEventListener('click', function() {
-                salvarNovoCliente();
-            });
-
-            document.getElementById('newClientPhoto').addEventListener('change', function(e) {
-                const file = e.target.files[0];
-                if (file) {
-                    uploadFotoCliente(file);
-                }
-            });
-
-            document.getElementById('removeNewClientPhoto').addEventListener('click', function() {
-                newClientPhotoUrl = null;
-                document.getElementById('newClientPhotoPreview').style.display = 'none';
-                document.getElementById('newClientPhotoPlaceholder').style.display = 'flex';
-                document.getElementById('removeNewClientPhoto').style.display = 'none';
-                document.getElementById('newClientPhoto').value = '';
-            });
-
-            // Autocomplete de produtos
-            document.getElementById('productSearch').addEventListener('input', function() {
+            // Configurar autocomplete para produto
+            document.getElementById('pastProductSelect').addEventListener('input', function() {
                 const searchTerm = this.value;
-                const clearBtn = this.parentElement.querySelector('.clear-btn');
-                
-                if (searchTerm.length > 0) {
-                    clearBtn.classList.add('show');
-                } else {
-                    clearBtn.classList.remove('show');
-                }
-
+                const list = document.getElementById('pastProductAutocompleteList');
                 const normalizedSearch = searchTerm.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
 
                 if (normalizedSearch.length < 1) {
-                    if (products.length === 0) {
-                        const list = document.getElementById('productAutocomplete');
-                        list.innerHTML = '<div class="autocomplete-item text-muted">Nenhum produto cadastrado</div>';
-                        list.classList.add('active');
-                        return;
-                    }
-                    const allProducts = products.slice(0, 15);
-                    let html = '';
-                    allProducts.forEach(p => {
-                        const estoque = p.quantity || 0;
-                        const foto = p.imageUrl ? 
-                            `<img src="${p.imageUrl}" class="avatar" onerror="this.style.display='none'">` :
-                            `<div class="avatar-placeholder"><i class="fas fa-box"></i></div>`;
-                        
-                        html += `
-                            <div class="autocomplete-item" data-id="${p.id}" data-name="${p.name}" data-price="${p.salePrice}" data-stock="${estoque}">
-                                ${foto}
-                                <div class="info">
-                                    <div class="name">${p.name}</div>
-                                    <div class="detail">${formatCurrency(p.salePrice)} | ${estoque} und</div>
-                                </div>
-                                <span class="badge-item ${estoque <= 5 ? 'bg-warning' : 'bg-success'}">${estoque}</span>
-                            </div>
-                        `;
-                    });
-                    if (products.length > 15) {
-                        html += `<div class="autocomplete-item text-muted">... e mais ${products.length - 15} produtos. Digite para filtrar.</div>`;
-                    }
-                    const list = document.getElementById('productAutocomplete');
-                    list.innerHTML = html;
-                    list.classList.add('active');
-
-                    list.querySelectorAll('.autocomplete-item').forEach(item => {
-                        item.addEventListener('click', function() {
-                            document.getElementById('productSearch').value = this.getAttribute('data-name');
-                            document.getElementById('productId').value = this.getAttribute('data-id');
-                            const stock = parseInt(this.getAttribute('data-stock')) || 0;
-                            document.getElementById('productQuantity').max = stock;
-                            document.getElementById('productQuantity').value = 1;
-                            list.classList.remove('active');
-                            clearBtn.classList.add('show');
-                        });
-                    });
+                    list.classList.remove('active');
                     return;
                 }
 
                 const filtered = products.filter(p => {
                     const nome = (p.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
-                    const desc = (p.description || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
-                    return nome.includes(normalizedSearch) || desc.includes(normalizedSearch);
+                    return nome.includes(normalizedSearch);
                 });
 
                 if (filtered.length === 0) {
-                    const list = document.getElementById('productAutocomplete');
                     list.innerHTML = '<div class="autocomplete-item text-muted">Nenhum produto encontrado</div>';
                     list.classList.add('active');
                     return;
@@ -2542,650 +2540,489 @@
 
                 let html = '';
                 filtered.slice(0, 15).forEach(p => {
-                    const estoque = p.quantity || 0;
-                    const foto = p.imageUrl ? 
-                        `<img src="${p.imageUrl}" class="avatar" onerror="this.style.display='none'">` :
-                        `<div class="avatar-placeholder"><i class="fas fa-box"></i></div>`;
-                    
                     html += `
-                        <div class="autocomplete-item" data-id="${p.id}" data-name="${p.name}" data-price="${p.salePrice}" data-stock="${estoque}">
-                            ${foto}
+                        <div class="autocomplete-item" data-id="${p.id}" data-name="${p.name}" data-price="${p.salePrice}">
+                            <div class="avatar-placeholder"><i class="fas fa-box"></i></div>
                             <div class="info">
                                 <div class="name">${p.name}</div>
-                                <div class="detail">${formatCurrency(p.salePrice)} | ${estoque} und</div>
+                                <div class="detail">${formatCurrency(p.salePrice)}</div>
                             </div>
-                            <span class="badge-item ${estoque <= 5 ? 'bg-warning' : 'bg-success'}">${estoque}</span>
                         </div>
                     `;
                 });
 
-                const list = document.getElementById('productAutocomplete');
                 list.innerHTML = html;
                 list.classList.add('active');
 
                 list.querySelectorAll('.autocomplete-item').forEach(item => {
                     item.addEventListener('click', function() {
-                        document.getElementById('productSearch').value = this.getAttribute('data-name');
-                        document.getElementById('productId').value = this.getAttribute('data-id');
-                        const stock = parseInt(this.getAttribute('data-stock')) || 0;
-                        document.getElementById('productQuantity').max = stock;
-                        document.getElementById('productQuantity').value = 1;
+                        document.getElementById('pastProductSelect').value = this.getAttribute('data-name');
+                        document.getElementById('pastSelectedProductId').value = this.getAttribute('data-id');
                         list.classList.remove('active');
-                        clearBtn.classList.add('show');
                     });
                 });
             });
 
-            // Evento para badges de serviços
-            document.addEventListener('click', function(e) {
-                const badge = e.target.closest('.service-badge');
-                if (badge) {
-                    const serviceName = badge.getAttribute('data-service');
-                    const descInput = document.getElementById('serviceDescription');
-                    const currentValue = descInput.value.trim();
-                    if (currentValue) {
-                        descInput.value = currentValue + ', ' + serviceName;
-                    } else {
-                        descInput.value = serviceName;
-                    }
-                    descInput.focus();
-                }
+            // Evento para mostrar/esconder campos conforme tipo
+            document.getElementById('pastSaleType').addEventListener('change', function() {
+                const type = this.value;
+                document.getElementById('pastServiceFields').style.display = type === 'service' ? 'block' : 'none';
+                document.getElementById('pastProductFields').style.display = type === 'product' ? 'block' : 'none';
             });
 
-            // Fechar autocomplete ao clicar fora
-            document.addEventListener('click', function(e) {
-                if (!e.target.closest('.autocomplete-container')) {
-                    document.querySelectorAll('.autocomplete-list').forEach(list => list.classList.remove('active'));
-                }
-            });
-
-            // Atualizar a cada 30 segundos
-            setInterval(function() {
-                if (currentUser) {
-                    carregarDados();
-                }
-            }, 30000);
-
-            // Atualizar logo periodicamente
-            setInterval(atualizarLogoHeader, 10000);
-        });
-
-        // ==========================================
-        // 13. CANAL DE COMUNICAÇÃO
-        // ==========================================
-        function initBroadcastChannel() {
-            try {
-                if (window.BroadcastChannel) {
-                    broadcastChannel = new BroadcastChannel('caixa-sync');
-                    broadcastChannel.onmessage = function(event) {
-                        if (event.data && event.data.type === 'caixaUpdated') {
-                            carregarDados();
-                        }
-                        if (event.data && event.data.type === 'configUpdated') {
-                            carregarConfiguracoesSistema();
-                        }
-                        if (event.data && event.data.type === 'clientsUpdated') {
-                            carregarClientes();
-                        }
-                        if (event.data && event.data.type === 'logoUpdated') {
-                            atualizarLogoHeader();
-                        }
-                    };
-                }
-            } catch(e) {}
-        }
-
-        function broadcastCaixaUpdate() {
-            if (broadcastChannel) {
-                try {
-                    broadcastChannel.postMessage({ type: 'caixaUpdated' });
-                } catch(e) {}
-            }
-        }
-
-        function broadcastClientsUpdate() {
-            if (broadcastChannel) {
-                try {
-                    broadcastChannel.postMessage({ type: 'clientsUpdated' });
-                } catch(e) {}
-            }
-        }
-
-        // ==========================================
-        // 14. LOGO DO SISTEMA
-        // ==========================================
-        function atualizarLogoHeader() {
-            const config = localStorage.getItem('systemConfig');
-            if (config) {
-                try {
-                    const parsed = JSON.parse(config);
-                    const logoUrl = parsed.logo;
-                    const logoIcon = document.getElementById('logoIconHeader');
-                    const logoImage = document.getElementById('logoImageHeader');
-
-                    if (logoUrl) {
-                        logoIcon.style.display = 'none';
-                        logoImage.style.display = 'inline-block';
-                        logoImage.src = logoUrl;
-                    } else {
-                        logoIcon.style.display = 'inline-block';
-                        logoImage.style.display = 'none';
-                    }
-                } catch(e) {}
-            }
-        }
-
-        // ==========================================
-        // 15. CARREGAR DADOS
-        // ==========================================
-        function carregarDados() {
-            if (!currentUser) return;
-
-            Promise.all([
-                carregarClientes(),
-                carregarProdutos(),
-                carregarColaboradores(),
-                carregarServicosEmpresa(),
-                carregarCaixa()
-            ]).then(() => {
-                carregarVendasDia();
-                carregarConfiguracoesSistema();
-                atualizarUltimaAtualizacao();
-                atualizarLogoHeader();
-            }).catch(err => console.error('Erro ao carregar dados:', err));
-        }
-
-        function carregarClientes() {
-            return new Promise((resolve) => {
-                if (!currentUser) { resolve(); return; }
-                db.collection('clients')
-                    .where('userId', '==', currentUser.uid)
-                    .get()
-                    .then(snapshot => {
-                        clients = [];
-                        snapshot.forEach(doc => clients.push({ id: doc.id, ...doc.data() }));
-                        clients.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-                        resolve();
-                    })
-                    .catch(() => resolve());
-            });
-        }
-
-        function carregarProdutos() {
-            return new Promise((resolve) => {
-                if (!currentUser) { resolve(); return; }
-                db.collection('products')
-                    .where('userId', '==', currentUser.uid)
-                    .get()
-                    .then(snapshot => {
-                        products = [];
-                        snapshot.forEach(doc => products.push({ id: doc.id, ...doc.data() }));
-                        products.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-                        resolve();
-                    })
-                    .catch(() => resolve());
-            });
-        }
-
-        function carregarColaboradores() {
-            return new Promise((resolve) => {
-                if (!currentUser) { resolve(); return; }
-                db.collection('collaborators')
-                    .where('userId', '==', currentUser.uid)
-                    .where('active', '==', true)
-                    .get()
-                    .then(snapshot => {
-                        collaborators = [];
-                        snapshot.forEach(doc => {
-                            const data = doc.data();
-                            collaborators.push({ id: doc.id, ...data });
-                        });
-                        atualizarSelectColaboradoresComFoto();
-                        resolve();
-                    })
-                    .catch(() => resolve());
-            });
-        }
-
-        function carregarServicosEmpresa() {
-            return new Promise((resolve) => {
-                if (!currentUser) { resolve(); return; }
-                db.collection('businessProfile').doc(currentUser.uid).get()
-                    .then(doc => {
-                        if (doc.exists) {
-                            companyServices = doc.data().services || [];
-                        } else {
-                            companyServices = [];
-                        }
-                        renderizarBadgesServicos();
-                        resolve();
-                    })
-                    .catch(() => { companyServices = []; resolve(); });
-            });
-        }
-
-        function carregarCaixa() {
-            return new Promise((resolve) => {
-                const hoje = new Date().toISOString().split('T')[0];
-                db.collection('cashiers')
-                    .where('userId', '==', currentUser.uid)
-                    .where('date', '==', hoje)
-                    .where('status', '==', 'open')
-                    .get()
-                    .then(snapshot => {
-                        if (!snapshot.empty) {
-                            currentCashier = snapshot.docs[0].data();
-                            currentCashier.id = snapshot.docs[0].id;
-                            atualizarStatusCaixa(true);
-                        } else {
-                            currentCashier = null;
-                            atualizarStatusCaixa(false);
-                        }
-                        resolve();
-                    })
-                    .catch(() => { currentCashier = null; atualizarStatusCaixa(false); resolve(); });
-            });
-        }
-
-        function carregarVendasDia() {
-            const hoje = new Date().toISOString().split('T')[0];
-
-            Promise.all([
-                db.collection('services')
-                    .where('userId', '==', currentUser.uid)
-                    .where('date', '==', hoje)
-                    .get(),
-                db.collection('productSales')
-                    .where('userId', '==', currentUser.uid)
-                    .where('date', '==', hoje)
-                    .get()
-            ]).then(([servicesSnap, productsSnap]) => {
-                todaySales = [];
-
-                servicesSnap.forEach(doc => {
-                    todaySales.push({ id: doc.id, ...doc.data(), tipo: 'service' });
-                });
-
-                productsSnap.forEach(doc => {
-                    todaySales.push({ id: doc.id, ...doc.data(), tipo: 'product' });
-                });
-
-                todaySales.sort((a, b) => {
-                    const da = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp || 0);
-                    const db = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp || 0);
-                    return db - da;
-                });
-
-                renderizarVendas();
-                atualizarResumo();
-            }).catch(err => console.error('Erro ao carregar vendas:', err));
-        }
-
-        function carregarConfiguracoesSistema() {
-            try {
-                const config = localStorage.getItem('systemConfig');
-                if (config) {
-                    const parsed = JSON.parse(config);
-                    if (parsed.corPrimaria) {
-                        document.documentElement.style.setProperty('--primary-color', parsed.corPrimaria);
-                        document.documentElement.style.setProperty('--accent-color', parsed.corPrimaria + '99');
-                        const header = document.getElementById('caixaHeader');
-                        if (header) {
-                            header.style.background = `linear-gradient(135deg, ${parsed.corPrimaria}, ${parsed.corPrimaria}99)`;
-                        }
-                    }
-                    atualizarLogoHeader();
-                }
-            } catch(e) {}
-        }
-
-        function renderizarBadgesServicos() {
-            const container = document.getElementById('serviceBadgesContainer');
-            container.innerHTML = '';
-
-            if (!companyServices || companyServices.length === 0) {
-                container.innerHTML = '<span class="text-muted fs-small">Nenhum serviço cadastrado na empresa.</span>';
-                return;
-            }
-
-            companyServices.forEach(service => {
-                const badge = document.createElement('span');
-                badge.className = 'service-badge';
-                badge.setAttribute('data-service', service);
-                badge.textContent = service;
-                container.appendChild(badge);
-            });
-        }
-
-        // ==========================================
-        // 16. NOVO CLIENTE
-        // ==========================================
-        function abrirModalNovoCliente(nome = '') {
-            document.getElementById('newClientForm').reset();
-            document.getElementById('newClientName').value = nome;
-            document.getElementById('newClientPhotoPreview').style.display = 'none';
-            document.getElementById('newClientPhotoPlaceholder').style.display = 'flex';
-            document.getElementById('removeNewClientPhoto').style.display = 'none';
-            newClientPhotoUrl = null;
-            document.getElementById('newClientPhoto').value = '';
-
-            const modal = new bootstrap.Modal(document.getElementById('newClientModal'));
-            modal.show();
-
-            setTimeout(() => {
-                document.getElementById('newClientName').focus();
-                if (nome) {
-                    document.getElementById('newClientName').select();
-                }
-            }, 300);
-        }
-
-        function uploadFotoCliente(file) {
-            if (!file) return;
-            if (!file.type.match('image.*')) {
-                Swal.fire('Erro', 'Por favor, selecione uma imagem válida.', 'error');
-                return;
-            }
-
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                document.getElementById('newClientPhotoPreview').src = e.target.result;
-                document.getElementById('newClientPhotoPreview').style.display = 'block';
-                document.getElementById('newClientPhotoPlaceholder').style.display = 'none';
-                document.getElementById('removeNewClientPhoto').style.display = 'inline-block';
+            // Botão salvar
+            document.getElementById('savePastSaleBtn').onclick = function() {
+                salvarVendaPassada();
             };
-            reader.readAsDataURL(file);
+        }
 
-            Swal.fire({
-                title: 'Enviando foto...',
-                allowOutsideClick: false,
-                didOpen: () => { Swal.showLoading(); }
-            });
+        function salvarVendaPassada() {
+            const saleDate = document.getElementById('pastSaleDate').value;
+            const saleType = document.getElementById('pastSaleType').value;
 
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('upload_preset', cloudinaryConfig.uploadPreset);
+            if (!saleDate || !saleType) {
+                showToast('Por favor, preencha a data e o tipo da venda.', 'error');
+                return;
+            }
 
-            fetch(`https://api.cloudinary.com/v1_1/${cloudinaryConfig.cloudName}/image/upload`, {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.secure_url) {
-                    newClientPhotoUrl = data.secure_url;
+            const today = new Date().toISOString().split('T')[0];
+            if (saleDate > today) {
+                showToast('Não é possível registrar vendas com data futura.', 'error');
+                return;
+            }
+
+            showLoading('Salvando venda passada...');
+
+            if (saleType === 'service') {
+                const clientId = document.getElementById('pastSelectedClientId').value;
+                const collaboratorId = document.getElementById('pastCollaboratorSelect').value;
+                const serviceType = document.getElementById('pastServiceType').value;
+                const serviceValue = parseFloat(document.getElementById('pastServiceValue').value);
+                const description = document.getElementById('pastServiceDescription').value;
+
+                if (!clientId || !collaboratorId || !serviceType || !serviceValue) {
                     Swal.close();
-                } else {
-                    throw new Error('Erro no upload');
+                    showToast('Preencha todos os campos obrigatórios do serviço.', 'error');
+                    return;
                 }
-            })
-            .catch(error => {
-                Swal.close();
-                Swal.fire('Erro', 'Erro ao enviar foto: ' + error.message, 'error');
-                newClientPhotoUrl = null;
-                document.getElementById('newClientPhotoPreview').style.display = 'none';
-                document.getElementById('newClientPhotoPlaceholder').style.display = 'flex';
-                document.getElementById('removeNewClientPhoto').style.display = 'none';
-                document.getElementById('newClientPhoto').value = '';
-            });
-        }
 
-        function salvarNovoCliente() {
-            const nome = document.getElementById('newClientName').value.trim();
-            const birthdate = document.getElementById('newClientBirthdate').value;
-            const phone = document.getElementById('newClientPhone').value.trim();
-            const email = document.getElementById('newClientEmail').value.trim();
+                const serviceData = {
+                    clientId: clientId,
+                    collaboratorId: collaboratorId,
+                    type: serviceType,
+                    value: serviceValue,
+                    description: description || 'Serviço registrado retroativamente',
+                    date: saleDate,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                    userId: currentUser.uid,
+                    isPastSale: true,
+                    originalDate: saleDate
+                };
 
-            if (!nome) {
-                Swal.fire('Erro', 'Digite o nome do cliente.', 'error');
-                document.getElementById('newClientName').focus();
-                return;
-            }
-
-            if (!phone) {
-                Swal.fire('Erro', 'Digite o telefone/WhatsApp do cliente.', 'error');
-                document.getElementById('newClientPhone').focus();
-                return;
-            }
-
-            const existing = clients.find(c => c.name.toLowerCase() === nome.toLowerCase() || c.phone === phone);
-            if (existing) {
-                Swal.fire('Aviso', 'Cliente já cadastrado com este nome ou telefone.', 'warning');
-                return;
-            }
-
-            const clientData = {
-                name: nome,
-                birthdate: birthdate || null,
-                phone: phone,
-                email: email || '',
-                photoUrl: newClientPhotoUrl || null,
-                userId: currentUser.uid,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            };
-
-            Swal.fire({
-                title: 'Salvando cliente...',
-                allowOutsideClick: false,
-                didOpen: () => { Swal.showLoading(); }
-            });
-
-            db.collection('clients').add(clientData)
-                .then(docRef => {
-                    const newClient = { id: docRef.id, ...clientData };
-                    clients.push(newClient);
-                    clients.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-
-                    const clientId = docRef.id;
-                    const searchInput = document.getElementById('serviceClientSearch');
-                    searchInput.value = nome;
-                    document.getElementById('serviceClientId').value = clientId;
-
-                    const modal = bootstrap.Modal.getInstance(document.getElementById('newClientModal'));
-                    if (modal) modal.hide();
-
-                    broadcastClientsUpdate();
-                    Swal.close();
-                    Swal.fire({
-                        icon: 'success',
-                        title: '✅ Cliente cadastrado!',
-                        text: `${nome} foi adicionado à lista.`,
-                        timer: 2000,
-                        showConfirmButton: false
-                    });
-
-                    const clearBtn = searchInput.parentElement.querySelector('.clear-btn');
-                    if (clearBtn) clearBtn.classList.add('show');
-                    
-                    verificarPacotesCliente(clientId);
-                })
-                .catch(error => {
-                    Swal.close();
-                    Swal.fire('Erro', 'Erro ao salvar cliente: ' + error.message, 'error');
-                });
-        }
-
-        // ==========================================
-        // 17. CAIXA
-        // ==========================================
-        function abrirModalAbrirCaixa() {
-            document.getElementById('initialValueInput').value = 0;
-            const modal = new bootstrap.Modal(document.getElementById('openCashierModal'));
-            modal.show();
-        }
-
-        function confirmarAbrirCaixa() {
-            const initialValue = parseFloat(document.getElementById('initialValueInput').value) || 0;
-            if (initialValue < 0) {
-                Swal.fire('Erro', 'Valor inicial não pode ser negativo.', 'error');
-                return;
-            }
-
-            const hoje = new Date().toISOString().split('T')[0];
-
-            const cashierData = {
-                date: hoje,
-                initialValue: initialValue,
-                status: 'open',
-                openedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                userId: currentUser.uid
-            };
-
-            Swal.fire({
-                title: 'Abrindo caixa...',
-                allowOutsideClick: false,
-                didOpen: () => { Swal.showLoading(); }
-            });
-
-            db.collection('cashiers').add(cashierData)
-                .then(docRef => {
-                    currentCashier = { id: docRef.id, ...cashierData };
-                    const modal = bootstrap.Modal.getInstance(document.getElementById('openCashierModal'));
-                    if (modal) modal.hide();
-                    atualizarStatusCaixa(true);
-                    broadcastCaixaUpdate();
-                    Swal.close();
-                    Swal.fire({
-                        icon: 'success',
-                        title: '✅ Caixa aberto!',
-                        text: `Saldo inicial: ${formatCurrency(initialValue)}`,
-                        timer: 2000,
-                        showConfirmButton: false
-                    });
-                })
-                .catch(error => {
-                    Swal.close();
-                    Swal.fire('Erro', 'Erro ao abrir caixa: ' + error.message, 'error');
-                });
-        }
-
-        function fecharCaixa() {
-            if (!currentCashier) {
-                Swal.fire('Erro', 'Nenhum caixa aberto.', 'error');
-                return;
-            }
-
-            const services = todaySales.filter(s => s.tipo === 'service' && !s.isPackage);
-            const products = todaySales.filter(s => s.tipo === 'product');
-
-            const totalServices = services.reduce((sum, s) => sum + parseFloat(s.valorOriginal || s.value || 0), 0);
-            const totalProducts = products.reduce((sum, s) => sum + parseFloat(s.totalValue || 0), 0);
-
-            let totalCommissions = 0;
-            services.forEach(s => {
-                const collab = collaborators.find(c => c.id === s.collaboratorId);
-                if (collab) {
-                    const perc = s.type === 'manual' ?
-                        parseFloat(collab.manualPercent || 0) :
-                        parseFloat(collab.productPercent || 0);
-                    const valor = parseFloat(s.valorOriginal || s.value || 0);
-                    totalCommissions += valor * (perc / 100);
-                }
-            });
-
-            const totalSalon = totalServices + totalProducts - totalCommissions;
-            const totalSales = totalServices + totalProducts;
-            const finalValue = (currentCashier.initialValue || 0) + totalSalon;
-
-            Swal.fire({
-                title: 'Fechar Caixa',
-                html: `
-                    <div class="text-start">
-                        <p><strong>Saldo Inicial:</strong> ${formatCurrency(currentCashier.initialValue)}</p>
-                        <p><strong>Total Vendas:</strong> ${formatCurrency(totalSales)}</p>
-                        <p><strong>Saldo Final:</strong> ${formatCurrency(finalValue)}</p>
-                    </div>
-                `,
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonText: 'Sim, fechar',
-                cancelButtonText: 'Cancelar',
-                confirmButtonColor: '#d33'
-            }).then(result => {
-                if (result.isConfirmed) {
-                    Swal.fire({
-                        title: 'Fechando caixa...',
-                        allowOutsideClick: false,
-                        didOpen: () => { Swal.showLoading(); }
-                    });
-
-                    db.collection('cashiers').doc(currentCashier.id).update({
-                        status: 'closed',
-                        closedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                        finalValue: finalValue,
-                        totalServices: totalServices,
-                        totalProducts: totalProducts,
-                        totalSales: totalSales
-                    })
+                db.collection('services').add(serviceData)
                     .then(() => {
-                        currentCashier = null;
-                        atualizarStatusCaixa(false);
-                        broadcastCaixaUpdate();
                         Swal.close();
-                        Swal.fire({
-                            icon: 'success',
-                            title: '✅ Caixa fechado!',
-                            text: `Saldo final: ${formatCurrency(finalValue)}`,
-                            timer: 3000,
-                            showConfirmButton: false
-                        });
+                        showToast(`Serviço registrado com sucesso na data ${formatDate(new Date(saleDate))}!`, 'success');
+                        recarregarDados();
+                        const modal = bootstrap.Modal.getInstance(document.getElementById('pastSaleModal'));
+                        if (modal) modal.hide();
                     })
                     .catch(error => {
                         Swal.close();
-                        Swal.fire('Erro', 'Erro ao fechar caixa: ' + error.message, 'error');
+                        showToast('Erro ao salvar: ' + error.message, 'error');
                     });
+
+            } else if (saleType === 'product') {
+                const productId = document.getElementById('pastSelectedProductId').value;
+                const quantity = parseInt(document.getElementById('pastProductQuantity').value);
+                const clientId = document.getElementById('pastSelectedProductClientId').value || null;
+
+                if (!productId || !quantity) {
+                    Swal.close();
+                    showToast('Preencha todos os campos obrigatórios do produto.', 'error');
+                    return;
+                }
+
+                const product = products.find(p => p.id === productId);
+                if (!product) {
+                    Swal.close();
+                    showToast('Produto não encontrado.', 'error');
+                    return;
+                }
+
+                if (product.quantity < quantity) {
+                    Swal.fire({
+                        title: 'Atenção!',
+                        text: `Estoque atual: ${product.quantity}. Deseja continuar mesmo assim?`,
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonText: 'Sim, continuar',
+                        cancelButtonText: 'Cancelar'
+                    }).then(result => {
+                        if (result.isConfirmed) {
+                            continuarSalvarProdutoPassado(product, productId, quantity, clientId, saleDate);
+                        }
+                    });
+                    return;
+                }
+
+                continuarSalvarProdutoPassado(product, productId, quantity, clientId, saleDate);
+            }
+        }
+
+        function continuarSalvarProdutoPassado(product, productId, quantity, clientId, saleDate) {
+            const totalValue = quantity * parseFloat(product.salePrice);
+
+            const saleData = {
+                productId: productId,
+                productName: product.name,
+                quantity: quantity,
+                unitPrice: product.salePrice,
+                totalValue: totalValue,
+                clientId: clientId,
+                date: saleDate,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                userId: currentUser.uid,
+                isPastSale: true,
+                originalDate: saleDate
+            };
+
+            const newQuantity = Math.max(0, product.quantity - quantity);
+
+            db.collection('products').doc(productId).update({ quantity: newQuantity })
+                .then(() => db.collection('productSales').add(saleData))
+                .then(() => {
+                    Swal.close();
+                    showToast(`Venda de produto registrada com sucesso na data ${formatDate(new Date(saleDate))}!`, 'success');
+                    recarregarDados();
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('pastSaleModal'));
+                    if (modal) modal.hide();
+                })
+                .catch(error => {
+                    Swal.close();
+                    showToast('Erro ao salvar: ' + error.message, 'error');
+                });
+        }
+
+        // ==========================================
+        // 9. FUNÇÕES DE GERENCIAR VENDAS
+        // ==========================================
+        function abrirModalGerenciarVendas() {
+            if (!currentCashier) {
+                Swal.fire('Erro', 'Abra o caixa para gerenciar vendas.', 'error');
+                return;
+            }
+
+            const modal = new bootstrap.Modal(document.getElementById('manageSalesModal'));
+            modal.show();
+
+            // Carregar dados
+            carregarTodasVendas().then(() => {
+                renderizarCalendario();
+            });
+
+            // Eventos do calendário
+            document.getElementById('prevMonthBtn').addEventListener('click', function() {
+                currentCalendarDate.setMonth(currentCalendarDate.getMonth() - 1);
+                renderizarCalendario();
+            });
+
+            document.getElementById('nextMonthBtn').addEventListener('click', function() {
+                currentCalendarDate.setMonth(currentCalendarDate.getMonth() + 1);
+                renderizarCalendario();
+            });
+
+            document.getElementById('todayBtn').addEventListener('click', function() {
+                currentCalendarDate = new Date();
+                renderizarCalendario();
+            });
+
+            document.getElementById('refreshSalesBtn').addEventListener('click', function() {
+                carregarTodasVendas().then(() => renderizarCalendario());
+                showToast('Dados recarregados!', 'success');
+            });
+
+            document.getElementById('manageSalesCollaborator').addEventListener('change', function() {
+                renderizarCalendario();
+            });
+        }
+
+        function carregarTodasVendas() {
+            return new Promise((resolve) => {
+                if (!currentUser) { resolve(); return; }
+
+                allSales = [];
+
+                db.collection('services')
+                    .where('userId', '==', currentUser.uid)
+                    .get()
+                    .then(snapshot => {
+                        snapshot.forEach(doc => {
+                            allSales.push({ id: doc.id, ...doc.data(), tipo: 'service' });
+                        });
+                        return db.collection('productSales')
+                            .where('userId', '==', currentUser.uid)
+                            .get();
+                    })
+                    .then(snapshot => {
+                        snapshot.forEach(doc => {
+                            allSales.push({ id: doc.id, ...doc.data(), tipo: 'product' });
+                        });
+                        resolve();
+                    })
+                    .catch(() => resolve());
+            });
+        }
+
+        function renderizarCalendario() {
+            const year = currentCalendarDate.getFullYear();
+            const month = currentCalendarDate.getMonth();
+            const collaboratorId = document.getElementById('manageSalesCollaborator').value;
+
+            const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+            const monthYearEl = document.getElementById('calendarMonthYear');
+            if (monthYearEl) monthYearEl.textContent = `${monthNames[month]} ${year}`;
+
+            const weekdaysEl = document.getElementById('calendarWeekdays');
+            if (weekdaysEl) {
+                weekdaysEl.innerHTML = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+                    .map(day => `<div class="calendar-weekday">${day}</div>`).join('');
+            }
+
+            const firstDayOfMonth = new Date(year, month, 1);
+            const startDayOfWeek = firstDayOfMonth.getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const prevMonthDays = new Date(year, month, 0).getDate();
+
+            const today = new Date();
+            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+            // Agrupar vendas por data
+            const salesByDate = {};
+
+            allSales.forEach(sale => {
+                const date = sale.date || sale.originalDate;
+                if (!date) return;
+
+                // Filtrar por colaborador
+                if (collaboratorId !== 'all' && sale.collaboratorId !== collaboratorId) return;
+
+                if (!salesByDate[date]) salesByDate[date] = { services: [], products: [] };
+                if (sale.tipo === 'service') {
+                    salesByDate[date].services.push(sale);
+                } else {
+                    salesByDate[date].products.push(sale);
+                }
+            });
+
+            salesByDateCache = salesByDate;
+
+            let daysHtml = '';
+            let dayCounter = 1;
+            let nextMonthCounter = 1;
+
+            for (let i = 0; i < 42; i++) {
+                let isCurrentMonth = true;
+                let dayNumber = 0;
+                let dateStr = '';
+
+                if (i < startDayOfWeek) {
+                    isCurrentMonth = false;
+                    dayNumber = prevMonthDays - (startDayOfWeek - i) + 1;
+                    let monthIdx = month === 0 ? 11 : month - 1;
+                    let yearIdx = month === 0 ? year - 1 : year;
+                    dateStr = `${yearIdx}-${String(monthIdx + 1).padStart(2, '0')}-${String(dayNumber).padStart(2, '0')}`;
+                } 
+                else if (dayCounter <= daysInMonth) {
+                    isCurrentMonth = true;
+                    dayNumber = dayCounter;
+                    dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNumber).padStart(2, '0')}`;
+                    dayCounter++;
+                } 
+                else {
+                    isCurrentMonth = false;
+                    dayNumber = nextMonthCounter;
+                    let monthIdx = month === 11 ? 0 : month + 1;
+                    let yearIdx = month === 11 ? year + 1 : year;
+                    dateStr = `${yearIdx}-${String(monthIdx + 1).padStart(2, '0')}-${String(dayNumber).padStart(2, '0')}`;
+                    nextMonthCounter++;
+                }
+
+                const daySales = salesByDate[dateStr] || { services: [], products: [] };
+                const hasServices = daySales.services.length > 0;
+                const hasProducts = daySales.products.length > 0;
+                const isToday = dateStr === todayStr;
+
+                let markersHtml = '';
+                if (hasServices || hasProducts) {
+                    markersHtml = '<div class="markers">';
+                    if (hasServices) markersHtml += '<div class="marker service"></div>';
+                    if (hasProducts) markersHtml += '<div class="marker product"></div>';
+                    markersHtml += '</div>';
+                }
+
+                daysHtml += `
+                    <div class="calendar-day ${!isCurrentMonth ? 'other-month' : ''} ${isToday ? 'today' : ''}" 
+                         data-date="${dateStr}">
+                        <div>${dayNumber}</div>
+                        ${markersHtml}
+                    </div>
+                `;
+            }
+
+            const calendarDaysEl = document.getElementById('calendarDays');
+            if (calendarDaysEl) calendarDaysEl.innerHTML = daysHtml;
+
+            document.querySelectorAll('#calendarDays .calendar-day').forEach(dayEl => {
+                dayEl.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    document.querySelectorAll('#calendarDays .calendar-day.selected').forEach(el => el.classList.remove('selected'));
+                    this.classList.add('selected');
+                    const date = this.getAttribute('data-date');
+                    if (date) mostrarVendasData(date);
+                });
+            });
+        }
+
+        function mostrarVendasData(date) {
+            const sales = salesByDateCache[date] || { services: [], products: [] };
+            const formattedDate = formatDate(new Date(date));
+
+            const selectedDayText = document.getElementById('selectedDayText');
+            if (selectedDayText) selectedDayText.innerHTML = `<i class="fas fa-calendar-check me-1"></i>${formattedDate}`;
+
+            const totalServices = sales.services.reduce((sum, s) => sum + (parseFloat(s.value) || 0), 0);
+            const totalProducts = sales.products.reduce((sum, p) => sum + (parseFloat(p.totalValue) || 0), 0);
+            const totalValue = totalServices + totalProducts;
+
+            const selectedDaySummary = document.getElementById('selectedDaySummary');
+            if (selectedDaySummary) {
+                selectedDaySummary.innerHTML = `
+                    <div class="text-end">
+                        <span class="badge" style="background-color:#FF6B35;color:white;">${sales.services.length} serviços | ${formatCurrency(totalServices)}</span>
+                        <span class="badge ms-2" style="background-color:#00C853;color:white;">${sales.products.length} produtos | ${formatCurrency(totalProducts)}</span>
+                        <span class="badge bg-success fw-bold ms-2">Total: ${formatCurrency(totalValue)}</span>
+                    </div>
+                `;
+            }
+
+            const selectedDayInfo = document.getElementById('selectedDayInfo');
+            if (selectedDayInfo) selectedDayInfo.classList.remove('d-none');
+
+            let salesHtml = '';
+
+            if (sales.services.length > 0) {
+                salesHtml += `<div class="mb-3"><h6 class="fw-bold mb-2" style="color:#FF6B35;"><i class="fas fa-cut me-2"></i>Serviços (${sales.services.length})</h6>`;
+                sales.services.forEach(service => {
+                    const client = clients.find(c => c.id === service.clientId) || { name: 'Cliente não encontrado' };
+                    const collaborator = collaborators.find(c => c.id === service.collaboratorId) || { name: 'Colaborador não encontrado' };
+                    salesHtml += `
+                        <div class="day-sale-card service">
+                            <div class="d-flex justify-content-between align-items-start flex-wrap">
+                                <div><div class="fw-bold">${escapeHtml(client.name)}</div><small class="text-muted">Colaborador: ${escapeHtml(collaborator.name)}</small></div>
+                                <div class="text-end"><div class="fw-bold text-success">${formatCurrency(service.value)}</div>
+                                <button class="btn btn-sm btn-outline-danger" onclick="excluirVendaGerenciar('${service.id}', 'service', '${date}')"><i class="fas fa-trash-alt"></i> Excluir</button></div>
+                            </div>
+                        </div>
+                    `;
+                });
+                salesHtml += `</div>`;
+            }
+
+            if (sales.products.length > 0) {
+                salesHtml += `<div class="mb-3"><h6 class="fw-bold mb-2" style="color:#00C853;"><i class="fas fa-box me-2"></i>Produtos (${sales.products.length})</h6>`;
+                sales.products.forEach(sale => {
+                    const product = products.find(p => p.id === sale.productId) || { name: 'Produto não encontrado' };
+                    const client = sale.clientId ? (clients.find(c => c.id === sale.clientId) || { name: 'Cliente não encontrado' }) : { name: 'Venda Avulsa' };
+                    salesHtml += `
+                        <div class="day-sale-card product">
+                            <div class="d-flex justify-content-between align-items-start flex-wrap">
+                                <div><div class="fw-bold">${escapeHtml(product.name)}</div><small class="text-muted">Cliente: ${escapeHtml(client.name)} | Qtd: ${sale.quantity || 1}</small></div>
+                                <div class="text-end"><div class="fw-bold text-success">${formatCurrency(sale.totalValue)}</div>
+                                <button class="btn btn-sm btn-outline-danger" onclick="excluirVendaGerenciar('${sale.id}', 'product', '${date}')"><i class="fas fa-trash-alt"></i> Excluir</button></div>
+                            </div>
+                        </div>
+                    `;
+                });
+                salesHtml += `</div>`;
+            }
+
+            if (sales.services.length === 0 && sales.products.length === 0) {
+                salesHtml = `<div class="text-center text-muted py-5"><i class="fas fa-calendar-times fa-3x mb-3 opacity-50"></i><p>Nenhuma venda registrada nesta data.</p></div>`;
+            }
+
+            const daySalesContainer = document.getElementById('daySalesContainer');
+            if (daySalesContainer) daySalesContainer.innerHTML = salesHtml;
+        }
+
+        function excluirVendaGerenciar(id, tipo, date) {
+            Swal.fire({
+                title: 'Excluir venda?',
+                text: 'Esta ação não pode ser desfeita.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                confirmButtonText: 'Sim, excluir',
+                cancelButtonText: 'Cancelar'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    showLoading('Excluindo...');
+
+                    if (tipo === 'service') {
+                        db.collection('services').doc(id).delete()
+                            .then(() => {
+                                Swal.close();
+                                showToast('Serviço excluído com sucesso!', 'success');
+                                recarregarDados();
+                                carregarTodasVendas().then(() => renderizarCalendario());
+                            })
+                            .catch(error => {
+                                Swal.close();
+                                showToast('Erro ao excluir: ' + error.message, 'error');
+                            });
+                    } else {
+                        const sale = allSales.find(s => s.id === id && s.tipo === 'product');
+                        if (sale) {
+                            db.collection('products').doc(sale.productId).get()
+                                .then(doc => {
+                                    if (doc.exists) {
+                                        const currentQty = doc.data().quantity || 0;
+                                        return db.collection('products').doc(sale.productId).update({
+                                            quantity: currentQty + (sale.quantity || 0)
+                                        });
+                                    }
+                                })
+                                .then(() => db.collection('productSales').doc(id).delete())
+                                .then(() => {
+                                    Swal.close();
+                                    showToast('Venda de produto excluída com sucesso!', 'success');
+                                    recarregarDados();
+                                    carregarTodasVendas().then(() => renderizarCalendario());
+                                })
+                                .catch(error => {
+                                    Swal.close();
+                                    showToast('Erro ao excluir: ' + error.message, 'error');
+                                });
+                        } else {
+                            db.collection('productSales').doc(id).delete()
+                                .then(() => {
+                                    Swal.close();
+                                    showToast('Venda de produto excluída com sucesso!', 'success');
+                                    recarregarDados();
+                                    carregarTodasVendas().then(() => renderizarCalendario());
+                                })
+                                .catch(error => {
+                                    Swal.close();
+                                    showToast('Erro ao excluir: ' + error.message, 'error');
+                                });
+                        }
+                    }
                 }
             });
         }
 
-        function atualizarStatusCaixa(isOpen) {
-            const badge = document.getElementById('cashierStatusBadge');
-            const openBtn = document.getElementById('openCashierBtn');
-            const closeBtn = document.getElementById('closeCashierBtn');
-            const finalizeBtn = document.getElementById('finalizeSaleBtn');
-
-            if (isOpen) {
-                badge.textContent = '✅ Aberto';
-                badge.className = 'status-badge open';
-                openBtn.disabled = true;
-                closeBtn.disabled = false;
-                finalizeBtn.disabled = false;
-                document.getElementById('serviceForm').querySelectorAll('input, select, button').forEach(el => el.disabled = false);
-                document.getElementById('productForm').querySelectorAll('input, select, button').forEach(el => el.disabled = false);
-                const services = todaySales.filter(s => s.tipo === 'service' && !s.isPackage);
-                const products = todaySales.filter(s => s.tipo === 'product');
-                const totalServices = services.reduce((sum, s) => sum + parseFloat(s.valorOriginal || s.value || 0), 0);
-                const totalProducts = products.reduce((sum, s) => sum + parseFloat(s.totalValue || 0), 0);
-                let totalCommissions = 0;
-                services.forEach(s => {
-                    const collab = collaborators.find(c => c.id === s.collaboratorId);
-                    if (collab) {
-                        const perc = s.type === 'manual' ?
-                            parseFloat(collab.manualPercent || 0) :
-                            parseFloat(collab.productPercent || 0);
-                        const valor = parseFloat(s.valorOriginal || s.value || 0);
-                        totalCommissions += valor * (perc / 100);
-                    }
-                });
-                const totalSalon = totalServices + totalProducts - totalCommissions;
-                document.getElementById('currentCash').textContent = formatCurrency(
-                    (currentCashier?.initialValue || 0) + totalSalon
-                );
-            } else {
-                badge.textContent = '🔒 Fechado';
-                badge.className = 'status-badge closed';
-                openBtn.disabled = false;
-                closeBtn.disabled = true;
-                finalizeBtn.disabled = true;
-                document.getElementById('serviceForm').querySelectorAll('input, select, button').forEach(el => el.disabled = true);
-                document.getElementById('productForm').querySelectorAll('input, select, button').forEach(el => el.disabled = true);
-                document.getElementById('currentCash').textContent = '€ 0,00';
-                limparCarrinho();
-            }
-        }
-
         // ==========================================
-        // 18. CARRINHO - FUNÇÕES ATUALIZADAS
+        // 10. FUNÇÕES DO CARRINHO
         // ==========================================
         function atualizarCarrinho() {
             const cartCard = document.getElementById('cartCard');
@@ -3317,7 +3154,7 @@
         }
 
         // ==========================================
-        // 19. FINALIZAR VENDA
+        // 11. FINALIZAR VENDA
         // ==========================================
         function abrirModalCheckout() {
             if (cart.length === 0) {
@@ -3565,7 +3402,7 @@
         }
 
         // ==========================================
-        // 20. RENDERIZAR VENDAS
+        // 12. RENDERIZAR VENDAS DO DIA
         // ==========================================
         function renderizarVendas(filtro = '') {
             const container = document.getElementById('salesList');
@@ -3666,9 +3503,9 @@
         }
 
         // ==========================================
-        // 21. EXCLUIR VENDA
+        // 13. EXCLUIR VENDA
         // ==========================================
-        function excluirVenda(id, tipo) {
+        window.excluirVenda = function(id, tipo) {
             Swal.fire({
                 title: 'Excluir venda?',
                 text: 'Esta ação não pode ser desfeita.',
@@ -3685,51 +3522,99 @@
                         didOpen: () => { Swal.showLoading(); }
                     });
 
-                    let promise;
-                    if (tipo === 'service') {
-                        promise = db.collection('services').doc(id).delete();
-                    } else {
-                        const sale = todaySales.find(s => s.id === id && s.tipo === 'product');
-                        if (sale) {
-                            promise = db.collection('products').doc(sale.productId).get()
-                                .then(doc => {
-                                    if (doc.exists) {
-                                        const currentQty = doc.data().quantity || 0;
-                                        return db.collection('products').doc(sale.productId).update({
-                                            quantity: currentQty + sale.quantity
-                                        });
-                                    }
-                                })
-                                .then(() => db.collection('productSales').doc(id).delete());
-                        } else {
-                            promise = db.collection('productSales').doc(id).delete();
-                        }
-                    }
+                    const collectionName = tipo === 'service' ? 'services' : 'productSales';
+                    const saleRef = db.collection(collectionName).doc(id);
 
-                    promise
-                        .then(() => {
-                            Swal.close();
-                            carregarVendasDia();
-                            carregarDados();
-                            broadcastCaixaUpdate();
-                            Swal.fire({
-                                icon: 'success',
-                                title: '✅ Venda excluída!',
-                                timer: 1500,
-                                showConfirmButton: false
-                            });
-                        })
-                        .catch(error => {
-                            Swal.close();
-                            Swal.fire('Erro', 'Erro ao excluir: ' + error.message, 'error');
+                    saleRef.get().then(saleDoc => {
+                        if (!saleDoc.exists) throw new Error('Venda não encontrada.');
+                        const sale = saleDoc.data();
+                        const tarefas = [];
+
+                        if (tipo === 'product' && sale.productId) {
+                            tarefas.push(
+                                db.collection('products').doc(sale.productId).get().then(productDoc => {
+                                    if (!productDoc.exists) return;
+                                    const currentQty = productDoc.data().quantity || 0;
+                                    return db.collection('products').doc(sale.productId).update({
+                                        quantity: currentQty + (sale.quantity || 0)
+                                    });
+                                })
+                            );
+                        }
+
+                        const collaboratorId = sale.collaboratorId || sale.paymentRecord?.collaboratorId;
+                        const dataVenda = sale.date || '';
+                        const valorTotal = parseFloat(sale.valorOriginal || sale.value || sale.totalValue || 0);
+                        const colaboradorRecebeu = parseFloat(sale.colaboradorRecebeu || sale.paymentRecord?.colaboradorRecebeu || 0);
+                        const salaoRecebeu = parseFloat(sale.salaoRecebeu || sale.paymentRecord?.salaoRecebeu || 0);
+
+                        if (dataVenda) {
+                            const pagamentosQuery = db.collection('collaboratorPayments')
+                                .where('userId', '==', currentUser.uid);
+
+                            tarefas.push(
+                                pagamentosQuery.get().then(snapshot => {
+                                    const candidatos = [];
+                                    snapshot.forEach(paymentDoc => {
+                                        const payment = paymentDoc.data();
+                                        const valorPagamento = parseFloat(payment.valorTotal || 0);
+                                        const colaboradorPagamento = parseFloat(payment.colaboradorRecebeu || 0);
+                                        const salaoPagamento = parseFloat(payment.salaoRecebeu || 0);
+                                        const tipoPagamento = payment.tipo || '';
+                                        const tipoVenda = tipo === 'service' ? 'service' : 'product';
+
+                                        if (
+                                            (payment.data || '') === dataVenda &&
+                                            (!collaboratorId || payment.collaboratorId === collaboratorId) &&
+                                            Math.abs(valorPagamento - valorTotal) < 0.01 &&
+                                            Math.abs(colaboradorPagamento - colaboradorRecebeu) < 0.01 &&
+                                            Math.abs(salaoPagamento - salaoRecebeu) < 0.01 &&
+                                            (!tipoPagamento || tipoPagamento === tipoVenda)
+                                        ) {
+                                            candidatos.push({ id: paymentDoc.id, data: payment });
+                                        }
+                                    });
+
+                                    if (candidatos.length === 0) return null;
+
+                                    candidatos.sort((a, b) => {
+                                        const ta = a.data.timestamp?.seconds || 0;
+                                        const tb = b.data.timestamp?.seconds || 0;
+                                        return ta - tb;
+                                    });
+                                    return db.collection('collaboratorPayments').doc(candidatos[0].id).delete();
+                                })
+                            );
+                        }
+
+                        tarefas.push(saleRef.delete());
+                        return Promise.all(tarefas);
+                    }).then(() => {
+                        todaySales = todaySales.filter(s => !(s.id === id && s.tipo === tipo));
+                        allSales = allSales.filter(s => !(s.id === id && s.tipo === tipo));
+                        renderizarVendas();
+                        atualizarResumo();
+                        carregarVendasDia();
+                        carregarDados();
+                        broadcastCaixaUpdate();
+                        Swal.close();
+                        Swal.fire({
+                            icon: 'success',
+                            title: '✅ Venda excluída!',
+                            text: 'A venda e o registro de pagamento relacionado foram removidos.',
+                            timer: 1800,
+                            showConfirmButton: false
                         });
+                    }).catch(error => {
+                        Swal.close();
+                        Swal.fire('Erro', 'Erro ao excluir: ' + error.message, 'error');
+                    });
                 }
             });
-        }
-        window.excluirVenda = excluirVenda;
+        };
 
         // ==========================================
-        // 22. RESUMO E COMISSÕES
+        // 14. RESUMO DO DIA
         // ==========================================
         function atualizarResumo() {
             const services = todaySales.filter(s => s.tipo === 'service' && !s.isPackage);
@@ -3819,98 +3704,523 @@
         }
 
         // ==========================================
-        // 23. ATUALIZAR ÚLTIMA ATUALIZAÇÃO
+        // 15. CARREGAR DADOS
         // ==========================================
-        function atualizarUltimaAtualizacao() {
-            const now = new Date();
-            const el = document.getElementById('lastUpdateBadge');
-            if (el) {
-                el.innerHTML = `<i class="fas fa-clock me-1"></i>Atualizado ${now.toLocaleTimeString('pt-PT')}`;
-            }
+        function carregarDados() {
+            if (!currentUser) return;
+
+            Promise.all([
+                carregarClientes(),
+                carregarProdutos(),
+                carregarColaboradores(),
+                carregarServicosEmpresa(),
+                carregarCaixa()
+            ]).then(() => {
+                carregarVendasDia();
+                carregarConfiguracoesSistema();
+                atualizarUltimaAtualizacao();
+                atualizarLogoHeader();
+                carregarTodasVendas();
+            }).catch(err => console.error('Erro ao carregar dados:', err));
         }
 
-        // ==========================================
-        // 24. RECARREGAR DADOS
-        // ==========================================
-        function recarregarDados() {
-            const btn = document.getElementById('refreshBtn');
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Carregando...';
-            btn.disabled = true;
-
-            carregarDados();
-            setTimeout(() => {
-                btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Atualizar';
-                btn.disabled = false;
-                Swal.fire('✅ Dados atualizados!', '', 'success');
-            }, 1000);
+        function carregarClientes() {
+            return new Promise((resolve) => {
+                if (!currentUser) { resolve(); return; }
+                db.collection('clients')
+                    .where('userId', '==', currentUser.uid)
+                    .get()
+                    .then(snapshot => {
+                        clients = [];
+                        snapshot.forEach(doc => clients.push({ id: doc.id, ...doc.data() }));
+                        clients.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                        resolve();
+                    })
+                    .catch(() => resolve());
+            });
         }
 
-        // ==========================================
-        // 25. FUNÇÃO HOME
-        // ==========================================
-        function goHome() {
-            if (window.parent && window.parent !== window) {
-                window.parent.postMessage({ action: 'goHome' }, '*');
-            } else {
-                window.location.href = 'layout-index.html';
-            }
+        function carregarProdutos() {
+            return new Promise((resolve) => {
+                if (!currentUser) { resolve(); return; }
+                db.collection('products')
+                    .where('userId', '==', currentUser.uid)
+                    .get()
+                    .then(snapshot => {
+                        products = [];
+                        snapshot.forEach(doc => products.push({ id: doc.id, ...doc.data() }));
+                        products.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                        resolve();
+                    })
+                    .catch(() => resolve());
+            });
         }
 
-        // ==========================================
-        // 26. MOSTRAR LOGIN PROMPT
-        // ==========================================
-        function mostrarLoginPrompt() {
-            Swal.fire({
-                title: 'Acesso Restrito',
-                text: 'Faça login para acessar o caixa.',
-                icon: 'warning',
-                confirmButtonText: 'Ir para Login',
-                showCancelButton: true,
-                cancelButtonText: 'Cancelar'
-            }).then(result => {
-                if (result.isConfirmed) {
-                    window.location.href = '/login.html';
+        function carregarColaboradores() {
+            return new Promise((resolve) => {
+                if (!currentUser) { resolve(); return; }
+                db.collection('collaborators')
+                    .where('userId', '==', currentUser.uid)
+                    .where('active', '==', true)
+                    .get()
+                    .then(snapshot => {
+                        collaborators = [];
+                        snapshot.forEach(doc => {
+                            const data = doc.data();
+                            collaborators.push({ id: doc.id, ...data });
+                        });
+                        atualizarSelectColaboradoresGeral();
+                        resolve();
+                    })
+                    .catch(() => resolve());
+            });
+        }
+
+        function carregarServicosEmpresa() {
+            return new Promise((resolve) => {
+                if (!currentUser) { resolve(); return; }
+                db.collection('businessProfile').doc(currentUser.uid).get()
+                    .then(doc => {
+                        if (doc.exists) {
+                            companyServices = doc.data().services || [];
+                        } else {
+                            companyServices = [];
+                        }
+                        renderizarBadgesServicos();
+                        resolve();
+                    })
+                    .catch(() => { companyServices = []; resolve(); });
+            });
+        }
+
+        function carregarCaixa() {
+            return new Promise((resolve) => {
+                const hoje = new Date().toISOString().split('T')[0];
+                db.collection('cashiers')
+                    .where('userId', '==', currentUser.uid)
+                    .where('date', '==', hoje)
+                    .where('status', '==', 'open')
+                    .get()
+                    .then(snapshot => {
+                        if (!snapshot.empty) {
+                            currentCashier = snapshot.docs[0].data();
+                            currentCashier.id = snapshot.docs[0].id;
+                            atualizarStatusCaixa(true);
+                        } else {
+                            currentCashier = null;
+                            atualizarStatusCaixa(false);
+                        }
+                        resolve();
+                    })
+                    .catch(() => { currentCashier = null; atualizarStatusCaixa(false); resolve(); });
+            });
+        }
+
+        function carregarVendasDia() {
+            const hoje = new Date().toISOString().split('T')[0];
+
+            Promise.all([
+                db.collection('services')
+                    .where('userId', '==', currentUser.uid)
+                    .where('date', '==', hoje)
+                    .get(),
+                db.collection('productSales')
+                    .where('userId', '==', currentUser.uid)
+                    .where('date', '==', hoje)
+                    .get()
+            ]).then(([servicesSnap, productsSnap]) => {
+                todaySales = [];
+
+                servicesSnap.forEach(doc => {
+                    todaySales.push({ id: doc.id, ...doc.data(), tipo: 'service' });
+                });
+
+                productsSnap.forEach(doc => {
+                    todaySales.push({ id: doc.id, ...doc.data(), tipo: 'product' });
+                });
+
+                todaySales.sort((a, b) => {
+                    const da = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp || 0);
+                    const db = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp || 0);
+                    return db - da;
+                });
+
+                renderizarVendas();
+                atualizarResumo();
+            }).catch(err => console.error('Erro ao carregar vendas:', err));
+        }
+
+        function carregarConfiguracoesSistema() {
+            try {
+                const config = localStorage.getItem('systemConfig');
+                if (config) {
+                    const parsed = JSON.parse(config);
+                    if (parsed.corPrimaria) {
+                        document.documentElement.style.setProperty('--primary-color', parsed.corPrimaria);
+                        document.documentElement.style.setProperty('--accent-color', parsed.corPrimaria + '99');
+                        const header = document.getElementById('caixaHeader');
+                        if (header) {
+                            header.style.background = `linear-gradient(135deg, ${parsed.corPrimaria}, ${parsed.corPrimaria}99)`;
+                        }
+                    }
+                    atualizarLogoHeader();
                 }
+            } catch(e) {}
+        }
+
+        function renderizarBadgesServicos() {
+            const container = document.getElementById('serviceBadgesContainer');
+            container.innerHTML = '';
+
+            if (!companyServices || companyServices.length === 0) {
+                container.innerHTML = '<span class="text-muted fs-small">Nenhum serviço cadastrado na empresa.</span>';
+                return;
+            }
+
+            companyServices.forEach(service => {
+                const badge = document.createElement('span');
+                badge.className = 'service-badge';
+                badge.setAttribute('data-service', service);
+                badge.textContent = service;
+                container.appendChild(badge);
             });
         }
 
         // ==========================================
-        // 27. RECEBER CONFIGURAÇÕES
+        // 16. CAIXA
         // ==========================================
-        window.addEventListener('message', function(event) {
-            if (event.data && event.data.type === 'configUpdated') {
-                carregarConfiguracoesSistema();
-            }
-            if (event.data && event.data.type === 'caixaUpdated') {
-                carregarDados();
-            }
-            if (event.data && event.data.type === 'clientsUpdated') {
-                carregarClientes();
-            }
-            if (event.data && event.data.type === 'logoUpdated') {
-                atualizarLogoHeader();
-            }
-        });
-
-        window.parent.postMessage({ type: 'getConfig' }, '*');
-
-        // ==========================================
-        // 28. UTILITÁRIOS
-        // ==========================================
-        function formatCurrency(value) {
-            if (typeof value !== 'number') value = parseFloat(value) || 0;
-            return '€ ' + value.toFixed(2).replace('.', ',');
+        function abrirModalAbrirCaixa() {
+            document.getElementById('initialValueInput').value = 0;
+            const modal = new bootstrap.Modal(document.getElementById('openCashierModal'));
+            modal.show();
         }
 
-        function formatDate(dateStr) {
-            if (!dateStr) return '';
-            const date = new Date(dateStr);
-            if (isNaN(date)) return dateStr;
-            return date.toLocaleDateString('pt-PT');
+        function confirmarAbrirCaixa() {
+            const initialValue = parseFloat(document.getElementById('initialValueInput').value) || 0;
+            if (initialValue < 0) {
+                Swal.fire('Erro', 'Valor inicial não pode ser negativo.', 'error');
+                return;
+            }
+
+            const hoje = new Date().toISOString().split('T')[0];
+
+            const cashierData = {
+                date: hoje,
+                initialValue: initialValue,
+                status: 'open',
+                openedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                userId: currentUser.uid
+            };
+
+            Swal.fire({
+                title: 'Abrindo caixa...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            db.collection('cashiers').add(cashierData)
+                .then(docRef => {
+                    currentCashier = { id: docRef.id, ...cashierData };
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('openCashierModal'));
+                    if (modal) modal.hide();
+                    atualizarStatusCaixa(true);
+                    broadcastCaixaUpdate();
+                    Swal.close();
+                    Swal.fire({
+                        icon: 'success',
+                        title: '✅ Caixa aberto!',
+                        text: `Saldo inicial: ${formatCurrency(initialValue)}`,
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                })
+                .catch(error => {
+                    Swal.close();
+                    Swal.fire('Erro', 'Erro ao abrir caixa: ' + error.message, 'error');
+                });
+        }
+
+        function fecharCaixa() {
+            if (!currentCashier) {
+                Swal.fire('Erro', 'Nenhum caixa aberto.', 'error');
+                return;
+            }
+
+            const services = todaySales.filter(s => s.tipo === 'service' && !s.isPackage);
+            const products = todaySales.filter(s => s.tipo === 'product');
+
+            const totalServices = services.reduce((sum, s) => sum + parseFloat(s.valorOriginal || s.value || 0), 0);
+            const totalProducts = products.reduce((sum, s) => sum + parseFloat(s.totalValue || 0), 0);
+
+            let totalCommissions = 0;
+            services.forEach(s => {
+                const collab = collaborators.find(c => c.id === s.collaboratorId);
+                if (collab) {
+                    const perc = s.type === 'manual' ?
+                        parseFloat(collab.manualPercent || 0) :
+                        parseFloat(collab.productPercent || 0);
+                    const valor = parseFloat(s.valorOriginal || s.value || 0);
+                    totalCommissions += valor * (perc / 100);
+                }
+            });
+
+            const totalSalon = totalServices + totalProducts - totalCommissions;
+            const totalSales = totalServices + totalProducts;
+            const finalValue = (currentCashier.initialValue || 0) + totalSalon;
+
+            Swal.fire({
+                title: 'Fechar Caixa',
+                html: `
+                    <div class="text-start">
+                        <p><strong>Saldo Inicial:</strong> ${formatCurrency(currentCashier.initialValue)}</p>
+                        <p><strong>Total Vendas:</strong> ${formatCurrency(totalSales)}</p>
+                        <p><strong>Saldo Final:</strong> ${formatCurrency(finalValue)}</p>
+                    </div>
+                `,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Sim, fechar',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#d33'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    Swal.fire({
+                        title: 'Fechando caixa...',
+                        allowOutsideClick: false,
+                        didOpen: () => { Swal.showLoading(); }
+                    });
+
+                    db.collection('cashiers').doc(currentCashier.id).update({
+                        status: 'closed',
+                        closedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        finalValue: finalValue,
+                        totalServices: totalServices,
+                        totalProducts: totalProducts,
+                        totalSales: totalSales
+                    })
+                    .then(() => {
+                        currentCashier = null;
+                        atualizarStatusCaixa(false);
+                        broadcastCaixaUpdate();
+                        Swal.close();
+                        Swal.fire({
+                            icon: 'success',
+                            title: '✅ Caixa fechado!',
+                            text: `Saldo final: ${formatCurrency(finalValue)}`,
+                            timer: 3000,
+                            showConfirmButton: false
+                        });
+                    })
+                    .catch(error => {
+                        Swal.close();
+                        Swal.fire('Erro', 'Erro ao fechar caixa: ' + error.message, 'error');
+                    });
+                }
+            });
+        }
+
+        function atualizarStatusCaixa(isOpen) {
+            const badge = document.getElementById('cashierStatusBadge');
+            const openBtn = document.getElementById('openCashierBtn');
+            const closeBtn = document.getElementById('closeCashierBtn');
+            const finalizeBtn = document.getElementById('finalizeSaleBtn');
+            const pastBtn = document.getElementById('pastSaleBtn');
+            const manageBtn = document.getElementById('manageSalesBtn');
+
+            if (isOpen) {
+                badge.textContent = '✅ Aberto';
+                badge.className = 'status-badge open';
+                openBtn.disabled = true;
+                closeBtn.disabled = false;
+                finalizeBtn.disabled = false;
+                pastBtn.disabled = false;
+                manageBtn.disabled = false;
+                document.getElementById('serviceForm').querySelectorAll('input, select, button').forEach(el => el.disabled = false);
+                document.getElementById('productForm').querySelectorAll('input, select, button').forEach(el => el.disabled = false);
+                const services = todaySales.filter(s => s.tipo === 'service' && !s.isPackage);
+                const products = todaySales.filter(s => s.tipo === 'product');
+                const totalServices = services.reduce((sum, s) => sum + parseFloat(s.valorOriginal || s.value || 0), 0);
+                const totalProducts = products.reduce((sum, s) => sum + parseFloat(s.totalValue || 0), 0);
+                let totalCommissions = 0;
+                services.forEach(s => {
+                    const collab = collaborators.find(c => c.id === s.collaboratorId);
+                    if (collab) {
+                        const perc = s.type === 'manual' ?
+                            parseFloat(collab.manualPercent || 0) :
+                            parseFloat(collab.productPercent || 0);
+                        const valor = parseFloat(s.valorOriginal || s.value || 0);
+                        totalCommissions += valor * (perc / 100);
+                    }
+                });
+                const totalSalon = totalServices + totalProducts - totalCommissions;
+                document.getElementById('currentCash').textContent = formatCurrency(
+                    (currentCashier?.initialValue || 0) + totalSalon
+                );
+            } else {
+                badge.textContent = '🔒 Fechado';
+                badge.className = 'status-badge closed';
+                openBtn.disabled = false;
+                closeBtn.disabled = true;
+                finalizeBtn.disabled = true;
+                pastBtn.disabled = true;
+                manageBtn.disabled = true;
+                document.getElementById('serviceForm').querySelectorAll('input, select, button').forEach(el => el.disabled = true);
+                document.getElementById('productForm').querySelectorAll('input, select, button').forEach(el => el.disabled = true);
+                document.getElementById('currentCash').textContent = '€ 0,00';
+                limparCarrinho();
+            }
         }
 
         // ==========================================
-        // RELATÓRIO PDF - NOVAS FUNÇÕES
+        // 17. NOVO CLIENTE
+        // ==========================================
+        function abrirModalNovoCliente(nome = '') {
+            document.getElementById('newClientForm').reset();
+            document.getElementById('newClientName').value = nome;
+            document.getElementById('newClientPhotoPreview').style.display = 'none';
+            document.getElementById('newClientPhotoPlaceholder').style.display = 'flex';
+            document.getElementById('removeNewClientPhoto').style.display = 'none';
+            newClientPhotoUrl = null;
+            document.getElementById('newClientPhoto').value = '';
+
+            const modal = new bootstrap.Modal(document.getElementById('newClientModal'));
+            modal.show();
+
+            setTimeout(() => {
+                document.getElementById('newClientName').focus();
+                if (nome) {
+                    document.getElementById('newClientName').select();
+                }
+            }, 300);
+        }
+
+        function uploadFotoCliente(file) {
+            if (!file) return;
+            if (!file.type.match('image.*')) {
+                Swal.fire('Erro', 'Por favor, selecione uma imagem válida.', 'error');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('newClientPhotoPreview').src = e.target.result;
+                document.getElementById('newClientPhotoPreview').style.display = 'block';
+                document.getElementById('newClientPhotoPlaceholder').style.display = 'none';
+                document.getElementById('removeNewClientPhoto').style.display = 'inline-block';
+            };
+            reader.readAsDataURL(file);
+
+            Swal.fire({
+                title: 'Enviando foto...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('upload_preset', cloudinaryConfig.uploadPreset);
+
+            fetch(`https://api.cloudinary.com/v1_1/${cloudinaryConfig.cloudName}/image/upload`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.secure_url) {
+                    newClientPhotoUrl = data.secure_url;
+                    Swal.close();
+                } else {
+                    throw new Error('Erro no upload');
+                }
+            })
+            .catch(error => {
+                Swal.close();
+                Swal.fire('Erro', 'Erro ao enviar foto: ' + error.message, 'error');
+                newClientPhotoUrl = null;
+                document.getElementById('newClientPhotoPreview').style.display = 'none';
+                document.getElementById('newClientPhotoPlaceholder').style.display = 'flex';
+                document.getElementById('removeNewClientPhoto').style.display = 'none';
+                document.getElementById('newClientPhoto').value = '';
+            });
+        }
+
+        function salvarNovoCliente() {
+            const nome = document.getElementById('newClientName').value.trim();
+            const birthdate = document.getElementById('newClientBirthdate').value;
+            const phone = document.getElementById('newClientPhone').value.trim();
+            const email = document.getElementById('newClientEmail').value.trim();
+
+            if (!nome) {
+                Swal.fire('Erro', 'Digite o nome do cliente.', 'error');
+                document.getElementById('newClientName').focus();
+                return;
+            }
+
+            if (!phone) {
+                Swal.fire('Erro', 'Digite o telefone/WhatsApp do cliente.', 'error');
+                document.getElementById('newClientPhone').focus();
+                return;
+            }
+
+            const existing = clients.find(c => c.name.toLowerCase() === nome.toLowerCase() || c.phone === phone);
+            if (existing) {
+                Swal.fire('Aviso', 'Cliente já cadastrado com este nome ou telefone.', 'warning');
+                return;
+            }
+
+            const clientData = {
+                name: nome,
+                birthdate: birthdate || null,
+                phone: phone,
+                email: email || '',
+                photoUrl: newClientPhotoUrl || null,
+                userId: currentUser.uid,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            Swal.fire({
+                title: 'Salvando cliente...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            db.collection('clients').add(clientData)
+                .then(docRef => {
+                    const newClient = { id: docRef.id, ...clientData };
+                    clients.push(newClient);
+                    clients.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+                    const clientId = docRef.id;
+                    const searchInput = document.getElementById('serviceClientSearch');
+                    searchInput.value = nome;
+                    document.getElementById('serviceClientId').value = clientId;
+
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('newClientModal'));
+                    if (modal) modal.hide();
+
+                    broadcastClientsUpdate();
+                    Swal.close();
+                    Swal.fire({
+                        icon: 'success',
+                        title: '✅ Cliente cadastrado!',
+                        text: `${nome} foi adicionado à lista.`,
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+
+                    const clearBtn = searchInput.parentElement.querySelector('.clear-btn');
+                    if (clearBtn) clearBtn.classList.add('show');
+                    
+                    verificarPacotesCliente(clientId);
+                })
+                .catch(error => {
+                    Swal.close();
+                    Swal.fire('Erro', 'Erro ao salvar cliente: ' + error.message, 'error');
+                });
+        }
+
+        // ==========================================
+        // 18. RELATÓRIO PDF DO COLABORADOR
         // ==========================================
         function abrirRelatorioPdfColaborador() {
             const select = document.getElementById('pdfCollaboratorSelect');
@@ -3974,12 +4284,6 @@
                 didOpen: () => Swal.showLoading()
             });
 
-            // O relatório mensal usa somente vendas que ainda existem no Firestore.
-            // Assim, uma venda excluída deixa de participar automaticamente do PDF.
-            // Busca somente pelo usuário e filtra o período no JavaScript.
-            // Isso evita exigir índice composto do Firestore para gerar o PDF.
-            // Não usa where() nesta consulta para evitar qualquer dependência de índice.
-            // O usuário e o período são filtrados abaixo, no JavaScript.
             db.collection('services')
                 .get()
             .then(servicesSnap => {
@@ -4064,8 +4368,6 @@
                     };
                 });
 
-                // Se houver pagamento histórico sem venda correspondente, ele não entra no total.
-                // Isso impede que pagamentos órfãos de vendas excluídas continuem somando no PDF.
                 const faltaColaboradorMes = totalComissao - totalColaboradorRecebeu;
                 const faltaSalaoMes = totalComissaoSalao - totalSalaoRecebeu;
 
@@ -4240,127 +4542,478 @@
         }
 
         // ==========================================
-        // LIMPEZA DOS DADOS RELACIONADOS À VENDA EXCLUÍDA
+        // 19. FUNÇÕES DE UTILIDADE
         // ==========================================
-        // A função original de exclusão permanece intacta. Este controlador substitui
-        // somente a ação global chamada pelo botão de excluir para também remover o
-        // registro correspondente em collaboratorPayments.
-        window.excluirVenda = function(id, tipo) {
+        function formatCurrency(value) {
+            if (typeof value !== 'number') value = parseFloat(value) || 0;
+            return '€ ' + value.toFixed(2).replace('.', ',');
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            if (isNaN(date)) return dateStr;
+            return date.toLocaleDateString('pt-PT');
+        }
+
+        function showToast(message, type = 'info') {
+            if (typeof Swal !== 'undefined') {
+                const icons = {
+                    'success': 'success',
+                    'error': 'error',
+                    'warning': 'warning',
+                    'info': 'info'
+                };
+                Swal.fire({
+                    icon: icons[type] || 'info',
+                    title: message,
+                    timer: 3000,
+                    showConfirmButton: false,
+                    toast: true,
+                    position: 'top-end',
+                    timerProgressBar: true
+                });
+            } else {
+                console.log(`[${type.toUpperCase()}] ${message}`);
+            }
+        }
+
+        function showLoading(message) {
             Swal.fire({
-                title: 'Excluir venda?',
-                text: 'Esta ação não pode ser desfeita. Todos os dados relacionados ao pagamento também serão removidos.',
+                title: message,
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function atualizarUltimaAtualizacao() {
+            const now = new Date();
+            const el = document.getElementById('lastUpdateBadge');
+            if (el) {
+                el.innerHTML = `<i class="fas fa-clock me-1"></i>Atualizado ${now.toLocaleTimeString('pt-PT')}`;
+            }
+        }
+
+        function recarregarDados() {
+            const btn = document.getElementById('refreshBtn');
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Carregando...';
+            btn.disabled = true;
+
+            carregarDados();
+            setTimeout(() => {
+                btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Atualizar';
+                btn.disabled = false;
+                Swal.fire('✅ Dados atualizados!', '', 'success');
+            }, 1000);
+        }
+
+        function goHome() {
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage({ action: 'goHome' }, '*');
+            } else {
+                window.location.href = 'layout-index.html';
+            }
+        }
+
+        function mostrarLoginPrompt() {
+            Swal.fire({
+                title: 'Acesso Restrito',
+                text: 'Faça login para acessar o caixa.',
                 icon: 'warning',
+                confirmButtonText: 'Ir para Login',
                 showCancelButton: true,
-                confirmButtonColor: '#d33',
-                confirmButtonText: 'Sim, excluir',
                 cancelButtonText: 'Cancelar'
             }).then(result => {
-                if (!result.isConfirmed) return;
-
-                Swal.fire({
-                    title: 'Excluindo...',
-                    text: 'Removendo a venda e os dados de pagamento relacionados.',
-                    allowOutsideClick: false,
-                    didOpen: () => { Swal.showLoading(); }
-                });
-
-                const collectionName = tipo === 'service' ? 'services' : 'productSales';
-                const saleRef = db.collection(collectionName).doc(id);
-
-                saleRef.get().then(saleDoc => {
-                    if (!saleDoc.exists) throw new Error('Venda não encontrada.');
-                    const sale = saleDoc.data();
-                    const tarefas = [];
-
-                    if (tipo === 'product' && sale.productId) {
-                        tarefas.push(
-                            db.collection('products').doc(sale.productId).get().then(productDoc => {
-                                if (!productDoc.exists) return;
-                                const currentQty = productDoc.data().quantity || 0;
-                                return db.collection('products').doc(sale.productId).update({
-                                    quantity: currentQty + (sale.quantity || 0)
-                                });
-                            })
-                        );
-                    }
-
-                    // Remove somente um registro de collaboratorPayments que corresponda
-                    // aos dados desta venda, evitando apagar pagamentos de outras vendas.
-                    const collaboratorId = sale.collaboratorId || sale.paymentRecord?.collaboratorId;
-                    const dataVenda = sale.date || '';
-                    const valorTotal = parseFloat(sale.valorOriginal || sale.value || sale.totalValue || 0);
-                    const colaboradorRecebeu = parseFloat(sale.colaboradorRecebeu || sale.paymentRecord?.colaboradorRecebeu || 0);
-                    const salaoRecebeu = parseFloat(sale.salaoRecebeu || sale.paymentRecord?.salaoRecebeu || 0);
-
-                    if (dataVenda) {
-                        // Busca os pagamentos do usuário sem índice composto e filtra
-                    // os dados da venda no JavaScript.
-                    const pagamentosQuery = db.collection('collaboratorPayments')
-                        .where('userId', '==', currentUser.uid);
-
-                    tarefas.push(
-                        pagamentosQuery.get().then(snapshot => {
-                                    const candidatos = [];
-                                    snapshot.forEach(paymentDoc => {
-                                        const payment = paymentDoc.data();
-                                        const valorPagamento = parseFloat(payment.valorTotal || 0);
-                                        const colaboradorPagamento = parseFloat(payment.colaboradorRecebeu || 0);
-                                        const salaoPagamento = parseFloat(payment.salaoRecebeu || 0);
-                                        const tipoPagamento = payment.tipo || '';
-                                        const tipoVenda = tipo === 'service' ? 'service' : 'product';
-
-                                        if (
-                                            (payment.data || '') === dataVenda &&
-                                            (!collaboratorId || payment.collaboratorId === collaboratorId) &&
-                                            Math.abs(valorPagamento - valorTotal) < 0.01 &&
-                                            Math.abs(colaboradorPagamento - colaboradorRecebeu) < 0.01 &&
-                                            Math.abs(salaoPagamento - salaoRecebeu) < 0.01 &&
-                                            (!tipoPagamento || tipoPagamento === tipoVenda)
-                                        ) {
-                                            candidatos.push({ id: paymentDoc.id, data: payment });
-                                        }
-                                    });
-
-                                    if (candidatos.length === 0) return null;
-
-                                    // Em caso de vendas idênticas, remove somente o registro mais antigo.
-                                    candidatos.sort((a, b) => {
-                                        const ta = a.data.timestamp?.seconds || 0;
-                                        const tb = b.data.timestamp?.seconds || 0;
-                                        return ta - tb;
-                                    });
-                                    return db.collection('collaboratorPayments').doc(candidatos[0].id).delete();
-                                })
-                        );
-                    }
-
-                    tarefas.push(saleRef.delete());
-                    return Promise.all(tarefas);
-                }).then(() => {
-                    // Limpar também o estado local imediatamente.
-                    todaySales = todaySales.filter(s => !(s.id === id && s.tipo === tipo));
-                    renderizarVendas();
-                    atualizarResumo();
-                    carregarVendasDia();
-                    carregarDados();
-                    broadcastCaixaUpdate();
-                    Swal.close();
-                    Swal.fire({
-                        icon: 'success',
-                        title: '✅ Venda excluída!',
-                        text: 'A venda e o registro de pagamento relacionado foram removidos.',
-                        timer: 1800,
-                        showConfirmButton: false
-                    });
-                }).catch(error => {
-                    Swal.close();
-                    Swal.fire('Erro', 'Erro ao excluir: ' + error.message, 'error');
-                });
+                if (result.isConfirmed) {
+                    window.location.href = '/login.html';
+                }
             });
-        };
+        }
 
         // ==========================================
-        // 29. LOG DE INICIALIZAÇÃO
+        // 20. CANAL DE COMUNICAÇÃO
+        // ==========================================
+        function initBroadcastChannel() {
+            try {
+                if (window.BroadcastChannel) {
+                    broadcastChannel = new BroadcastChannel('caixa-sync');
+                    broadcastChannel.onmessage = function(event) {
+                        if (event.data && event.data.type === 'caixaUpdated') {
+                            carregarDados();
+                        }
+                        if (event.data && event.data.type === 'configUpdated') {
+                            carregarConfiguracoesSistema();
+                        }
+                        if (event.data && event.data.type === 'clientsUpdated') {
+                            carregarClientes();
+                        }
+                        if (event.data && event.data.type === 'logoUpdated') {
+                            atualizarLogoHeader();
+                        }
+                    };
+                }
+            } catch(e) {}
+        }
+
+        function broadcastCaixaUpdate() {
+            if (broadcastChannel) {
+                try {
+                    broadcastChannel.postMessage({ type: 'caixaUpdated' });
+                } catch(e) {}
+            }
+        }
+
+        function broadcastClientsUpdate() {
+            if (broadcastChannel) {
+                try {
+                    broadcastChannel.postMessage({ type: 'clientsUpdated' });
+                } catch(e) {}
+            }
+        }
+
+        // ==========================================
+        // 21. LOGO DO SISTEMA
+        // ==========================================
+        function atualizarLogoHeader() {
+            const config = localStorage.getItem('systemConfig');
+            if (config) {
+                try {
+                    const parsed = JSON.parse(config);
+                    const logoUrl = parsed.logo;
+                    const logoIcon = document.getElementById('logoIconHeader');
+                    const logoImage = document.getElementById('logoImageHeader');
+
+                    if (logoUrl) {
+                        logoIcon.style.display = 'none';
+                        logoImage.style.display = 'inline-block';
+                        logoImage.src = logoUrl;
+                    } else {
+                        logoIcon.style.display = 'inline-block';
+                        logoImage.style.display = 'none';
+                    }
+                } catch(e) {}
+            }
+        }
+
+        // ==========================================
+        // 22. RECEBER CONFIGURAÇÕES
+        // ==========================================
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'configUpdated') {
+                carregarConfiguracoesSistema();
+            }
+            if (event.data && event.data.type === 'caixaUpdated') {
+                carregarDados();
+            }
+            if (event.data && event.data.type === 'clientsUpdated') {
+                carregarClientes();
+            }
+            if (event.data && event.data.type === 'logoUpdated') {
+                atualizarLogoHeader();
+            }
+        });
+
+        window.parent.postMessage({ type: 'getConfig' }, '*');
+
+        // ==========================================
+        // 23. INICIALIZAÇÃO
+        // ==========================================
+        document.addEventListener('DOMContentLoaded', function() {
+            initBroadcastChannel();
+
+            auth.onAuthStateChanged(user => {
+                if (user) {
+                    currentUser = user;
+                    document.getElementById('userGreeting').textContent = user.email;
+                    carregarDados();
+                    carregarConfiguracoesSistema();
+                    atualizarLogoHeader();
+
+                    // Habilitar botões após login
+                    document.getElementById('pastSaleBtn').addEventListener('click', function() {
+                        abrirModalVendaPassada();
+                    });
+
+                    document.getElementById('manageSalesBtn').addEventListener('click', function() {
+                        abrirModalGerenciarVendas();
+                    });
+
+                    document.getElementById('pdfReportBtn').addEventListener('click', function() {
+                        abrirRelatorioPdfColaborador();
+                    });
+
+                    document.getElementById('generateCollaboratorPdfBtn').addEventListener('click', function() {
+                        gerarPdfColaborador();
+                    });
+
+                    document.getElementById('addServiceWithPaymentBtn').addEventListener('click', function() {
+                        abrirPopupPagamentoColaborador('service');
+                    });
+
+                    document.getElementById('addProductWithPaymentBtn').addEventListener('click', function() {
+                        abrirPopupPagamentoColaborador('product');
+                    });
+
+                    document.getElementById('openCashierBtn').addEventListener('click', function() {
+                        abrirModalAbrirCaixa();
+                    });
+
+                    document.getElementById('confirmOpenCashierBtn').addEventListener('click', function() {
+                        confirmarAbrirCaixa();
+                    });
+
+                    document.getElementById('closeCashierBtn').addEventListener('click', function() {
+                        fecharCaixa();
+                    });
+
+                    document.getElementById('clearCartBtn').addEventListener('click', function() {
+                        limparCarrinho();
+                    });
+
+                    document.getElementById('checkoutCartBtn').addEventListener('click', function() {
+                        abrirModalCheckout();
+                    });
+
+                    document.getElementById('confirmCheckoutBtn').addEventListener('click', function() {
+                        finalizarVenda();
+                    });
+
+                    document.getElementById('finalizeSaleBtn').addEventListener('click', function() {
+                        abrirModalCheckout();
+                    });
+
+                    document.getElementById('filterSalesBtn').addEventListener('click', function() {
+                        document.getElementById('salesSearch').value = '';
+                        document.getElementById('salesSearch').dispatchEvent(new Event('input'));
+                        document.getElementById('salesSearch').focus();
+                    });
+
+                    document.getElementById('salesSearch').addEventListener('input', function() {
+                        filtrarVendas(this.value);
+                    });
+
+                    document.getElementById('clearSalesSearch').addEventListener('click', function() {
+                        document.getElementById('salesSearch').value = '';
+                        document.getElementById('salesSearch').dispatchEvent(new Event('input'));
+                        document.getElementById('salesSearch').focus();
+                        this.classList.remove('show');
+                    });
+
+                    document.getElementById('clearServiceClient').addEventListener('click', function() {
+                        document.getElementById('serviceClientSearch').value = '';
+                        document.getElementById('serviceClientId').value = '';
+                        document.getElementById('serviceClientAutocomplete').classList.remove('active');
+                        document.getElementById('serviceClientSearch').focus();
+                        this.classList.remove('show');
+                        clientPackages = [];
+                        selectedPackageId = null;
+                        packageServiceInfo = null;
+                    });
+
+                    document.getElementById('clearProduct').addEventListener('click', function() {
+                        document.getElementById('productSearch').value = '';
+                        document.getElementById('productId').value = '';
+                        document.getElementById('productAutocomplete').classList.remove('active');
+                        document.getElementById('productSearch').focus();
+                        this.classList.remove('show');
+                    });
+
+                    document.getElementById('clearProductClient').addEventListener('click', function() {
+                        document.getElementById('productClientSearch').value = '';
+                        document.getElementById('productClientId').value = '';
+                        document.getElementById('productClientAutocomplete').classList.remove('active');
+                        document.getElementById('productClientSearch').focus();
+                        this.classList.remove('show');
+                    });
+
+                    configurarBuscaClientes('serviceClientSearch', 'serviceClientAutocomplete', 'serviceClientId', 'clearServiceClient');
+                    configurarBuscaClientes('productClientSearch', 'productClientAutocomplete', 'productClientId', 'clearProductClient');
+
+                    document.getElementById('newClientFromService').addEventListener('click', function() {
+                        const nome = document.getElementById('serviceClientSearch').value.trim();
+                        abrirModalNovoCliente(nome);
+                    });
+
+                    document.getElementById('newClientFromProduct').addEventListener('click', function() {
+                        const nome = document.getElementById('productClientSearch').value.trim();
+                        abrirModalNovoCliente(nome);
+                    });
+
+                    document.getElementById('saveNewClientBtn').addEventListener('click', function() {
+                        salvarNovoCliente();
+                    });
+
+                    document.getElementById('newClientPhoto').addEventListener('change', function(e) {
+                        const file = e.target.files[0];
+                        if (file) {
+                            uploadFotoCliente(file);
+                        }
+                    });
+
+                    document.getElementById('removeNewClientPhoto').addEventListener('click', function() {
+                        newClientPhotoUrl = null;
+                        document.getElementById('newClientPhotoPreview').style.display = 'none';
+                        document.getElementById('newClientPhotoPlaceholder').style.display = 'flex';
+                        document.getElementById('removeNewClientPhoto').style.display = 'none';
+                        document.getElementById('newClientPhoto').value = '';
+                    });
+
+                    // Autocomplete de produtos
+                    document.getElementById('productSearch').addEventListener('input', function() {
+                        const searchTerm = this.value;
+                        const clearBtn = this.parentElement.querySelector('.clear-btn');
+                        
+                        if (searchTerm.length > 0) {
+                            clearBtn.classList.add('show');
+                        } else {
+                            clearBtn.classList.remove('show');
+                        }
+
+                        const normalizedSearch = searchTerm.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+
+                        if (normalizedSearch.length < 1) {
+                            if (products.length === 0) {
+                                const list = document.getElementById('productAutocomplete');
+                                list.innerHTML = '<div class="autocomplete-item text-muted">Nenhum produto cadastrado</div>';
+                                list.classList.add('active');
+                                return;
+                            }
+                            const allProducts = products.slice(0, 15);
+                            let html = '';
+                            allProducts.forEach(p => {
+                                const estoque = p.quantity || 0;
+                                const foto = p.imageUrl ? 
+                                    `<img src="${p.imageUrl}" class="avatar" onerror="this.style.display='none'">` :
+                                    `<div class="avatar-placeholder"><i class="fas fa-box"></i></div>`;
+                                
+                                html += `
+                                    <div class="autocomplete-item" data-id="${p.id}" data-name="${p.name}" data-price="${p.salePrice}" data-stock="${estoque}">
+                                        ${foto}
+                                        <div class="info">
+                                            <div class="name">${p.name}</div>
+                                            <div class="detail">${formatCurrency(p.salePrice)} | ${estoque} und</div>
+                                        </div>
+                                        <span class="badge-item ${estoque <= 5 ? 'bg-warning' : 'bg-success'}">${estoque}</span>
+                                    </div>
+                                `;
+                            });
+                            if (products.length > 15) {
+                                html += `<div class="autocomplete-item text-muted">... e mais ${products.length - 15} produtos. Digite para filtrar.</div>`;
+                            }
+                            const list = document.getElementById('productAutocomplete');
+                            list.innerHTML = html;
+                            list.classList.add('active');
+
+                            list.querySelectorAll('.autocomplete-item').forEach(item => {
+                                item.addEventListener('click', function() {
+                                    document.getElementById('productSearch').value = this.getAttribute('data-name');
+                                    document.getElementById('productId').value = this.getAttribute('data-id');
+                                    const stock = parseInt(this.getAttribute('data-stock')) || 0;
+                                    document.getElementById('productQuantity').max = stock;
+                                    document.getElementById('productQuantity').value = 1;
+                                    list.classList.remove('active');
+                                    clearBtn.classList.add('show');
+                                });
+                            });
+                            return;
+                        }
+
+                        const filtered = products.filter(p => {
+                            const nome = (p.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+                            const desc = (p.description || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+                            return nome.includes(normalizedSearch) || desc.includes(normalizedSearch);
+                        });
+
+                        if (filtered.length === 0) {
+                            const list = document.getElementById('productAutocomplete');
+                            list.innerHTML = '<div class="autocomplete-item text-muted">Nenhum produto encontrado</div>';
+                            list.classList.add('active');
+                            return;
+                        }
+
+                        let html = '';
+                        filtered.slice(0, 15).forEach(p => {
+                            const estoque = p.quantity || 0;
+                            const foto = p.imageUrl ? 
+                                `<img src="${p.imageUrl}" class="avatar" onerror="this.style.display='none'">` :
+                                `<div class="avatar-placeholder"><i class="fas fa-box"></i></div>`;
+                            
+                            html += `
+                                <div class="autocomplete-item" data-id="${p.id}" data-name="${p.name}" data-price="${p.salePrice}" data-stock="${estoque}">
+                                    ${foto}
+                                    <div class="info">
+                                        <div class="name">${p.name}</div>
+                                        <div class="detail">${formatCurrency(p.salePrice)} | ${estoque} und</div>
+                                    </div>
+                                    <span class="badge-item ${estoque <= 5 ? 'bg-warning' : 'bg-success'}">${estoque}</span>
+                                </div>
+                            `;
+                        });
+
+                        const list = document.getElementById('productAutocomplete');
+                        list.innerHTML = html;
+                        list.classList.add('active');
+
+                        list.querySelectorAll('.autocomplete-item').forEach(item => {
+                            item.addEventListener('click', function() {
+                                document.getElementById('productSearch').value = this.getAttribute('data-name');
+                                document.getElementById('productId').value = this.getAttribute('data-id');
+                                const stock = parseInt(this.getAttribute('data-stock')) || 0;
+                                document.getElementById('productQuantity').max = stock;
+                                document.getElementById('productQuantity').value = 1;
+                                list.classList.remove('active');
+                                clearBtn.classList.add('show');
+                            });
+                        });
+                    });
+
+                    document.addEventListener('click', function(e) {
+                        const badge = e.target.closest('.service-badge');
+                        if (badge) {
+                            const serviceName = badge.getAttribute('data-service');
+                            const descInput = document.getElementById('serviceDescription');
+                            const currentValue = descInput.value.trim();
+                            if (currentValue) {
+                                descInput.value = currentValue + ', ' + serviceName;
+                            } else {
+                                descInput.value = serviceName;
+                            }
+                            descInput.focus();
+                        }
+                    });
+
+                    document.addEventListener('click', function(e) {
+                        if (!e.target.closest('.autocomplete-container')) {
+                            document.querySelectorAll('.autocomplete-list').forEach(list => list.classList.remove('active'));
+                        }
+                    });
+
+                    // Atualizar a cada 30 segundos
+                    setInterval(function() {
+                        if (currentUser) {
+                            carregarDados();
+                        }
+                    }, 30000);
+
+                    setInterval(atualizarLogoHeader, 10000);
+                } else {
+                    document.getElementById('userGreeting').textContent = 'Não autenticado';
+                    mostrarLoginPrompt();
+                }
+            });
+        });
+
+        // ==========================================
+        // 24. LOG DE INICIALIZAÇÃO
         // ==========================================
         console.log('✅ Caixa carregado com sucesso!');
         console.log('📌 NOVIDADES:');
@@ -4373,8 +5026,11 @@
         console.log('   ✅ Integração com PACOTES');
         console.log('   ✅ Salva histórico de pagamentos');
         console.log('   ✅ Totalmente responsivo (Desktop, Tablet, Mobile)');
+        console.log('   ✅ REGISTRAR VENDA PASSADA: Data personalizada');
+        console.log('   ✅ GERENCIAR VENDAS: Calendário com marcadores');
 
     </script>
 
 </body>
 </html>
+```
