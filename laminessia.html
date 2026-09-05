@@ -961,7 +961,6 @@
             .swal2-fullscreen-popup { padding: 12px !important; }
         }
 
-        /* Estilo para o modal de criação de cliente inline */
         .cliente-modal-inline .modal-content {
             border-radius: var(--radius);
             overflow: hidden;
@@ -1255,6 +1254,8 @@
         let selectedClientId = null;
         let isEditing = false;
         let fotoClienteUrlInline = null;
+        let assinaturaClienteCarregada = null;
+        let assinaturaProfissionalCarregada = null;
 
         // ============================================================
         // TIPOS DE ANAMNESE
@@ -1535,7 +1536,9 @@
                 .then(snapshot => {
                     anamneses = [];
                     snapshot.forEach(doc => {
-                        anamneses.push({ id: doc.id, ...doc.data() });
+                        const data = doc.data();
+                        // Garantir que as assinaturas sejam carregadas
+                        anamneses.push({ id: doc.id, ...data });
                     });
                     anamneses.sort((a, b) => {
                         const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
@@ -2100,9 +2103,7 @@
         // ABRIR NOVO CLIENTE INLINE (VINCULADO COM CLIENTES E REGISTROS)
         // ============================================================
         function abrirNovoClienteInline() {
-            // Limpar o formulário
             limparModalClienteInline();
-            // Abrir o modal
             clienteModalInlineInstance.show();
         }
         window.abrirNovoClienteInline = abrirNovoClienteInline;
@@ -2133,7 +2134,6 @@
                 return;
             }
 
-            // Preview imediato
             const reader = new FileReader();
             reader.onload = function(e) {
                 document.getElementById('photoPreviewInline').src = e.target.result;
@@ -2143,7 +2143,6 @@
             };
             reader.readAsDataURL(file);
 
-            // Upload para Cloudinary
             Swal.fire({
                 title: 'Enviando foto...',
                 allowOutsideClick: false,
@@ -2232,10 +2231,8 @@
                     clients.push(newClient);
                     clients.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
                     
-                    // Fechar modal
                     clienteModalInlineInstance.hide();
                     
-                    // Selecionar o novo cliente
                     selectedClientId = docRef.id;
                     
                     Swal.close();
@@ -2247,10 +2244,8 @@
                         showConfirmButton: false
                     });
 
-                    // Notificar outros sistemas (Clientes e Registros)
                     broadcastClientesUpdate();
 
-                    // Reabrir a anamnese com o novo cliente selecionado
                     setTimeout(() => {
                         abrirNovaAnamnese();
                     }, 500);
@@ -2272,7 +2267,6 @@
                     channel.postMessage({ type: 'clientesUpdated' });
                     channel.close();
                 }
-                // Também enviar para o parent
                 if (window.parent && window.parent !== window) {
                     window.parent.postMessage({ type: 'clientesUpdated' }, '*');
                 }
@@ -2286,6 +2280,10 @@
             const tipos = anamneseData.tipos || [];
             const firstTipo = tipos.length > 0 ? tipos[0] : null;
             const tipoInfo = firstTipo ? ANAMNESE_TYPES[firstTipo] : null;
+
+            // Carregar assinaturas salvas
+            assinaturaClienteCarregada = anamneseData.assinaturaCliente || null;
+            assinaturaProfissionalCarregada = anamneseData.assinaturaProfissional || null;
 
             document.getElementById('modalTitle').innerHTML = `
                 <i class="fas fa-notes-medical me-2"></i>
@@ -2489,31 +2487,48 @@
                 });
             }
 
-            if (anamneseData.assinaturaCliente) {
+            // ===== CARREGAR ASSINATURAS SALVAS =====
+            if (assinaturaClienteCarregada) {
                 const img = new Image();
                 img.onload = function() {
                     const canvas = document.getElementById('signatureClientCanvas');
                     if (canvas) {
                         const ctx = canvas.getContext('2d');
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        ctx.fillStyle = 'white';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
                         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        // Atualizar o signaturePad se existir
+                        if (signaturePadClient) {
+                            signaturePadClient.fromDataURL(assinaturaClienteCarregada);
+                        }
                     }
                 };
-                img.src = anamneseData.assinaturaCliente;
+                img.src = assinaturaClienteCarregada;
             }
 
-            if (anamneseData.assinaturaProfissional) {
+            if (assinaturaProfissionalCarregada) {
                 const img = new Image();
                 img.onload = function() {
                     const canvas = document.getElementById('signatureProfessionalCanvas');
                     if (canvas) {
                         const ctx = canvas.getContext('2d');
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        ctx.fillStyle = 'white';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
                         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        if (signaturePadProfessional) {
+                            signaturePadProfessional.fromDataURL(assinaturaProfissionalCarregada);
+                        }
                     }
                 };
-                img.src = anamneseData.assinaturaProfissional;
+                img.src = assinaturaProfissionalCarregada;
             }
 
-            currentAnamnese = anamneseData;
+            // Atualizar currentAnamnese com as assinaturas
+            currentAnamnese.assinaturaCliente = assinaturaClienteCarregada;
+            currentAnamnese.assinaturaProfissional = assinaturaProfissionalCarregada;
+
             anamneseModalInstance.show();
         }
 
@@ -2524,9 +2539,13 @@
             const clientCanvas = document.getElementById('signatureClientCanvas');
             if (clientCanvas) {
                 const ctx = clientCanvas.getContext('2d');
-                ctx.clearRect(0, 0, clientCanvas.width, clientCanvas.height);
-                ctx.fillStyle = 'white';
-                ctx.fillRect(0, 0, clientCanvas.width, clientCanvas.height);
+                
+                // Se já tem assinatura carregada, não limpar
+                if (!assinaturaClienteCarregada) {
+                    ctx.clearRect(0, 0, clientCanvas.width, clientCanvas.height);
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(0, 0, clientCanvas.width, clientCanvas.height);
+                }
 
                 if (signaturePadClient) {
                     signaturePadClient.clear();
@@ -2541,6 +2560,13 @@
                         maxWidth: 3,
                         velocityFilterWeight: 0.7
                     });
+                    
+                    // Se tem assinatura carregada, restaurar
+                    if (assinaturaClienteCarregada) {
+                        try {
+                            signaturePadClient.fromDataURL(assinaturaClienteCarregada);
+                        } catch(e) {}
+                    }
                 } else {
                     setupManualSignature(clientCanvas, 'client');
                 }
@@ -2549,9 +2575,12 @@
             const professionalCanvas = document.getElementById('signatureProfessionalCanvas');
             if (professionalCanvas) {
                 const ctx = professionalCanvas.getContext('2d');
-                ctx.clearRect(0, 0, professionalCanvas.width, professionalCanvas.height);
-                ctx.fillStyle = 'white';
-                ctx.fillRect(0, 0, professionalCanvas.width, professionalCanvas.height);
+                
+                if (!assinaturaProfissionalCarregada) {
+                    ctx.clearRect(0, 0, professionalCanvas.width, professionalCanvas.height);
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(0, 0, professionalCanvas.width, professionalCanvas.height);
+                }
 
                 if (signaturePadProfessional) {
                     signaturePadProfessional.clear();
@@ -2566,6 +2595,12 @@
                         maxWidth: 3,
                         velocityFilterWeight: 0.7
                     });
+                    
+                    if (assinaturaProfissionalCarregada) {
+                        try {
+                            signaturePadProfessional.fromDataURL(assinaturaProfissionalCarregada);
+                        } catch(e) {}
+                    }
                 } else {
                     setupManualSignature(professionalCanvas, 'professional');
                 }
@@ -2661,13 +2696,11 @@
 
             if (type === 'client' && signaturePadClient) {
                 signaturePadClient.clear();
+                assinaturaClienteCarregada = null;
+                currentAnamnese.assinaturaCliente = null;
             } else if (type === 'professional' && signaturePadProfessional) {
                 signaturePadProfessional.clear();
-            }
-
-            if (type === 'client') {
-                currentAnamnese.assinaturaCliente = null;
-            } else {
+                assinaturaProfissionalCarregada = null;
                 currentAnamnese.assinaturaProfissional = null;
             }
         }
@@ -2749,7 +2782,7 @@
         }
 
         // ============================================================
-        // SALVAR ANAMNESE
+        // SALVAR ANAMNESE - CORRIGIDO PARA SALVAR ASSINATURAS
         // ============================================================
         function salvarAnamnese() {
             const respostas = {};
@@ -2770,6 +2803,7 @@
             let assinaturaCliente = null;
             let assinaturaProfissional = null;
 
+            // Capturar assinatura do cliente
             if (signaturePadClient && !signaturePadClient.isEmpty()) {
                 assinaturaCliente = signaturePadClient.toDataURL('image/png');
             } else {
@@ -2782,6 +2816,7 @@
                 }
             }
 
+            // Capturar assinatura do profissional
             if (signaturePadProfessional && !signaturePadProfessional.isEmpty()) {
                 assinaturaProfissional = signaturePadProfessional.toDataURL('image/png');
             } else {
@@ -2794,6 +2829,7 @@
                 }
             }
 
+            // Atualizar o currentAnamnese com as assinaturas
             currentAnamnese.respostas = respostas;
             currentAnamnese.consentimentoRGPD = consentimentoRGPD;
             currentAnamnese.assinaturaCliente = assinaturaCliente;
@@ -2801,6 +2837,10 @@
             currentAnamnese.fotos = currentAnamnese.fotos || [];
             currentAnamnese.status = 'completa';
             currentAnamnese.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+
+            // Atualizar também as variáveis locais
+            assinaturaClienteCarregada = assinaturaCliente;
+            assinaturaProfissionalCarregada = assinaturaProfissional;
 
             const missingFields = [];
             document.querySelectorAll('[data-pergunta][required]:not(.checkbox-hidden)').forEach(el => {
@@ -3605,6 +3645,7 @@
 
         console.log('✅ Sistema de Anamnese carregado com sucesso!');
         console.log('📌 Tipos disponíveis:', Object.keys(ANAMNESE_TYPES).length);
+        console.log('📌 Assinaturas agora são salvas e carregadas corretamente!');
         console.log('📌 Botão "Criar novo cliente" vinculado aos sistemas Clientes e Registros');
     </script>
 </body>
