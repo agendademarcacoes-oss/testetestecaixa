@@ -292,14 +292,6 @@
             transform: none !important;
         }
 
-        .login-demo {
-            margin-top: 18px;
-            text-align: center;
-            font-size: 0.72rem;
-            opacity: 0.62;
-            line-height: 1.5;
-        }
-
         .login-error {
             display: none;
             margin-bottom: 15px;
@@ -2232,8 +2224,8 @@
 <body>
 
     <!-- =========================================================
-         LOGIN
-    ========================================================== -->
+         LOGIN - VERSÃO LOCAL (SEM FIREBASE AUTH)
+         ========================================================== -->
 
     <section class="login-screen" id="loginScreen" aria-label="Login administrativo">
         <div class="login-orb one"></div>
@@ -2247,11 +2239,6 @@
             <div class="login-error" id="loginError">
                 <i class="fa-solid fa-circle-exclamation"></i>
                 <span id="loginErrorText">Dados de acesso inválidos.</span>
-            </div>
-
-            <div class="login-success" id="loginSuccess">
-                <i class="fa-solid fa-check-circle"></i>
-                <span id="loginSuccessText">Conta criada com sucesso! Faça login.</span>
             </div>
 
             <form id="loginForm">
@@ -2281,7 +2268,7 @@
                 Use <strong>admin@studiodevitto.com</strong> / <strong>admin123</strong>
                 <br>
                 <span style="opacity:0.6;font-size:0.65rem;">
-                    A conta será criada automaticamente na primeira tentativa.
+                    Login local sem Firebase Authentication.
                 </span>
             </p>
         </div>
@@ -2330,7 +2317,7 @@
 
             <div class="sidebar-bottom">
                 <div class="sidebar-user">
-                    <div class="sidebar-user-avatar" id="userAvatar">VD</div>
+                    <div class="sidebar-user-avatar" id="userAvatar">AD</div>
                     <div class="sidebar-user-info">
                         <strong id="userName">Administrador</strong>
                         <span id="userEmail">admin@studiodevitto.com</span>
@@ -2757,7 +2744,7 @@
                     <div class="section-intro">
                         <div>
                             <h2>Administradores</h2>
-                            <p>Gerencie os utilizadores com acesso ao painel administrativo. Utiliza Firebase Authentication.</p>
+                            <p>Gerencie os utilizadores com acesso ao painel administrativo.</p>
                         </div>
                         <button class="primary-btn" id="newAdminBtn">
                             <i class="fa-solid fa-user-plus"></i> Novo administrador
@@ -2803,8 +2790,8 @@
 
                         <div class="switch-row">
                             <div class="switch-info">
-                                <strong>Firebase</strong>
-                                <span>Autenticação, Firestore e Storage.</span>
+                                <strong>Firebase Firestore</strong>
+                                <span>Base de dados em tempo real.</span>
                             </div>
                             <span class="status active">Configurado</span>
                         </div>
@@ -2823,6 +2810,14 @@
                                 <span>Métricas de tráfego e comportamento.</span>
                             </div>
                             <span class="status inactive">ID pendente</span>
+                        </div>
+
+                        <div class="switch-row">
+                            <div class="switch-info">
+                                <strong>Firebase Authentication</strong>
+                                <span>Login com email/senha.</span>
+                            </div>
+                            <span class="status inactive">Desativado (login local)</span>
                         </div>
 
                         <div style="margin-top:25px">
@@ -2987,7 +2982,6 @@
         firebase.initializeApp(firebaseConfig);
 
         // Referências
-        const auth = firebase.auth();
         const db = firebase.firestore();
         const storage = firebase.storage();
 
@@ -3004,8 +2998,6 @@
         const loginForm = document.getElementById("loginForm");
         const loginError = document.getElementById("loginError");
         const loginErrorText = document.getElementById("loginErrorText");
-        const loginSuccess = document.getElementById("loginSuccess");
-        const loginSuccessText = document.getElementById("loginSuccessText");
         const loginSubmit = document.getElementById("loginSubmit");
         const adminEmail = document.getElementById("adminEmail");
         const adminPassword = document.getElementById("adminPassword");
@@ -3020,84 +3012,32 @@
         const userEmail = document.getElementById("userEmail");
 
         let editingCollaboratorId = null;
-        let currentUser = null;
+        let isAuthenticated = false;
 
 
         /* =========================================================
-           FUNÇÃO: LOGIN COM CRIAÇÃO AUTOMÁTICA DE CONTA
-        ========================================================== */
-
-        function loginWithAutoCreate(email, password) {
-            return new Promise((resolve, reject) => {
-                // Primeiro, tenta fazer login
-                auth.signInWithEmailAndPassword(email, password)
-                    .then((userCredential) => {
-                        resolve(userCredential);
-                    })
-                    .catch((error) => {
-                        // Se o erro for "utilizador não encontrado", tenta criar
-                        if (error.code === 'auth/user-not-found') {
-                            // Tenta criar a conta
-                            auth.createUserWithEmailAndPassword(email, password)
-                                .then((userCredential) => {
-                                    // Configura o perfil do usuário
-                                    const displayName = email.split('@')[0];
-                                    return userCredential.user.updateProfile({
-                                        displayName: displayName
-                                    }).then(() => {
-                                        // Salva no Firestore
-                                        return db.collection("admins").doc(userCredential.user.uid).set({
-                                            email: email,
-                                            name: displayName,
-                                            role: 'master',
-                                            status: 'active',
-                                            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                                        }).then(() => {
-                                            resolve(userCredential);
-                                        });
-                                    });
-                                })
-                                .catch((createError) => {
-                                    reject(createError);
-                                });
-                        } else {
-                            reject(error);
-                        }
-                    });
-            });
-        }
-
-
-        /* =========================================================
-           AUTH
+           LOGIN LOCAL (SEM FIREBASE AUTH)
         ========================================================== */
 
         function showAdminApp() {
             loginScreen.classList.add("hidden");
             adminApp.classList.add("active");
+            isAuthenticated = true;
+
+            // Atualizar dados do usuário
+            userAvatar.textContent = "AD";
+            userName.textContent = "Administrador";
+            userEmail.textContent = "admin@studiodevitto.com";
+
+            loadData();
+            showToast("Bem-vindo", "Olá Administrador!", "fa-circle-check");
         }
 
         function showLoginScreen() {
             loginScreen.classList.remove("hidden");
             adminApp.classList.remove("active");
+            isAuthenticated = false;
         }
-
-        // Verificar estado de autenticação
-        auth.onAuthStateChanged(function(user) {
-            if (user) {
-                currentUser = user;
-                const name = user.displayName || user.email.split('@')[0];
-                userAvatar.textContent = name.charAt(0).toUpperCase();
-                userName.textContent = name;
-                userEmail.textContent = user.email;
-                showAdminApp();
-                loadData();
-                showToast("Bem-vindo", `Olá ${name}!`, "fa-circle-check");
-            } else {
-                currentUser = null;
-                showLoginScreen();
-            }
-        });
 
         // Login
         loginForm.addEventListener("submit", function(event) {
@@ -3108,7 +3048,6 @@
 
             // Resetar mensagens
             loginError.classList.remove("show");
-            loginSuccess.classList.remove("show");
 
             // Validar campos
             if (!email || !password) {
@@ -3117,58 +3056,19 @@
                 return;
             }
 
-            // Desabilitar botão
-            loginSubmit.disabled = true;
-            loginSubmit.innerHTML = '<span class="login-spinner"></span> A verificar...';
-
-            // Tentar login com criação automática
-            loginWithAutoCreate(email, password)
-                .then(function(userCredential) {
-                    // Login ou criação bem-sucedida
-                    const isNewUser = userCredential.additionalUserInfo?.isNewUser || false;
-
-                    if (isNewUser) {
-                        loginSuccessText.textContent = "Conta criada com sucesso! Bem-vindo.";
-                        loginSuccess.classList.add("show");
-                        showToast("Conta criada", "Bem-vindo ao Studio DeVitto!", "fa-user-plus");
-                    }
-
-                    // O onAuthStateChanged vai cuidar do redirecionamento
-                })
-                .catch(function(error) {
-                    let message = "Erro ao autenticar. Tente novamente.";
-
-                    switch (error.code) {
-                        case 'auth/wrong-password':
-                            message = "Palavra-passe incorreta.";
-                            break;
-                        case 'auth/invalid-email':
-                            message = "Email inválido.";
-                            break;
-                        case 'auth/too-many-requests':
-                            message = "Muitas tentativas. Aguarde alguns minutos.";
-                            break;
-                        case 'auth/network-request-failed':
-                            message = "Erro de rede. Verifique sua conexão.";
-                            break;
-                        default:
-                            message = error.message || "Erro ao autenticar.";
-                    }
-
-                    loginErrorText.textContent = message;
-                    loginError.classList.add("show");
-
-                    // Restaurar botão
-                    loginSubmit.disabled = false;
-                    loginSubmit.innerHTML = '<i class="fa-solid fa-lock-open"></i> Entrar no painel';
-                });
+            // Credenciais válidas
+            if (email === "admin@studiodevitto.com" && password === "admin123") {
+                showAdminApp();
+            } else {
+                loginErrorText.textContent = "Email ou palavra-passe incorretos.";
+                loginError.classList.add("show");
+            }
         });
 
         // Logout
         document.getElementById("logoutBtn").addEventListener("click", function() {
-            auth.signOut().then(function() {
-                showToast("Sessão terminada", "Até breve.", "fa-right-from-bracket");
-            });
+            showLoginScreen();
+            showToast("Sessão terminada", "Até breve.", "fa-right-from-bracket");
         });
 
         // Password toggle
@@ -3179,6 +3079,29 @@
                 '<i class="fa-solid fa-eye-slash"></i>' :
                 '<i class="fa-solid fa-eye"></i>';
         });
+
+        // Verificar se já está logado
+        if (sessionStorage.getItem("devitto_logged_in") === "true") {
+            showAdminApp();
+        }
+
+        // Salvar estado no logout/login
+        document.addEventListener("DOMContentLoaded", function() {
+            // O estado é salvo ao fazer login
+        });
+
+        // Modificar o login para salvar no sessionStorage
+        const originalShowAdmin = showAdminApp;
+        showAdminApp = function() {
+            sessionStorage.setItem("devitto_logged_in", "true");
+            originalShowAdmin();
+        };
+
+        const originalShowLogin = showLoginScreen;
+        showLoginScreen = function() {
+            sessionStorage.removeItem("devitto_logged_in");
+            originalShowLogin();
+        };
 
 
         /* =========================================================
@@ -4231,7 +4154,7 @@
         ========================================================== */
 
         // Carregar dados quando autenticado
-        // loadData é chamado no onAuthStateChanged
+        // loadData é chamado no showAdminApp
 
         // Carregar atividades
         loadActivities();
@@ -4245,6 +4168,7 @@
 
         console.log("Studio DeVitto Admin - Inicializado com sucesso!");
         console.log("Firebase conectado:", firebase.app().options.projectId);
+        console.log("Modo: Login local (sem Firebase Authentication)");
     </script>
 
 </body>
