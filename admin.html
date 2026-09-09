@@ -286,6 +286,12 @@
             box-shadow: 0 17px 35px rgba(0, 0, 0, 0.2);
         }
 
+        .login-submit:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
         .login-demo {
             margin-top: 18px;
             text-align: center;
@@ -306,6 +312,38 @@
 
         .login-error.show {
             display: block;
+        }
+
+        .login-success {
+            display: none;
+            margin-bottom: 15px;
+            padding: 11px 14px;
+            border-radius: 12px;
+            background: rgba(25, 135, 84, 0.2);
+            border: 1px solid rgba(25, 135, 84, 0.3);
+            font-size: 0.78rem;
+            color: #a8e6cf;
+        }
+
+        .login-success.show {
+            display: block;
+        }
+
+        .login-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(38, 25, 107, 0.2);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         /* =========================================================
@@ -2211,31 +2249,40 @@
                 <span id="loginErrorText">Dados de acesso inválidos.</span>
             </div>
 
+            <div class="login-success" id="loginSuccess">
+                <i class="fa-solid fa-check-circle"></i>
+                <span id="loginSuccessText">Conta criada com sucesso! Faça login.</span>
+            </div>
+
             <form id="loginForm">
                 <div class="login-field">
                     <label for="adminEmail">Email</label>
-                    <input type="email" id="adminEmail" class="login-input" placeholder="admin@studiodevitto.com" autocomplete="username" required>
+                    <input type="email" id="adminEmail" class="login-input" placeholder="admin@studiodevitto.com" autocomplete="username" value="admin@studiodevitto.com">
                 </div>
 
                 <div class="login-field">
                     <label for="adminPassword">Palavra-passe</label>
                     <div class="login-password">
-                        <input type="password" id="adminPassword" class="login-input" placeholder="••••••••" autocomplete="current-password" required>
+                        <input type="password" id="adminPassword" class="login-input" placeholder="••••••••" autocomplete="current-password" value="admin123">
                         <button type="button" class="password-toggle" id="passwordToggle" aria-label="Mostrar palavra-passe">
                             <i class="fa-solid fa-eye"></i>
                         </button>
                     </div>
                 </div>
 
-                <button type="submit" class="login-submit">
+                <button type="submit" class="login-submit" id="loginSubmit">
                     <i class="fa-solid fa-lock-open"></i>
                     Entrar no painel
                 </button>
             </form>
 
             <p class="login-demo">
-                Interface com Firebase Authentication.
-                Crie uma conta ou use admin@studiodevitto.com / admin123
+                <i class="fa-solid fa-info-circle"></i>
+                Use <strong>admin@studiodevitto.com</strong> / <strong>admin123</strong>
+                <br>
+                <span style="opacity:0.6;font-size:0.65rem;">
+                    A conta será criada automaticamente na primeira tentativa.
+                </span>
             </p>
         </div>
     </section>
@@ -2957,6 +3004,9 @@
         const loginForm = document.getElementById("loginForm");
         const loginError = document.getElementById("loginError");
         const loginErrorText = document.getElementById("loginErrorText");
+        const loginSuccess = document.getElementById("loginSuccess");
+        const loginSuccessText = document.getElementById("loginSuccessText");
+        const loginSubmit = document.getElementById("loginSubmit");
         const adminEmail = document.getElementById("adminEmail");
         const adminPassword = document.getElementById("adminPassword");
         const passwordToggle = document.getElementById("passwordToggle");
@@ -2971,6 +3021,51 @@
 
         let editingCollaboratorId = null;
         let currentUser = null;
+
+
+        /* =========================================================
+           FUNÇÃO: LOGIN COM CRIAÇÃO AUTOMÁTICA DE CONTA
+        ========================================================== */
+
+        function loginWithAutoCreate(email, password) {
+            return new Promise((resolve, reject) => {
+                // Primeiro, tenta fazer login
+                auth.signInWithEmailAndPassword(email, password)
+                    .then((userCredential) => {
+                        resolve(userCredential);
+                    })
+                    .catch((error) => {
+                        // Se o erro for "utilizador não encontrado", tenta criar
+                        if (error.code === 'auth/user-not-found') {
+                            // Tenta criar a conta
+                            auth.createUserWithEmailAndPassword(email, password)
+                                .then((userCredential) => {
+                                    // Configura o perfil do usuário
+                                    const displayName = email.split('@')[0];
+                                    return userCredential.user.updateProfile({
+                                        displayName: displayName
+                                    }).then(() => {
+                                        // Salva no Firestore
+                                        return db.collection("admins").doc(userCredential.user.uid).set({
+                                            email: email,
+                                            name: displayName,
+                                            role: 'master',
+                                            status: 'active',
+                                            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                                        }).then(() => {
+                                            resolve(userCredential);
+                                        });
+                                    });
+                                })
+                                .catch((createError) => {
+                                    reject(createError);
+                                });
+                        } else {
+                            reject(error);
+                        }
+                    });
+            });
+        }
 
 
         /* =========================================================
@@ -2991,11 +3086,13 @@
         auth.onAuthStateChanged(function(user) {
             if (user) {
                 currentUser = user;
-                userAvatar.textContent = user.displayName ? user.displayName.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase();
-                userName.textContent = user.displayName || "Administrador";
+                const name = user.displayName || user.email.split('@')[0];
+                userAvatar.textContent = name.charAt(0).toUpperCase();
+                userName.textContent = name;
                 userEmail.textContent = user.email;
                 showAdminApp();
                 loadData();
+                showToast("Bem-vindo", `Olá ${name}!`, "fa-circle-check");
             } else {
                 currentUser = null;
                 showLoginScreen();
@@ -3009,23 +3106,61 @@
             const email = adminEmail.value.trim();
             const password = adminPassword.value;
 
+            // Resetar mensagens
             loginError.classList.remove("show");
+            loginSuccess.classList.remove("show");
 
-            auth.signInWithEmailAndPassword(email, password)
-                .then(function() {
-                    // Login bem-sucedido
+            // Validar campos
+            if (!email || !password) {
+                loginErrorText.textContent = "Preencha o email e a palavra-passe.";
+                loginError.classList.add("show");
+                return;
+            }
+
+            // Desabilitar botão
+            loginSubmit.disabled = true;
+            loginSubmit.innerHTML = '<span class="login-spinner"></span> A verificar...';
+
+            // Tentar login com criação automática
+            loginWithAutoCreate(email, password)
+                .then(function(userCredential) {
+                    // Login ou criação bem-sucedida
+                    const isNewUser = userCredential.additionalUserInfo?.isNewUser || false;
+
+                    if (isNewUser) {
+                        loginSuccessText.textContent = "Conta criada com sucesso! Bem-vindo.";
+                        loginSuccess.classList.add("show");
+                        showToast("Conta criada", "Bem-vindo ao Studio DeVitto!", "fa-user-plus");
+                    }
+
+                    // O onAuthStateChanged vai cuidar do redirecionamento
                 })
                 .catch(function(error) {
-                    let message = "Erro ao autenticar. Verifique os dados.";
-                    if (error.code === 'auth/user-not-found') {
-                        message = "Utilizador não encontrado.";
-                    } else if (error.code === 'auth/wrong-password') {
-                        message = "Palavra-passe incorreta.";
-                    } else if (error.code === 'auth/invalid-email') {
-                        message = "Email inválido.";
+                    let message = "Erro ao autenticar. Tente novamente.";
+
+                    switch (error.code) {
+                        case 'auth/wrong-password':
+                            message = "Palavra-passe incorreta.";
+                            break;
+                        case 'auth/invalid-email':
+                            message = "Email inválido.";
+                            break;
+                        case 'auth/too-many-requests':
+                            message = "Muitas tentativas. Aguarde alguns minutos.";
+                            break;
+                        case 'auth/network-request-failed':
+                            message = "Erro de rede. Verifique sua conexão.";
+                            break;
+                        default:
+                            message = error.message || "Erro ao autenticar.";
                     }
+
                     loginErrorText.textContent = message;
                     loginError.classList.add("show");
+
+                    // Restaurar botão
+                    loginSubmit.disabled = false;
+                    loginSubmit.innerHTML = '<i class="fa-solid fa-lock-open"></i> Entrar no painel';
                 });
         });
 
@@ -3044,18 +3179,6 @@
                 '<i class="fa-solid fa-eye-slash"></i>' :
                 '<i class="fa-solid fa-eye"></i>';
         });
-
-        // Criar conta demo (apenas para testes)
-        // Descomente para criar uma conta de teste
-        
-        auth.createUserWithEmailAndPassword('admin@studiodevitto.com', 'admin123')
-            .then(function() {
-                console.log('Conta criada com sucesso!');
-            })
-            .catch(function(error) {
-                console.log('Erro ao criar conta:', error.message);
-            });
-        
 
 
         /* =========================================================
@@ -3816,13 +3939,13 @@
                                 logoUrl: url,
                                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                             }, { merge: true })
-                            .then(function() {
-                                showToast("Logótipo guardado", "O logótipo foi atualizado.", "fa-image");
-                            })
-                            .catch(function(error) {
-                                showToast("Erro", "Não foi possível guardar.", "fa-triangle-exclamation");
-                                console.error(error);
-                            });
+                                .then(function() {
+                                    showToast("Logótipo guardado", "O logótipo foi atualizado.", "fa-image");
+                                })
+                                .catch(function(error) {
+                                    showToast("Erro", "Não foi possível guardar.", "fa-triangle-exclamation");
+                                    console.error(error);
+                                });
                         });
                     }
                 );
@@ -3917,12 +4040,6 @@
         ========================================================== */
 
         function loadAdmins() {
-            // Nota: Em produção, use Firebase Admin SDK ou Cloud Functions
-            // para listar utilizadores. Como não temos acesso direto à
-            // lista de utilizadores do Firebase Auth via client SDK,
-            // vamos mostrar apenas os utilizadores que estão na coleção "admins"
-            // do Firestore.
-
             db.collection("admins").get()
                 .then(function(snapshot) {
                     const admins = [];
@@ -3979,23 +4096,21 @@
 
         // Novo administrador - convite
         document.getElementById("newAdminBtn").addEventListener("click", function() {
-            // Em produção, enviaria um convite via email usando Cloud Functions
             const email = prompt("Digite o email do novo administrador:");
             if (email) {
-                // Criar um convite no Firestore
                 db.collection("invites").add({
                     email: email,
                     role: "admin",
                     status: "pending",
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 })
-                .then(function() {
-                    showToast("Convite enviado", `Um convite foi enviado para ${email}.`, "fa-envelope");
-                })
-                .catch(function(error) {
-                    showToast("Erro", "Não foi possível enviar o convite.", "fa-triangle-exclamation");
-                    console.error(error);
-                });
+                    .then(function() {
+                        showToast("Convite enviado", `Um convite foi enviado para ${email}.`, "fa-envelope");
+                    })
+                    .catch(function(error) {
+                        showToast("Erro", "Não foi possível enviar o convite.", "fa-triangle-exclamation");
+                        console.error(error);
+                    });
             }
         });
 
@@ -4043,13 +4158,12 @@
 
 
         /* =========================================================
-           ATIVIDADES RECENTES (simulado)
+           ATIVIDADES RECENTES
         ========================================================== */
 
         function loadActivities() {
             const list = document.getElementById("activityList");
 
-            // Tentar buscar atividades do Firestore
             db.collection("activities")
                 .orderBy("timestamp", "desc")
                 .limit(5)
@@ -4099,7 +4213,6 @@
                     });
                 })
                 .catch(function() {
-                    // Fallback
                     list.innerHTML = `
                         <li class="activity-item">
                             <div class="activity-icon"><i class="fa-solid fa-info"></i></div>
@@ -4110,17 +4223,6 @@
                         </li>
                     `;
                 });
-        }
-
-        // Registrar atividade
-        function logActivity(type, message) {
-            db.collection("activities").add({
-                type: type,
-                message: message,
-                timestamp: firebase.firestore.FieldValue.serverTimestamp()
-            }).catch(function() {
-                // Ignorar erros de log
-            });
         }
 
 
