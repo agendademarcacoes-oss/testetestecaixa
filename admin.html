@@ -3629,16 +3629,536 @@
         console.log("🚀 Studio DeVitto Admin - Inicializado");
         console.log("🔥 Firebase conectado:", firebase.app().options.projectId);
 
-        // Carregar atividades
-        loadActivities();
+        // Sincronização em tempo real + carregamento inicial
+        startRealtimeSync();
 
-        // Atualizar stats periodicamente
+        // Atualizar estatísticas como fallback
         setInterval(updateStats, 30000);
 
-        // Se já estiver logado via sessionStorage, carregar dados
-        if (sessionStorage.getItem("devitto_logged_in") === "true") {
-            loadAllData();
+        /* =========================================================
+           CORREÇÕES DEFINITIVAS - PERSISTÊNCIA + TEMPO REAL
+           =========================================================
+           - Upload de ficheiros -> Firebase Storage
+           - URL do ficheiro -> Firestore
+           - Configurações -> Firestore
+           - onSnapshot -> todas as páginas do painel ficam sincronizadas
+           - Registo de atividades
+           - Botões "Guardar" deixam de ser apenas visuais
+        ========================================================== */
+
+        let realtimeStarted = false;
+        const realtimeUnsubscribers = [];
+
+        function addActivity(type, message) {
+            return db.collection("activities").add({
+                type: type,
+                message: message,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            }).catch(function(error) {
+                // A atividade não deve impedir a operação principal.
+                console.warn("Não foi possível registar atividade:", error);
+            });
         }
+
+        function updateAllLogoElements(url) {
+            if (!url) return;
+
+            // IDs existentes no painel
+            ["sidebarLogo", "logoPreview", "loginLogo"].forEach(function(id) {
+                const el = document.getElementById(id);
+                if (el && el.tagName === "IMG") el.src = url;
+            });
+
+            // Permite que qualquer elemento <img data-site-logo> do sistema
+            // receba automaticamente a nova logo.
+            document.querySelectorAll("img[data-site-logo]").forEach(function(img) {
+                img.src = url;
+            });
+
+            // Guarda também em cache local para páginas que tenham acabado
+            // de abrir enquanto o Firestore ainda está a carregar.
+            try {
+                localStorage.setItem("devitto_logo_url", url);
+            } catch (e) {}
+        }
+
+        function bindRealtimeCollection(collectionName, queryBuilder, onData, onError) {
+            let query = db.collection(collectionName);
+            if (typeof queryBuilder === "function") query = queryBuilder(query);
+
+            const unsubscribe = query.onSnapshot(function(snapshot) {
+                const data = [];
+                snapshot.forEach(function(doc) {
+                    data.push({ id: doc.id, ...doc.data() });
+                });
+                onData(data, snapshot);
+            }, function(error) {
+                console.error("Realtime " + collectionName + ":", error);
+                if (onError) onError(error);
+            });
+
+            realtimeUnsubscribers.push(unsubscribe);
+        }
+
+        function startRealtimeSync() {
+            if (realtimeStarted) return;
+            realtimeStarted = true;
+
+            // Colaboradores
+            bindRealtimeCollection("collaborators", function(q) {
+                return q.orderBy("name");
+            }, function(items) {
+                collaboratorsCache = items;
+                renderCollaborators(collaboratorsCache);
+                updateStats();
+            });
+
+            // Galeria
+            bindRealtimeCollection("media", function(q) {
+                return q.orderBy("createdAt", "desc");
+            }, function(items) {
+                mediaCache = items;
+                renderMedia(mediaCache);
+                updateStats();
+            });
+
+            // Playlist
+            bindRealtimeCollection("music", function(q) {
+                return q.orderBy("createdAt", "desc");
+            }, function(items) {
+                musicCache = items;
+                renderMusic(musicCache);
+                updateStats();
+            });
+
+            // Administradores
+            bindRealtimeCollection("admins", null, function(items) {
+                renderAdmins(items);
+            });
+
+            // Atividades
+            bindRealtimeCollection("activities", function(q) {
+                return q.orderBy("timestamp", "desc").limit(5);
+            }, function(items) {
+                renderActivitiesRealtime(items);
+            });
+
+            // Configurações globais.
+            bindRealtimeCollection("settings", null, function(items) {
+                const settings = {};
+                items.forEach(function(item) {
+                    settings[item.id] = item;
+                });
+
+                if (settings.company) updateCompanyForm(settings.company);
+                if (settings.social) updateSocialForm(settings.social);
+                if (settings.seo) updateSeoForm(settings.seo);
+
+                if (settings.branding && settings.branding.logoUrl) {
+                    updateAllLogoElements(settings.branding.logoUrl);
+                }
+            }, function(error) {
+                console.error("Erro ao sincronizar configurações:", error);
+            });
+
+            // Primeira renderização imediata.
+            updateStats();
+        }
+
+        function renderActivitiesRealtime(items) {
+            const list = document.getElementById("activityList");
+            if (!list) return;
+
+            if (!items.length) {
+                list.innerHTML = `
+                    <li class="activity-item">
+                        <div class="activity-icon"><i class="fa-solid fa-info"></i></div>
+                        <div class="activity-content">
+                            <strong>Sem atividades recentes</strong>
+                            <span>As atividades aparecerão aqui.</span>
+                        </div>
+                    </li>`;
+                return;
+            }
+
+            const iconMap = {
+                collaborator_add: "fa-solid fa-user-plus",
+                collaborator_edit: "fa-solid fa-user-pen",
+                collaborator_delete: "fa-solid fa-user-minus",
+                media_upload: "fa-solid fa-image",
+                media_delete: "fa-solid fa-trash",
+                company_update: "fa-solid fa-building",
+                branding_update: "fa-solid fa-palette",
+                social_update: "fa-solid fa-share-nodes",
+                seo_update: "fa-solid fa-magnifying-glass-chart",
+                music_add: "fa-solid fa-music",
+                music_delete: "fa-solid fa-trash",
+                system_update: "fa-solid fa-gear"
+            };
+
+            list.innerHTML = items.map(function(data) {
+                const icon = iconMap[data.type] || "fa-solid fa-info";
+                let date = "Recente";
+                if (data.timestamp && typeof data.timestamp.toDate === "function") {
+                    date = data.timestamp.toDate().toLocaleString("pt-PT");
+                }
+
+                return `
+                    <li class="activity-item">
+                        <div class="activity-icon"><i class="${icon}"></i></div>
+                        <div class="activity-content">
+                            <strong>${escapeHtml(data.message || "Atividade")}</strong>
+                            <span>${escapeHtml(date)}</span>
+                        </div>
+                    </li>`;
+            }).join("");
+        }
+
+        function updateSocialForm(data) {
+            if (!data) return;
+            const fields = {
+                instagramUrl: data.instagram || "",
+                facebookUrl: data.facebook || "",
+                whatsappUrl: data.whatsapp || "",
+                bookingUrl: data.booking || ""
+            };
+            Object.keys(fields).forEach(function(id) {
+                const el = document.getElementById(id);
+                if (el) el.value = fields[id];
+            });
+        }
+
+        function updateSeoForm(data) {
+            if (!data) return;
+            const fields = {
+                seoTitle: data.title || "",
+                seoDescription: data.description || "",
+                googleAnalytics: data.analytics || "",
+                searchConsole: data.searchConsole || ""
+            };
+            Object.keys(fields).forEach(function(id) {
+                const el = document.getElementById(id);
+                if (el) el.value = fields[id];
+            });
+        }
+
+        async function saveSettingDocument(docId, data, activityType, activityMessage) {
+            const payload = Object.assign({}, data, {
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            await db.collection("settings").doc(docId).set(payload, { merge: true });
+            if (activityType) {
+                await addActivity(activityType, activityMessage || ("Configuração " + docId + " atualizada."));
+            }
+        }
+
+        function replaceButtonHandler(id, handler) {
+            const oldButton = document.getElementById(id);
+            if (!oldButton) return null;
+
+            // Clonar remove listeners antigos sem mexer no HTML/estilo.
+            const newButton = oldButton.cloneNode(true);
+            oldButton.parentNode.replaceChild(newButton, oldButton);
+            newButton.addEventListener("click", handler);
+            return newButton;
+        }
+
+        /* ---------- EMPRESA ---------- */
+        replaceButtonHandler("saveCompany", async function() {
+            const btn = this;
+            btn.disabled = true;
+
+            try {
+                const data = {
+                    name: document.getElementById("companyName").value.trim(),
+                    category: document.getElementById("companyCategory").value.trim(),
+                    description: document.getElementById("companyDescription").value.trim(),
+                    phone: document.getElementById("companyPhone").value.trim(),
+                    email: document.getElementById("companyEmail").value.trim(),
+                    address: document.getElementById("companyAddress").value.trim(),
+                    hours: document.getElementById("companyHours").value.trim(),
+                    maps: document.getElementById("companyMaps").value.trim()
+                };
+
+                if (!data.name) {
+                    showToast("Aviso", "O nome da empresa é obrigatório.", "fa-triangle-exclamation");
+                    return;
+                }
+
+                await saveSettingDocument(
+                    "company",
+                    data,
+                    "company_update",
+                    "Dados da empresa atualizados."
+                );
+
+                showToast("Dados guardados", "As informações da empresa foram salvas no Firestore.", "fa-circle-check");
+            } catch (error) {
+                console.error("Erro ao salvar empresa:", error);
+                showToast("Erro", error.message || "Não foi possível guardar os dados.", "fa-triangle-exclamation");
+            } finally {
+                btn.disabled = false;
+            }
+        });
+
+        /* ---------- LOGO / BRANDING ---------- */
+        replaceButtonHandler("saveBranding", async function() {
+            const btn = this;
+            const input = document.getElementById("logoUpload");
+            const urlInput = document.getElementById("logoUrlInput");
+            const file = input && input.files ? input.files[0] : null;
+            const preview = document.getElementById("logoPreview");
+            const previewUrl = preview ? preview.src : "";
+            const typedUrl = urlInput ? urlInput.value.trim() : "";
+
+            btn.disabled = true;
+
+            try {
+                let logoUrl = null;
+                let storagePath = null;
+
+                if (file) {
+                    if (!validateFile(file, ["image/png", "image/jpeg", "image/webp"])) {
+                        return;
+                    }
+
+                    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+                    const path = "branding/logo_" + Date.now() + "_" + safeName;
+                    const storageRef = storage.ref(path);
+
+                    const uploadTask = storageRef.put(file, {
+                        contentType: file.type,
+                        cacheControl: "public,max-age=3600"
+                    });
+
+                    await new Promise(function(resolve, reject) {
+                        uploadTask.on("state_changed", function(snapshot) {
+                            const progress = snapshot.totalBytes
+                                ? (snapshot.bytesTransferred / snapshot.totalBytes) * 100
+                                : 0;
+                            btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> ' +
+                                "A enviar " + Math.round(progress) + "%";
+                        }, reject, resolve);
+                    });
+
+                    logoUrl = await storageRef.getDownloadURL();
+                    storagePath = path;
+                } else if (typedUrl) {
+                    logoUrl = typedUrl;
+                } else if (previewUrl &&
+                           /^https?:\/\//i.test(previewUrl) &&
+                           !previewUrl.includes("Logo-Studio-DeVitto.png")) {
+                    logoUrl = previewUrl;
+                }
+
+                if (!logoUrl) {
+                    showToast("Aviso", "Selecione um logótipo ou informe uma URL.", "fa-triangle-exclamation");
+                    return;
+                }
+
+                const oldDoc = await db.collection("settings").doc("branding").get();
+                const oldData = oldDoc.exists ? oldDoc.data() : {};
+
+                await db.collection("settings").doc("branding").set({
+                    logoUrl: logoUrl,
+                    storagePath: storagePath,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+
+                updateAllLogoElements(logoUrl);
+                if (input) input.value = "";
+                if (urlInput) urlInput.value = "";
+
+                // Apaga a versão anterior somente se ela também estiver no nosso Storage.
+                if (storagePath && oldData.storagePath && oldData.storagePath !== storagePath) {
+                    try {
+                        await storage.ref(oldData.storagePath).delete();
+                    } catch (e) {
+                        console.warn("Logo anterior não pôde ser apagada:", e);
+                    }
+                }
+
+                await addActivity("branding_update", "Logótipo do Studio DeVitto atualizado.");
+                showToast("Logótipo guardado", "A logo foi salva no Storage e no Firestore e já foi aplicada.", "fa-image");
+            } catch (error) {
+                console.error("Erro ao salvar logótipo:", error);
+                showToast("Erro", error.message || "Falha ao guardar o logótipo.", "fa-triangle-exclamation");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Guardar logótipo';
+            }
+        });
+
+        /* ---------- REDES SOCIAIS ---------- */
+        replaceButtonHandler("saveSocial", async function() {
+            const btn = this;
+            btn.disabled = true;
+            try {
+                const data = {
+                    instagram: document.getElementById("instagramUrl").value.trim(),
+                    facebook: document.getElementById("facebookUrl").value.trim(),
+                    whatsapp: document.getElementById("whatsappUrl").value.trim(),
+                    booking: document.getElementById("bookingUrl").value.trim()
+                };
+
+                await saveSettingDocument(
+                    "social",
+                    data,
+                    "social_update",
+                    "Redes sociais atualizadas."
+                );
+
+                showToast("Redes sociais guardadas", "Os links foram salvos no Firestore.", "fa-share-nodes");
+            } catch (error) {
+                console.error("Erro ao salvar redes sociais:", error);
+                showToast("Erro", error.message || "Não foi possível guardar.", "fa-triangle-exclamation");
+            } finally {
+                btn.disabled = false;
+            }
+        });
+
+        /* ---------- SEO ---------- */
+        replaceButtonHandler("saveSeo", async function() {
+            const btn = this;
+            btn.disabled = true;
+            try {
+                const data = {
+                    title: document.getElementById("seoTitle").value.trim(),
+                    description: document.getElementById("seoDescription").value.trim(),
+                    analytics: document.getElementById("googleAnalytics").value.trim(),
+                    searchConsole: document.getElementById("searchConsole").value.trim()
+                };
+
+                await saveSettingDocument(
+                    "seo",
+                    data,
+                    "seo_update",
+                    "Configurações SEO atualizadas."
+                );
+
+                showToast("SEO guardado", "As configurações foram salvas no Firestore.", "fa-magnifying-glass-chart");
+            } catch (error) {
+                console.error("Erro ao salvar SEO:", error);
+                showToast("Erro", error.message || "Não foi possível guardar.", "fa-triangle-exclamation");
+            } finally {
+                btn.disabled = false;
+            }
+        });
+
+        /* ---------- SISTEMA ---------- */
+        replaceButtonHandler("saveSystem", async function() {
+            const btn = this;
+            btn.disabled = true;
+
+            try {
+                await saveSettingDocument(
+                    "system",
+                    {
+                        uploadLimitMB: 10,
+                        realtimeSync: true,
+                        updatedBy: "admin"
+                    },
+                    "system_update",
+                    "Configurações do sistema atualizadas."
+                );
+
+                showToast("Configurações guardadas", "As configurações do sistema foram salvas no Firestore.", "fa-gear");
+            } catch (error) {
+                console.error("Erro ao salvar sistema:", error);
+                showToast("Erro", error.message || "Não foi possível guardar.", "fa-triangle-exclamation");
+            } finally {
+                btn.disabled = false;
+            }
+        });
+
+        /* ---------- PLAYLIST ---------- */
+        replaceButtonHandler("saveMusic", async function() {
+            const btn = this;
+            btn.disabled = true;
+
+            try {
+                // As músicas já são gravadas no Firestore no momento do upload.
+                // Este botão grava apenas a preferência/configuração da playlist.
+                await saveSettingDocument(
+                    "music",
+                    { enabled: true },
+                    null,
+                    null
+                );
+
+                showToast("Playlist guardada", "A playlist está sincronizada com o Firestore.", "fa-floppy-disk");
+            } catch (error) {
+                console.error("Erro ao salvar playlist:", error);
+                showToast("Erro", error.message || "Não foi possível guardar.", "fa-triangle-exclamation");
+            } finally {
+                btn.disabled = false;
+            }
+        });
+
+        /* ---------- COLABORADOR: apagar também o Storage ---------- */
+        const originalDeleteCollaborator = deleteCollaborator;
+        deleteCollaborator = async function(id) {
+            const c = collaboratorsCache.find(function(item) { return item.id === id; });
+            if (!c) return;
+            if (!confirm("Tem certeza que deseja apagar " + c.name + "?")) return;
+
+            try {
+                await db.collection("collaborators").doc(id).delete();
+
+                if (c.photo && c.photo.includes("firebasestorage.googleapis.com")) {
+                    try {
+                        await storage.refFromURL(c.photo).delete();
+                    } catch (e) {
+                        console.warn("Foto do colaborador não pôde ser apagada do Storage:", e);
+                    }
+                }
+
+                await addActivity("collaborator_delete", c.name + " foi removido.");
+                showToast("Colaborador apagado", c.name + " foi removido.", "fa-trash");
+            } catch (error) {
+                console.error(error);
+                showToast("Erro", error.message || "Não foi possível apagar.", "fa-triangle-exclamation");
+            }
+        };
+
+        /* ---------- UPLOAD DE MÍDIA: regista atividade ---------- */
+        const originalProcessUploads = processUploads;
+        processUploads = async function(files) {
+            const before = mediaCache.length;
+            await originalProcessUploads(files);
+            // O onSnapshot atualizará mediaCache assim que os documentos forem gravados.
+            // Registo é feito de forma assíncrona para não bloquear a UI.
+            const after = mediaCache.length;
+            if (after > before) {
+                addActivity("media_upload", (after - before) + " ficheiro(s) adicionados à galeria.");
+            }
+        };
+
+        /* ---------- UPLOAD DE MÚSICA: atividade já no save ---------- */
+        const originalSaveMusicToFirestore = saveMusicToFirestore;
+        saveMusicToFirestore = function(data, callback) {
+            return originalSaveMusicToFirestore(data, function() {
+                addActivity("music_add", (data.title || "Música") + " foi adicionada à playlist.");
+                if (callback) callback();
+            });
+        };
+
+        /* ---------- LOGO: carregar do Firestore assim que a página abre ---------- */
+        (async function restoreCachedLogo() {
+            try {
+                const cached = localStorage.getItem("devitto_logo_url");
+                if (cached) updateAllLogoElements(cached);
+
+                const doc = await db.collection("settings").doc("branding").get();
+                if (doc.exists && doc.data().logoUrl) {
+                    updateAllLogoElements(doc.data().logoUrl);
+                }
+            } catch (e) {
+                console.warn("Não foi possível restaurar logo:", e);
+            }
+        })();
+
     </script>
 
 </body>
