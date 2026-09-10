@@ -2437,6 +2437,53 @@
         });
 
 
+
+        /* =========================================================
+           FIREBASE SAVE HELPERS
+        ========================================================== */
+
+        async function saveSettingDocument(docId, data) {
+            const payload = {
+                ...data,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            await db.collection("settings").doc(docId).set(payload, { merge: true });
+            return payload;
+        }
+
+        async function addActivity(type, message) {
+            try {
+                await db.collection("activities").add({
+                    type: type,
+                    message: message,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            } catch (error) {
+                console.warn("Não foi possível registrar atividade:", error);
+            }
+        }
+
+        function updateAllLogoElements(url) {
+            if (!url) return;
+
+            const ids = ["sidebarLogo", "logoPreview", "loginLogo"];
+            ids.forEach(function(id) {
+                const element = document.getElementById(id);
+                if (element) element.src = url;
+            });
+
+            document.querySelectorAll("img[data-site-logo]").forEach(function(img) {
+                img.src = url;
+            });
+        }
+
+        function restoreCachedLogo() {
+            const cached = localStorage.getItem("devitto_logo_url");
+            if (cached) updateAllLogoElements(cached);
+        }
+
+        restoreCachedLogo();
+
         /* =========================================================
            LOAD ALL DATA
         ========================================================== */
@@ -2619,8 +2666,12 @@
             reader.readAsDataURL(file);
         });
 
-        document.getElementById("collaboratorForm").addEventListener("submit", function(event) {
+        document.getElementById("collaboratorForm").addEventListener("submit", async function(event) {
             event.preventDefault();
+
+            const form = document.getElementById("collaboratorForm");
+            const saveButton = form.querySelector('button[type="submit"]');
+            const originalButton = saveButton ? saveButton.innerHTML : "";
 
             const data = {
                 name: document.getElementById("collaboratorName").value.trim(),
@@ -2641,47 +2692,70 @@
                 return;
             }
 
-            const photoFile = document.getElementById("collaboratorPhoto").files[0];
-            const saveData = { ...data };
+            try {
+                if (saveButton) {
+                    saveButton.disabled = true;
+                    saveButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> A guardar...';
+                }
 
-            if (photoFile) {
-                const storageRef = storage.ref(`collaborators/${Date.now()}_${photoFile.name}`);
-                const uploadTask = storageRef.put(photoFile);
+                const photoInput = document.getElementById("collaboratorPhoto");
+                const photoFile = photoInput.files && photoInput.files[0] ? photoInput.files[0] : null;
 
-                uploadTask.on('state_changed',
-                    null,
-                    function(error) {
-                        showToast("Erro", "Falha ao enviar a foto: " + error.message, "fa-triangle-exclamation");
-                        console.error(error);
-                    },
-                    function() {
-                        storageRef.getDownloadURL().then(function(url) {
-                            saveData.photo = url;
-                            saveCollaboratorToFirestore(saveData);
-                        });
+                if (photoFile) {
+                    if (!validateFile(photoFile, ["image/jpeg", "image/png", "image/webp"])) {
+                        throw new Error("A fotografia tem um formato inválido ou ultrapassa o limite permitido.");
                     }
-                );
-            } else {
-                saveCollaboratorToFirestore(saveData);
+
+                    const safeName = photoFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+                    const storageRef = storage.ref().child(`collaborators/${Date.now()}_${safeName}`);
+                    const snapshot = await storageRef.put(photoFile);
+                    data.photo = await snapshot.ref.getDownloadURL();
+                }
+
+                await saveCollaboratorToFirestore(data);
+
+                if (photoInput) photoInput.value = "";
+            } catch (error) {
+                console.error("Erro ao guardar colaborador:", error);
+                showToast("Erro ao guardar", error.message || "Não foi possível guardar o colaborador.", "fa-triangle-exclamation");
+            } finally {
+                if (saveButton) {
+                    saveButton.disabled = false;
+                    saveButton.innerHTML = originalButton;
+                }
             }
         });
 
-        function saveCollaboratorToFirestore(data) {
+        async function saveCollaboratorToFirestore(data) {
             const isEdit = editingCollaboratorId !== null;
-            const operation = isEdit ?
-                db.collection("collaborators").doc(editingCollaboratorId).update(data) :
-                db.collection("collaborators").add(data);
+            const ref = isEdit
+                ? db.collection("collaborators").doc(editingCollaboratorId)
+                : db.collection("collaborators").doc();
 
-            operation
-                .then(function() {
-                    showToast("Colaborador " + (isEdit ? "atualizado" : "criado"), `${data.name} foi ${isEdit ? 'atualizado' : 'adicionado'}.`, "fa-user-check");
-                    closeModal(document.getElementById("collaboratorModal"));
-                    loadCollaborators();
-                })
-                .catch(function(error) {
-                    showToast("Erro", "Não foi possível " + (isEdit ? "atualizar" : "criar") + ": " + error.message, "fa-triangle-exclamation");
-                    console.error(error);
-                });
+            const payload = {
+                ...data,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            if (!isEdit) {
+                payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+            }
+
+            await ref.set(payload, { merge: true });
+
+            await addActivity(
+                isEdit ? "collaborator_edit" : "collaborator_add",
+                `${data.name} foi ${isEdit ? "atualizado" : "adicionado"}.`
+            );
+
+            showToast(
+                isEdit ? "Colaborador atualizado" : "Colaborador criado",
+                `${data.name} foi ${isEdit ? "atualizado" : "adicionado"}.`,
+                "fa-user-check"
+            );
+
+            closeModal(document.getElementById("collaboratorModal"));
+            loadCollaborators();
         }
 
         function deleteCollaborator(id) {
@@ -3006,31 +3080,38 @@
             document.getElementById("companyPreviewPhone").textContent = data.phone || "+351 927 431 517";
         }
 
-        // ✅ BOTÃO SALVAR EMPRESA CORRIGIDO
-        document.getElementById("saveCompany").addEventListener("click", function() {
-            const data = {
-                name: document.getElementById("companyName").value.trim(),
-                category: document.getElementById("companyCategory").value.trim(),
-                description: document.getElementById("companyDescription").value.trim(),
-                phone: document.getElementById("companyPhone").value.trim(),
-                email: document.getElementById("companyEmail").value.trim(),
-                address: document.getElementById("companyAddress").value.trim(),
-                hours: document.getElementById("companyHours").value.trim(),
-                maps: document.getElementById("companyMaps").value.trim(),
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            };
+        document.getElementById("saveCompany").addEventListener("click", async function(event) {
+            event.preventDefault();
+            const button = this;
+            const original = button.innerHTML;
+            try {
+                button.disabled = true;
+                button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> A guardar...';
 
-            console.log("💾 Salvando dados da empresa:", data);
+                const data = {
+                    name: document.getElementById("companyName").value.trim(),
+                    category: document.getElementById("companyCategory").value.trim(),
+                    description: document.getElementById("companyDescription").value.trim(),
+                    phone: document.getElementById("companyPhone").value.trim(),
+                    email: document.getElementById("companyEmail").value.trim(),
+                    address: document.getElementById("companyAddress").value.trim(),
+                    hours: document.getElementById("companyHours").value.trim(),
+                    maps: document.getElementById("companyMaps").value.trim()
+                };
 
-            db.collection("settings").doc("company").set(data, { merge: true })
-                .then(function() {
-                    showToast("✅ Dados guardados", "As informações da empresa foram atualizadas.", "fa-circle-check");
-                    loadCompany();
-                })
-                .catch(function(error) {
-                    showToast("❌ Erro", "Não foi possível guardar: " + error.message, "fa-triangle-exclamation");
-                    console.error("Erro ao salvar empresa:", error);
-                });
+                if (!data.name) throw new Error("O nome da empresa é obrigatório.");
+
+                await saveSettingDocument("company", data);
+                await addActivity("company_update", "Os dados da empresa foram atualizados.");
+                updateCompanyForm(data);
+                showToast("Dados guardados", "As informações da empresa foram salvas no Firebase.", "fa-circle-check");
+            } catch (error) {
+                console.error("Erro ao salvar empresa:", error);
+                showToast("Erro ao guardar", error.message || "Não foi possível guardar os dados.", "fa-triangle-exclamation");
+            } finally {
+                button.disabled = false;
+                button.innerHTML = original;
+            }
         });
 
         document.getElementById("companyName").addEventListener("input", function() {
@@ -3054,8 +3135,8 @@
                     if (doc.exists) {
                         const data = doc.data();
                         if (data.logoUrl) {
-                            document.getElementById("logoPreview").src = data.logoUrl;
-                            document.getElementById("sidebarLogo").src = data.logoUrl;
+                            updateAllLogoElements(data.logoUrl);
+                            localStorage.setItem("devitto_logo_url", data.logoUrl);
                         }
                     }
                 })
@@ -3090,58 +3171,67 @@
             }
         });
 
-        // ✅ BOTÃO SALVAR LOGO CORRIGIDO
-        document.getElementById("saveBranding").addEventListener("click", function() {
-            const logoFile = document.getElementById("logoUpload").files[0];
-            const logoUrl = document.getElementById("logoPreview").src;
+        document.getElementById("saveBranding").addEventListener("click", async function(event) {
+            event.preventDefault();
 
-            console.log("💾 Salvando logótipo...", logoFile ? "Arquivo selecionado" : "URL: " + logoUrl);
+            const button = this;
+            const original = button.innerHTML;
+            const input = document.getElementById("logoUpload");
+            const preview = document.getElementById("logoPreview");
+            const logoFile = input.files && input.files[0] ? input.files[0] : null;
 
-            if (logoFile) {
-                const storageRef = storage.ref(`branding/logo_${Date.now()}.png`);
-                const uploadTask = storageRef.put(logoFile);
+            try {
+                button.disabled = true;
+                button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> A enviar logo...';
 
-                uploadTask.on('state_changed',
-                    function(snapshot) {
-                        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                        console.log(`Upload: ${Math.round(progress)}%`);
-                    },
-                    function(error) {
-                        showToast("❌ Erro", "Falha ao enviar o logótipo: " + error.message, "fa-triangle-exclamation");
-                        console.error(error);
-                    },
-                    function() {
-                        storageRef.getDownloadURL().then(function(url) {
-                            db.collection("settings").doc("branding").set({
-                                logoUrl: url,
-                                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                            }, { merge: true })
-                            .then(function() {
-                                showToast("✅ Logótipo guardado", "O logótipo foi atualizado.", "fa-image");
-                                document.getElementById("sidebarLogo").src = url;
-                            })
-                            .catch(function(error) {
-                                showToast("❌ Erro", "Não foi possível guardar: " + error.message, "fa-triangle-exclamation");
-                                console.error(error);
-                            });
-                        });
+                let logoUrl = null;
+                let storagePath = null;
+
+                if (logoFile) {
+                    if (!validateFile(logoFile, ["image/png", "image/jpeg", "image/webp"])) {
+                        throw new Error("Escolha uma imagem PNG, JPG ou WEBP válida, até 10 MB.");
                     }
-                );
-            } else if (logoUrl && !logoUrl.includes('Logo-Studio-DeVitto.png')) {
-                db.collection("settings").doc("branding").set({
+
+                    const extension = (logoFile.name.split(".").pop() || "png").toLowerCase();
+                    const safeName = logoFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+                    const fileName = `logo_${Date.now()}_${safeName || "identidade"}.${extension}`;
+                    const storageRef = storage.ref().child(`branding/${fileName}`);
+
+                    const snapshot = await storageRef.put(logoFile, {
+                        contentType: logoFile.type,
+                        cacheControl: "public,max-age=31536000"
+                    });
+
+                    logoUrl = await snapshot.ref.getDownloadURL();
+                    storagePath = snapshot.ref.fullPath;
+                } else {
+                    const current = preview.src || "";
+                    if (current && !current.includes("Logo-Studio-DeVitto.png")) {
+                        logoUrl = current;
+                    }
+                }
+
+                if (!logoUrl) {
+                    throw new Error("Selecione uma imagem ou informe uma URL antes de guardar.");
+                }
+
+                await saveSettingDocument("branding", {
                     logoUrl: logoUrl,
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                }, { merge: true })
-                .then(function() {
-                    showToast("✅ Logótipo guardado", "O logótipo foi atualizado.", "fa-image");
-                    document.getElementById("sidebarLogo").src = logoUrl;
-                })
-                .catch(function(error) {
-                    showToast("❌ Erro", "Não foi possível guardar: " + error.message, "fa-triangle-exclamation");
-                    console.error(error);
+                    storagePath: storagePath || null
                 });
-            } else {
-                showToast("Aviso", "Nenhum logótipo selecionado.", "fa-triangle-exclamation");
+
+                updateAllLogoElements(logoUrl);
+                localStorage.setItem("devitto_logo_url", logoUrl);
+                input.value = "";
+
+                await addActivity("branding_update", "O logótipo e a identidade visual foram atualizados.");
+                showToast("Identidade guardada", "A nova logo foi enviada ao Storage e registrada no Firestore.", "fa-circle-check");
+            } catch (error) {
+                console.error("Erro ao guardar identidade:", error);
+                showToast("Erro ao guardar identidade", error.message || "Não foi possível enviar a logo.", "fa-triangle-exclamation");
+            } finally {
+                button.disabled = false;
+                button.innerHTML = original;
             }
         });
 
@@ -3166,26 +3256,31 @@
                 });
         }
 
-        // ✅ BOTÃO SALVAR SOCIAL CORRIGIDO
-        document.getElementById("saveSocial").addEventListener("click", function() {
-            const data = {
-                instagram: document.getElementById("instagramUrl").value.trim(),
-                facebook: document.getElementById("facebookUrl").value.trim(),
-                whatsapp: document.getElementById("whatsappUrl").value.trim(),
-                booking: document.getElementById("bookingUrl").value.trim(),
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            };
+        document.getElementById("saveSocial").addEventListener("click", async function(event) {
+            event.preventDefault();
+            const button = this;
+            const original = button.innerHTML;
+            try {
+                button.disabled = true;
+                button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> A guardar...';
+                const data = {
+                    instagram: document.getElementById("instagramUrl").value.trim(),
+                    facebook: document.getElementById("facebookUrl").value.trim(),
+                    whatsapp: document.getElementById("whatsappUrl").value.trim(),
+                    booking: document.getElementById("bookingUrl").value.trim()
+                };
+                await saveSettingDocument("social", data);
+                await addActivity("social_update", "As redes sociais foram atualizadas.");
+                showToast("Redes sociais guardadas", "Os links foram salvos no Firebase.", "fa-share-nodes");
+            } catch (error) {
+                console.error("Erro ao salvar redes sociais:", error);
+                showToast("Erro ao guardar", error.message || "Não foi possível guardar os links.", "fa-triangle-exclamation");
+            } finally {
+                button.disabled = false;
+                button.innerHTML = original;
+            }
+        });
 
-            console.log("💾 Salvando redes sociais:", data);
-
-            db.collection("settings").doc("social").set(data, { merge: true })
-                .then(function() {
-                    showToast("✅ Redes sociais guardadas", "Os links foram atualizados.", "fa-share-nodes");
-                })
-                .catch(function(error) {
-                    showToast("❌ Erro", "Não foi possível guardar: " + error.message, "fa-triangle-exclamation");
-                    console.error(error);
-                });
         });
 
 
@@ -3209,26 +3304,31 @@
                 });
         }
 
-        // ✅ BOTÃO SALVAR SEO CORRIGIDO
-        document.getElementById("saveSeo").addEventListener("click", function() {
-            const data = {
-                title: document.getElementById("seoTitle").value.trim(),
-                description: document.getElementById("seoDescription").value.trim(),
-                analytics: document.getElementById("googleAnalytics").value.trim(),
-                searchConsole: document.getElementById("searchConsole").value.trim(),
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            };
+        document.getElementById("saveSeo").addEventListener("click", async function(event) {
+            event.preventDefault();
+            const button = this;
+            const original = button.innerHTML;
+            try {
+                button.disabled = true;
+                button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> A guardar...';
+                const data = {
+                    title: document.getElementById("seoTitle").value.trim(),
+                    description: document.getElementById("seoDescription").value.trim(),
+                    analytics: document.getElementById("googleAnalytics").value.trim(),
+                    searchConsole: document.getElementById("searchConsole").value.trim()
+                };
+                await saveSettingDocument("seo", data);
+                await addActivity("seo_update", "As configurações de SEO foram atualizadas.");
+                showToast("SEO guardado", "As configurações foram salvas no Firebase.", "fa-magnifying-glass-chart");
+            } catch (error) {
+                console.error("Erro ao salvar SEO:", error);
+                showToast("Erro ao guardar", error.message || "Não foi possível guardar o SEO.", "fa-triangle-exclamation");
+            } finally {
+                button.disabled = false;
+                button.innerHTML = original;
+            }
+        });
 
-            console.log("💾 Salvando SEO:", data);
-
-            db.collection("settings").doc("seo").set(data, { merge: true })
-                .then(function() {
-                    showToast("✅ SEO guardado", "As configurações foram atualizadas.", "fa-magnifying-glass-chart");
-                })
-                .catch(function(error) {
-                    showToast("❌ Erro", "Não foi possível guardar: " + error.message, "fa-triangle-exclamation");
-                    console.error(error);
-                });
         });
 
 
@@ -3420,11 +3520,29 @@
                 });
         }
 
-        // ✅ BOTÃO SALVAR PLAYLIST CORRIGIDO
-        document.getElementById("saveMusic").addEventListener("click", function() {
-            loadMusic();
-            showToast("✅ Playlist guardada", "A playlist foi atualizada.", "fa-floppy-disk");
+        document.getElementById("saveMusic").addEventListener("click", async function(event) {
+            event.preventDefault();
+            const button = this;
+            const original = button.innerHTML;
+            try {
+                button.disabled = true;
+                button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> A guardar...';
+                await saveSettingDocument("music", {
+                    enabled: true,
+                    updatedAtClient: new Date().toISOString()
+                });
+                await addActivity("music_update", "A configuração da playlist foi guardada.");
+                await loadMusic();
+                showToast("Playlist guardada", "A configuração da playlist foi salva no Firebase.", "fa-floppy-disk");
+            } catch (error) {
+                console.error("Erro ao salvar playlist:", error);
+                showToast("Erro ao guardar", error.message || "Não foi possível guardar a playlist.", "fa-triangle-exclamation");
+            } finally {
+                button.disabled = false;
+                button.innerHTML = original;
+            }
         });
+
 
 
         /* =========================================================
@@ -3512,9 +3630,33 @@
            SYSTEM
         ========================================================== */
 
-        document.getElementById("saveSystem").addEventListener("click", function() {
-            showToast("Configurações guardadas", "As configurações do sistema foram atualizadas.", "fa-gear");
+        document.getElementById("saveSystem").addEventListener("click", async function(event) {
+            event.preventDefault();
+            const button = this;
+            const original = button.innerHTML;
+            try {
+                button.disabled = true;
+                button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> A guardar...';
+
+                const data = {
+                    uploadLimitMB: 10,
+                    realtimeSync: true,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                };
+
+                await db.collection("settings").doc("system").set(data, { merge: true });
+                await addActivity("system_update", "As configurações do sistema foram atualizadas.");
+
+                showToast("Configurações guardadas", "As configurações do sistema foram salvas no Firebase.", "fa-gear");
+            } catch (error) {
+                console.error("Erro ao salvar sistema:", error);
+                showToast("Erro ao guardar", error.message || "Não foi possível guardar as configurações.", "fa-triangle-exclamation");
+            } finally {
+                button.disabled = false;
+                button.innerHTML = original;
+            }
         });
+
 
 
         /* =========================================================
@@ -3622,6 +3764,13 @@
         }
 
 
+
+        window.addEventListener("unhandledrejection", function(event) {
+            console.error("Promise rejeitada:", event.reason);
+            const message = event.reason && event.reason.message ? event.reason.message : "Ocorreu um erro inesperado.";
+            showToast("Erro", message, "fa-triangle-exclamation");
+        });
+
         /* =========================================================
            INICIALIZAÇÃO
         ========================================================== */
@@ -3629,536 +3778,16 @@
         console.log("🚀 Studio DeVitto Admin - Inicializado");
         console.log("🔥 Firebase conectado:", firebase.app().options.projectId);
 
-        // Sincronização em tempo real + carregamento inicial
-        startRealtimeSync();
+        // Carregar atividades
+        loadActivities();
 
-        // Atualizar estatísticas como fallback
+        // Atualizar stats periodicamente
         setInterval(updateStats, 30000);
 
-        /* =========================================================
-           CORREÇÕES DEFINITIVAS - PERSISTÊNCIA + TEMPO REAL
-           =========================================================
-           - Upload de ficheiros -> Firebase Storage
-           - URL do ficheiro -> Firestore
-           - Configurações -> Firestore
-           - onSnapshot -> todas as páginas do painel ficam sincronizadas
-           - Registo de atividades
-           - Botões "Guardar" deixam de ser apenas visuais
-        ========================================================== */
-
-        let realtimeStarted = false;
-        const realtimeUnsubscribers = [];
-
-        function addActivity(type, message) {
-            return db.collection("activities").add({
-                type: type,
-                message: message,
-                timestamp: firebase.firestore.FieldValue.serverTimestamp()
-            }).catch(function(error) {
-                // A atividade não deve impedir a operação principal.
-                console.warn("Não foi possível registar atividade:", error);
-            });
+        // Se já estiver logado via sessionStorage, carregar dados
+        if (sessionStorage.getItem("devitto_logged_in") === "true") {
+            loadAllData();
         }
-
-        function updateAllLogoElements(url) {
-            if (!url) return;
-
-            // IDs existentes no painel
-            ["sidebarLogo", "logoPreview", "loginLogo"].forEach(function(id) {
-                const el = document.getElementById(id);
-                if (el && el.tagName === "IMG") el.src = url;
-            });
-
-            // Permite que qualquer elemento <img data-site-logo> do sistema
-            // receba automaticamente a nova logo.
-            document.querySelectorAll("img[data-site-logo]").forEach(function(img) {
-                img.src = url;
-            });
-
-            // Guarda também em cache local para páginas que tenham acabado
-            // de abrir enquanto o Firestore ainda está a carregar.
-            try {
-                localStorage.setItem("devitto_logo_url", url);
-            } catch (e) {}
-        }
-
-        function bindRealtimeCollection(collectionName, queryBuilder, onData, onError) {
-            let query = db.collection(collectionName);
-            if (typeof queryBuilder === "function") query = queryBuilder(query);
-
-            const unsubscribe = query.onSnapshot(function(snapshot) {
-                const data = [];
-                snapshot.forEach(function(doc) {
-                    data.push({ id: doc.id, ...doc.data() });
-                });
-                onData(data, snapshot);
-            }, function(error) {
-                console.error("Realtime " + collectionName + ":", error);
-                if (onError) onError(error);
-            });
-
-            realtimeUnsubscribers.push(unsubscribe);
-        }
-
-        function startRealtimeSync() {
-            if (realtimeStarted) return;
-            realtimeStarted = true;
-
-            // Colaboradores
-            bindRealtimeCollection("collaborators", function(q) {
-                return q.orderBy("name");
-            }, function(items) {
-                collaboratorsCache = items;
-                renderCollaborators(collaboratorsCache);
-                updateStats();
-            });
-
-            // Galeria
-            bindRealtimeCollection("media", function(q) {
-                return q.orderBy("createdAt", "desc");
-            }, function(items) {
-                mediaCache = items;
-                renderMedia(mediaCache);
-                updateStats();
-            });
-
-            // Playlist
-            bindRealtimeCollection("music", function(q) {
-                return q.orderBy("createdAt", "desc");
-            }, function(items) {
-                musicCache = items;
-                renderMusic(musicCache);
-                updateStats();
-            });
-
-            // Administradores
-            bindRealtimeCollection("admins", null, function(items) {
-                renderAdmins(items);
-            });
-
-            // Atividades
-            bindRealtimeCollection("activities", function(q) {
-                return q.orderBy("timestamp", "desc").limit(5);
-            }, function(items) {
-                renderActivitiesRealtime(items);
-            });
-
-            // Configurações globais.
-            bindRealtimeCollection("settings", null, function(items) {
-                const settings = {};
-                items.forEach(function(item) {
-                    settings[item.id] = item;
-                });
-
-                if (settings.company) updateCompanyForm(settings.company);
-                if (settings.social) updateSocialForm(settings.social);
-                if (settings.seo) updateSeoForm(settings.seo);
-
-                if (settings.branding && settings.branding.logoUrl) {
-                    updateAllLogoElements(settings.branding.logoUrl);
-                }
-            }, function(error) {
-                console.error("Erro ao sincronizar configurações:", error);
-            });
-
-            // Primeira renderização imediata.
-            updateStats();
-        }
-
-        function renderActivitiesRealtime(items) {
-            const list = document.getElementById("activityList");
-            if (!list) return;
-
-            if (!items.length) {
-                list.innerHTML = `
-                    <li class="activity-item">
-                        <div class="activity-icon"><i class="fa-solid fa-info"></i></div>
-                        <div class="activity-content">
-                            <strong>Sem atividades recentes</strong>
-                            <span>As atividades aparecerão aqui.</span>
-                        </div>
-                    </li>`;
-                return;
-            }
-
-            const iconMap = {
-                collaborator_add: "fa-solid fa-user-plus",
-                collaborator_edit: "fa-solid fa-user-pen",
-                collaborator_delete: "fa-solid fa-user-minus",
-                media_upload: "fa-solid fa-image",
-                media_delete: "fa-solid fa-trash",
-                company_update: "fa-solid fa-building",
-                branding_update: "fa-solid fa-palette",
-                social_update: "fa-solid fa-share-nodes",
-                seo_update: "fa-solid fa-magnifying-glass-chart",
-                music_add: "fa-solid fa-music",
-                music_delete: "fa-solid fa-trash",
-                system_update: "fa-solid fa-gear"
-            };
-
-            list.innerHTML = items.map(function(data) {
-                const icon = iconMap[data.type] || "fa-solid fa-info";
-                let date = "Recente";
-                if (data.timestamp && typeof data.timestamp.toDate === "function") {
-                    date = data.timestamp.toDate().toLocaleString("pt-PT");
-                }
-
-                return `
-                    <li class="activity-item">
-                        <div class="activity-icon"><i class="${icon}"></i></div>
-                        <div class="activity-content">
-                            <strong>${escapeHtml(data.message || "Atividade")}</strong>
-                            <span>${escapeHtml(date)}</span>
-                        </div>
-                    </li>`;
-            }).join("");
-        }
-
-        function updateSocialForm(data) {
-            if (!data) return;
-            const fields = {
-                instagramUrl: data.instagram || "",
-                facebookUrl: data.facebook || "",
-                whatsappUrl: data.whatsapp || "",
-                bookingUrl: data.booking || ""
-            };
-            Object.keys(fields).forEach(function(id) {
-                const el = document.getElementById(id);
-                if (el) el.value = fields[id];
-            });
-        }
-
-        function updateSeoForm(data) {
-            if (!data) return;
-            const fields = {
-                seoTitle: data.title || "",
-                seoDescription: data.description || "",
-                googleAnalytics: data.analytics || "",
-                searchConsole: data.searchConsole || ""
-            };
-            Object.keys(fields).forEach(function(id) {
-                const el = document.getElementById(id);
-                if (el) el.value = fields[id];
-            });
-        }
-
-        async function saveSettingDocument(docId, data, activityType, activityMessage) {
-            const payload = Object.assign({}, data, {
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-
-            await db.collection("settings").doc(docId).set(payload, { merge: true });
-            if (activityType) {
-                await addActivity(activityType, activityMessage || ("Configuração " + docId + " atualizada."));
-            }
-        }
-
-        function replaceButtonHandler(id, handler) {
-            const oldButton = document.getElementById(id);
-            if (!oldButton) return null;
-
-            // Clonar remove listeners antigos sem mexer no HTML/estilo.
-            const newButton = oldButton.cloneNode(true);
-            oldButton.parentNode.replaceChild(newButton, oldButton);
-            newButton.addEventListener("click", handler);
-            return newButton;
-        }
-
-        /* ---------- EMPRESA ---------- */
-        replaceButtonHandler("saveCompany", async function() {
-            const btn = this;
-            btn.disabled = true;
-
-            try {
-                const data = {
-                    name: document.getElementById("companyName").value.trim(),
-                    category: document.getElementById("companyCategory").value.trim(),
-                    description: document.getElementById("companyDescription").value.trim(),
-                    phone: document.getElementById("companyPhone").value.trim(),
-                    email: document.getElementById("companyEmail").value.trim(),
-                    address: document.getElementById("companyAddress").value.trim(),
-                    hours: document.getElementById("companyHours").value.trim(),
-                    maps: document.getElementById("companyMaps").value.trim()
-                };
-
-                if (!data.name) {
-                    showToast("Aviso", "O nome da empresa é obrigatório.", "fa-triangle-exclamation");
-                    return;
-                }
-
-                await saveSettingDocument(
-                    "company",
-                    data,
-                    "company_update",
-                    "Dados da empresa atualizados."
-                );
-
-                showToast("Dados guardados", "As informações da empresa foram salvas no Firestore.", "fa-circle-check");
-            } catch (error) {
-                console.error("Erro ao salvar empresa:", error);
-                showToast("Erro", error.message || "Não foi possível guardar os dados.", "fa-triangle-exclamation");
-            } finally {
-                btn.disabled = false;
-            }
-        });
-
-        /* ---------- LOGO / BRANDING ---------- */
-        replaceButtonHandler("saveBranding", async function() {
-            const btn = this;
-            const input = document.getElementById("logoUpload");
-            const urlInput = document.getElementById("logoUrlInput");
-            const file = input && input.files ? input.files[0] : null;
-            const preview = document.getElementById("logoPreview");
-            const previewUrl = preview ? preview.src : "";
-            const typedUrl = urlInput ? urlInput.value.trim() : "";
-
-            btn.disabled = true;
-
-            try {
-                let logoUrl = null;
-                let storagePath = null;
-
-                if (file) {
-                    if (!validateFile(file, ["image/png", "image/jpeg", "image/webp"])) {
-                        return;
-                    }
-
-                    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-                    const path = "branding/logo_" + Date.now() + "_" + safeName;
-                    const storageRef = storage.ref(path);
-
-                    const uploadTask = storageRef.put(file, {
-                        contentType: file.type,
-                        cacheControl: "public,max-age=3600"
-                    });
-
-                    await new Promise(function(resolve, reject) {
-                        uploadTask.on("state_changed", function(snapshot) {
-                            const progress = snapshot.totalBytes
-                                ? (snapshot.bytesTransferred / snapshot.totalBytes) * 100
-                                : 0;
-                            btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> ' +
-                                "A enviar " + Math.round(progress) + "%";
-                        }, reject, resolve);
-                    });
-
-                    logoUrl = await storageRef.getDownloadURL();
-                    storagePath = path;
-                } else if (typedUrl) {
-                    logoUrl = typedUrl;
-                } else if (previewUrl &&
-                           /^https?:\/\//i.test(previewUrl) &&
-                           !previewUrl.includes("Logo-Studio-DeVitto.png")) {
-                    logoUrl = previewUrl;
-                }
-
-                if (!logoUrl) {
-                    showToast("Aviso", "Selecione um logótipo ou informe uma URL.", "fa-triangle-exclamation");
-                    return;
-                }
-
-                const oldDoc = await db.collection("settings").doc("branding").get();
-                const oldData = oldDoc.exists ? oldDoc.data() : {};
-
-                await db.collection("settings").doc("branding").set({
-                    logoUrl: logoUrl,
-                    storagePath: storagePath,
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                }, { merge: true });
-
-                updateAllLogoElements(logoUrl);
-                if (input) input.value = "";
-                if (urlInput) urlInput.value = "";
-
-                // Apaga a versão anterior somente se ela também estiver no nosso Storage.
-                if (storagePath && oldData.storagePath && oldData.storagePath !== storagePath) {
-                    try {
-                        await storage.ref(oldData.storagePath).delete();
-                    } catch (e) {
-                        console.warn("Logo anterior não pôde ser apagada:", e);
-                    }
-                }
-
-                await addActivity("branding_update", "Logótipo do Studio DeVitto atualizado.");
-                showToast("Logótipo guardado", "A logo foi salva no Storage e no Firestore e já foi aplicada.", "fa-image");
-            } catch (error) {
-                console.error("Erro ao salvar logótipo:", error);
-                showToast("Erro", error.message || "Falha ao guardar o logótipo.", "fa-triangle-exclamation");
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Guardar logótipo';
-            }
-        });
-
-        /* ---------- REDES SOCIAIS ---------- */
-        replaceButtonHandler("saveSocial", async function() {
-            const btn = this;
-            btn.disabled = true;
-            try {
-                const data = {
-                    instagram: document.getElementById("instagramUrl").value.trim(),
-                    facebook: document.getElementById("facebookUrl").value.trim(),
-                    whatsapp: document.getElementById("whatsappUrl").value.trim(),
-                    booking: document.getElementById("bookingUrl").value.trim()
-                };
-
-                await saveSettingDocument(
-                    "social",
-                    data,
-                    "social_update",
-                    "Redes sociais atualizadas."
-                );
-
-                showToast("Redes sociais guardadas", "Os links foram salvos no Firestore.", "fa-share-nodes");
-            } catch (error) {
-                console.error("Erro ao salvar redes sociais:", error);
-                showToast("Erro", error.message || "Não foi possível guardar.", "fa-triangle-exclamation");
-            } finally {
-                btn.disabled = false;
-            }
-        });
-
-        /* ---------- SEO ---------- */
-        replaceButtonHandler("saveSeo", async function() {
-            const btn = this;
-            btn.disabled = true;
-            try {
-                const data = {
-                    title: document.getElementById("seoTitle").value.trim(),
-                    description: document.getElementById("seoDescription").value.trim(),
-                    analytics: document.getElementById("googleAnalytics").value.trim(),
-                    searchConsole: document.getElementById("searchConsole").value.trim()
-                };
-
-                await saveSettingDocument(
-                    "seo",
-                    data,
-                    "seo_update",
-                    "Configurações SEO atualizadas."
-                );
-
-                showToast("SEO guardado", "As configurações foram salvas no Firestore.", "fa-magnifying-glass-chart");
-            } catch (error) {
-                console.error("Erro ao salvar SEO:", error);
-                showToast("Erro", error.message || "Não foi possível guardar.", "fa-triangle-exclamation");
-            } finally {
-                btn.disabled = false;
-            }
-        });
-
-        /* ---------- SISTEMA ---------- */
-        replaceButtonHandler("saveSystem", async function() {
-            const btn = this;
-            btn.disabled = true;
-
-            try {
-                await saveSettingDocument(
-                    "system",
-                    {
-                        uploadLimitMB: 10,
-                        realtimeSync: true,
-                        updatedBy: "admin"
-                    },
-                    "system_update",
-                    "Configurações do sistema atualizadas."
-                );
-
-                showToast("Configurações guardadas", "As configurações do sistema foram salvas no Firestore.", "fa-gear");
-            } catch (error) {
-                console.error("Erro ao salvar sistema:", error);
-                showToast("Erro", error.message || "Não foi possível guardar.", "fa-triangle-exclamation");
-            } finally {
-                btn.disabled = false;
-            }
-        });
-
-        /* ---------- PLAYLIST ---------- */
-        replaceButtonHandler("saveMusic", async function() {
-            const btn = this;
-            btn.disabled = true;
-
-            try {
-                // As músicas já são gravadas no Firestore no momento do upload.
-                // Este botão grava apenas a preferência/configuração da playlist.
-                await saveSettingDocument(
-                    "music",
-                    { enabled: true },
-                    null,
-                    null
-                );
-
-                showToast("Playlist guardada", "A playlist está sincronizada com o Firestore.", "fa-floppy-disk");
-            } catch (error) {
-                console.error("Erro ao salvar playlist:", error);
-                showToast("Erro", error.message || "Não foi possível guardar.", "fa-triangle-exclamation");
-            } finally {
-                btn.disabled = false;
-            }
-        });
-
-        /* ---------- COLABORADOR: apagar também o Storage ---------- */
-        const originalDeleteCollaborator = deleteCollaborator;
-        deleteCollaborator = async function(id) {
-            const c = collaboratorsCache.find(function(item) { return item.id === id; });
-            if (!c) return;
-            if (!confirm("Tem certeza que deseja apagar " + c.name + "?")) return;
-
-            try {
-                await db.collection("collaborators").doc(id).delete();
-
-                if (c.photo && c.photo.includes("firebasestorage.googleapis.com")) {
-                    try {
-                        await storage.refFromURL(c.photo).delete();
-                    } catch (e) {
-                        console.warn("Foto do colaborador não pôde ser apagada do Storage:", e);
-                    }
-                }
-
-                await addActivity("collaborator_delete", c.name + " foi removido.");
-                showToast("Colaborador apagado", c.name + " foi removido.", "fa-trash");
-            } catch (error) {
-                console.error(error);
-                showToast("Erro", error.message || "Não foi possível apagar.", "fa-triangle-exclamation");
-            }
-        };
-
-        /* ---------- UPLOAD DE MÍDIA: regista atividade ---------- */
-        const originalProcessUploads = processUploads;
-        processUploads = async function(files) {
-            const before = mediaCache.length;
-            await originalProcessUploads(files);
-            // O onSnapshot atualizará mediaCache assim que os documentos forem gravados.
-            // Registo é feito de forma assíncrona para não bloquear a UI.
-            const after = mediaCache.length;
-            if (after > before) {
-                addActivity("media_upload", (after - before) + " ficheiro(s) adicionados à galeria.");
-            }
-        };
-
-        /* ---------- UPLOAD DE MÚSICA: atividade já no save ---------- */
-        const originalSaveMusicToFirestore = saveMusicToFirestore;
-        saveMusicToFirestore = function(data, callback) {
-            return originalSaveMusicToFirestore(data, function() {
-                addActivity("music_add", (data.title || "Música") + " foi adicionada à playlist.");
-                if (callback) callback();
-            });
-        };
-
-        /* ---------- LOGO: carregar do Firestore assim que a página abre ---------- */
-        (async function restoreCachedLogo() {
-            try {
-                const cached = localStorage.getItem("devitto_logo_url");
-                if (cached) updateAllLogoElements(cached);
-
-                const doc = await db.collection("settings").doc("branding").get();
-                if (doc.exists && doc.data().logoUrl) {
-                    updateAllLogoElements(doc.data().logoUrl);
-                }
-            } catch (e) {
-                console.warn("Não foi possível restaurar logo:", e);
-            }
-        })();
-
     </script>
 
 </body>
