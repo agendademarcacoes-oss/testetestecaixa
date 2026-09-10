@@ -2189,1606 +2189,762 @@
     ========================================================== -->
 
     <script>
-        "use strict";
+"use strict";
 
-        /* =========================================================
-           CONFIGURAÇÃO FIREBASE
-        ========================================================== */
+/* =========================================================
+   STUDIO DEVITTO ADMIN — VERSÃO CORRIGIDA
+   - Firebase Authentication para login real
+   - Firestore para dados/configurações
+   - Firebase Storage para cópia dos ficheiros
+   - Cloudinary para cópia dos ficheiros/media
+   - onSnapshot para atualização em tempo real
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyB6nIB01W6OAJCXAd4gDCb1wN_v34PxQHE",
-            authDomain: "studiodevittosite.firebaseapp.com",
-            databaseURL: "https://studiodevittosite-default-rtdb.firebaseio.com",
-            projectId: "studiodevittosite",
-            storageBucket: "studiodevittosite.firebasestorage.app",
-            messagingSenderId: "844620325997",
-            appId: "1:844620325997:web:98221ec017733576460b64",
-            measurementId: "G-DGYQSJ2GNV"
-        };
+   IMPORTANTE: preencha CLOUDINARY_CLOUD_NAME e
+   CLOUDINARY_UPLOAD_PRESET com os dados da sua conta Cloudinary.
+   O preset deve ser UNSIGNED para upload direto do navegador.
+========================================================= */
 
-        // Inicializar Firebase
-        firebase.initializeApp(firebaseConfig);
+const firebaseConfig = {
+    apiKey: "AIzaSyB6nIB01W6OAJCXAd4gDCb1wN_v34PxQHE",
+    authDomain: "studiodevittosite.firebaseapp.com",
+    databaseURL: "https://studiodevittosite-default-rtdb.firebaseio.com",
+    projectId: "studiodevittosite",
+    storageBucket: "studiodevittosite.firebasestorage.app",
+    messagingSenderId: "844620325997",
+    appId: "1:844620325997:web:98221ec017733576460b64",
+    measurementId: "G-DGYQSJ2GNV"
+};
 
-        // Referências
-        const db = firebase.firestore();
-        const storage = firebase.storage();
+const CLOUDINARY_CLOUD_NAME = "k7b7tlrn";
+const CLOUDINARY_UPLOAD_PRESET = "sitestudiodevitto";
+const CLOUDINARY_ENABLED = ![
+    CLOUDINARY_CLOUD_NAME,
+    CLOUDINARY_UPLOAD_PRESET
+].some(v => !v || v.startsWith("SEU_"));
 
-        // Configurar Firestore
-        db.settings({ merge: true });
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const storage = firebase.storage();
+const auth = firebase.auth();
 
-        // Estado
-        let isLoggedIn = false;
-        let editingCollaboratorId = null;
-        let collaboratorsCache = [];
-        let mediaCache = [];
-        let musicCache = [];
+let isLoggedIn = false;
+let currentAdmin = null;
+let editingCollaboratorId = null;
+let collaboratorsCache = [];
+let mediaCache = [];
+let musicCache = [];
+let adminsCache = [];
+let unsubscribers = [];
+let currentAudio = null;
 
+const $ = id => document.getElementById(id);
+const loginScreen = $("loginScreen");
+const adminApp = $("adminApp");
+const loginForm = $("loginForm");
+const loginError = $("loginError");
+const loginErrorText = $("loginErrorText");
+const loginSubmit = $("loginSubmit");
+const adminEmail = $("adminEmail");
+const adminPassword = $("adminPassword");
+const passwordToggle = $("passwordToggle");
+const sidebar = $("sidebar");
+const sidebarOverlay = $("sidebarOverlay");
+const mobileMenuBtn = $("mobileMenuBtn");
+const pageTitle = $("pageTitle");
+const toastContainer = $("toastContainer");
 
-        /* =========================================================
-           ELEMENTOS DO DOM
-        ========================================================== */
+function escapeHtml(value) {
+    return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+}
 
-        const loginScreen = document.getElementById("loginScreen");
-        const adminApp = document.getElementById("adminApp");
-        const loginForm = document.getElementById("loginForm");
-        const loginError = document.getElementById("loginError");
-        const loginErrorText = document.getElementById("loginErrorText");
-        const loginSubmit = document.getElementById("loginSubmit");
-        const adminEmail = document.getElementById("adminEmail");
-        const adminPassword = document.getElementById("adminPassword");
-        const passwordToggle = document.getElementById("passwordToggle");
-        const sidebar = document.getElementById("sidebar");
-        const sidebarOverlay = document.getElementById("sidebarOverlay");
-        const mobileMenuBtn = document.getElementById("mobileMenuBtn");
-        const pageTitle = document.getElementById("pageTitle");
-        const toastContainer = document.getElementById("toastContainer");
-        const userAvatar = document.getElementById("userAvatar");
-        const userName = document.getElementById("userName");
-        const userEmail = document.getElementById("userEmail");
+function showToast(title, message, icon = "fa-circle-check") {
+    const toast = document.createElement("div");
+    toast.className = "toast";
+    toast.innerHTML = `<div class="toast-icon"><i class="fa-solid ${escapeHtml(icon)}"></i></div><div class="toast-content"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(message)}</span></div>`;
+    toastContainer.appendChild(toast);
+    setTimeout(() => toast.remove(), 4200);
+}
 
+function friendlyError(error) {
+    const code = error?.code || "";
+    const messages = {
+        "auth/invalid-credential": "Email ou palavra-passe incorretos.",
+        "auth/invalid-login-credentials": "Email ou palavra-passe incorretos.",
+        "auth/user-not-found": "Este administrador não existe no Firebase Authentication.",
+        "auth/wrong-password": "Palavra-passe incorreta.",
+        "auth/email-already-in-use": "Este email já possui uma conta de acesso.",
+        "auth/weak-password": "A palavra-passe deve ter pelo menos 6 caracteres.",
+        "auth/invalid-email": "O email não é válido.",
+        "auth/network-request-failed": "Falha de rede. Verifique a internet.",
+        "permission-denied": "O Firebase recusou o acesso. Verifique as regras do Firestore.",
+        "storage/unauthorized": "O Firebase Storage recusou o upload. Verifique as regras do Storage.",
+        "storage/unauthenticated": "A sessão Firebase expirou. Entre novamente.",
+        "storage/unknown": "O Firebase Storage devolveu um erro desconhecido."
+    };
+    return messages[code] || error?.message || "Ocorreu um erro inesperado.";
+}
 
-        /* =========================================================
-           LOGIN LOCAL (SEM FIREBASE AUTH)
-        ========================================================== */
+function setButtonBusy(button, busy, busyText = "A guardar...") {
+    if (!button) return;
+    if (busy) {
+        if (!button.dataset.originalHtml) button.dataset.originalHtml = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${escapeHtml(busyText)}`;
+    } else {
+        button.disabled = false;
+        if (button.dataset.originalHtml) button.innerHTML = button.dataset.originalHtml;
+    }
+}
 
-        function showAdminApp() {
-            loginScreen.classList.add("hidden");
-            adminApp.classList.add("active");
-            isLoggedIn = true;
-            userAvatar.textContent = "AD";
-            userName.textContent = "Administrador";
-            userEmail.textContent = "admin@studiodevitto.com";
-            loadAllData();
-            showToast("Bem-vindo", "Painel administrativo carregado!", "fa-circle-check");
-        }
+function validateFile(file, allowedTypes = [], maxBytes = 10 * 1024 * 1024) {
+    if (!file) return false;
+    if (file.size > maxBytes) {
+        showToast("Ficheiro demasiado grande", `O limite máximo é ${Math.round(maxBytes / 1024 / 1024)} MB.`, "fa-triangle-exclamation");
+        return false;
+    }
+    if (allowedTypes.length && !allowedTypes.includes(file.type)) {
+        showToast("Formato não suportado", "Escolha um formato permitido.", "fa-circle-exclamation");
+        return false;
+    }
+    return true;
+}
 
-        function showLoginScreen() {
-            loginScreen.classList.remove("hidden");
-            adminApp.classList.remove("active");
-            isLoggedIn = false;
-        }
+function isFirebaseStorageUrl(url) {
+    return typeof url === "string" && /firebasestorage\.googleapis\.com|firebasestorage\.app/i.test(url);
+}
 
-        // Login
-        loginForm.addEventListener("submit", function(event) {
-            event.preventDefault();
+function fileSafeName(name) {
+    return String(name || "ficheiro")
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9._-]+/g, "_")
+        .slice(0, 120);
+}
 
-            const email = adminEmail.value.trim();
-            const password = adminPassword.value;
+async function uploadToFirebaseStorage(file, folder) {
+    const safe = fileSafeName(file.name);
+    const path = `${folder}/${Date.now()}_${crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)}_${safe}`;
+    const ref = storage.ref().child(path);
+    const snapshot = await ref.put(file, { contentType: file.type });
+    const url = await snapshot.ref.getDownloadURL();
+    return { url, path, ref: snapshot.ref };
+}
 
-            loginError.classList.remove("show");
+async function uploadToCloudinary(file, folder = "studiodevitto") {
+    if (!CLOUDINARY_ENABLED) {
+        throw new Error("Cloudinary ainda não foi configurado. Preencha CLOUDINARY_CLOUD_NAME e CLOUDINARY_UPLOAD_PRESET no HTML.");
+    }
+    const endpoint = `https://api.cloudinary.com/v1_1/${encodeURIComponent(CLOUDINARY_CLOUD_NAME)}/auto/upload`;
+    const form = new FormData();
+    form.append("file", file);
+    form.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+    form.append("folder", folder);
+    const response = await fetch(endpoint, { method: "POST", body: form });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.secure_url) {
+        throw new Error(data?.error?.message || `Cloudinary recusou o upload (${response.status}).`);
+    }
+    return {
+        url: data.secure_url,
+        publicId: data.public_id || null,
+        resourceType: data.resource_type || null,
+        format: data.format || null,
+        bytes: data.bytes || file.size
+    };
+}
 
-            if (!email || !password) {
-                loginErrorText.textContent = "Preencha o email e a palavra-passe.";
-                loginError.classList.add("show");
-                return;
-            }
+async function uploadFileToBoth(file, folder, progressCallback) {
+    // As duas cópias são obrigatórias. Se uma falhar, o documento não é criado.
+    if (progressCallback) progressCallback(5, "A enviar para Firebase Storage...");
+    const firebasePromise = uploadToFirebaseStorage(file, folder);
+    if (progressCallback) progressCallback(15, "A enviar para Cloudinary...");
+    const cloudinaryPromise = uploadToCloudinary(file, folder);
+    const [firebaseFile, cloudinaryFile] = await Promise.all([firebasePromise, cloudinaryPromise]);
+    if (progressCallback) progressCallback(100, "Upload concluído nas duas plataformas.");
+    return { firebase: firebaseFile, cloudinary: cloudinaryFile };
+}
 
-            // Login automático - qualquer credencial funciona
-            sessionStorage.setItem("devitto_logged_in", "true");
-            showAdminApp();
+async function addActivity(type, message) {
+    try {
+        await db.collection("activities").add({
+            type,
+            message,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            adminEmail: currentAdmin?.email || null
         });
+    } catch (error) {
+        console.warn("Atividade não gravada:", error);
+    }
+}
 
-        // Logout
-        document.getElementById("logoutBtn").addEventListener("click", function() {
-            sessionStorage.removeItem("devitto_logged_in");
-            showLoginScreen();
-            showToast("Sessão terminada", "Até breve.", "fa-right-from-bracket");
+/* =========================================================
+   LOGIN — FIREBASE AUTH + DOCUMENTO admins
+========================================================= */
+
+function showAdminApp(adminData) {
+    currentAdmin = adminData;
+    isLoggedIn = true;
+    loginScreen.classList.add("hidden");
+    adminApp.classList.add("active");
+    $("userAvatar").textContent = (adminData.name || adminData.email || "AD").slice(0, 2).toUpperCase();
+    $("userName").textContent = adminData.name || "Administrador";
+    $("userEmail").textContent = adminData.email || auth.currentUser?.email || "";
+    startRealtimeSync();
+    showToast("Bem-vindo", "Acesso administrativo autorizado.", "fa-circle-check");
+}
+
+function showLoginScreen() {
+    isLoggedIn = false;
+    currentAdmin = null;
+    stopRealtimeSync();
+    adminApp.classList.remove("active");
+    loginScreen.classList.remove("hidden");
+}
+
+async function verifyAdminUser(user) {
+    if (!user?.email) throw new Error("A conta Firebase não possui email.");
+    const snap = await db.collection("admins").where("email", "==", user.email.toLowerCase()).limit(1).get();
+    if (snap.empty) {
+        await auth.signOut();
+        throw new Error("A conta existe no Firebase Authentication, mas não está cadastrada na coleção admins.");
+    }
+    const doc = snap.docs[0];
+    const data = doc.data();
+    if (data.status && data.status !== "active") {
+        await auth.signOut();
+        throw new Error("Este administrador está inativo.");
+    }
+    await db.collection("admins").doc(doc.id).set({
+        lastLogin: firebase.firestore.FieldValue.serverTimestamp(),
+        status: "active"
+    }, { merge: true });
+    return { id: doc.id, ...data, email: user.email.toLowerCase() };
+}
+
+loginForm.addEventListener("submit", async event => {
+    event.preventDefault();
+    const email = adminEmail.value.trim().toLowerCase();
+    const password = adminPassword.value;
+    loginError.classList.remove("show");
+    if (!email || !password) {
+        loginErrorText.textContent = "Preencha o email e a palavra-passe.";
+        loginError.classList.add("show");
+        return;
+    }
+    setButtonBusy(loginSubmit, true, "A autenticar...");
+    try {
+        const credential = await auth.signInWithEmailAndPassword(email, password);
+        const admin = await verifyAdminUser(credential.user);
+        showAdminApp(admin);
+    } catch (error) {
+        console.error("Login:", error);
+        loginErrorText.textContent = friendlyError(error);
+        loginError.classList.add("show");
+    } finally {
+        setButtonBusy(loginSubmit, false);
+    }
+});
+
+$("logoutBtn").addEventListener("click", async () => {
+    try { await auth.signOut(); } catch (e) { console.warn(e); }
+    showLoginScreen();
+    showToast("Sessão terminada", "Até breve.", "fa-right-from-bracket");
+});
+
+passwordToggle.addEventListener("click", () => {
+    const isPassword = adminPassword.type === "password";
+    adminPassword.type = isPassword ? "text" : "password";
+    passwordToggle.innerHTML = isPassword ? '<i class="fa-solid fa-eye-slash"></i>' : '<i class="fa-solid fa-eye"></i>';
+});
+
+// Cria um botão de primeiro acesso sem alterar o HTML original.
+const firstAdminBtn = document.createElement("button");
+firstAdminBtn.type = "button";
+firstAdminBtn.className = "secondary-btn";
+firstAdminBtn.style.cssText = "width:100%;margin-top:12px;background:rgba(255,255,255,.12);color:white;border-color:rgba(255,255,255,.2);";
+firstAdminBtn.innerHTML = '<i class="fa-solid fa-user-shield"></i> Criar primeiro administrador';
+loginForm.appendChild(firstAdminBtn);
+
+firstAdminBtn.addEventListener("click", async () => {
+    const email = prompt("Email do primeiro administrador:", adminEmail.value.trim() || "admin@studiodevitto.com");
+    if (!email) return;
+    const password = prompt("Palavra-passe do primeiro administrador (mínimo 6 caracteres):");
+    if (!password) return;
+    const name = prompt("Nome do administrador:", "Administrador");
+    if (!name) return;
+    firstAdminBtn.disabled = true;
+    try {
+        const existing = await db.collection("admins").limit(1).get();
+        if (!existing.empty) throw new Error("Já existe pelo menos um administrador. Use o login normal.");
+        const credential = await auth.createUserWithEmailAndPassword(email.trim().toLowerCase(), password);
+        await db.collection("admins").doc(credential.user.uid).set({
+            email: credential.user.email.toLowerCase(),
+            name: name.trim(),
+            role: "master",
+            status: "active",
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            lastLogin: firebase.firestore.FieldValue.serverTimestamp()
         });
+        showAdminApp({ id: credential.user.uid, email: credential.user.email.toLowerCase(), name: name.trim(), role: "master", status: "active" });
+        showToast("Administrador criado", "O primeiro acesso foi criado com sucesso.", "fa-user-shield");
+    } catch (error) {
+        console.error(error);
+        loginErrorText.textContent = friendlyError(error);
+        loginError.classList.add("show");
+    } finally {
+        firstAdminBtn.disabled = false;
+    }
+});
 
-        // Password toggle
-        passwordToggle.addEventListener("click", function() {
-            const isPassword = adminPassword.type === "password";
-            adminPassword.type = isPassword ? "text" : "password";
-            passwordToggle.innerHTML = isPassword ?
-                '<i class="fa-solid fa-eye-slash"></i>' :
-                '<i class="fa-solid fa-eye"></i>';
-        });
+/* =========================================================
+   NAVEGAÇÃO / MODAIS
+========================================================= */
+const sectionTitles = {
+    dashboard: "Dashboard", collaborators: "Colaboradores", gallery: "Galeria / Portfólio",
+    company: "Dados da empresa", branding: "Logo e identidade", social: "Redes sociais",
+    seo: "SEO / Google", music: "Playlist", admins: "Administradores", system: "Configurações"
+};
 
-        // Verificar sessão
-        if (sessionStorage.getItem("devitto_logged_in") === "true") {
-            showAdminApp();
+function openSection(sectionName) {
+    document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.section === sectionName));
+    document.querySelectorAll(".section").forEach(s => s.classList.toggle("active", s.id === `section-${sectionName}`));
+    pageTitle.textContent = sectionTitles[sectionName] || "Dashboard";
+    closeSidebar();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+document.querySelectorAll(".nav-item").forEach(button => button.addEventListener("click", () => openSection(button.dataset.section)));
+document.querySelectorAll("[data-section-target]").forEach(button => button.addEventListener("click", () => openSection(button.dataset.sectionTarget)));
+
+function openSidebar() { sidebar.classList.add("open"); sidebarOverlay.classList.add("show"); }
+function closeSidebar() { sidebar.classList.remove("open"); sidebarOverlay.classList.remove("show"); }
+mobileMenuBtn.addEventListener("click", openSidebar);
+sidebarOverlay.addEventListener("click", closeSidebar);
+
+function openModal(element) { element.classList.add("open"); element.setAttribute("aria-hidden", "false"); document.body.classList.add("modal-open"); }
+function closeModal(element) { if (!element) return; element.classList.remove("open"); element.setAttribute("aria-hidden", "true"); document.body.classList.remove("modal-open"); }
+document.querySelectorAll("[data-close-modal]").forEach(b => b.addEventListener("click", () => closeModal($(b.dataset.closeModal))));
+document.querySelectorAll(".modal").forEach(m => m.addEventListener("click", e => { if (e.target === m) closeModal(m); }));
+document.addEventListener("keydown", e => { if (e.key === "Escape") document.querySelectorAll(".modal.open").forEach(closeModal); });
+
+/* =========================================================
+   REALTIME SYNC
+========================================================= */
+function stopRealtimeSync() {
+    unsubscribers.forEach(fn => { try { fn(); } catch (_) {} });
+    unsubscribers = [];
+}
+
+function startRealtimeSync() {
+    stopRealtimeSync();
+    if (!isLoggedIn) return;
+
+    unsubscribers.push(db.collection("collaborators").orderBy("name").onSnapshot(s => {
+        collaboratorsCache = s.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderCollaborators(collaboratorsCache); updateStats();
+    }, e => showToast("Erro", friendlyError(e), "fa-triangle-exclamation")));
+
+    unsubscribers.push(db.collection("media").orderBy("createdAt", "desc").onSnapshot(s => {
+        mediaCache = s.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderMedia(mediaCache); updateStats();
+    }, e => console.warn("Media snapshot:", e)));
+
+    unsubscribers.push(db.collection("music").orderBy("createdAt", "desc").onSnapshot(s => {
+        musicCache = s.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderMusic(musicCache); updateStats();
+    }, e => console.warn("Music snapshot:", e)));
+
+    unsubscribers.push(db.collection("admins").onSnapshot(s => {
+        adminsCache = s.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderAdmins(adminsCache);
+    }, e => console.warn("Admins snapshot:", e)));
+
+    ["company", "branding", "social", "seo", "system", "music"].forEach(key => {
+        unsubscribers.push(db.collection("settings").doc(key).onSnapshot(doc => {
+            if (!doc.exists) return;
+            const data = doc.data();
+            if (key === "company") updateCompanyForm(data);
+            if (key === "branding") updateBrandingForm(data);
+            if (key === "social") updateSocialForm(data);
+            if (key === "seo") updateSeoForm(data);
+        }, e => console.warn(`settings/${key}:`, e)));
+    });
+
+    unsubscribers.push(db.collection("activities").orderBy("timestamp", "desc").limit(5).onSnapshot(renderActivities, e => console.warn(e)));
+}
+
+function updateStats() {
+    $("statCollaborators").textContent = collaboratorsCache.length;
+    $("statMedia").textContent = mediaCache.length;
+    $("statMusic").textContent = musicCache.length;
+}
+
+/* =========================================================
+   COLABORADORES
+========================================================= */
+function renderCollaborators(list) {
+    const grid = $("collaboratorsGrid");
+    const search = $("collaboratorSearch").value.toLowerCase().trim();
+    const filter = $("collaboratorFilter").value;
+    let filtered = list.filter(c => (!search || String(c.name || "").toLowerCase().includes(search)) && (filter === "all" || c.status === filter));
+    if (!filtered.length) {
+        grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><i class="fa-solid fa-users"></i><h3>Nenhum colaborador encontrado</h3><p>Clique em "Novo colaborador" para adicionar.</p></div>`;
+        return;
+    }
+    grid.innerHTML = filtered.map(c => `<article class="glass-card collaborator-card" data-id="${escapeHtml(c.id)}">
+        <div class="collaborator-cover"></div><div class="collaborator-body">
+        <img src="${escapeHtml(c.photo || "img/Logo-Studio-DeVitto.png")}" alt="${escapeHtml(c.name)}" class="collaborator-avatar">
+        <h3 class="collaborator-name">${escapeHtml(c.name)}</h3><div class="collaborator-role">${escapeHtml(c.role || "")}</div>
+        <div class="collaborator-info"><div class="collaborator-info-row"><i class="fa-solid fa-phone"></i><span>${escapeHtml(c.phone || "Sem telefone")}</span></div><div class="collaborator-info-row"><i class="fa-solid fa-envelope"></i><span>${escapeHtml(c.email || "Sem email")}</span></div></div>
+        <div style="margin-top:13px"><span class="status ${c.status === "active" ? "active" : "inactive"}">${c.status === "active" ? "Ativo" : "Inativo"}</span></div>
+        <div class="collaborator-actions"><button class="small-btn primary" data-edit-collaborator="${escapeHtml(c.id)}"><i class="fa-solid fa-pen"></i> Editar</button><button class="small-btn danger" data-delete-collaborator="${escapeHtml(c.id)}"><i class="fa-solid fa-trash"></i> Apagar</button></div>
+        </div></article>`).join("");
+    grid.querySelectorAll("[data-edit-collaborator]").forEach(b => b.addEventListener("click", () => openCollaboratorModal(b.dataset.editCollaborator)));
+    grid.querySelectorAll("[data-delete-collaborator]").forEach(b => b.addEventListener("click", () => deleteCollaborator(b.dataset.deleteCollaborator)));
+}
+$("collaboratorSearch").addEventListener("input", () => renderCollaborators(collaboratorsCache));
+$("collaboratorFilter").addEventListener("change", () => renderCollaborators(collaboratorsCache));
+
+function openCollaboratorModal(id = null) {
+    editingCollaboratorId = id;
+    const form = $("collaboratorForm");
+    form.reset();
+    $("collaboratorPhotoPreview").src = "img/Logo-Studio-DeVitto.png";
+    $("collaboratorPhotoUrl").value = "";
+    if (id) {
+        const c = collaboratorsCache.find(x => x.id === id); if (!c) return;
+        $("collaboratorModalTitle").textContent = "Editar colaborador";
+        $("collaboratorName").value = c.name || ""; $("collaboratorRole").value = c.role || "";
+        $("collaboratorEmail").value = c.email || ""; $("collaboratorPhone").value = c.phone || "";
+        $("collaboratorBio").value = c.bio || ""; $("collaboratorServices").value = c.services || "";
+        $("collaboratorInstagram").value = c.instagram || ""; $("collaboratorFacebook").value = c.facebook || "";
+        $("collaboratorStatus").value = c.status || "active"; $("collaboratorAccess").value = c.access || "none";
+        if (c.photo) $("collaboratorPhotoPreview").src = c.photo;
+    } else {
+        $("collaboratorModalTitle").textContent = "Novo colaborador";
+        $("collaboratorStatus").value = "active"; $("collaboratorAccess").value = "none";
+    }
+    openModal($("collaboratorModal"));
+}
+
+$("collaboratorPhotoUrlBtn").addEventListener("click", () => {
+    const url = $("collaboratorPhotoUrl").value.trim();
+    if (!url) return showToast("Aviso", "Insira uma URL válida.", "fa-triangle-exclamation");
+    $("collaboratorPhotoPreview").src = url; $("collaboratorPhotoUrl").value = "";
+});
+$("collaboratorPhoto").addEventListener("change", e => {
+    const file = e.target.files[0]; if (!file) return;
+    if (!validateFile(file, ["image/jpeg", "image/png", "image/webp"])) { e.target.value = ""; return; }
+    const reader = new FileReader(); reader.onload = ev => $("collaboratorPhotoPreview").src = ev.target.result; reader.readAsDataURL(file);
+});
+
+$("collaboratorForm").addEventListener("submit", async event => {
+    event.preventDefault();
+    const button = event.submitter;
+    const data = {
+        name: $("collaboratorName").value.trim(), role: $("collaboratorRole").value.trim(), email: $("collaboratorEmail").value.trim(),
+        phone: $("collaboratorPhone").value.trim(), bio: $("collaboratorBio").value.trim(), services: $("collaboratorServices").value.trim(),
+        instagram: $("collaboratorInstagram").value.trim(), facebook: $("collaboratorFacebook").value.trim(),
+        status: $("collaboratorStatus").value, access: $("collaboratorAccess").value,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    if (!data.name || !data.role) return showToast("Campos obrigatórios", "Preencha o nome e a função.", "fa-circle-exclamation");
+    setButtonBusy(button, true, "A guardar...");
+    try {
+        const file = $("collaboratorPhoto").files[0];
+        if (file) {
+            if (!CLOUDINARY_ENABLED) throw new Error("Configure primeiro o Cloudinary no início deste HTML.");
+            const uploads = await uploadFileToBoth(file, "studiodevitto/collaborators");
+            data.photo = uploads.cloudinary.url;
+            data.photoCloudinary = uploads.cloudinary.url;
+            data.photoFirebase = uploads.firebase.url;
+            data.photoStoragePath = uploads.firebase.path;
+        } else {
+            data.photo = $("collaboratorPhotoPreview").src || "";
         }
-
-
-        /* =========================================================
-           SIDEBAR MOBILE
-        ========================================================== */
-
-        function openSidebar() {
-            sidebar.classList.add("open");
-            sidebarOverlay.classList.add("show");
-        }
-
-        function closeSidebar() {
-            sidebar.classList.remove("open");
-            sidebarOverlay.classList.remove("show");
-        }
-
-        mobileMenuBtn.addEventListener("click", openSidebar);
-        sidebarOverlay.addEventListener("click", closeSidebar);
-
-
-        /* =========================================================
-           NAVEGAÇÃO
-        ========================================================== */
-
-        const sectionTitles = {
-            dashboard: "Dashboard",
-            collaborators: "Colaboradores",
-            gallery: "Galeria / Portfólio",
-            company: "Dados da empresa",
-            branding: "Logo e identidade",
-            social: "Redes sociais",
-            seo: "SEO / Google",
-            music: "Playlist",
-            admins: "Administradores",
-            system: "Configurações"
-        };
-
-        function openSection(sectionName) {
-            document.querySelectorAll(".nav-item").forEach(function(button) {
-                button.classList.toggle("active", button.dataset.section === sectionName);
-            });
-            document.querySelectorAll(".section").forEach(function(section) {
-                section.classList.toggle("active", section.id === `section-${sectionName}`);
-            });
-            pageTitle.textContent = sectionTitles[sectionName] || "Dashboard";
-            closeSidebar();
-            window.scrollTo({ top: 0, behavior: "smooth" });
-        }
-
-        document.querySelectorAll(".nav-item").forEach(function(button) {
-            button.addEventListener("click", function() {
-                openSection(button.dataset.section);
-            });
-        });
-
-        document.querySelectorAll("[data-section-target]").forEach(function(button) {
-            button.addEventListener("click", function() {
-                openSection(button.dataset.sectionTarget);
-            });
-        });
-
-
-        /* =========================================================
-           TOAST
-        ========================================================== */
-
-        function showToast(title, message, icon = "fa-circle-check") {
-            const toast = document.createElement("div");
-            toast.className = "toast";
-            toast.innerHTML = `
-                <div class="toast-icon"><i class="fa-solid ${icon}"></i></div>
-                <div class="toast-content">
-                    <strong>${escapeHtml(title)}</strong>
-                    <span>${escapeHtml(message)}</span>
-                </div>
-            `;
-            toastContainer.appendChild(toast);
-            setTimeout(function() {
-                toast.remove();
-            }, 4200);
-        }
-
-        function escapeHtml(value) {
-            return String(value)
-                .replaceAll("&", "&amp;")
-                .replaceAll("<", "&lt;")
-                .replaceAll(">", "&gt;")
-                .replaceAll('"', "&quot;")
-                .replaceAll("'", "&#039;");
-        }
-
-
-        /* =========================================================
-           MODAL
-        ========================================================== */
-
-        function openModal(element) {
-            element.classList.add("open");
-            element.setAttribute("aria-hidden", "false");
-            document.body.classList.add("modal-open");
-        }
-
-        function closeModal(element) {
-            element.classList.remove("open");
-            element.setAttribute("aria-hidden", "true");
-            document.body.classList.remove("modal-open");
-        }
-
-        document.querySelectorAll("[data-close-modal]").forEach(function(button) {
-            button.addEventListener("click", function() {
-                const modal = document.getElementById(button.dataset.closeModal);
-                closeModal(modal);
-            });
-        });
-
-        document.querySelectorAll(".modal").forEach(function(modal) {
-            modal.addEventListener("click", function(event) {
-                if (event.target === modal) closeModal(modal);
-            });
-        });
-
-        document.addEventListener("keydown", function(event) {
-            if (event.key !== "Escape") return;
-            document.querySelectorAll(".modal.open").forEach(function(modal) {
-                closeModal(modal);
-            });
-        });
-
-
-
-        /* =========================================================
-           FIREBASE SAVE HELPERS
-        ========================================================== */
-
-        async function saveSettingDocument(docId, data) {
-            const payload = {
-                ...data,
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            };
-            await db.collection("settings").doc(docId).set(payload, { merge: true });
-            return payload;
-        }
-
-        async function addActivity(type, message) {
-            try {
-                await db.collection("activities").add({
-                    type: type,
-                    message: message,
-                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                });
-            } catch (error) {
-                console.warn("Não foi possível registrar atividade:", error);
-            }
-        }
-
-        function updateAllLogoElements(url) {
-            if (!url) return;
-
-            const ids = ["sidebarLogo", "logoPreview", "loginLogo"];
-            ids.forEach(function(id) {
-                const element = document.getElementById(id);
-                if (element) element.src = url;
-            });
-
-            document.querySelectorAll("img[data-site-logo]").forEach(function(img) {
-                img.src = url;
-            });
-        }
-
-        function restoreCachedLogo() {
-            const cached = localStorage.getItem("devitto_logo_url");
-            if (cached) updateAllLogoElements(cached);
-        }
-
-        restoreCachedLogo();
-
-        /* =========================================================
-           LOAD ALL DATA
-        ========================================================== */
-
-        function loadAllData() {
-            console.log("🔄 Carregando dados do Firebase...");
-            loadCollaborators();
-            loadMedia();
-            loadMusic();
-            loadCompany();
-            loadSocial();
-            loadSeo();
-            loadAdmins();
-            loadBranding();
-        }
-
-
-        /* =========================================================
-           COLLABORATORS
-        ========================================================== */
-
-        function loadCollaborators() {
-            db.collection("collaborators")
-                .orderBy("name")
-                .get()
-                .then(function(snapshot) {
-                    collaboratorsCache = [];
-                    snapshot.forEach(function(doc) {
-                        collaboratorsCache.push({ id: doc.id, ...doc.data() });
-                    });
-                    renderCollaborators(collaboratorsCache);
-                    updateStats();
-                    console.log("✅ Colaboradores carregados:", collaboratorsCache.length);
-                })
-                .catch(function(error) {
-                    console.error("❌ Erro ao carregar colaboradores:", error);
-                    showToast("Erro", "Não foi possível carregar os colaboradores.", "fa-triangle-exclamation");
-                });
-        }
-
-        function renderCollaborators(collaborators) {
-            const grid = document.getElementById("collaboratorsGrid");
-            const search = document.getElementById("collaboratorSearch").value.toLowerCase().trim();
-            const filter = document.getElementById("collaboratorFilter").value;
-
-            let filtered = collaborators;
-
-            if (search) {
-                filtered = filtered.filter(c => c.name.toLowerCase().includes(search));
-            }
-            if (filter !== "all") {
-                filtered = filtered.filter(c => c.status === filter);
-            }
-
-            if (filtered.length === 0) {
-                grid.innerHTML = `
-                    <div class="empty-state" style="grid-column:1/-1">
-                        <i class="fa-solid fa-users"></i>
-                        <h3>Nenhum colaborador encontrado</h3>
-                        <p>Clique em "Novo colaborador" para adicionar.</p>
-                    </div>
-                `;
-                return;
-            }
-
-            grid.innerHTML = filtered.map(function(c) {
-                return `
-                    <article class="glass-card collaborator-card" data-id="${c.id}" data-name="${c.name}" data-status="${c.status || 'active'}">
-                        <div class="collaborator-cover"></div>
-                        <div class="collaborator-body">
-                            <img src="${c.photo || 'img/Logo-Studio-DeVitto.png'}" alt="${c.name}" class="collaborator-avatar">
-                            <h3 class="collaborator-name">${c.name}</h3>
-                            <div class="collaborator-role">${c.role || ''}</div>
-                            <div class="collaborator-info">
-                                <div class="collaborator-info-row">
-                                    <i class="fa-solid fa-phone"></i>
-                                    <span>${c.phone || 'Sem telefone'}</span>
-                                </div>
-                                <div class="collaborator-info-row">
-                                    <i class="fa-solid fa-envelope"></i>
-                                    <span>${c.email || 'Sem email'}</span>
-                                </div>
-                            </div>
-                            <div style="margin-top:13px">
-                                <span class="status ${c.status || 'active'}">
-                                    ${c.status === 'active' ? 'Ativo' : 'Inativo'}
-                                </span>
-                            </div>
-                            <div class="collaborator-actions">
-                                <button class="small-btn primary" data-edit-collaborator="${c.id}">
-                                    <i class="fa-solid fa-pen"></i> Editar
-                                </button>
-                                <button class="small-btn danger" data-delete-collaborator="${c.id}">
-                                    <i class="fa-solid fa-trash"></i> Apagar
-                                </button>
-                            </div>
-                        </div>
-                    </article>
-                `;
-            }).join("");
-
-            grid.querySelectorAll("[data-edit-collaborator]").forEach(function(btn) {
-                btn.addEventListener("click", function() {
-                    openCollaboratorModal(btn.dataset.editCollaborator);
-                });
-            });
-
-            grid.querySelectorAll("[data-delete-collaborator]").forEach(function(btn) {
-                btn.addEventListener("click", function() {
-                    deleteCollaborator(btn.dataset.deleteCollaborator);
-                });
-            });
-        }
-
-        document.getElementById("collaboratorSearch").addEventListener("input", function() {
-            renderCollaborators(collaboratorsCache);
-        });
-        document.getElementById("collaboratorFilter").addEventListener("change", function() {
-            renderCollaborators(collaboratorsCache);
-        });
-
-        function openCollaboratorModal(id = null) {
-            editingCollaboratorId = id;
-            const modal = document.getElementById("collaboratorModal");
-            const title = document.getElementById("collaboratorModalTitle");
-            const preview = document.getElementById("collaboratorPhotoPreview");
-
-            document.getElementById("collaboratorForm").reset();
-            preview.src = "img/Logo-Studio-DeVitto.png";
-            document.getElementById("collaboratorPhotoUrl").value = "";
-
-            if (id) {
-                const c = collaboratorsCache.find(item => item.id === id);
-                if (!c) return;
-
-                title.textContent = "Editar colaborador";
-                document.getElementById("collaboratorName").value = c.name || "";
-                document.getElementById("collaboratorRole").value = c.role || "";
-                document.getElementById("collaboratorEmail").value = c.email || "";
-                document.getElementById("collaboratorPhone").value = c.phone || "";
-                document.getElementById("collaboratorBio").value = c.bio || "";
-                document.getElementById("collaboratorServices").value = c.services || "";
-                document.getElementById("collaboratorInstagram").value = c.instagram || "";
-                document.getElementById("collaboratorFacebook").value = c.facebook || "";
-                document.getElementById("collaboratorStatus").value = c.status || "active";
-                document.getElementById("collaboratorAccess").value = c.access || "none";
-                if (c.photo) preview.src = c.photo;
-            } else {
-                title.textContent = "Novo colaborador";
-                document.getElementById("collaboratorStatus").value = "active";
-                document.getElementById("collaboratorAccess").value = "none";
-            }
-
-            openModal(modal);
-        }
-
-        // Foto por URL do colaborador
-        document.getElementById("collaboratorPhotoUrlBtn").addEventListener("click", function() {
-            const url = document.getElementById("collaboratorPhotoUrl").value.trim();
-            if (url) {
-                document.getElementById("collaboratorPhotoPreview").src = url;
-                document.getElementById("collaboratorPhotoUrl").value = "";
-                showToast("Imagem carregada", "URL da imagem aplicado.", "fa-check");
-            } else {
-                showToast("Aviso", "Insira uma URL válida.", "fa-triangle-exclamation");
-            }
-        });
-
-        document.getElementById("collaboratorPhoto").addEventListener("change", function(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            if (!validateFile(file, ["image/jpeg", "image/png", "image/webp"])) {
-                event.target.value = "";
-                return;
-            }
-            const reader = new FileReader();
-            reader.onload = function(loadEvent) {
-                document.getElementById("collaboratorPhotoPreview").src = loadEvent.target.result;
-            };
-            reader.readAsDataURL(file);
-        });
-
-        document.getElementById("collaboratorForm").addEventListener("submit", async function(event) {
-            event.preventDefault();
-
-            const form = document.getElementById("collaboratorForm");
-            const saveButton = form.querySelector('button[type="submit"]');
-            const originalButton = saveButton ? saveButton.innerHTML : "";
-
-            const data = {
-                name: document.getElementById("collaboratorName").value.trim(),
-                role: document.getElementById("collaboratorRole").value.trim(),
-                email: document.getElementById("collaboratorEmail").value.trim(),
-                phone: document.getElementById("collaboratorPhone").value.trim(),
-                bio: document.getElementById("collaboratorBio").value.trim(),
-                services: document.getElementById("collaboratorServices").value.trim(),
-                instagram: document.getElementById("collaboratorInstagram").value.trim(),
-                facebook: document.getElementById("collaboratorFacebook").value.trim(),
-                status: document.getElementById("collaboratorStatus").value,
-                access: document.getElementById("collaboratorAccess").value,
-                photo: document.getElementById("collaboratorPhotoPreview").src
-            };
-
-            if (!data.name || !data.role) {
-                showToast("Campos obrigatórios", "Preencha o nome e a função.", "fa-circle-exclamation");
-                return;
-            }
-
-            try {
-                if (saveButton) {
-                    saveButton.disabled = true;
-                    saveButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> A guardar...';
-                }
-
-                const photoInput = document.getElementById("collaboratorPhoto");
-                const photoFile = photoInput.files && photoInput.files[0] ? photoInput.files[0] : null;
-
-                if (photoFile) {
-                    if (!validateFile(photoFile, ["image/jpeg", "image/png", "image/webp"])) {
-                        throw new Error("A fotografia tem um formato inválido ou ultrapassa o limite permitido.");
-                    }
-
-                    const safeName = photoFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-                    const storageRef = storage.ref().child(`collaborators/${Date.now()}_${safeName}`);
-                    const snapshot = await storageRef.put(photoFile);
-                    data.photo = await snapshot.ref.getDownloadURL();
-                }
-
-                await saveCollaboratorToFirestore(data);
-
-                if (photoInput) photoInput.value = "";
-            } catch (error) {
-                console.error("Erro ao guardar colaborador:", error);
-                showToast("Erro ao guardar", error.message || "Não foi possível guardar o colaborador.", "fa-triangle-exclamation");
-            } finally {
-                if (saveButton) {
-                    saveButton.disabled = false;
-                    saveButton.innerHTML = originalButton;
-                }
-            }
-        });
-
-        async function saveCollaboratorToFirestore(data) {
-            const isEdit = editingCollaboratorId !== null;
-            const ref = isEdit
-                ? db.collection("collaborators").doc(editingCollaboratorId)
-                : db.collection("collaborators").doc();
-
-            const payload = {
-                ...data,
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            };
-
-            if (!isEdit) {
-                payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-            }
-
-            await ref.set(payload, { merge: true });
-
-            await addActivity(
-                isEdit ? "collaborator_edit" : "collaborator_add",
-                `${data.name} foi ${isEdit ? "atualizado" : "adicionado"}.`
-            );
-
-            showToast(
-                isEdit ? "Colaborador atualizado" : "Colaborador criado",
-                `${data.name} foi ${isEdit ? "atualizado" : "adicionado"}.`,
-                "fa-user-check"
-            );
-
-            closeModal(document.getElementById("collaboratorModal"));
-            loadCollaborators();
-        }
-
-        function deleteCollaborator(id) {
-            const c = collaboratorsCache.find(item => item.id === id);
-            if (!c) return;
-            if (!confirm(`Tem certeza que deseja apagar ${c.name}?`)) return;
-
-            db.collection("collaborators").doc(id).delete()
-                .then(function() {
-                    showToast("Colaborador apagado", `${c.name} foi removido.`, "fa-trash");
-                    loadCollaborators();
-                })
-                .catch(function(error) {
-                    showToast("Erro", "Não foi possível apagar: " + error.message, "fa-triangle-exclamation");
-                    console.error(error);
-                });
-        }
-
-
-        /* =========================================================
-           MEDIA / GALERIA
-        ========================================================== */
-
-        function loadMedia() {
-            db.collection("media")
-                .orderBy("createdAt", "desc")
-                .get()
-                .then(function(snapshot) {
-                    mediaCache = [];
-                    snapshot.forEach(function(doc) {
-                        mediaCache.push({ id: doc.id, ...doc.data() });
-                    });
-                    renderMedia(mediaCache);
-                    updateStats();
-                    console.log("✅ Mídia carregada:", mediaCache.length);
-                })
-                .catch(function(error) {
-                    console.error("❌ Erro ao carregar mídia:", error);
-                });
-        }
-
-        function renderMedia(media) {
-            const grid = document.getElementById("mediaGrid");
-            const search = document.getElementById("mediaSearch").value.toLowerCase().trim();
-            const filter = document.getElementById("mediaFilter").value;
-
-            let filtered = media;
-
-            if (search) {
-                filtered = filtered.filter(m => (m.title || "").toLowerCase().includes(search));
-            }
-            if (filter !== "all") {
-                filtered = filtered.filter(m => m.type === filter);
-            }
-
-            if (filtered.length === 0) {
-                grid.innerHTML = `
-                    <div class="empty-state" style="grid-column:1/-1">
-                        <i class="fa-solid fa-images"></i>
-                        <h3>Nenhum ficheiro na galeria</h3>
-                        <p>Faça upload de fotografias ou vídeos.</p>
-                    </div>
-                `;
-                return;
-            }
-
-            grid.innerHTML = filtered.map(function(m) {
-                const isVideo = m.type === 'video';
-                const icon = isVideo ? 'fa-solid fa-video' : 'fa-solid fa-image';
-                const label = isVideo ? 'Vídeo' : 'Foto';
-
-                return `
-                    <article class="glass-card media-card" data-id="${m.id}" data-type="${m.type}" data-title="${m.title || ''}">
-                        <div class="media-thumb">
-                            ${isVideo ? `
-                                <video style="width:100%;height:100%;object-fit:cover" muted>
-                                    <source src="${m.url}" type="video/mp4">
-                                </video>
-                            ` : `
-                                <img src="${m.url}" alt="${m.title || ''}" loading="lazy">
-                            `}
-                            <span class="media-type"><i class="${icon}"></i> ${label}</span>
-                            <div class="media-overlay">
-                                <div class="media-overlay-actions">
-                                    <button title="Visualizar" class="preview-media" data-src="${m.url}">
-                                        <i class="fa-solid fa-eye"></i>
-                                    </button>
-                                    <button title="Eliminar" class="delete-media" data-id="${m.id}">
-                                        <i class="fa-solid fa-trash"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="media-info">
-                            <strong>${m.title || 'Sem título'}</strong>
-                            <span>${m.category || 'Galeria'}</span>
-                        </div>
-                    </article>
-                `;
-            }).join("");
-
-            grid.querySelectorAll(".preview-media").forEach(function(btn) {
-                btn.addEventListener("click", function() {
-                    const src = btn.dataset.src;
-                    document.getElementById("mediaPreviewImage").src = src;
-                    openModal(document.getElementById("mediaPreviewModal"));
-                });
-            });
-
-            grid.querySelectorAll(".delete-media").forEach(function(btn) {
-                btn.addEventListener("click", function() {
-                    deleteMedia(btn.dataset.id);
-                });
-            });
-        }
-
-        document.getElementById("mediaSearch").addEventListener("input", function() {
-            renderMedia(mediaCache);
-        });
-        document.getElementById("mediaFilter").addEventListener("change", function() {
-            renderMedia(mediaCache);
-        });
-
-        // Upload por URL
-        document.getElementById("mediaUrlUploadBtn").addEventListener("click", function() {
-            const url = document.getElementById("mediaUrlInput").value.trim();
-            if (!url) {
-                showToast("Aviso", "Insira uma URL válida.", "fa-triangle-exclamation");
-                return;
-            }
-
-            const type = url.match(/\.(mp4|mov|webm)$/i) ? 'video' : 'image';
-            const title = url.split('/').pop().replace(/\.[^.]+$/, '') || 'Sem título';
-
-            db.collection("media").add({
-                url: url,
-                title: title,
-                type: type,
-                category: 'Galeria',
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            })
-            .then(function() {
-                showToast("Adicionado", "URL adicionado à galeria.", "fa-link");
-                document.getElementById("mediaUrlInput").value = "";
-                loadMedia();
-            })
-            .catch(function(error) {
-                showToast("Erro", "Não foi possível adicionar: " + error.message, "fa-triangle-exclamation");
-                console.error(error);
-            });
-        });
-
-        // Upload por ficheiro
-        const mediaUpload = document.getElementById("mediaUpload");
-        const uploadZone = document.getElementById("uploadZone");
-        const progressContainer = document.getElementById("uploadProgressContainer");
-        const progressFill = document.getElementById("uploadProgressFill");
-        const progressText = document.getElementById("uploadProgressText");
-
-        function validateFile(file, allowedTypes = []) {
-            if (file.size > 10 * 1024 * 1024) {
-                showToast("Ficheiro demasiado grande", "O limite máximo é 10 MB.", "fa-triangle-exclamation");
-                return false;
-            }
-            if (allowedTypes.length && !allowedTypes.includes(file.type)) {
-                showToast("Formato não suportado", "Escolha um formato permitido.", "fa-circle-exclamation");
-                return false;
-            }
-            return true;
-        }
-
-        async function uploadMediaFile(file) {
-            const timestamp = Date.now();
-            const fileName = `${timestamp}_${file.name}`;
-            const storageRef = storage.ref(`media/${fileName}`);
-
-            try {
-                const snapshot = await storageRef.put(file);
-                const url = await storageRef.getDownloadURL();
-
-                const type = file.type.startsWith('video/') ? 'video' : 'image';
-
-                await db.collection("media").add({
-                    url: url,
-                    title: file.name.replace(/\.[^.]+$/, ''),
-                    type: type,
-                    category: 'Galeria',
-                    fileName: file.name,
-                    fileSize: file.size,
-                    mimeType: file.type,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
-
-                return true;
-            } catch (error) {
-                console.error("Erro no upload:", error);
-                return false;
-            }
-        }
-
-        mediaUpload.addEventListener("change", async function(event) {
-            const files = Array.from(event.target.files);
-            await processUploads(files);
-            event.target.value = "";
-        });
-
-        ['dragenter', 'dragover'].forEach(function(eventName) {
-            uploadZone.addEventListener(eventName, function(event) {
-                event.preventDefault();
-                uploadZone.classList.add("dragover");
-            });
-        });
-
-        ['dragleave', 'drop'].forEach(function(eventName) {
-            uploadZone.addEventListener(eventName, function(event) {
-                event.preventDefault();
-                uploadZone.classList.remove("dragover");
-            });
-        });
-
-        uploadZone.addEventListener("drop", async function(event) {
-            const files = Array.from(event.dataTransfer.files);
-            await processUploads(files);
-        });
-
-        async function processUploads(files) {
-            const validFiles = files.filter(f =>
-                validateFile(f, ["image/jpeg", "image/png", "image/webp", "video/mp4", "video/quicktime"])
-            );
-
-            if (validFiles.length === 0) return;
-
-            progressContainer.classList.add("active");
-            uploadZone.classList.add("uploading");
-
-            let successCount = 0;
-            let failCount = 0;
-
-            for (let i = 0; i < validFiles.length; i++) {
-                const file = validFiles[i];
-                progressFill.style.width = `${((i + 1) / validFiles.length) * 100}%`;
-                progressText.textContent = `A enviar ${i + 1} de ${validFiles.length}...`;
-
-                const success = await uploadMediaFile(file);
-                if (success) {
-                    successCount++;
-                } else {
-                    failCount++;
-                }
-            }
-
-            progressContainer.classList.remove("active");
-            uploadZone.classList.remove("uploading");
-            progressFill.style.width = "0%";
-
-            if (successCount > 0) {
-                showToast("Upload concluído", `${successCount} ficheiro(s) enviado(s) com sucesso.`, "fa-cloud-arrow-up");
-                loadMedia();
-            }
-            if (failCount > 0) {
-                showToast("Atenção", `${failCount} ficheiro(s) falharam.`, "fa-triangle-exclamation");
-            }
-        }
-
-        async function deleteMedia(id) {
-            if (!confirm("Tem certeza que deseja remover este ficheiro?")) return;
-
-            const item = mediaCache.find(m => m.id === id);
-            if (!item) return;
-
-            try {
-                await db.collection("media").doc(id).delete();
-
-                if (item.url && item.url.includes('firebasestorage.googleapis.com')) {
-                    try {
-                        const ref = storage.refFromURL(item.url);
-                        await ref.delete();
-                    } catch (e) {
-                        console.warn("Não foi possível apagar do Storage:", e);
-                    }
-                }
-
-                showToast("Ficheiro removido", "O item foi apagado.", "fa-trash");
-                loadMedia();
-            } catch (error) {
-                showToast("Erro", "Não foi possível apagar: " + error.message, "fa-triangle-exclamation");
-                console.error(error);
-            }
-        }
-
-
-        /* =========================================================
-           COMPANY - SALVAR FUNCIONAL
-        ========================================================== */
-
-        function loadCompany() {
-            db.collection("settings").doc("company").get()
-                .then(function(doc) {
-                    if (doc.exists) {
-                        const data = doc.data();
-                        updateCompanyForm(data);
-                    }
-                })
-                .catch(function(error) {
-                    console.error("Erro ao carregar dados da empresa:", error);
-                });
-        }
-
-        function updateCompanyForm(data) {
-            if (!data) return;
-            document.getElementById("companyName").value = data.name || "Studio DeVitto";
-            document.getElementById("companyCategory").value = data.category || "Cabeleireiro & Estética";
-            document.getElementById("companyDescription").value = data.description || "";
-            document.getElementById("companyPhone").value = data.phone || "+351 927 431 517";
-            document.getElementById("companyEmail").value = data.email || "vittor@studiodevitto.com";
-            document.getElementById("companyAddress").value = data.address || "Rua de Macau, 6A, Amadora, Lisboa, Portugal";
-            document.getElementById("companyHours").value = data.hours || "Segunda a sábado · 09:30–20:00";
-            document.getElementById("companyMaps").value = data.maps || "https://maps.app.goo.gl/yPjHhN6FUP8zDXhv6";
-
-            document.getElementById("companyPreviewName").textContent = data.name || "Studio DeVitto";
-            document.getElementById("companyPreviewDescription").textContent = data.description || "Cabeleireiro & Estética em Amadora, Lisboa.";
-            document.getElementById("companyPreviewPhone").textContent = data.phone || "+351 927 431 517";
-        }
-
-        document.getElementById("saveCompany").addEventListener("click", async function(event) {
-            event.preventDefault();
-            const button = this;
-            const original = button.innerHTML;
-            try {
-                button.disabled = true;
-                button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> A guardar...';
-
-                const data = {
-                    name: document.getElementById("companyName").value.trim(),
-                    category: document.getElementById("companyCategory").value.trim(),
-                    description: document.getElementById("companyDescription").value.trim(),
-                    phone: document.getElementById("companyPhone").value.trim(),
-                    email: document.getElementById("companyEmail").value.trim(),
-                    address: document.getElementById("companyAddress").value.trim(),
-                    hours: document.getElementById("companyHours").value.trim(),
-                    maps: document.getElementById("companyMaps").value.trim()
-                };
-
-                if (!data.name) throw new Error("O nome da empresa é obrigatório.");
-
-                await saveSettingDocument("company", data);
-                await addActivity("company_update", "Os dados da empresa foram atualizados.");
-                updateCompanyForm(data);
-                showToast("Dados guardados", "As informações da empresa foram salvas no Firebase.", "fa-circle-check");
-            } catch (error) {
-                console.error("Erro ao salvar empresa:", error);
-                showToast("Erro ao guardar", error.message || "Não foi possível guardar os dados.", "fa-triangle-exclamation");
-            } finally {
-                button.disabled = false;
-                button.innerHTML = original;
-            }
-        });
-
-        document.getElementById("companyName").addEventListener("input", function() {
-            document.getElementById("companyPreviewName").textContent = this.value || "Studio DeVitto";
-        });
-        document.getElementById("companyDescription").addEventListener("input", function() {
-            document.getElementById("companyPreviewDescription").textContent = this.value || "Cabeleireiro & Estética em Amadora, Lisboa.";
-        });
-        document.getElementById("companyPhone").addEventListener("input", function() {
-            document.getElementById("companyPreviewPhone").textContent = this.value || "+351 927 431 517";
-        });
-
-
-        /* =========================================================
-           BRANDING / LOGO - SALVAR FUNCIONAL
-        ========================================================== */
-
-        function loadBranding() {
-            db.collection("settings").doc("branding").get()
-                .then(function(doc) {
-                    if (doc.exists) {
-                        const data = doc.data();
-                        if (data.logoUrl) {
-                            updateAllLogoElements(data.logoUrl);
-                            localStorage.setItem("devitto_logo_url", data.logoUrl);
-                        }
-                    }
-                })
-                .catch(function(error) {
-                    console.error("Erro ao carregar branding:", error);
-                });
-        }
-
-        document.getElementById("logoUpload").addEventListener("change", function(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            if (!validateFile(file, ["image/png", "image/jpeg", "image/webp"])) {
-                event.target.value = "";
-                return;
-            }
-            const reader = new FileReader();
-            reader.onload = function(loadEvent) {
-                document.getElementById("logoPreview").src = loadEvent.target.result;
-                showToast("Logo carregado", "Pré-visualização atualizada.", "fa-image");
-            };
-            reader.readAsDataURL(file);
-        });
-
-        document.getElementById("logoUrlBtn").addEventListener("click", function() {
-            const url = document.getElementById("logoUrlInput").value.trim();
-            if (url) {
-                document.getElementById("logoPreview").src = url;
-                document.getElementById("logoUrlInput").value = "";
-                showToast("Logo carregado", "URL do logótipo aplicado.", "fa-link");
-            } else {
-                showToast("Aviso", "Insira uma URL válida.", "fa-triangle-exclamation");
-            }
-        });
-
-        document.getElementById("saveBranding").addEventListener("click", async function(event) {
-            event.preventDefault();
-
-            const button = this;
-            const original = button.innerHTML;
-            const input = document.getElementById("logoUpload");
-            const preview = document.getElementById("logoPreview");
-            const logoFile = input.files && input.files[0] ? input.files[0] : null;
-
-            try {
-                button.disabled = true;
-                button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> A enviar logo...';
-
-                let logoUrl = null;
-                let storagePath = null;
-
-                if (logoFile) {
-                    if (!validateFile(logoFile, ["image/png", "image/jpeg", "image/webp"])) {
-                        throw new Error("Escolha uma imagem PNG, JPG ou WEBP válida, até 10 MB.");
-                    }
-
-                    const extension = (logoFile.name.split(".").pop() || "png").toLowerCase();
-                    const safeName = logoFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-                    const fileName = `logo_${Date.now()}_${safeName || "identidade"}.${extension}`;
-                    const storageRef = storage.ref().child(`branding/${fileName}`);
-
-                    const snapshot = await storageRef.put(logoFile, {
-                        contentType: logoFile.type,
-                        cacheControl: "public,max-age=31536000"
-                    });
-
-                    logoUrl = await snapshot.ref.getDownloadURL();
-                    storagePath = snapshot.ref.fullPath;
-                } else {
-                    const current = preview.src || "";
-                    if (current && !current.includes("Logo-Studio-DeVitto.png")) {
-                        logoUrl = current;
-                    }
-                }
-
-                if (!logoUrl) {
-                    throw new Error("Selecione uma imagem ou informe uma URL antes de guardar.");
-                }
-
-                await saveSettingDocument("branding", {
-                    logoUrl: logoUrl,
-                    storagePath: storagePath || null
-                });
-
-                updateAllLogoElements(logoUrl);
-                localStorage.setItem("devitto_logo_url", logoUrl);
-                input.value = "";
-
-                await addActivity("branding_update", "O logótipo e a identidade visual foram atualizados.");
-                showToast("Identidade guardada", "A nova logo foi enviada ao Storage e registrada no Firestore.", "fa-circle-check");
-            } catch (error) {
-                console.error("Erro ao guardar identidade:", error);
-                showToast("Erro ao guardar identidade", error.message || "Não foi possível enviar a logo.", "fa-triangle-exclamation");
-            } finally {
-                button.disabled = false;
-                button.innerHTML = original;
-            }
-        });
-
-
-        /* =========================================================
-           SOCIAL - SALVAR FUNCIONAL
-        ========================================================== */
-
-        function loadSocial() {
-            db.collection("settings").doc("social").get()
-                .then(function(doc) {
-                    if (doc.exists) {
-                        const data = doc.data();
-                        document.getElementById("instagramUrl").value = data.instagram || "";
-                        document.getElementById("facebookUrl").value = data.facebook || "";
-                        document.getElementById("whatsappUrl").value = data.whatsapp || "";
-                        document.getElementById("bookingUrl").value = data.booking || "";
-                    }
-                })
-                .catch(function(error) {
-                    console.error("Erro ao carregar redes sociais:", error);
-                });
-        }
-
-        document.getElementById("saveSocial").addEventListener("click", async function(event) {
-            event.preventDefault();
-            const button = this;
-            const original = button.innerHTML;
-            try {
-                button.disabled = true;
-                button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> A guardar...';
-                const data = {
-                    instagram: document.getElementById("instagramUrl").value.trim(),
-                    facebook: document.getElementById("facebookUrl").value.trim(),
-                    whatsapp: document.getElementById("whatsappUrl").value.trim(),
-                    booking: document.getElementById("bookingUrl").value.trim()
-                };
-                await saveSettingDocument("social", data);
-                await addActivity("social_update", "As redes sociais foram atualizadas.");
-                showToast("Redes sociais guardadas", "Os links foram salvos no Firebase.", "fa-share-nodes");
-            } catch (error) {
-                console.error("Erro ao salvar redes sociais:", error);
-                showToast("Erro ao guardar", error.message || "Não foi possível guardar os links.", "fa-triangle-exclamation");
-            } finally {
-                button.disabled = false;
-                button.innerHTML = original;
-            }
-        });
-
-        });
-
-
-        /* =========================================================
-           SEO - SALVAR FUNCIONAL
-        ========================================================== */
-
-        function loadSeo() {
-            db.collection("settings").doc("seo").get()
-                .then(function(doc) {
-                    if (doc.exists) {
-                        const data = doc.data();
-                        document.getElementById("seoTitle").value = data.title || "";
-                        document.getElementById("seoDescription").value = data.description || "";
-                        document.getElementById("googleAnalytics").value = data.analytics || "";
-                        document.getElementById("searchConsole").value = data.searchConsole || "";
-                    }
-                })
-                .catch(function(error) {
-                    console.error("Erro ao carregar SEO:", error);
-                });
-        }
-
-        document.getElementById("saveSeo").addEventListener("click", async function(event) {
-            event.preventDefault();
-            const button = this;
-            const original = button.innerHTML;
-            try {
-                button.disabled = true;
-                button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> A guardar...';
-                const data = {
-                    title: document.getElementById("seoTitle").value.trim(),
-                    description: document.getElementById("seoDescription").value.trim(),
-                    analytics: document.getElementById("googleAnalytics").value.trim(),
-                    searchConsole: document.getElementById("searchConsole").value.trim()
-                };
-                await saveSettingDocument("seo", data);
-                await addActivity("seo_update", "As configurações de SEO foram atualizadas.");
-                showToast("SEO guardado", "As configurações foram salvas no Firebase.", "fa-magnifying-glass-chart");
-            } catch (error) {
-                console.error("Erro ao salvar SEO:", error);
-                showToast("Erro ao guardar", error.message || "Não foi possível guardar o SEO.", "fa-triangle-exclamation");
-            } finally {
-                button.disabled = false;
-                button.innerHTML = original;
-            }
-        });
-
-        });
-
-
-        /* =========================================================
-           PLAYLIST / MÚSICA - SALVAR FUNCIONAL
-        ========================================================== */
-
-        function loadMusic() {
-            db.collection("music")
-                .orderBy("createdAt", "desc")
-                .get()
-                .then(function(snapshot) {
-                    musicCache = [];
-                    snapshot.forEach(function(doc) {
-                        musicCache.push({ id: doc.id, ...doc.data() });
-                    });
-                    renderMusic(musicCache);
-                    updateStats();
-                    console.log("✅ Música carregada:", musicCache.length);
-                })
-                .catch(function(error) {
-                    console.error("Erro ao carregar playlist:", error);
-                });
-        }
-
-        function renderMusic(musicList) {
-            const container = document.getElementById("musicPlaylist");
-
-            if (musicList.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state" style="padding:20px;">
-                        <i class="fa-solid fa-music"></i>
-                        <h3>Playlist vazia</h3>
-                        <p>Adicione músicas por upload ou URL.</p>
-                    </div>
-                `;
-                return;
-            }
-
-            container.innerHTML = musicList.map(function(m) {
-                const icon = m.type === 'video' ? 'fa-solid fa-video' : 'fa-solid fa-music';
-                return `
-                    <div class="music-item" data-id="${m.id}">
-                        <div class="music-item-info">
-                            <i class="${icon}"></i>
-                            <strong>${m.title || 'Sem título'}</strong>
-                            <span>${m.type || 'áudio'}</span>
-                        </div>
-                        <div class="music-item-actions">
-                            <button class="play-btn" data-play="${m.id}" title="Ouvir">
-                                <i class="fa-solid fa-play"></i>
-                            </button>
-                            <button class="delete-btn" data-delete-music="${m.id}" title="Remover">
-                                <i class="fa-solid fa-trash"></i>
-                            </button>
-                        </div>
-                    </div>
-                `;
-            }).join("");
-
-            container.querySelectorAll("[data-play]").forEach(function(btn) {
-                btn.addEventListener("click", function() {
-                    const id = btn.dataset.play;
-                    const item = musicCache.find(m => m.id === id);
-                    if (item && item.url) {
-                        const audio = new Audio(item.url);
-                        audio.play().catch(function() {
-                            showToast("Aviso", "Não foi possível reproduzir.", "fa-triangle-exclamation");
-                        });
-                        showToast("🎵 A reproduzir", item.title || "Música", "fa-play");
-                    }
-                });
-            });
-
-            container.querySelectorAll("[data-delete-music]").forEach(function(btn) {
-                btn.addEventListener("click", function() {
-                    deleteMusic(btn.dataset.deleteMusic);
-                });
-            });
-        }
-
-        document.getElementById("musicUpload").addEventListener("change", function(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            if (file.size > 10 * 1024 * 1024) {
-                showToast("Ficheiro demasiado grande", "O limite máximo é 10 MB.", "fa-triangle-exclamation");
-                event.target.value = "";
-                return;
-            }
-
-            const progressContainer = document.getElementById("musicProgressContainer");
-            const progressFill = document.getElementById("musicProgressFill");
-            const progressText = document.getElementById("musicProgressText");
-
-            progressContainer.classList.add("active");
-            progressFill.style.width = "0%";
-
-            const storageRef = storage.ref(`music/${Date.now()}_${file.name}`);
-            const uploadTask = storageRef.put(file);
-
-            uploadTask.on('state_changed',
-                function(snapshot) {
-                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                    progressFill.style.width = `${progress}%`;
-                    progressText.textContent = `A enviar ${Math.round(progress)}%...`;
-                },
-                function(error) {
-                    showToast("Erro", "Falha ao enviar a música: " + error.message, "fa-triangle-exclamation");
-                    console.error(error);
-                    progressContainer.classList.remove("active");
-                    event.target.value = "";
-                },
-                function() {
-                    storageRef.getDownloadURL().then(function(url) {
-                        saveMusicToFirestore({
-                            url: url,
-                            title: file.name.replace(/\.[^.]+$/, ''),
-                            type: file.type.startsWith('audio/') ? 'audio' : 'video',
-                            fileName: file.name,
-                            fileSize: file.size,
-                            mimeType: file.type
-                        }, function() {
-                            progressContainer.classList.remove("active");
-                            progressFill.style.width = "0%";
-                            event.target.value = "";
-                            loadMusic();
-                        });
-                    });
-                }
-            );
-        });
-
-        document.getElementById("musicUrlBtn").addEventListener("click", function() {
-            const url = document.getElementById("musicUrlInput").value.trim();
-            if (!url) {
-                showToast("Aviso", "Insira uma URL válida.", "fa-triangle-exclamation");
-                return;
-            }
-
-            const title = url.split('/').pop().replace(/\.[^.]+$/, '') || 'Música';
-            const type = url.match(/\.(mp4|webm|mov)$/i) ? 'video' : 'audio';
-
-            saveMusicToFirestore({
-                url: url,
-                title: title,
-                type: type,
-                source: 'url'
-            }, function() {
-                document.getElementById("musicUrlInput").value = "";
-                loadMusic();
-            });
-        });
-
-        function saveMusicToFirestore(data, callback) {
+        if (editingCollaboratorId) {
+            await db.collection("collaborators").doc(editingCollaboratorId).update(data);
+            await addActivity("collaborator_edit", `${data.name} foi atualizado.`);
+        } else {
             data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-
-            db.collection("music").add(data)
-                .then(function() {
-                    showToast("✅ Música adicionada", `${data.title} foi adicionada à playlist.`, "fa-music");
-                    if (callback) callback();
-                })
-                .catch(function(error) {
-                    showToast("❌ Erro", "Não foi possível adicionar: " + error.message, "fa-triangle-exclamation");
-                    console.error(error);
-                });
+            await db.collection("collaborators").add(data);
+            await addActivity("collaborator_add", `${data.name} foi adicionado.`);
         }
+        closeModal($("collaboratorModal"));
+        showToast("Guardado", `${data.name} foi salvo com sucesso.`, "fa-user-check");
+    } catch (error) {
+        console.error(error); showToast("Erro ao guardar", friendlyError(error), "fa-triangle-exclamation");
+    } finally { setButtonBusy(button, false); }
+});
 
-        function deleteMusic(id) {
-            if (!confirm("Tem certeza que deseja remover esta música?")) return;
+async function deleteCollaborator(id) {
+    const c = collaboratorsCache.find(x => x.id === id); if (!c) return;
+    if (!confirm(`Tem certeza que deseja apagar ${c.name}?`)) return;
+    try {
+        await db.collection("collaborators").doc(id).delete();
+        if (c.photoFirebase && isFirebaseStorageUrl(c.photoFirebase)) { try { await storage.refFromURL(c.photoFirebase).delete(); } catch (_) {} }
+        await addActivity("collaborator_delete", `${c.name} foi removido.`);
+        showToast("Colaborador apagado", `${c.name} foi removido.`, "fa-trash");
+    } catch (error) { showToast("Erro", friendlyError(error), "fa-triangle-exclamation"); }
+}
 
-            const item = musicCache.find(m => m.id === id);
-            if (!item) return;
+/* =========================================================
+   GALERIA — FIREBASE + CLOUDINARY + FIRESTORE
+========================================================= */
+function renderMedia(list) {
+    const grid = $("mediaGrid"); const search = $("mediaSearch").value.toLowerCase().trim(); const filter = $("mediaFilter").value;
+    const filtered = list.filter(m => (!search || String(m.title || "").toLowerCase().includes(search)) && (filter === "all" || m.type === filter));
+    if (!filtered.length) { grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><i class="fa-solid fa-images"></i><h3>Nenhum ficheiro na galeria</h3><p>Faça upload de fotografias ou vídeos.</p></div>`; return; }
+    grid.innerHTML = filtered.map(m => {
+        const video = m.type === "video";
+        return `<article class="glass-card media-card"><div class="media-thumb">${video ? `<video style="width:100%;height:100%;object-fit:cover" muted><source src="${escapeHtml(m.url)}"></video>` : `<img src="${escapeHtml(m.url)}" alt="${escapeHtml(m.title)}" loading="lazy">`}<span class="media-type"><i class="fa-solid ${video ? "fa-video" : "fa-image"}"></i> ${video ? "Vídeo" : "Foto"}</span><div class="media-overlay"><div class="media-overlay-actions"><button title="Visualizar" class="preview-media" data-src="${escapeHtml(m.url)}"><i class="fa-solid fa-eye"></i></button><button title="Eliminar" class="delete-media" data-id="${escapeHtml(m.id)}"><i class="fa-solid fa-trash"></i></button></div></div></div><div class="media-info"><strong>${escapeHtml(m.title || "Sem título")}</strong><span>${escapeHtml(m.category || "Galeria")}</span></div></article>`;
+    }).join("");
+    grid.querySelectorAll(".preview-media").forEach(b => b.addEventListener("click", () => { $("mediaPreviewImage").src = b.dataset.src; openModal($("mediaPreviewModal")); }));
+    grid.querySelectorAll(".delete-media").forEach(b => b.addEventListener("click", () => deleteMedia(b.dataset.id)));
+}
+$("mediaSearch").addEventListener("input", () => renderMedia(mediaCache));
+$("mediaFilter").addEventListener("change", () => renderMedia(mediaCache));
 
-            db.collection("music").doc(id).delete()
-                .then(function() {
-                    if (item.url && item.url.includes('firebasestorage.googleapis.com')) {
-                        try {
-                            const ref = storage.refFromURL(item.url);
-                            ref.delete().catch(function() {});
-                        } catch (e) {}
-                    }
-                    showToast("Música removida", `${item.title || 'Música'} foi removida.`, "fa-trash");
-                    loadMusic();
-                })
-                .catch(function(error) {
-                    showToast("Erro", "Não foi possível remover: " + error.message, "fa-triangle-exclamation");
-                    console.error(error);
-                });
+async function saveMediaUrl(url) {
+    const type = /\.(mp4|mov|webm|m4v)(\?|$)/i.test(url) ? "video" : "image";
+    const title = decodeURIComponent(url.split("/").pop()?.split("?")[0] || "Sem título").replace(/\.[^.]+$/, "");
+    await db.collection("media").add({ url, cloudinaryUrl: url, title, type, category: "Galeria", source: "url", createdAt: firebase.firestore.FieldValue.serverTimestamp(), updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+    await addActivity("media_upload", `${title} foi adicionado por URL.`);
+}
+$("mediaUrlUploadBtn").addEventListener("click", async () => {
+    const button = $("mediaUrlUploadBtn"); const url = $("mediaUrlInput").value.trim();
+    if (!/^https?:\/\//i.test(url)) return showToast("Aviso", "Insira uma URL http(s) válida.", "fa-triangle-exclamation");
+    setButtonBusy(button, true, "A guardar...");
+    try { await saveMediaUrl(url); $("mediaUrlInput").value = ""; showToast("Guardado", "URL adicionada à galeria.", "fa-link"); }
+    catch (e) { showToast("Erro", friendlyError(e), "fa-triangle-exclamation"); }
+    finally { setButtonBusy(button, false); }
+});
+
+async function uploadMediaFile(file, progressCallback) {
+    const uploads = await uploadFileToBoth(file, "studiodevitto/media", progressCallback);
+    const type = file.type.startsWith("video/") ? "video" : "image";
+    const title = file.name.replace(/\.[^.]+$/, "");
+    await db.collection("media").add({
+        url: uploads.cloudinary.url,
+        cloudinaryUrl: uploads.cloudinary.url,
+        cloudinaryPublicId: uploads.cloudinary.publicId,
+        firebaseUrl: uploads.firebase.url,
+        storagePath: uploads.firebase.path,
+        title, type, category: "Galeria", fileName: file.name, fileSize: file.size, mimeType: file.type,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(), updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    await addActivity("media_upload", `${title} foi enviado.`);
+}
+
+async function processUploads(files) {
+    const valid = files.filter(f => validateFile(f, ["image/jpeg", "image/png", "image/webp", "video/mp4", "video/quicktime", "video/webm"]));
+    if (!valid.length) return;
+    if (!CLOUDINARY_ENABLED) return showToast("Cloudinary não configurado", "Preencha os dois dados do Cloudinary no início do HTML.", "fa-triangle-exclamation");
+    const container = $("uploadProgressContainer"), fill = $("uploadProgressFill"), text = $("uploadProgressText");
+    container.classList.add("active"); $("uploadZone").classList.add("uploading");
+    let ok = 0, fail = 0;
+    for (let i = 0; i < valid.length; i++) {
+        try {
+            text.textContent = `A enviar ${i + 1} de ${valid.length}...`;
+            await uploadMediaFile(valid[i], (p, msg) => { fill.style.width = `${Math.round(((i + p / 100) / valid.length) * 100)}%`; text.textContent = msg; });
+            ok++;
+        } catch (e) { fail++; console.error(e); showToast("Erro no ficheiro", `${valid[i].name}: ${friendlyError(e)}`, "fa-triangle-exclamation"); }
+    }
+    container.classList.remove("active"); $("uploadZone").classList.remove("uploading"); fill.style.width = "0%";
+    if (ok) showToast("Upload concluído", `${ok} ficheiro(s) salvo(s) no Cloudinary, Firebase Storage e Firestore.`, "fa-cloud-arrow-up");
+    if (fail) showToast("Atenção", `${fail} ficheiro(s) falharam.`, "fa-triangle-exclamation");
+}
+
+$("mediaUpload").addEventListener("change", async e => { await processUploads(Array.from(e.target.files)); e.target.value = ""; });
+["dragenter", "dragover"].forEach(n => $("uploadZone").addEventListener(n, e => { e.preventDefault(); $("uploadZone").classList.add("dragover"); }));
+["dragleave", "drop"].forEach(n => $("uploadZone").addEventListener(n, e => { e.preventDefault(); $("uploadZone").classList.remove("dragover"); }));
+$("uploadZone").addEventListener("drop", e => processUploads(Array.from(e.dataTransfer.files)));
+
+async function deleteMedia(id) {
+    const item = mediaCache.find(x => x.id === id); if (!item || !confirm("Tem certeza que deseja remover este ficheiro?")) return;
+    try {
+        await db.collection("media").doc(id).delete();
+        if (item.firebaseUrl && isFirebaseStorageUrl(item.firebaseUrl)) { try { await storage.refFromURL(item.firebaseUrl).delete(); } catch (_) {} }
+        await addActivity("media_delete", `${item.title || "Ficheiro"} foi removido.`);
+        showToast("Ficheiro removido", "O item foi apagado do Firestore e a cópia Firebase foi removida.", "fa-trash");
+    } catch (e) { showToast("Erro", friendlyError(e), "fa-triangle-exclamation"); }
+}
+
+/* =========================================================
+   EMPRESA
+========================================================= */
+function updateCompanyForm(data) {
+    if (!data) return;
+    $("companyName").value = data.name || "Studio DeVitto"; $("companyCategory").value = data.category || "Cabeleireiro & Estética";
+    $("companyDescription").value = data.description || ""; $("companyPhone").value = data.phone || ""; $("companyEmail").value = data.email || "";
+    $("companyAddress").value = data.address || ""; $("companyHours").value = data.hours || ""; $("companyMaps").value = data.maps || "";
+    $("companyPreviewName").textContent = data.name || "Studio DeVitto"; $("companyPreviewDescription").textContent = data.description || ""; $("companyPreviewPhone").textContent = data.phone || "";
+}
+async function saveCompany() {
+    const button = $("saveCompany"); setButtonBusy(button, true, "A guardar...");
+    try {
+        const data = { name: $("companyName").value.trim(), category: $("companyCategory").value.trim(), description: $("companyDescription").value.trim(), phone: $("companyPhone").value.trim(), email: $("companyEmail").value.trim(), address: $("companyAddress").value.trim(), hours: $("companyHours").value.trim(), maps: $("companyMaps").value.trim(), updatedAt: firebase.firestore.FieldValue.serverTimestamp(), updatedBy: currentAdmin?.email || null };
+        if (!data.name) throw new Error("O nome da empresa é obrigatório.");
+        await db.collection("settings").doc("company").set(data, { merge: true }); await addActivity("company_update", "Os dados da empresa foram atualizados.");
+        showToast("Dados guardados", "As informações da empresa foram salvas no Firestore.", "fa-building");
+    } catch (e) { showToast("Erro", friendlyError(e), "fa-triangle-exclamation"); } finally { setButtonBusy(button, false); }
+}
+$("saveCompany").addEventListener("click", saveCompany);
+["companyName", "companyDescription", "companyPhone"].forEach(id => $(id).addEventListener("input", () => { $("companyPreviewName").textContent = $("companyName").value || "Studio DeVitto"; $("companyPreviewDescription").textContent = $("companyDescription").value || ""; $("companyPreviewPhone").textContent = $("companyPhone").value || ""; }));
+
+/* =========================================================
+   LOGO / IDENTIDADE — DUPLO UPLOAD OBRIGATÓRIO
+========================================================= */
+function updateAllLogoElements(url) {
+    if (!url) return;
+    ["logoPreview", "sidebarLogo", "loginLogo"].forEach(id => { if ($(id)) $(id).src = url; });
+    document.querySelectorAll("img[data-site-logo]").forEach(img => img.src = url);
+    localStorage.setItem("devitto_logo_url", url);
+}
+function updateBrandingForm(data) { if (data?.logoUrl) updateAllLogoElements(data.logoUrl); }
+$("logoUpload").addEventListener("change", e => {
+    const file = e.target.files[0]; if (!file) return;
+    if (!validateFile(file, ["image/png", "image/jpeg", "image/webp"], 5 * 1024 * 1024)) { e.target.value = ""; return; }
+    const reader = new FileReader(); reader.onload = ev => { $("logoPreview").src = ev.target.result; showToast("Logo selecionado", "Agora clique em Guardar identidade para enviar e salvar.", "fa-image"); }; reader.readAsDataURL(file);
+});
+$("logoUrlBtn").addEventListener("click", () => {
+    const url = $("logoUrlInput").value.trim();
+    if (!/^https?:\/\//i.test(url)) return showToast("Aviso", "Insira uma URL http(s) válida.", "fa-triangle-exclamation");
+    $("logoPreview").src = url; $("logoPreview").dataset.pendingUrl = url; $("logoUrlInput").value = ""; showToast("Logo selecionado", "Clique em Guardar identidade para confirmar.", "fa-link");
+});
+$("saveBranding").addEventListener("click", async () => {
+    const button = $("saveBranding"); const file = $("logoUpload").files[0]; const pendingUrl = $("logoPreview").dataset.pendingUrl || "";
+    setButtonBusy(button, true, "A guardar identidade...");
+    try {
+        let data = { updatedAt: firebase.firestore.FieldValue.serverTimestamp(), updatedBy: currentAdmin?.email || null };
+        if (file) {
+            if (!CLOUDINARY_ENABLED) throw new Error("Configure primeiro o Cloudinary no início deste HTML.");
+            const uploads = await uploadFileToBoth(file, "studiodevitto/branding", (p, msg) => { button.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${escapeHtml(msg)}`; });
+            data.logoUrl = uploads.cloudinary.url;
+            data.cloudinaryUrl = uploads.cloudinary.url;
+            data.cloudinaryPublicId = uploads.cloudinary.publicId;
+            data.firebaseUrl = uploads.firebase.url;
+            data.storagePath = uploads.firebase.path;
+            updateAllLogoElements(uploads.cloudinary.url);
+        } else if (pendingUrl) {
+            data.logoUrl = pendingUrl; data.cloudinaryUrl = pendingUrl;
+            updateAllLogoElements(pendingUrl);
+        } else {
+            const current = $("logoPreview").src;
+            if (!current || /Logo-Studio-DeVitto\.png$/i.test(current)) throw new Error("Selecione uma logo ou informe uma URL antes de guardar.");
+            data.logoUrl = current;
         }
+        await db.collection("settings").doc("branding").set(data, { merge: true });
+        delete $("logoPreview").dataset.pendingUrl;
+        $("logoUpload").value = "";
+        await addActivity("branding_update", "A identidade visual foi atualizada.");
+        showToast("Identidade guardada", "A logo foi salva no Cloudinary, Firebase Storage e Firestore e já foi atualizada no painel.", "fa-palette");
+    } catch (e) { console.error(e); showToast("Erro ao guardar identidade", friendlyError(e), "fa-triangle-exclamation"); }
+    finally { setButtonBusy(button, false); }
+});
 
-        document.getElementById("saveMusic").addEventListener("click", async function(event) {
-            event.preventDefault();
-            const button = this;
-            const original = button.innerHTML;
-            try {
-                button.disabled = true;
-                button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> A guardar...';
-                await saveSettingDocument("music", {
-                    enabled: true,
-                    updatedAtClient: new Date().toISOString()
-                });
-                await addActivity("music_update", "A configuração da playlist foi guardada.");
-                await loadMusic();
-                showToast("Playlist guardada", "A configuração da playlist foi salva no Firebase.", "fa-floppy-disk");
-            } catch (error) {
-                console.error("Erro ao salvar playlist:", error);
-                showToast("Erro ao guardar", error.message || "Não foi possível guardar a playlist.", "fa-triangle-exclamation");
-            } finally {
-                button.disabled = false;
-                button.innerHTML = original;
-            }
-        });
+/* =========================================================
+   SOCIAL / SEO
+========================================================= */
+function updateSocialForm(d) { if (!d) return; $("instagramUrl").value = d.instagram || ""; $("facebookUrl").value = d.facebook || ""; $("whatsappUrl").value = d.whatsapp || ""; $("bookingUrl").value = d.booking || ""; }
+function updateSeoForm(d) { if (!d) return; $("seoTitle").value = d.title || ""; $("seoDescription").value = d.description || ""; $("googleAnalytics").value = d.analytics || ""; $("searchConsole").value = d.searchConsole || ""; }
+async function saveSocial() { const b = $("saveSocial"); setButtonBusy(b, true); try { await db.collection("settings").doc("social").set({ instagram: $("instagramUrl").value.trim(), facebook: $("facebookUrl").value.trim(), whatsapp: $("whatsappUrl").value.trim(), booking: $("bookingUrl").value.trim(), updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true }); await addActivity("social_update", "As redes sociais foram atualizadas."); showToast("Redes guardadas", "Os links foram salvos.", "fa-share-nodes"); } catch(e) { showToast("Erro", friendlyError(e), "fa-triangle-exclamation"); } finally { setButtonBusy(b, false); } }
+async function saveSeo() { const b = $("saveSeo"); setButtonBusy(b, true); try { await db.collection("settings").doc("seo").set({ title: $("seoTitle").value.trim(), description: $("seoDescription").value.trim(), analytics: $("googleAnalytics").value.trim(), searchConsole: $("searchConsole").value.trim(), updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true }); await addActivity("seo_update", "As configurações de SEO foram atualizadas."); showToast("SEO guardado", "As configurações foram salvas.", "fa-magnifying-glass-chart"); } catch(e) { showToast("Erro", friendlyError(e), "fa-triangle-exclamation"); } finally { setButtonBusy(b, false); } }
+$("saveSocial").addEventListener("click", saveSocial); $("saveSeo").addEventListener("click", saveSeo);
 
+/* =========================================================
+   MÚSICA — UPLOAD DUPLO + FIRESTORE
+========================================================= */
+function renderMusic(list) {
+    const container = $("musicPlaylist");
+    if (!list.length) { container.innerHTML = `<div class="empty-state" style="padding:20px"><i class="fa-solid fa-music"></i><h3>Playlist vazia</h3><p>Adicione músicas por upload ou URL.</p></div>`; return; }
+    container.innerHTML = list.map(m => `<div class="music-item"><div class="music-item-info"><i class="fa-solid ${m.type === "video" ? "fa-video" : "fa-music"}"></i><strong>${escapeHtml(m.title || "Sem título")}</strong><span>${escapeHtml(m.type || "áudio")}</span></div><div class="music-item-actions"><button class="play-btn" data-play="${escapeHtml(m.id)}" title="Ouvir"><i class="fa-solid fa-play"></i></button><button class="delete-btn" data-delete-music="${escapeHtml(m.id)}" title="Remover"><i class="fa-solid fa-trash"></i></button></div></div>`).join("");
+    container.querySelectorAll("[data-play]").forEach(b => b.addEventListener("click", () => { const m = musicCache.find(x => x.id === b.dataset.play); if (!m?.url) return; if (currentAudio) currentAudio.pause(); currentAudio = new Audio(m.url); currentAudio.play().catch(() => showToast("Aviso", "Não foi possível reproduzir.", "fa-triangle-exclamation")); }));
+    container.querySelectorAll("[data-delete-music]").forEach(b => b.addEventListener("click", () => deleteMusic(b.dataset.deleteMusic)));
+}
+async function addMusicRecord(data) { data.createdAt = firebase.firestore.FieldValue.serverTimestamp(); data.updatedAt = firebase.firestore.FieldValue.serverTimestamp(); const ref = await db.collection("music").add(data); await addActivity("music_add", `${data.title || "Música"} foi adicionada.`); return ref; }
+$("musicUpload").addEventListener("change", async e => {
+    const file = e.target.files[0]; if (!file) return;
+    if (!validateFile(file, [], 10 * 1024 * 1024)) { e.target.value = ""; return; }
+    if (!CLOUDINARY_ENABLED) { showToast("Cloudinary não configurado", "Preencha os dados do Cloudinary no início do HTML.", "fa-triangle-exclamation"); e.target.value = ""; return; }
+    const pc = $("musicProgressContainer"), pf = $("musicProgressFill"), pt = $("musicProgressText"); pc.classList.add("active");
+    try {
+        const uploads = await uploadFileToBoth(file, "studiodevitto/music", (p, msg) => { pf.style.width = `${p}%`; pt.textContent = msg; });
+        await addMusicRecord({ url: uploads.cloudinary.url, cloudinaryUrl: uploads.cloudinary.url, cloudinaryPublicId: uploads.cloudinary.publicId, firebaseUrl: uploads.firebase.url, storagePath: uploads.firebase.path, title: file.name.replace(/\.[^.]+$/, ""), type: file.type.startsWith("video/") ? "video" : "audio", fileName: file.name, fileSize: file.size, mimeType: file.type });
+        showToast("Música adicionada", "Salva no Cloudinary, Firebase Storage e Firestore.", "fa-music");
+    } catch(e) { showToast("Erro", friendlyError(e), "fa-triangle-exclamation"); }
+    finally { pc.classList.remove("active"); pf.style.width = "0%"; e.target.value = ""; }
+});
+$("musicUrlBtn").addEventListener("click", async () => { const b = $("musicUrlBtn"), url = $("musicUrlInput").value.trim(); if (!/^https?:\/\//i.test(url)) return showToast("Aviso", "Insira uma URL válida.", "fa-triangle-exclamation"); setButtonBusy(b, true, "A guardar..."); try { await addMusicRecord({ url, cloudinaryUrl: url, title: url.split("/").pop()?.split("?")[0]?.replace(/\.[^.]+$/, "") || "Música", type: /\.(mp4|webm|mov)(\?|$)/i.test(url) ? "video" : "audio", source: "url" }); $("musicUrlInput").value = ""; showToast("Música guardada", "A música foi adicionada.", "fa-music"); } catch(e) { showToast("Erro", friendlyError(e), "fa-triangle-exclamation"); } finally { setButtonBusy(b, false); } });
+$("saveMusic").addEventListener("click", async () => { const b = $("saveMusic"); setButtonBusy(b, true, "A guardar..."); try { await db.collection("settings").doc("music").set({ enabled: true, updatedAt: firebase.firestore.FieldValue.serverTimestamp(), updatedBy: currentAdmin?.email || null }, { merge: true }); showToast("Playlist guardada", "A configuração da playlist foi salva.", "fa-floppy-disk"); } catch(e) { showToast("Erro", friendlyError(e), "fa-triangle-exclamation"); } finally { setButtonBusy(b, false); } });
+async function deleteMusic(id) { const m = musicCache.find(x => x.id === id); if (!m || !confirm(`Remover ${m.title || "esta música"}?`)) return; try { await db.collection("music").doc(id).delete(); if (m.firebaseUrl && isFirebaseStorageUrl(m.firebaseUrl)) { try { await storage.refFromURL(m.firebaseUrl).delete(); } catch(_) {} } await addActivity("music_delete", `${m.title || "Música"} foi removida.`); showToast("Música removida", "A música foi removida.", "fa-trash"); } catch(e) { showToast("Erro", friendlyError(e), "fa-triangle-exclamation"); } }
 
+/* =========================================================
+   ADMINISTRADORES
+========================================================= */
+function renderAdmins(list) {
+    const tbody = $("adminTableBody");
+    if (!list.length) { tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--muted);font-size:.7rem">Nenhum administrador encontrado.</td></tr>`; return; }
+    tbody.innerHTML = list.map(a => `<tr><td><div class="admin-person"><div class="admin-avatar">${escapeHtml((a.name || a.email || "A").slice(0,1).toUpperCase())}</div><div><strong>${escapeHtml(a.name || "Utilizador")}</strong><span>${escapeHtml(a.email || "")}</span></div></div></td><td>${escapeHtml(a.role || "admin")}</td><td><span class="status ${a.status === "active" ? "active" : "inactive"}">${a.status === "active" ? "Ativo" : "Inativo"}</span></td><td>${a.lastLogin?.toDate ? escapeHtml(a.lastLogin.toDate().toLocaleString("pt-PT")) : "Nunca"}</td><td><div class="table-actions"><button class="table-action" data-toggle-admin="${escapeHtml(a.id)}" title="Ativar/desativar"><i class="fa-solid fa-ban"></i></button></div></td></tr>`).join("");
+    tbody.querySelectorAll("[data-toggle-admin]").forEach(b => b.addEventListener("click", async () => { const a = adminsCache.find(x => x.id === b.dataset.toggleAdmin); if (!a) return; if (a.role === "master") return showToast("Protegido", "O administrador master não pode ser desativado aqui.", "fa-shield"); try { await db.collection("admins").doc(a.id).update({ status: a.status === "active" ? "inactive" : "active", updatedAt: firebase.firestore.FieldValue.serverTimestamp() }); showToast("Administrador atualizado", "O estado foi alterado.", "fa-user-shield"); } catch(e) { showToast("Erro", friendlyError(e), "fa-triangle-exclamation"); } }));
+}
+$("newAdminBtn").addEventListener("click", async () => {
+    const email = prompt("Email do novo administrador:"); if (!email) return;
+    const name = prompt("Nome:", email.split("@")[0]); if (!name) return;
+    const role = prompt("Função (admin/editor):", "admin") || "admin";
+    // Sem backend, não é seguro criar a password de outra conta via cliente sem trocar a sessão.
+    // Criamos o registo de autorização; a conta Firebase Authentication deve ser criada no Console.
+    try {
+        const id = email.toLowerCase().replace(/[^a-z0-9]/g, "_").slice(0, 80);
+        await db.collection("admins").doc(id).set({ email: email.trim().toLowerCase(), name: name.trim(), role, status: "active", createdAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+        showToast("Administrador cadastrado", "Agora crie a mesma conta em Firebase Authentication com email/palavra-passe.", "fa-user-shield");
+    } catch(e) { showToast("Erro", friendlyError(e), "fa-triangle-exclamation"); }
+});
 
-        /* =========================================================
-           ADMINS
-        ========================================================== */
+/* =========================================================
+   SISTEMA
+========================================================= */
+$("saveSystem").addEventListener("click", async () => { const b = $("saveSystem"); setButtonBusy(b, true, "A guardar..."); try { await db.collection("settings").doc("system").set({ uploadLimitMB: 10, firebase: true, firestore: true, cloudinary: CLOUDINARY_ENABLED, realtimeSync: true, updatedAt: firebase.firestore.FieldValue.serverTimestamp(), updatedBy: currentAdmin?.email || null }, { merge: true }); showToast("Configurações guardadas", "As configurações do sistema foram salvas no Firestore.", "fa-gear"); } catch(e) { showToast("Erro", friendlyError(e), "fa-triangle-exclamation"); } finally { setButtonBusy(b, false); } });
 
-        function loadAdmins() {
-            db.collection("admins").get()
-                .then(function(snapshot) {
-                    const admins = [];
-                    snapshot.forEach(function(doc) {
-                        admins.push({ id: doc.id, ...doc.data() });
-                    });
-                    renderAdmins(admins);
-                })
-                .catch(function(error) {
-                    console.error("Erro ao carregar administradores:", error);
-                });
-        }
+/* =========================================================
+   ATIVIDADES
+========================================================= */
+function renderActivities(snapshot) {
+    const list = $("activityList");
+    if (snapshot.empty) { list.innerHTML = `<li class="activity-item"><div class="activity-icon"><i class="fa-solid fa-info"></i></div><div class="activity-content"><strong>Sem atividades recentes</strong><span>As atividades aparecerão aqui.</span></div></li>`; return; }
+    const icons = { collaborator_add: "fa-user-plus", collaborator_edit: "fa-user-pen", collaborator_delete: "fa-user-minus", media_upload: "fa-image", media_delete: "fa-trash", company_update: "fa-building", branding_update: "fa-palette", social_update: "fa-share-nodes", seo_update: "fa-magnifying-glass-chart", music_add: "fa-music", music_delete: "fa-trash" };
+    list.innerHTML = snapshot.docs.map(doc => { const d = doc.data(); const date = d.timestamp?.toDate ? d.timestamp.toDate().toLocaleString("pt-PT") : "Agora"; return `<li class="activity-item"><div class="activity-icon"><i class="fa-solid ${icons[d.type] || "fa-info"}"></i></div><div class="activity-content"><strong>${escapeHtml(d.message || "Atividade")}</strong><span>${escapeHtml(date)}</span></div></li>`; }).join("");
+}
 
-        function renderAdmins(admins) {
-            const tbody = document.getElementById("adminTableBody");
+/* =========================================================
+   AÇÕES RÁPIDAS
+========================================================= */
+document.querySelectorAll("[data-action]").forEach(button => button.addEventListener("click", () => { if (button.dataset.action === "new-collaborator") openCollaboratorModal(); if (button.dataset.action === "upload-media") { openSection("gallery"); setTimeout(() => $("mediaUpload").click(), 250); } }));
 
-            if (admins.length === 0) {
-                tbody.innerHTML = `
-                    <tr>
-                        <td colspan="5" style="text-align:center;padding:30px;color:var(--muted);font-size:0.7rem;">
-                            Nenhum administrador encontrado.
-                        </td>
-                    </tr>
-                `;
-                return;
-            }
+/* =========================================================
+   CACHE DA LOGO + AUTH STATE
+========================================================= */
+(function restoreCachedLogo() { const url = localStorage.getItem("devitto_logo_url"); if (url) updateAllLogoElements(url); })();
 
-            tbody.innerHTML = admins.map(function(admin) {
-                const initials = admin.name ? admin.name.charAt(0).toUpperCase() : admin.email.charAt(0).toUpperCase();
-                return `
-                    <tr>
-                        <td>
-                            <div class="admin-person">
-                                <div class="admin-avatar">${initials}</div>
-                                <div>
-                                    <strong>${admin.name || 'Utilizador'}</strong>
-                                    <span>${admin.email}</span>
-                                </div>
-                            </div>
-                        </td>
-                        <td>${admin.role || 'Administrador'}</td>
-                        <td><span class="status ${admin.status === 'active' ? 'active' : 'inactive'}">${admin.status === 'active' ? 'Ativo' : 'Inativo'}</span></td>
-                        <td>${admin.lastLogin || 'Nunca'}</td>
-                        <td>
-                            <div class="table-actions">
-                                <button class="table-action" title="Editar"><i class="fa-solid fa-pen"></i></button>
-                                ${admin.role !== 'master' ? `<button class="table-action delete" title="Desativar"><i class="fa-solid fa-ban"></i></button>` : ''}
-                            </div>
-                        </td>
-                    </tr>
-                `;
-            }).join("");
-        }
+auth.onAuthStateChanged(async user => {
+    if (!user) { showLoginScreen(); return; }
+    try {
+        const admin = await verifyAdminUser(user);
+        showAdminApp(admin);
+    } catch (error) {
+        console.warn("Sessão não autorizada:", error);
+        showLoginScreen();
+        loginErrorText.textContent = friendlyError(error);
+        loginError.classList.add("show");
+    }
+});
 
-        document.getElementById("newAdminBtn").addEventListener("click", function() {
-            const email = prompt("Digite o email do novo administrador:");
-            if (email) {
-                db.collection("admins").add({
-                    email: email,
-                    name: email.split('@')[0],
-                    role: "admin",
-                    status: "active",
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                })
-                .then(function() {
-                    showToast("Administrador criado", `${email} foi adicionado.`, "fa-user-shield");
-                    loadAdmins();
-                })
-                .catch(function(error) {
-                    showToast("Erro", "Não foi possível criar: " + error.message, "fa-triangle-exclamation");
-                    console.error(error);
-                });
-            }
-        });
-
-
-        /* =========================================================
-           SYSTEM
-        ========================================================== */
-
-        document.getElementById("saveSystem").addEventListener("click", async function(event) {
-            event.preventDefault();
-            const button = this;
-            const original = button.innerHTML;
-            try {
-                button.disabled = true;
-                button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> A guardar...';
-
-                const data = {
-                    uploadLimitMB: 10,
-                    realtimeSync: true,
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                };
-
-                await db.collection("settings").doc("system").set(data, { merge: true });
-                await addActivity("system_update", "As configurações do sistema foram atualizadas.");
-
-                showToast("Configurações guardadas", "As configurações do sistema foram salvas no Firebase.", "fa-gear");
-            } catch (error) {
-                console.error("Erro ao salvar sistema:", error);
-                showToast("Erro ao guardar", error.message || "Não foi possível guardar as configurações.", "fa-triangle-exclamation");
-            } finally {
-                button.disabled = false;
-                button.innerHTML = original;
-            }
-        });
-
-
-
-        /* =========================================================
-           STATS
-        ========================================================== */
-
-        function updateStats() {
-            document.getElementById("statCollaborators").textContent = collaboratorsCache.length;
-            document.getElementById("statMedia").textContent = mediaCache.length;
-            document.getElementById("statMusic").textContent = musicCache.length;
-        }
-
-
-        /* =========================================================
-           QUICK ACTIONS
-        ========================================================== */
-
-        document.querySelectorAll("[data-action]").forEach(function(button) {
-            button.addEventListener("click", function() {
-                const action = button.dataset.action;
-
-                if (action === "new-collaborator") {
-                    openCollaboratorModal();
-                    return;
-                }
-
-                if (action === "upload-media") {
-                    openSection("gallery");
-                    setTimeout(function() {
-                        document.getElementById("mediaUpload").click();
-                    }, 300);
-                }
-            });
-        });
-
-
-        /* =========================================================
-           ATIVIDADES RECENTES
-        ========================================================== */
-
-        function loadActivities() {
-            const list = document.getElementById("activityList");
-
-            db.collection("activities")
-                .orderBy("timestamp", "desc")
-                .limit(5)
-                .get()
-                .then(function(snapshot) {
-                    if (snapshot.empty) {
-                        list.innerHTML = `
-                            <li class="activity-item">
-                                <div class="activity-icon"><i class="fa-solid fa-info"></i></div>
-                                <div class="activity-content">
-                                    <strong>Sem atividades recentes</strong>
-                                    <span>As atividades aparecerão aqui.</span>
-                                </div>
-                            </li>
-                        `;
-                        return;
-                    }
-
-                    list.innerHTML = "";
-                    snapshot.forEach(function(doc) {
-                        const data = doc.data();
-                        const li = document.createElement("li");
-                        li.className = "activity-item";
-
-                        const iconMap = {
-                            'collaborator_add': 'fa-solid fa-user-plus',
-                            'collaborator_edit': 'fa-solid fa-user-pen',
-                            'collaborator_delete': 'fa-solid fa-user-minus',
-                            'media_upload': 'fa-solid fa-image',
-                            'media_delete': 'fa-solid fa-trash',
-                            'company_update': 'fa-solid fa-building',
-                            'branding_update': 'fa-solid fa-palette',
-                            'social_update': 'fa-solid fa-share-nodes',
-                            'seo_update': 'fa-solid fa-magnifying-glass-chart',
-                            'music_add': 'fa-solid fa-music',
-                            'music_delete': 'fa-solid fa-trash'
-                        };
-
-                        const icon = iconMap[data.type] || 'fa-solid fa-info';
-
-                        li.innerHTML = `
-                            <div class="activity-icon"><i class="${icon}"></i></div>
-                            <div class="activity-content">
-                                <strong>${data.message || 'Atividade'}</strong>
-                                <span>${data.timestamp ? data.timestamp.toDate().toLocaleDateString('pt-PT') : 'Recente'}</span>
-                            </div>
-                        `;
-                        list.appendChild(li);
-                    });
-                })
-                .catch(function() {
-                    list.innerHTML = `
-                        <li class="activity-item">
-                            <div class="activity-icon"><i class="fa-solid fa-info"></i></div>
-                            <div class="activity-content">
-                                <strong>Bem-vindo ao painel</strong>
-                                <span>As atividades aparecerão aqui.</span>
-                            </div>
-                        </li>
-                    `;
-                });
-        }
-
-
-
-        window.addEventListener("unhandledrejection", function(event) {
-            console.error("Promise rejeitada:", event.reason);
-            const message = event.reason && event.reason.message ? event.reason.message : "Ocorreu um erro inesperado.";
-            showToast("Erro", message, "fa-triangle-exclamation");
-        });
-
-        /* =========================================================
-           INICIALIZAÇÃO
-        ========================================================== */
-
-        console.log("🚀 Studio DeVitto Admin - Inicializado");
-        console.log("🔥 Firebase conectado:", firebase.app().options.projectId);
-
-        // Carregar atividades
-        loadActivities();
-
-        // Atualizar stats periodicamente
-        setInterval(updateStats, 30000);
-
-        // Se já estiver logado via sessionStorage, carregar dados
-        if (sessionStorage.getItem("devitto_logged_in") === "true") {
-            loadAllData();
-        }
-    </script>
+console.log("Studio DeVitto Admin iniciado — Firebase Auth + Firestore + Storage + Cloudinary");
+</script>
 
 </body>
 </html>
