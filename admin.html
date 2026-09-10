@@ -2042,6 +2042,14 @@
                             <span class="status active">Configurado</span>
                         </div>
 
+                        <div class="switch-row">
+                            <div class="switch-info">
+                                <strong>Cloudinary</strong>
+                                <span>Upload de mídia otimizado.</span>
+                            </div>
+                            <span class="status active">Configurado</span>
+                        </div>
+
                         <div style="margin-top:25px">
                             <h3>Limite de upload</h3>
                             <p style="margin-bottom:13px">O sistema valida o limite de 10 MB por ficheiro.</p>
@@ -2216,12 +2224,87 @@
         // Configurar Firestore
         db.settings({ merge: true });
 
-        // Estado
+        /* =========================================================
+           CONFIGURAÇÃO CLOUDINARY
+           (adicionado, sem alterar funções existentes)
+        ========================================================== */
+        const CLOUDINARY_CONFIG = {
+            cloudName: "k7b7tlrn",
+            apiKey: "332641951425986",
+            apiSecret: "vsnAxDtiYAaYp_Pl_6I3HNLLX9s",
+            uploadPreset: "sitestudiodevitto",
+            folder: "studio-devitto"
+        };
+
+        /**
+         * Envia um ficheiro para o Cloudinary usando o preset unsigned.
+         * Retorna a URL segura do ficheiro carregado.
+         */
+        async function uploadToCloudinary(file, resourceType) {
+            if (!file) throw new Error("Nenhum ficheiro fornecido.");
+
+            const type = resourceType || (file.type.startsWith('video') ? 'video' : 'image');
+            const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CONFIG.cloudName}/${type}/upload`;
+
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("upload_preset", CLOUDINARY_CONFIG.uploadPreset);
+            if (CLOUDINARY_CONFIG.folder) formData.append("folder", CLOUDINARY_CONFIG.folder);
+            if (file.name) formData.append("public_id", file.name.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_') + '_' + Date.now());
+
+            const response = await fetch(url, {
+                method: "POST",
+                body: formData
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(function() { return {}; });
+                throw new Error(errorData.error?.message || "Falha no upload para o Cloudinary.");
+            }
+
+            const data = await response.json();
+            return data.secure_url;
+        }
+
+        /**
+         * Envia um ficheiro de áudio ou vídeo para o Cloudinary.
+         */
+        async function uploadToCloudinaryMedia(file) {
+            if (!file) throw new Error("Nenhum ficheiro fornecido.");
+            const isVideo = file.type.startsWith('video');
+            const type = isVideo ? 'video' : 'auto'; // 'auto' lida com áudio e outros formatos
+            const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CONFIG.cloudName}/${type}/upload`;
+
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("upload_preset", CLOUDINARY_CONFIG.uploadPreset);
+            if (CLOUDINARY_CONFIG.folder) formData.append("folder", CLOUDINARY_CONFIG.folder);
+            formData.append("public_id", file.name.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_') + '_' + Date.now());
+
+            const response = await fetch(url, {
+                method: "POST",
+                body: formData
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(function() { return {}; });
+                throw new Error(errorData.error?.message || "Falha no upload de mídia para o Cloudinary.");
+            }
+
+            const data = await response.json();
+            return data.secure_url;
+        }
+
+        /* =========================================================
+           ESTADO (aumentado com flag para Cloudinary)
+        ========================================================== */
+
         let isLoggedIn = false;
         let editingCollaboratorId = null;
         let collaboratorsCache = [];
         let mediaCache = [];
         let musicCache = [];
+        let useCloudinary = true; // prioriza Cloudinary nos uploads
 
 
         /* =========================================================
@@ -2619,7 +2702,7 @@
             reader.readAsDataURL(file);
         });
 
-        document.getElementById("collaboratorForm").addEventListener("submit", function(event) {
+        document.getElementById("collaboratorForm").addEventListener("submit", async function(event) {
             event.preventDefault();
 
             const data = {
@@ -2645,6 +2728,20 @@
             const saveData = { ...data };
 
             if (photoFile) {
+                // ---- NOVO: tentar Cloudinary primeiro, fallback Firebase Storage ----
+                let photoUrl = null;
+                if (useCloudinary) {
+                    try {
+                        photoUrl = await uploadToCloudinary(photoFile, 'image');
+                        saveData.photo = photoUrl;
+                        saveCollaboratorToFirestore(saveData);
+                        return;
+                    } catch (cloudErr) {
+                        console.warn("Cloudinary falhou, usando Firebase Storage:", cloudErr);
+                        useCloudinary = false; // opcional: desativa para esta sessão
+                    }
+                }
+                // ---- FALLBACK Firebase Storage ----
                 const storageRef = storage.ref(`collaborators/${Date.now()}_${photoFile.name}`);
                 const uploadTask = storageRef.put(photoFile);
 
@@ -2854,6 +2951,30 @@
         }
 
         async function uploadMediaFile(file) {
+            // ---- NOVO: Cloudinary primeiro, fallback Firebase Storage ----
+            if (useCloudinary) {
+                try {
+                    const url = await uploadToCloudinaryMedia(file);
+                    const type = file.type.startsWith('video/') ? 'video' : 'image';
+                    await db.collection("media").add({
+                        url: url,
+                        title: file.name.replace(/\.[^.]+$/, ''),
+                        type: type,
+                        category: 'Galeria',
+                        fileName: file.name,
+                        fileSize: file.size,
+                        mimeType: file.type,
+                        storage: 'cloudinary',
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    return true;
+                } catch (cloudErr) {
+                    console.warn("Cloudinary falhou para mídia, tentando Firebase Storage:", cloudErr);
+                    // Não desativa permanentemente; tenta fallback apenas para este ficheiro
+                }
+            }
+
+            // ---- FALLBACK Firebase Storage ----
             const timestamp = Date.now();
             const fileName = `${timestamp}_${file.name}`;
             const storageRef = storage.ref(`media/${fileName}`);
@@ -2872,6 +2993,7 @@
                     fileName: file.name,
                     fileSize: file.size,
                     mimeType: file.type,
+                    storage: 'firebase',
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
 
@@ -3091,13 +3213,34 @@
         });
 
         // ✅ BOTÃO SALVAR LOGO CORRIGIDO
-        document.getElementById("saveBranding").addEventListener("click", function() {
+        document.getElementById("saveBranding").addEventListener("click", async function() {
             const logoFile = document.getElementById("logoUpload").files[0];
             const logoUrl = document.getElementById("logoPreview").src;
 
             console.log("💾 Salvando logótipo...", logoFile ? "Arquivo selecionado" : "URL: " + logoUrl);
 
             if (logoFile) {
+                // ---- NOVO: Cloudinary primeiro, fallback Firebase Storage ----
+                if (useCloudinary) {
+                    try {
+                        const url = await uploadToCloudinary(logoFile, 'image');
+                        db.collection("settings").doc("branding").set({
+                            logoUrl: url,
+                            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                        }, { merge: true })
+                        .then(function() {
+                            showToast("✅ Logótipo guardado", "O logótipo foi atualizado (Cloudinary).", "fa-image");
+                            document.getElementById("sidebarLogo").src = url;
+                            document.getElementById("logoPreview").src = url;
+                            return;
+                        });
+                        return;
+                    } catch (cloudErr) {
+                        console.warn("Cloudinary falhou para logo, tentando Firebase Storage:", cloudErr);
+                    }
+                }
+
+                // ---- FALLBACK Firebase Storage ----
                 const storageRef = storage.ref(`branding/logo_${Date.now()}.png`);
                 const uploadTask = storageRef.put(logoFile);
 
@@ -3310,7 +3453,7 @@
             });
         }
 
-        document.getElementById("musicUpload").addEventListener("change", function(event) {
+        document.getElementById("musicUpload").addEventListener("change", async function(event) {
             const file = event.target.files[0];
             if (!file) return;
 
@@ -3327,6 +3470,41 @@
             progressContainer.classList.add("active");
             progressFill.style.width = "0%";
 
+            // ---- NOVO: Cloudinary primeiro, fallback Firebase Storage ----
+            if (useCloudinary) {
+                try {
+                    progressText.textContent = "A enviar para Cloudinary...";
+                    progressFill.style.width = "50%";
+
+                    const url = await uploadToCloudinaryMedia(file);
+
+                    progressFill.style.width = "100%";
+                    progressText.textContent = "Concluído!";
+
+                    await db.collection("music").add({
+                        url: url,
+                        title: file.name.replace(/\.[^.]+$/, ''),
+                        type: file.type.startsWith('audio/') ? 'audio' : 'video',
+                        fileName: file.name,
+                        fileSize: file.size,
+                        mimeType: file.type,
+                        storage: 'cloudinary',
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+
+                    progressContainer.classList.remove("active");
+                    progressFill.style.width = "0%";
+                    event.target.value = "";
+                    showToast("✅ Música adicionada", `${file.name} foi adicionada (Cloudinary).`, "fa-music");
+                    loadMusic();
+                    return;
+                } catch (cloudErr) {
+                    console.warn("Cloudinary falhou para música, tentando Firebase Storage:", cloudErr);
+                    progressText.textContent = "Cloudinary falhou, tentando Firebase...";
+                }
+            }
+
+            // ---- FALLBACK Firebase Storage ----
             const storageRef = storage.ref(`music/${Date.now()}_${file.name}`);
             const uploadTask = storageRef.put(file);
 
@@ -3350,7 +3528,8 @@
                             type: file.type.startsWith('audio/') ? 'audio' : 'video',
                             fileName: file.name,
                             fileSize: file.size,
-                            mimeType: file.type
+                            mimeType: file.type,
+                            storage: 'firebase'
                         }, function() {
                             progressContainer.classList.remove("active");
                             progressFill.style.width = "0%";
@@ -3628,6 +3807,7 @@
 
         console.log("🚀 Studio DeVitto Admin - Inicializado");
         console.log("🔥 Firebase conectado:", firebase.app().options.projectId);
+        console.log("☁️ Cloudinary configurado:", CLOUDINARY_CONFIG.cloudName);
 
         // Sincronização em tempo real + carregamento inicial
         startRealtimeSync();
@@ -3923,27 +4103,40 @@
                         return;
                     }
 
-                    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-                    const path = "branding/logo_" + Date.now() + "_" + safeName;
-                    const storageRef = storage.ref(path);
+                    // ---- NOVO: Cloudinary primeiro ----
+                    if (useCloudinary) {
+                        try {
+                            logoUrl = await uploadToCloudinary(file, 'image');
+                            storagePath = null;
+                        } catch (cloudErr) {
+                            console.warn("Cloudinary falhou para logo, tentando Firebase Storage:", cloudErr);
+                        }
+                    }
 
-                    const uploadTask = storageRef.put(file, {
-                        contentType: file.type,
-                        cacheControl: "public,max-age=3600"
-                    });
+                    // ---- FALLBACK Firebase Storage ----
+                    if (!logoUrl) {
+                        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+                        const path = "branding/logo_" + Date.now() + "_" + safeName;
+                        const storageRef = storage.ref(path);
 
-                    await new Promise(function(resolve, reject) {
-                        uploadTask.on("state_changed", function(snapshot) {
-                            const progress = snapshot.totalBytes
-                                ? (snapshot.bytesTransferred / snapshot.totalBytes) * 100
-                                : 0;
-                            btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> ' +
-                                "A enviar " + Math.round(progress) + "%";
-                        }, reject, resolve);
-                    });
+                        const uploadTask = storageRef.put(file, {
+                            contentType: file.type,
+                            cacheControl: "public,max-age=3600"
+                        });
 
-                    logoUrl = await storageRef.getDownloadURL();
-                    storagePath = path;
+                        await new Promise(function(resolve, reject) {
+                            uploadTask.on("state_changed", function(snapshot) {
+                                const progress = snapshot.totalBytes
+                                    ? (snapshot.bytesTransferred / snapshot.totalBytes) * 100
+                                    : 0;
+                                btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> ' +
+                                    "A enviar " + Math.round(progress) + "%";
+                            }, reject, resolve);
+                        });
+
+                        logoUrl = await storageRef.getDownloadURL();
+                        storagePath = path;
+                    }
                 } else if (typedUrl) {
                     logoUrl = typedUrl;
                 } else if (previewUrl &&
@@ -3980,7 +4173,7 @@
                 }
 
                 await addActivity("branding_update", "Logótipo do Studio DeVitto atualizado.");
-                showToast("Logótipo guardado", "A logo foi salva no Storage e no Firestore e já foi aplicada.", "fa-image");
+                showToast("Logótipo guardado", "A logo foi salva e já foi aplicada.", "fa-image");
             } catch (error) {
                 console.error("Erro ao salvar logótipo:", error);
                 showToast("Erro", error.message || "Falha ao guardar o logótipo.", "fa-triangle-exclamation");
