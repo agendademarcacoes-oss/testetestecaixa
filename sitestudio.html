@@ -294,7 +294,6 @@ opacity:0;visibility:hidden;transform:translateY(15px);transition:.3s ease;
 }
 .back-to-top.visible{opacity:1;visibility:visible;transform:translateY(0)}
 .back-to-top:hover{transform:translateY(-4px);background:var(--primary-light)}
-/* ===================== FLOATING GIF ===================== */
 .floating-gif{
 position:fixed;z-index:2400;border-radius:50%;overflow:hidden;
 border:2px solid rgba(255,255,255,.3);background:rgba(255,255,255,.08);
@@ -313,8 +312,7 @@ width:var(--floating-gif-size);height:var(--floating-gif-size);
 .floating-gif.behavior-float{animation:gif-float-soft 3s ease-in-out infinite}
 .floating-gif.behavior-fall{animation:gif-fall 9s linear infinite}
 .floating-gif.behavior-rise{animation:gif-rise 9s linear infinite}
-/* ===================== CORAÇÕES (SARDINHAS) ===================== */
-.sardinhas-container{position:fixed;inset:0;pointer-events:none;z-index:1;overflow:hidden}
+.sardinhas-container{position:fixed;inset:0;pointer-events:none;z-index:1;overflow:hidden;display:block}
 .sardinhas-container.hidden{display:none}
 .sardinhas-container img{position:fixed;pointer-events:none;opacity:0.18}
 @keyframes devittoHeartFloat{
@@ -323,7 +321,6 @@ width:var(--floating-gif-size);height:var(--floating-gif-size);
 80%{opacity:.18}
 100%{transform:translate3d(40vw,-110vh,0) rotate(360deg);opacity:0}
 }
-/* ===================== FLOATING MENU ===================== */
 .floating-menu{position:fixed;left:22px;bottom:24px;z-index:2500}
 .menu-button{
 width:58px;height:58px;border-radius:50%;border:none;background:var(--primary);color:white;
@@ -469,7 +466,7 @@ scroll-behavior:auto !important;transition-duration:.01ms !important;
 </head>
 <body>
 
-<div class="sardinhas-container hidden" id="sardinhasContainer" aria-hidden="true"></div>
+<div class="sardinhas-container" id="sardinhasContainer" aria-hidden="true"></div>
 
 <div class="music-bar" id="musicBar">
 <span class="music-label"><i class="fas fa-music"></i> Música Ambiente</span>
@@ -1031,20 +1028,17 @@ else backToTop.classList.remove("visible");
 backToTop.addEventListener("click",function(){ window.scrollTo({ top: 0, behavior: "smooth" }); });
 
 /* ============================================================
-CORAÇÕES DECORATIVOS (SARDINHAS) — controlados pelo painel
+CORAÇÕES DECORATIVOS (SARDINHAS) — função corrigida
 ============================================================ */
 const sardinhasContainer = document.getElementById("sardinhasContainer");
 
 function renderSardinhas(config){
 if (!sardinhasContainer) return;
 
-// config: { enabled: bool, image: url }
 const enabled = config && config.enabled === true;
 const imageUrl = (config && config.image) ? config.image : "img/coracao.gif";
 
-console.log("[Sardinhas] Render:", { enabled, imageUrl });
-
-// Limpar
+// Limpar SEMPRE antes
 sardinhasContainer.innerHTML = "";
 
 if (!enabled){
@@ -1072,6 +1066,18 @@ item.onerror = function(){ this.style.display = "none"; };
 sardinhasContainer.appendChild(item);
 }
 }
+
+// Render inicial (desligado até o Firestore responder)
+renderSardinhas({ enabled: false, image: "img/coracao.gif" });
+
+// Re-render ao redimensionar
+window.addEventListener("resize",function(){
+if (sardinhasContainer && !sardinhasContainer.classList.contains("hidden")){
+const firstImg = sardinhasContainer.querySelector("img");
+const imgUrl = firstImg ? firstImg.src : "img/coracao.gif";
+renderSardinhas({ enabled: true, image: imgUrl });
+}
+});
 
 /* EQUIPA */
 const teamGrid = document.getElementById("dynamicTeamGrid");
@@ -1300,9 +1306,7 @@ try { const json = JSON.parse(schema.textContent); json.logo = url; schema.textC
 }
 }
 
-/* ============================================================
-GIF FLUTUANTE + CORAÇÕES (com lógica corrigida)
-============================================================ */
+/* GIF FLUTUANTE + CORAÇÕES */
 let floatingRandomTimer = null;
 function clearFloatingAnimation(){
 if (floatingRandomTimer){ clearTimeout(floatingRandomTimer); floatingRandomTimer = null; }
@@ -1315,7 +1319,6 @@ if (!floatingEl || !floatingImg) return;
 
 clearFloatingAnimation();
 
-// Reset
 floatingEl.classList.remove(
 "visible","behavior-float","behavior-fall","behavior-rise",
 "pos-bottom-right","pos-bottom-left","pos-top-right","pos-top-left"
@@ -1331,14 +1334,7 @@ floatingEl.style.transition = "";
 const displayMode = (data && data.displayMode) ? data.displayMode : "gif";
 const sardinhasEnabled = !!(data && data.sardinhasEnabled);
 
-console.log("[Floating] Config recebida:", {
-displayMode,
-sardinhasEnabled,
-hasUrl: !!(data && data.url),
-hasSardinhasImage: !!(data && data.sardinhasImage)
-});
-
-/* === 1) GIF FLUTUANTE === */
+/* GIF FLUTUANTE */
 const showGif = (displayMode === "gif" || displayMode === "both");
 const gifEnabled = data && data.enabled !== false && !!data.url;
 
@@ -1397,13 +1393,9 @@ moveRandom();
 }
 
 floatingEl.classList.add("visible");
-console.log("[Floating] GIF visível");
-} else {
-console.log("[Floating] GIF escondido", { showGif, gifEnabled });
 }
 
-/* === 2) CORAÇÕES (SARDINHAS) === */
-// Mostra corações se: (displayMode === "sardinhas" OU "both") E sardinhasEnabled === true
+/* CORAÇÕES (SARDINHAS) */
 const showSardinhas = sardinhasEnabled && (displayMode === "sardinhas" || displayMode === "both");
 
 renderSardinhas({
