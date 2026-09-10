@@ -112,15 +112,17 @@
           content="https://www.studiodevitto.pt/img/DSC_0163-scaled.jpg">
 
     <!-- =========================================================
-         FAVICON
+         FAVICON (dinâmico via Firebase)
          ========================================================= -->
 
     <link rel="icon"
           href="img/Logo-Studio-DeVitto.png"
-          type="image/png">
+          type="image/png"
+          id="dynamicFavicon">
 
     <link rel="apple-touch-icon"
-          href="img/Logo-Studio-DeVitto.png">
+          href="img/Logo-Studio-DeVitto.png"
+          id="dynamicAppleIcon">
 
     <!-- =========================================================
          FONTES
@@ -145,12 +147,11 @@
 
     <!-- =========================================================
          GOOGLE ANALYTICS 4
-         
-         IMPORTANTE:
-         Substitua G-XXXXXXXXXX pelo seu ID real do Google Analytics.
+         (ID pode ser substituído dinamicamente via Firestore)
          ========================================================= -->
 
     <script async
+            id="ga4Script"
             src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX">
     </script>
 
@@ -169,10 +170,10 @@
     </script>
 
     <!-- =========================================================
-         SCHEMA.ORG / SEO LOCAL
+         SCHEMA.ORG / SEO LOCAL (dinâmico)
          ========================================================= -->
 
-    <script type="application/ld+json">
+    <script type="application/ld+json" id="schemaOrgScript">
 
     {
         "@context": "https://schema.org",
@@ -236,6 +237,14 @@
     </script>
 
     <!-- =========================================================
+         FIREBASE SDKs
+         ========================================================= -->
+
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+
+    <!-- =========================================================
          CSS
          ========================================================= -->
 
@@ -276,6 +285,9 @@
 
             --header-height: 76px;
 
+            /* Variáveis dinâmicas do GIF flutuante */
+            --floating-gif-size: 76px;
+            --floating-gif-position: bottom right;
         }
 
 
@@ -468,6 +480,8 @@
             letter-spacing: .08em;
 
             text-transform: uppercase;
+
+            white-space: nowrap;
         }
 
 
@@ -506,6 +520,8 @@
             box-shadow:
                 0 8px 25px
                 rgba(38,25,176,.45);
+
+            flex-shrink: 0;
         }
 
 
@@ -537,6 +553,22 @@
             border-radius: 20px;
 
             cursor: pointer;
+        }
+
+
+        .music-title {
+
+            font-size: 11px;
+
+            color: var(--text-muted);
+
+            max-width: 120px;
+
+            white-space: nowrap;
+
+            overflow: hidden;
+
+            text-overflow: ellipsis;
         }
 
 
@@ -1118,6 +1150,8 @@
             cursor: pointer;
 
             transition: .3s ease;
+
+            border: none;
         }
 
 
@@ -1654,7 +1688,7 @@
 
 
         /* =====================================================
-           FLOATING GIF
+           FLOATING GIF (dinâmico)
            ===================================================== */
 
         .floating-gif {
@@ -1665,9 +1699,9 @@
 
             bottom: 24px;
 
-            width: 76px;
+            width: var(--floating-gif-size);
 
-            height: 76px;
+            height: var(--floating-gif-size);
 
             z-index: 2400;
 
@@ -1688,6 +1722,14 @@
 
             animation:
                 floating 3s ease-in-out infinite;
+
+            display: none;
+        }
+
+
+        .floating-gif.visible {
+
+            display: block;
         }
 
 
@@ -1698,6 +1740,33 @@
             height: 100%;
 
             object-fit: cover;
+        }
+
+
+        /* Posições alternativas */
+        .floating-gif.pos-bottom-right {
+            right: 22px;
+            bottom: 24px;
+            left: auto;
+            top: auto;
+        }
+        .floating-gif.pos-bottom-left {
+            left: 22px;
+            bottom: 24px;
+            right: auto;
+            top: auto;
+        }
+        .floating-gif.pos-top-right {
+            right: 22px;
+            top: 100px;
+            left: auto;
+            bottom: auto;
+        }
+        .floating-gif.pos-top-left {
+            left: 22px;
+            top: 100px;
+            right: auto;
+            bottom: auto;
         }
 
 
@@ -2541,16 +2610,10 @@
             .floating-gif {
 
                 width:
-                    62px;
+                    calc(var(--floating-gif-size) * 0.8);
 
                 height:
-                    62px;
-
-                right:
-                    13px;
-
-                bottom:
-                    16px;
+                    calc(var(--floating-gif-size) * 0.8);
             }
 
 
@@ -2704,11 +2767,12 @@
 
 
     <!-- =========================================================
-         PLAYER DE MÚSICA
+         PLAYER DE MÚSICA (dinâmico via Firestore)
          ========================================================= -->
 
     <div class="music-bar"
-         id="musicBar">
+         id="musicBar"
+         style="display:none;">
 
         <span class="music-label">
             <i class="fas fa-music"></i>
@@ -2733,16 +2797,15 @@
                    value="0"
                    aria-label="Progresso da música">
 
+            <span class="music-title" id="musicTitle"></span>
+
         </div>
 
     </div>
 
 
     <!-- =========================================================
-         ÁUDIO
-         
-         COLOQUE O ARQUIVO:
-         audio/musica-studio-devitto.mp3
+         ÁUDIO (fonte dinâmica via Firestore)
          ========================================================= -->
 
     <audio id="backgroundMusic"
@@ -2769,6 +2832,8 @@
                     <img src="img/Logo-Studio-DeVitto.png"
                          alt="Logotipo Studio DeVitto"
                          class="logo-img"
+                         id="siteLogo"
+                         data-site-logo
                          width="58"
                          height="58"
                          loading="eager">
@@ -2777,7 +2842,8 @@
 
                 <div>
 
-                    <h1 class="blog-title">
+                    <h1 class="blog-title"
+                        id="siteTitle">
                         Studio DeVitto
                     </h1>
 
@@ -2969,6 +3035,7 @@
 
                                 <a href="https://wa.me/351927431517?text=Ol%C3%A1%20Studio%20DeVitto%2C%20gostaria%20de%20agendar%20um%20hor%C3%A1rio."
                                    class="btn-primary"
+                                   data-dynamic-whatsapp
                                    target="_blank"
                                    rel="noopener">
 
@@ -3026,6 +3093,7 @@
 
                                 <a href="https://wa.me/351927431517?text=Ol%C3%A1%20Studio%20DeVitto%2C%20gostaria%20de%20agendar%20um%20hor%C3%A1rio."
                                    class="btn-primary"
+                                   data-dynamic-whatsapp
                                    target="_blank"
                                    rel="noopener">
 
@@ -3124,7 +3192,7 @@
 
 
         <!-- =====================================================
-             SERVIÇOS
+             SERVIÇOS (dinâmico: mostra media da Firestore)
              ===================================================== -->
 
         <section class="services-section page-section"
@@ -3148,10 +3216,10 @@
             </p>
 
 
-            <div class="services-grid">
+            <div class="services-grid" id="dynamicServicesGrid">
 
 
-                <!-- MADEIXAS -->
+                <!-- MADEIXAS (fallback estático) -->
 
                 <article class="card">
 
@@ -3193,7 +3261,7 @@
                 </article>
 
 
-                <!-- COLORAÇÃO -->
+                <!-- COLORAÇÃO (fallback estático) -->
 
                 <article class="card">
 
@@ -3235,7 +3303,7 @@
                 </article>
 
 
-                <!-- CORTE -->
+                <!-- CORTE (fallback estático) -->
 
                 <article class="card">
 
@@ -3282,7 +3350,7 @@
 
 
         <!-- =====================================================
-             EQUIPA
+             EQUIPA (dinâmico via Firestore)
              ===================================================== -->
 
         <section class="team-section page-section"
@@ -3304,10 +3372,10 @@
             </p>
 
 
-            <div class="team-grid">
+            <div class="team-grid" id="dynamicTeamGrid">
 
 
-                <!-- VITTOR -->
+                <!-- VITTOR (fallback estático) -->
 
                 <article class="card team-member">
 
@@ -3348,7 +3416,7 @@
                 </article>
 
 
-                <!-- PAULA -->
+                <!-- PAULA (fallback estático) -->
 
                 <article class="card team-member">
 
@@ -3390,7 +3458,7 @@
                 </article>
 
 
-                <!-- TIAGO -->
+                <!-- TIAGO (fallback estático) -->
 
                 <article class="card team-member">
 
@@ -3437,7 +3505,7 @@
 
 
         <!-- =====================================================
-             UNIDADE
+             UNIDADE (dinâmico via Firestore settings/company)
              ===================================================== -->
 
         <section class="locations-section page-section"
@@ -3464,7 +3532,7 @@
 
                 <div class="location-info">
 
-                    <h3>
+                    <h3 id="dynamicLocationCity">
                         Amadora
                     </h3>
 
@@ -3473,7 +3541,7 @@
 
                         <i class="fas fa-location-dot"></i>
 
-                        <span>
+                        <span id="dynamicLocationAddress">
                             Rua de Macau, 6A,
                             Amadora, Lisboa
                         </span>
@@ -3485,7 +3553,7 @@
 
                         <i class="fas fa-phone"></i>
 
-                        <span>
+                        <span id="dynamicLocationPhone">
                             +351 927 431 517
                         </span>
 
@@ -3496,7 +3564,7 @@
 
                         <i class="fas fa-clock"></i>
 
-                        <span>
+                        <span id="dynamicLocationHours">
                             Segunda a Sábado
                             <br>
                             09:30 às 20:00
@@ -3510,6 +3578,7 @@
 
                         <a href="https://maps.app.goo.gl/yPjHhN6FUP8zDXhv6"
                            class="btn-primary"
+                           id="dynamicLocationMaps"
                            target="_blank"
                            rel="noopener">
 
@@ -3542,11 +3611,11 @@
 
                             <i class="fas fa-map-location-dot"></i>
 
-                            <h3>
+                            <h3 id="dynamicLocationMapTitle">
                                 Studio DeVitto
                             </h3>
 
-                            <p>
+                            <p id="dynamicLocationMapSubtitle">
                                 Amadora • Lisboa • Portugal
                             </p>
 
@@ -3585,6 +3654,7 @@
 
             <a href="https://wa.me/351927431517?text=Ol%C3%A1%20Studio%20DeVitto%2C%20gostaria%20de%20agendar%20um%20hor%C3%A1rio."
                class="btn-primary"
+               data-dynamic-whatsapp
                target="_blank"
                rel="noopener">
 
@@ -3614,17 +3684,18 @@
 
 
     <!-- =========================================================
-         GIF FLUTUANTE
-         
-         COLOQUE:
-         img/coracao.gif
+         GIF FLUTUANTE (dinâmico via Firestore)
          ========================================================= -->
 
     <a href="contato.html"
        class="floating-gif"
-       aria-label="Entrar em contacto com o Studio DeVitto">
+       id="floatingGif"
+       aria-label="Entrar em contacto com o Studio DeVitto"
+       target="_blank"
+       rel="noopener">
 
         <img src="img/coracao.gif"
+             id="floatingGifImg"
              alt="Contacto Studio DeVitto"
              loading="lazy">
 
@@ -3665,6 +3736,7 @@
 
             <a href="https://instagram.com/studiodevitto"
                class="menu-item instagram"
+               id="instagramMenuLink"
                data-tooltip="Instagram"
                target="_blank"
                rel="noopener"
@@ -3733,6 +3805,7 @@
 
                 <a href="https://wa.me/351927431517?text=Ol%C3%A1%20Vittor%2C%20gostaria%20de%20agendar%20um%20hor%C3%A1rio."
                    class="popup-btn whatsapp"
+                   data-dynamic-whatsapp
                    target="_blank"
                    rel="noopener">
 
@@ -3744,7 +3817,8 @@
 
 
                 <a href="tel:+351927431517"
-                   class="popup-btn call">
+                   class="popup-btn call"
+                   id="dynamicCallLink">
 
                     <i class="fas fa-phone"></i>
 
@@ -3797,14 +3871,16 @@
             </span>
 
 
-            <h2 class="welcome-title">
+            <h2 class="welcome-title"
+                id="welcomeTitle">
 
                 Studio DeVitto
 
             </h2>
 
 
-            <p class="welcome-text">
+            <p class="welcome-text"
+               id="welcomeText">
 
                 Beleza, estética e bem-estar
                 com atendimento personalizado
@@ -3815,6 +3891,7 @@
 
             <a href="https://wa.me/351927431517?text=Ol%C3%A1%20Studio%20DeVitto%2C%20gostaria%20de%20agendar%20um%20hor%C3%A1rio."
                class="btn-primary"
+               data-dynamic-whatsapp
                target="_blank"
                rel="noopener">
 
@@ -3830,7 +3907,7 @@
 
 
     <!-- =========================================================
-         FOOTER
+         FOOTER (dinâmico via Firestore)
          ========================================================= -->
 
     <footer class="footer"
@@ -3843,11 +3920,11 @@
 
             <div class="footer-column">
 
-                <h3>
+                <h3 id="footerCompanyName">
                     Studio DeVitto
                 </h3>
 
-                <p>
+                <p id="footerCompanyDescription">
 
                     Beleza, estética e bem-estar
                     em Amadora e região de Lisboa.
@@ -3865,6 +3942,7 @@
 
                     <a href="https://instagram.com/studiodevitto"
                        class="social-link"
+                       id="footerInstagram"
                        target="_blank"
                        rel="noopener"
                        aria-label="Instagram">
@@ -3876,6 +3954,7 @@
 
                     <a href="https://facebook.com/studiodevitto"
                        class="social-link"
+                       id="footerFacebook"
                        target="_blank"
                        rel="noopener"
                        aria-label="Facebook">
@@ -3887,6 +3966,8 @@
 
                     <a href="https://wa.me/351927431517"
                        class="social-link"
+                       id="footerWhatsapp"
+                       data-dynamic-whatsapp
                        target="_blank"
                        rel="noopener"
                        aria-label="WhatsApp">
@@ -3971,7 +4052,8 @@
 
                         <i class="fas fa-phone"></i>
 
-                        <a href="tel:+351927431517">
+                        <a href="tel:+351927431517"
+                           id="footerPhoneLink">
                             +351 927 431 517
                         </a>
 
@@ -3982,7 +4064,8 @@
 
                         <i class="fas fa-envelope"></i>
 
-                        <a href="mailto:vittor@studiodevitto.com">
+                        <a href="mailto:vittor@studiodevitto.com"
+                           id="footerEmailLink">
                             vittor@studiodevitto.com
                         </a>
 
@@ -3993,8 +4076,10 @@
 
                         <i class="fas fa-location-dot"></i>
 
-                        Rua de Macau, 6A,
-                        Amadora, Lisboa
+                        <span id="footerAddress">
+                            Rua de Macau, 6A,
+                            Amadora, Lisboa
+                        </span>
 
                     </li>
 
@@ -4003,9 +4088,11 @@
 
                         <i class="fas fa-clock"></i>
 
-                        Segunda a Sábado
-                        <br>
-                        09:30 — 20:00
+                        <span id="footerHours">
+                            Segunda a Sábado
+                            <br>
+                            09:30 — 20:00
+                        </span>
 
                     </li>
 
@@ -4023,7 +4110,9 @@
                 &copy;
                 <span id="currentYear"></span>
 
-                Studio DeVitto.
+                <span id="footerCopyrightName">
+                    Studio DeVitto
+                </span>.
 
                 Todos os direitos reservados.
 
@@ -4039,6 +4128,29 @@
          ========================================================= -->
 
     <script>
+
+        /* =====================================================
+           CONFIGURAÇÃO FIREBASE
+           ===================================================== */
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyB6nIB01W6OAJCXAd4gDCb1wN_v34PxQHE",
+            authDomain: "studiodevittosite.firebaseapp.com",
+            databaseURL: "https://studiodevittosite-default-rtdb.firebaseio.com",
+            projectId: "studiodevittosite",
+            storageBucket: "studiodevittosite.firebasestorage.app",
+            messagingSenderId: "844620325997",
+            appId: "1:844620325997:web:98221ec017733576460b64",
+            measurementId: "G-DGYQSJ2GNV"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+
+        const db = firebase.firestore();
+        const storage = firebase.storage();
+
+        db.settings({ merge: true });
+
 
         /* =====================================================
            CONFIGURAÇÃO
@@ -4062,6 +4174,79 @@
                 "img/coracao.gif"
 
         };
+
+
+        /* =====================================================
+           ESTADO GLOBAL
+           ===================================================== */
+
+        let dynamicPlaylist = [];       // faixas da Firestore
+        let currentTrackIndex = 0;      // índice atual da faixa
+        let useCloudinary = true;       // marcador (não usado aqui, apenas compat)
+
+        // Unsubscribers
+        const indexRealtimeUnsubscribers = [];
+
+        // Fallback: manter conteúdos hardcoded caso Firebase falhe
+        let firebaseAvailable = true;
+
+        try {
+            // Teste rápido para ver se o Firestore responde
+            db.collection("_ping_").limit(1).get().catch(function() { /* silencioso */ });
+        } catch (e) {
+            firebaseAvailable = false;
+        }
+
+
+        /* =====================================================
+           HELPERS
+           ===================================================== */
+
+        function escapeHtml(value) {
+            return String(value == null ? "" : value)
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#039;");
+        }
+
+
+        function normalizeWhatsapp(phone) {
+            if (!phone) return DEVITTO_CONFIG.whatsapp;
+            let digits = String(phone).replace(/[^\d]/g, "");
+            if (!digits.startsWith("351")) digits = "351" + digits;
+            return "https://wa.me/" + digits;
+        }
+
+
+        function whatsappWithText(phone, text) {
+            const base = normalizeWhatsapp(phone);
+            return base + "?text=" + encodeURIComponent(text);
+        }
+
+
+        function safeText(value, fallback) {
+            return (value && String(value).trim()) ? String(value).trim() : fallback;
+        }
+
+
+        function initialsFromName(name) {
+            if (!name) return "?";
+            const parts = String(name).trim().split(/\s+/);
+            if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+            return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+        }
+
+
+        function slugify(text) {
+            return String(text || "")
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, "-")
+                .replace(/(^-|-$)/g, "");
+        }
 
 
         /* =====================================================
@@ -4193,11 +4378,19 @@
             );
 
 
-            carouselItems[index]
-                .classList.add("active");
+            if (carouselItems[index]) {
 
-            indicators[index]
-                .classList.add("active");
+                carouselItems[index]
+                    .classList.add("active");
+
+            }
+
+            if (indicators[index]) {
+
+                indicators[index]
+                    .classList.add("active");
+
+            }
 
             currentSlide = index;
 
@@ -4266,54 +4459,51 @@
             document.querySelector(".carousel");
 
 
-        carousel.addEventListener(
-            "mouseenter",
-            stopCarousel
-        );
+        if (carousel) {
+
+            carousel.addEventListener(
+                "mouseenter",
+                stopCarousel
+            );
 
 
-        carousel.addEventListener(
-            "mouseleave",
-            startCarousel
-        );
+            carousel.addEventListener(
+                "mouseleave",
+                startCarousel
+            );
+
+        }
 
 
-        showSlide(0);
+        if (carouselItems.length) {
 
-        startCarousel();
+            showSlide(0);
+
+            startCarousel();
+
+        }
 
 
         /* =====================================================
-           PLAYER DE MÚSICA
-           
-           IMPORTANTE:
-
-           O navegador pode bloquear autoplay
-           com som antes de uma interação do utilizador.
-
-           Por isso tentamos autoplay e, se o navegador
-           bloquear, o botão fica disponível.
-
-           Para manter a música entre páginas,
-           a versão final deve usar navegação SPA/
-           partial navigation.
+           PLAYER DE MÚSICA (dinâmico com playlist)
            ===================================================== */
 
         const music =
-            document.getElementById(
-                "backgroundMusic"
-            );
+            document.getElementById("backgroundMusic");
 
         const musicToggle =
-            document.getElementById(
-                "musicToggle"
-            );
+            document.getElementById("musicToggle");
 
         const musicProgress =
-            document.getElementById(
-                "musicProgress"
-            );
+            document.getElementById("musicProgress");
 
+        const musicBar =
+            document.getElementById("musicBar");
+
+        const musicTitle =
+            document.getElementById("musicTitle");
+
+        let musicAutoplayAttempted = false;
 
         music.volume = 0.30;
 
@@ -4330,6 +4520,56 @@
         }
 
 
+        function updateMusicTitle() {
+
+            if (!musicTitle) return;
+
+            if (dynamicPlaylist.length > 0) {
+
+                const track = dynamicPlaylist[currentTrackIndex];
+
+                musicTitle.textContent = track.title || "Música";
+
+            } else {
+
+                musicTitle.textContent = "";
+
+            }
+
+        }
+
+
+        function loadTrack(index) {
+
+            if (!dynamicPlaylist.length) return;
+
+            if (index < 0) index = dynamicPlaylist.length - 1;
+
+            if (index >= dynamicPlaylist.length) index = 0;
+
+            currentTrackIndex = index;
+
+            const track = dynamicPlaylist[index];
+
+            if (track && track.url) {
+
+                const wasPlaying = !music.paused;
+
+                music.src = track.url;
+
+                updateMusicTitle();
+
+                if (wasPlaying) {
+
+                    music.play().catch(function () {});
+
+                }
+
+            }
+
+        }
+
+
         music.addEventListener(
             "play",
             updateMusicButton
@@ -4342,6 +4582,23 @@
         );
 
 
+        music.addEventListener(
+            "ended",
+            function () {
+
+                // Toca a próxima faixa automaticamente
+                if (dynamicPlaylist.length > 1) {
+
+                    loadTrack(currentTrackIndex + 1);
+
+                    music.play().catch(function () {});
+
+                }
+
+            }
+        );
+
+
         musicToggle.addEventListener(
             "click",
             async function () {
@@ -4349,6 +4606,11 @@
                 try {
 
                     if (music.paused) {
+
+                        // Se ainda não temos src definido, usa o fallback
+                        if (!music.src || music.src === "" || music.src === window.location.href) {
+                            music.src = DEVITTO_CONFIG.music;
+                        }
 
                         await music.play();
 
@@ -4361,7 +4623,7 @@
                 } catch (error) {
 
                     console.warn(
-                        "O navegador bloqueou o autoplay.",
+                        "O navegador bloqueou a reprodução.",
                         error
                     );
 
@@ -4422,7 +4684,7 @@
 
 
         /*
-         * Guardamos o estado do player.
+         * Guardamos o estado do player entre páginas.
          */
 
         function saveMusicState() {
@@ -4440,7 +4702,10 @@
                             music.volume,
 
                         playing:
-                            !music.paused
+                            !music.paused,
+
+                        index:
+                            currentTrackIndex
 
                     })
                 );
@@ -4487,6 +4752,17 @@
 
 
                 if (
+                    typeof state.index ===
+                    "number"
+                ) {
+
+                    currentTrackIndex =
+                        state.index;
+
+                }
+
+
+                if (
                     typeof state.currentTime ===
                     "number"
                 ) {
@@ -4523,23 +4799,29 @@
 
 
         /*
-         * Tentativa de autoplay.
-         *
-         * Alguns navegadores não permitem
-         * reprodução automática com som.
+         * Autoplay: tentamos reproduzir automaticamente.
+         * Se o navegador bloquear, permanece pausado até o utilizador clicar.
          */
 
-        music.play()
-            .then(function () {
+        function attemptAutoplay() {
 
-                updateMusicButton();
+            if (musicAutoplayAttempted) return;
 
-            })
-            .catch(function () {
+            musicAutoplayAttempted = true;
 
-                updateMusicButton();
+            music.play()
+                .then(function () {
 
-            });
+                    updateMusicButton();
+
+                })
+                .catch(function () {
+
+                    updateMusicButton();
+
+                });
+
+        }
 
 
         /* =====================================================
@@ -5032,9 +5314,7 @@
 
 
         /* =====================================================
-           TRACKING DE CLIQUES
-           
-           Preparado para GA4.
+           TRACKING DE CLIQUES (GA4)
            ===================================================== */
 
         document.querySelectorAll(
@@ -5142,12 +5422,777 @@
         );
 
 
+        /* =====================================================
+           =====================================================
+           INTEGRAÇÃO FIREBASE — SINCRONIZAÇÃO COM O PAINEL
+           =====================================================
+           ===================================================== */
+
+
+        /* =====================================================
+           1) RENDER DINÂMICO — EQUIPA / COLABORADORES
+           ===================================================== */
+
+        const teamGrid =
+            document.getElementById("dynamicTeamGrid");
+
+        function renderDynamicTeam(collaborators) {
+
+            if (!teamGrid) return;
+
+            // Se não existirem colaboradores, mantém o fallback hardcoded
+            if (!collaborators || collaborators.length === 0) {
+                // remove apenas os dinâmicos, deixando o fallback
+                teamGrid.querySelectorAll("[data-dynamic-collaborator]").forEach(function(el) {
+                    el.remove();
+                });
+                return;
+            }
+
+            // Remove fallbacks estáticos
+            teamGrid.innerHTML = "";
+
+            collaborators
+                .filter(function(c) {
+                    return c.status !== "inactive";
+                })
+                .forEach(function(c) {
+
+                    const name = safeText(c.name, "Profissional");
+                    const role = safeText(c.role, "Especialista");
+                    const bio = safeText(
+                        c.bio,
+                        "Profissional do Studio DeVitto dedicado à sua beleza."
+                    );
+                    const photo = safeText(
+                        c.photo,
+                        "img/Logo-Studio-DeVitto.png"
+                    );
+                    const slug = c.slug || slugify(name);
+                    const profileUrl = slug + ".html";
+
+                    const article = document.createElement("article");
+                    article.className = "card team-member";
+                    article.setAttribute("data-dynamic-collaborator", c.id || "");
+
+                    const socialsHtml = [];
+
+                    if (c.instagram) {
+                        socialsHtml.push(
+                            '<a href="' + escapeHtml(c.instagram) + '" class="card-link" target="_blank" rel="noopener" style="margin-right:10px;"><i class="fab fa-instagram"></i></a>'
+                        );
+                    }
+
+                    if (c.facebook) {
+                        socialsHtml.push(
+                            '<a href="' + escapeHtml(c.facebook) + '" class="card-link" target="_blank" rel="noopener"><i class="fab fa-facebook-f"></i></a>'
+                        );
+                    }
+
+                    article.innerHTML = `
+                        <img src="${escapeHtml(photo)}"
+                             alt="${escapeHtml(name)} - ${escapeHtml(role)} no Studio DeVitto"
+                             class="team-image"
+                             loading="lazy"
+                             onerror="this.src='img/Logo-Studio-DeVitto.png'">
+
+                        <div class="card-content">
+
+                            <h3 class="member-name">
+                                ${escapeHtml(name)}
+                            </h3>
+
+                            <span class="member-position">
+                                ${escapeHtml(role)}
+                            </span>
+
+                            <p>
+                                ${escapeHtml(bio)}
+                            </p>
+
+                            <div style="display:flex;align-items:center;justify-content:space-between;">
+                                <a href="${escapeHtml(profileUrl)}"
+                                   class="card-link">
+
+                                    Ver perfil
+
+                                    <i class="fas fa-arrow-right"></i>
+
+                                </a>
+
+                                <span>
+                                    ${socialsHtml.join("")}
+                                </span>
+                            </div>
+
+                        </div>
+                    `;
+
+                    teamGrid.appendChild(article);
+
+                });
+
+        }
+
+
+        /* =====================================================
+           2) RENDER DINÂMICO — GALERIA / SERVIÇOS
+           ===================================================== */
+
+        const servicesGrid =
+            document.getElementById("dynamicServicesGrid");
+
+        function renderDynamicServices(media) {
+
+            if (!servicesGrid) return;
+
+            // Se não existir mídia, mantém o fallback
+            if (!media || media.length === 0) {
+                servicesGrid.querySelectorAll("[data-dynamic-media]").forEach(function(el) {
+                    el.remove();
+                });
+                return;
+            }
+
+            // Filtra apenas imagens (a galeria pode conter vídeos)
+            const images = media.filter(function(m) {
+                return m.type !== "video";
+            }).slice(0, 6);
+
+            if (images.length === 0) {
+                servicesGrid.querySelectorAll("[data-dynamic-media]").forEach(function(el) {
+                    el.remove();
+                });
+                return;
+            }
+
+            // Substitui completamente pelos itens dinâmicos
+            servicesGrid.innerHTML = "";
+
+            images.forEach(function(m) {
+
+                const title = safeText(m.title, "Trabalho Studio DeVitto");
+                const category = safeText(m.category, "Portfólio");
+                const url = safeText(m.url, "img/Logo-Studio-DeVitto.png");
+
+                const article = document.createElement("article");
+                article.className = "card";
+                article.setAttribute("data-dynamic-media", m.id || "");
+
+                article.innerHTML = `
+                    <div class="card-img-wrapper">
+
+                        <img src="${escapeHtml(url)}"
+                             alt="${escapeHtml(title)} - ${escapeHtml(category)} no Studio DeVitto"
+                             class="card-img"
+                             loading="lazy"
+                             onerror="this.src='img/Logo-Studio-DeVitto.png'">
+
+                    </div>
+
+                    <div class="card-content">
+
+                        <h3 class="card-title">
+                            ${escapeHtml(title)}
+                        </h3>
+
+                        <p>
+                            ${escapeHtml(category)}
+                        </p>
+
+                        <a href="galeria.html"
+                           class="card-link">
+
+                            Ver na galeria
+
+                            <i class="fas fa-arrow-right"></i>
+
+                        </a>
+
+                    </div>
+                `;
+
+                servicesGrid.appendChild(article);
+
+            });
+
+        }
+
+
+        /* =====================================================
+           3) PLAYER DE MÚSICA DINÂMICO
+           ===================================================== */
+
+        function renderDynamicMusic(tracks) {
+
+            // Guarda a playlist dinâmica
+            dynamicPlaylist = (tracks || []).filter(function(t) {
+                return t && t.url;
+            });
+
+            if (dynamicPlaylist.length > 0) {
+
+                // Mostra a barra de música
+                if (musicBar) musicBar.style.display = "";
+
+                // Carrega a primeira faixa (se ainda não estiver carregada)
+                const first = dynamicPlaylist[0];
+
+                if (first && (!music.src || !music.src.includes(first.url))) {
+                    loadTrack(currentTrackIndex < dynamicPlaylist.length ? currentTrackIndex : 0);
+                }
+
+                updateMusicTitle();
+
+                // Tenta autoplay
+                attemptAutoplay();
+
+            } else {
+
+                // Se não existirem músicas na Firestore, usa o fallback local
+                if (!music.src || music.src === "") {
+                    music.src = DEVITTO_CONFIG.music;
+                }
+
+                if (musicBar) musicBar.style.display = "flex";
+
+                updateMusicTitle();
+
+                attemptAutoplay();
+
+            }
+
+        }
+
+
+        /* =====================================================
+           4) RENDER DINÂMICO — DADOS DA EMPRESA
+           ===================================================== */
+
+        function renderDynamicCompany(data) {
+
+            if (!data) return;
+
+            const name = safeText(data.name, "Studio DeVitto");
+            const category = safeText(data.category, "Cabeleireiro & Estética");
+            const description = safeText(
+                data.description,
+                "Beleza, estética e bem-estar em Amadora e região de Lisboa."
+            );
+            const phone = safeText(data.phone, "+351 927 431 517");
+            const email = safeText(data.email, "vittor@studiodevitto.com");
+            const address = safeText(
+                data.address,
+                "Rua de Macau, 6A, Amadora, Lisboa, Portugal"
+            );
+            const hours = safeText(data.hours, "Segunda a sábado · 09:30–20:00");
+            const maps = safeText(
+                data.maps,
+                "https://maps.app.goo.gl/yPjHhN6FUP8zDXhv6"
+            );
+
+            // Título da página
+            document.title = name + " | " + category + " em Amadora e Lisboa";
+
+            // Títulos visíveis
+            const siteTitle = document.getElementById("siteTitle");
+            if (siteTitle) siteTitle.textContent = name;
+
+            const footerName = document.getElementById("footerCompanyName");
+            if (footerName) footerName.textContent = name;
+
+            const footerCopyrightName = document.getElementById("footerCopyrightName");
+            if (footerCopyrightName) footerCopyrightName.textContent = name;
+
+            // Descrições
+            const footerDescription = document.getElementById("footerCompanyDescription");
+            if (footerDescription) {
+                footerDescription.innerHTML =
+                    escapeHtml(description) +
+                    "<br><br>Um espaço pensado para valorizar a sua identidade, autoestima e confiança.";
+            }
+
+            // Contactos no footer
+            const footerPhoneLink = document.getElementById("footerPhoneLink");
+            if (footerPhoneLink) {
+                footerPhoneLink.textContent = phone;
+                footerPhoneLink.href = "tel:" + phone.replace(/[^\d+]/g, "");
+            }
+
+            const footerEmailLink = document.getElementById("footerEmailLink");
+            if (footerEmailLink) {
+                footerEmailLink.textContent = email;
+                footerEmailLink.href = "mailto:" + email;
+            }
+
+            const footerAddress = document.getElementById("footerAddress");
+            if (footerAddress) footerAddress.textContent = address;
+
+            const footerHours = document.getElementById("footerHours");
+            if (footerHours) footerHours.innerHTML = escapeHtml(hours).replace("·", "<br>");
+
+            // Localização
+            const locCity = document.getElementById("dynamicLocationCity");
+            if (locCity) {
+                const parts = address.split(",");
+                locCity.textContent = parts.length >= 2 ? parts[1].trim() : "Amadora";
+            }
+
+            const locAddress = document.getElementById("dynamicLocationAddress");
+            if (locAddress) locAddress.textContent = address;
+
+            const locPhone = document.getElementById("dynamicLocationPhone");
+            if (locPhone) locPhone.textContent = phone;
+
+            const locHours = document.getElementById("dynamicLocationHours");
+            if (locHours) locHours.innerHTML = escapeHtml(hours).replace("·", "<br>");
+
+            const locMaps = document.getElementById("dynamicLocationMaps");
+            if (locMaps) locMaps.href = maps;
+
+            const locMapTitle = document.getElementById("dynamicLocationMapTitle");
+            if (locMapTitle) locMapTitle.textContent = name;
+
+            const locMapSub = document.getElementById("dynamicLocationMapSubtitle");
+            if (locMapSub) {
+                const parts = address.split(",");
+                locMapSub.textContent = parts.slice(1, 3).map(function(p) { return p.trim(); }).filter(Boolean).join(" • ") || "Amadora • Lisboa • Portugal";
+            }
+
+            // Welcome popup
+            const welcomeTitle = document.getElementById("welcomeTitle");
+            if (welcomeTitle) welcomeTitle.textContent = name;
+
+            const welcomeText = document.getElementById("welcomeText");
+            if (welcomeText) {
+                welcomeText.textContent = category + " com atendimento personalizado em Amadora, Lisboa.";
+            }
+
+            // Links de WhatsApp dinâmicos
+            const waBase = normalizeWhatsapp(phone);
+            document.querySelectorAll("[data-dynamic-whatsapp]").forEach(function(link) {
+                const text = link.getAttribute("data-wa-text") || "Olá " + name + ", gostaria de agendar um horário.";
+                link.href = whatsappWithText(phone, text);
+            });
+
+            // Link de telefone no popup
+            const dynamicCall = document.getElementById("dynamicCallLink");
+            if (dynamicCall) {
+                dynamicCall.href = "tel:" + phone.replace(/[^\d+]/g, "");
+            }
+
+            // Schema.org dinâmico
+            updateSchemaOrg({
+                name: name,
+                description: description,
+                telephone: phone,
+                email: email,
+                address: address
+            });
+
+        }
+
+
+        /* =====================================================
+           5) RENDER DINÂMICO — REDES SOCIAIS
+           ===================================================== */
+
+        function renderDynamicSocial(data) {
+
+            if (!data) return;
+
+            const instagram = safeText(data.instagram, "https://instagram.com/studiodevitto");
+            const facebook = safeText(data.facebook, "https://facebook.com/studiodevitto");
+            const whatsapp = safeText(data.whatsapp, DEVITTO_CONFIG.whatsapp);
+            const booking = safeText(data.booking, "agendamento.html");
+
+            const footerInsta = document.getElementById("footerInstagram");
+            if (footerInsta) footerInsta.href = instagram;
+
+            const footerFb = document.getElementById("footerFacebook");
+            if (footerFb) footerFb.href = facebook;
+
+            const footerWa = document.getElementById("footerWhatsapp");
+            if (footerWa) footerWa.href = whatsapp;
+
+            const igMenu = document.getElementById("instagramMenuLink");
+            if (igMenu) igMenu.href = instagram;
+
+            // Links de agendamento
+            document.querySelectorAll('a[href="agendamento.html"]').forEach(function(a) {
+                a.href = booking;
+            });
+
+        }
+
+
+        /* =====================================================
+           6) RENDER DINÂMICO — SEO
+           ===================================================== */
+
+        function renderDynamicSeo(data) {
+
+            if (!data) return;
+
+            const title = safeText(data.title, document.title);
+            const description = safeText(
+                data.description,
+                document.querySelector('meta[name="description"]')?.content || ""
+            );
+
+            if (title) document.title = title;
+
+            const metaDesc = document.querySelector('meta[name="description"]');
+            if (metaDesc && description) metaDesc.content = description;
+
+            const ogTitle = document.querySelector('meta[property="og:title"]');
+            if (ogTitle && title) ogTitle.content = title;
+
+            const ogDesc = document.querySelector('meta[property="og:description"]');
+            if (ogDesc && description) ogDesc.content = description;
+
+            const twTitle = document.querySelector('meta[name="twitter:title"]');
+            if (twTitle && title) twTitle.content = title;
+
+            const twDesc = document.querySelector('meta[name="twitter:description"]');
+            if (twDesc && description) twDesc.content = description;
+
+            // Google Analytics — recarrega com o ID configurado
+            const analytics = safeText(data.analytics, "");
+            if (analytics && analytics.startsWith("G-")) {
+                try {
+                    gtag('config', analytics);
+                } catch (e) {}
+            }
+
+        }
+
+
+        /* =====================================================
+           7) RENDER DINÂMICO — LOGO / BRANDING
+           ===================================================== */
+
+        function renderDynamicBranding(data) {
+
+            if (!data || !data.logoUrl) return;
+
+            const url = data.logoUrl;
+
+            // Aplica em todos os elementos com data-site-logo
+            document.querySelectorAll("[data-site-logo]").forEach(function(img) {
+                img.src = url;
+            });
+
+            // Logo do header
+            const siteLogo = document.getElementById("siteLogo");
+            if (siteLogo) siteLogo.src = url;
+
+            // Favicon
+            const favicon = document.getElementById("dynamicFavicon");
+            if (favicon) favicon.href = url;
+
+            const appleIcon = document.getElementById("dynamicAppleIcon");
+            if (appleIcon) appleIcon.href = url;
+
+            // Cache local para carregamento instantâneo
+            try {
+                localStorage.setItem("devitto_logo_url", url);
+            } catch (e) {}
+
+            // Schema.org logo
+            const schema = document.getElementById("schemaOrgScript");
+            if (schema) {
+                try {
+                    const json = JSON.parse(schema.textContent);
+                    json.logo = url;
+                    schema.textContent = JSON.stringify(json);
+                } catch (e) {}
+            }
+
+        }
+
+
+        /* =====================================================
+           8) RENDER DINÂMICO — GIF FLUTUANTE
+           ===================================================== */
+
+        function renderDynamicFloating(data) {
+
+            const floatingEl = document.getElementById("floatingGif");
+            const floatingImg = document.getElementById("floatingGifImg");
+
+            if (!floatingEl || !floatingImg) return;
+
+            // Se não estiver ativo, esconde
+            if (!data || data.enabled === false || !data.url) {
+                floatingEl.classList.remove("visible");
+                return;
+            }
+
+            // Atualiza imagem
+            floatingImg.src = data.url;
+
+            // Posição
+            floatingEl.classList.remove(
+                "pos-bottom-right",
+                "pos-bottom-left",
+                "pos-top-right",
+                "pos-top-left"
+            );
+
+            const position = safeText(data.position, "bottom-right");
+            floatingEl.classList.add("pos-" + position);
+
+            // Tamanho
+            const size = parseInt(data.size, 10);
+            if (size && size >= 40 && size <= 400) {
+                floatingEl.style.setProperty("--floating-gif-size", size + "px");
+                floatingEl.style.width = size + "px";
+                floatingEl.style.height = size + "px";
+            }
+
+            // Link
+            if (data.link) {
+                floatingEl.href = data.link;
+                floatingEl.target = "_blank";
+                floatingEl.rel = "noopener";
+            } else {
+                floatingEl.href = "contato.html";
+                floatingEl.target = "_self";
+                floatingEl.rel = "";
+            }
+
+            // Torna visível
+            floatingEl.classList.add("visible");
+
+        }
+
+
+        /* =====================================================
+           9) SCHEMA.ORG DINÂMICO
+           ===================================================== */
+
+        function updateSchemaOrg(opts) {
+
+            const schema = document.getElementById("schemaOrgScript");
+            if (!schema) return;
+
+            try {
+
+                const json = JSON.parse(schema.textContent);
+
+                if (opts.name) {
+                    json.name = opts.name;
+                    json.alternateName = [opts.name, opts.name + " Amadora"];
+                }
+
+                if (opts.description) json.description = opts.description;
+                if (opts.telephone) json.telephone = opts.telephone;
+                if (opts.email) json.email = opts.email;
+
+                if (opts.address) {
+                    const parts = String(opts.address).split(",");
+                    json.address.streetAddress = parts[0] ? parts[0].trim() : "";
+                    json.address.addressLocality = parts[1] ? parts[1].trim() : "Amadora";
+                    json.address.addressRegion = parts[2] ? parts[2].trim() : "Lisboa";
+                }
+
+                schema.textContent = JSON.stringify(json, null, 2);
+
+            } catch (e) {
+                console.warn("Não foi possível atualizar Schema.org:", e);
+            }
+
+        }
+
+
+        /* =====================================================
+           10) FIREBASE — SUBSCRIÇÕES EM TEMPO REAL
+           ===================================================== */
+
+        function bindIndexRealtime() {
+
+            /* ---------- COLLABORATORS ---------- */
+            indexRealtimeUnsubscribers.push(
+                db.collection("collaborators")
+                    .onSnapshot(function(snapshot) {
+
+                        const items = [];
+                        snapshot.forEach(function(doc) {
+                            items.push({ id: doc.id, ...doc.data() });
+                        });
+
+                        // Ordenar por nome
+                        items.sort(function(a, b) {
+                            return String(a.name || "").localeCompare(String(b.name || ""));
+                        });
+
+                        renderDynamicTeam(items);
+
+                    }, function(error) {
+                        console.warn("Realtime collaborators falhou:", error);
+                    })
+            );
+
+
+            /* ---------- MEDIA ---------- */
+            indexRealtimeUnsubscribers.push(
+                db.collection("media")
+                    .onSnapshot(function(snapshot) {
+
+                        const items = [];
+                        snapshot.forEach(function(doc) {
+                            items.push({ id: doc.id, ...doc.data() });
+                        });
+
+                        // Ordenar por createdAt desc
+                        items.sort(function(a, b) {
+                            const ta = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate().getTime() : 0;
+                            const tb = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate().getTime() : 0;
+                            return tb - ta;
+                        });
+
+                        renderDynamicServices(items);
+
+                    }, function(error) {
+                        console.warn("Realtime media falhou:", error);
+                    })
+            );
+
+
+            /* ---------- MUSIC ---------- */
+            indexRealtimeUnsubscribers.push(
+                db.collection("music")
+                    .onSnapshot(function(snapshot) {
+
+                        const items = [];
+                        snapshot.forEach(function(doc) {
+                            items.push({ id: doc.id, ...doc.data() });
+                        });
+
+                        // Ordenar por createdAt desc
+                        items.sort(function(a, b) {
+                            const ta = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate().getTime() : 0;
+                            const tb = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate().getTime() : 0;
+                            return tb - ta;
+                        });
+
+                        renderDynamicMusic(items);
+
+                    }, function(error) {
+                        console.warn("Realtime music falhou:", error);
+                        // Fallback: toca o áudio local
+                        renderDynamicMusic([]);
+                    })
+            );
+
+
+            /* ---------- SETTINGS (empresa, social, seo, branding, floating) ---------- */
+            indexRealtimeUnsubscribers.push(
+                db.collection("settings")
+                    .onSnapshot(function(snapshot) {
+
+                        const settings = {};
+                        snapshot.forEach(function(doc) {
+                            settings[doc.id] = { id: doc.id, ...doc.data() };
+                        });
+
+                        if (settings.company) renderDynamicCompany(settings.company);
+                        if (settings.social) renderDynamicSocial(settings.social);
+                        if (settings.seo) renderDynamicSeo(settings.seo);
+                        if (settings.branding) renderDynamicBranding(settings.branding);
+                        if (settings.floating) renderDynamicFloating(settings.floating);
+
+                    }, function(error) {
+                        console.warn("Realtime settings falhou:", error);
+                    })
+            );
+
+        }
+
+
+        /* =====================================================
+           11) RESTAURAR CACHE LOCAL DO LOGO (carregamento rápido)
+           ===================================================== */
+
+        (function restoreCachedLogo() {
+
+            try {
+
+                const cached = localStorage.getItem("devitto_logo_url");
+
+                if (cached) {
+
+                    document.querySelectorAll("[data-site-logo]").forEach(function(img) {
+                        img.src = cached;
+                    });
+
+                    const favicon = document.getElementById("dynamicFavicon");
+                    if (favicon) favicon.href = cached;
+
+                    const appleIcon = document.getElementById("dynamicAppleIcon");
+                    if (appleIcon) appleIcon.href = cached;
+
+                }
+
+            } catch (e) {}
+
+        })();
+
+
+        /* =====================================================
+           12) INICIALIZAÇÃO FINAL
+           ===================================================== */
+
+        document.addEventListener(
+            "DOMContentLoaded",
+            function () {
+
+                // Liga as subscrições em tempo real
+                bindIndexRealtime();
+
+                // Fallback: se a barra de música ainda não estiver visível
+                // ao fim de 2s (Firestore não respondeu), mostramos a barra
+                // com a música local.
+                setTimeout(function() {
+
+                    if (musicBar && musicBar.style.display === "none") {
+
+                        musicBar.style.display = "flex";
+
+                        if (!music.src || music.src === "") {
+                            music.src = DEVITTO_CONFIG.music;
+                        }
+
+                        updateMusicTitle();
+
+                        attemptAutoplay();
+
+                    }
+
+                }, 2000);
+
+            }
+        );
+
+
+        /* =====================================================
+           13) SINCRONIZAÇÃO DE PLAYLIST ENTRE PÁGINAS
+           ===================================================== */
+
+        // Se o utilizador navegar, o estado da música é guardado
+        // no sessionStorage e restaurado automaticamente.
+
+
+        /* =====================================================
+           FIM
+           ===================================================== */
+
+        console.log("%c🎨 Studio DeVitto", "color:#c9a769;font-size:16px;font-weight:bold;");
+        console.log("%cWebsite sincronizado com o painel administrativo.", "color:#aaa4ff;font-size:12px;");
+        console.log("%c🔥 Firebase:", firebase.app().options.projectId, "color:#25D366;");
+
     </script>
-
-
-    <!-- =========================================================
-         FIM DO INDEX.HTML
-         ========================================================= -->
 
 </body>
 
