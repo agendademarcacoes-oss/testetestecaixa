@@ -339,7 +339,7 @@
 
         .mobile-menu-overlay { display: none; }
 
-        /* ===================== HERO / BANNER (SEM LIQUID GLASS) ===================== */
+        /* ===================== HERO / BANNER ===================== */
         .hero-section {
             position: relative;
             width: 100vw;
@@ -389,7 +389,6 @@
 
         .carousel-item.active { opacity: 1; }
 
-        /* SEM liquid glass — texto directo sobre a imagem */
         .carousel-caption {
             position: relative;
             z-index: 2;
@@ -776,7 +775,7 @@
             background: var(--primary-light);
         }
 
-        /* ===================== FLOATING GIF (COMPORTAMENTOS) ===================== */
+        /* ===================== FLOATING GIF ===================== */
         .floating-gif {
             position: fixed;
             z-index: 2400;
@@ -799,43 +798,53 @@
             object-fit: cover;
         }
 
-        /* Posições para o modo "fixo" */
         .floating-gif.pos-bottom-right { right: 22px; bottom: 24px; left: auto; top: auto; }
         .floating-gif.pos-bottom-left { left: 22px; bottom: 24px; right: auto; top: auto; }
         .floating-gif.pos-top-right { right: 22px; top: 100px; left: auto; bottom: auto; }
         .floating-gif.pos-top-left { left: 22px; top: 100px; right: auto; bottom: auto; }
 
-        /* Animação: flutuar suave no lugar */
         @keyframes gif-float-soft {
             0%, 100% { transform: translateY(0); }
             50% { transform: translateY(-14px); }
         }
 
-        /* Animação: cair (topo → base) */
         @keyframes gif-fall {
             0%   { transform: translateY(-10vh) rotate(0deg); }
             100% { transform: translateY(110vh) rotate(15deg); }
         }
 
-        /* Animação: subir (base → topo) */
         @keyframes gif-rise {
             0%   { transform: translateY(110vh) rotate(0deg); }
             100% { transform: translateY(-15vh) rotate(-15deg); }
         }
 
-        .floating-gif.behavior-float {
-            animation: gif-float-soft 3s ease-in-out infinite;
+        .floating-gif.behavior-float { animation: gif-float-soft 3s ease-in-out infinite; }
+        .floating-gif.behavior-fall { animation: gif-fall 9s linear infinite; }
+        .floating-gif.behavior-rise { animation: gif-rise 9s linear infinite; }
+
+        /* ===================== CORAÇÕES DECORATIVOS (SARDINHAS) ===================== */
+        .sardinhas-container {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 1;
+            overflow: hidden;
         }
 
-        .floating-gif.behavior-fall {
-            animation: gif-fall 9s linear infinite;
+        .sardinhas-container.hidden { display: none; }
+
+        .sardinhas-container img {
+            position: fixed;
+            pointer-events: none;
+            opacity: 0.18;
         }
 
-        .floating-gif.behavior-rise {
-            animation: gif-rise 9s linear infinite;
+        @keyframes devittoHeartFloat {
+            0% { transform: translate3d(-40px, 40px, 0) rotate(0deg); opacity: 0; }
+            15% { opacity: .18; }
+            80% { opacity: .18; }
+            100% { transform: translate3d(40vw, -110vh, 0) rotate(360deg); opacity: 0; }
         }
-
-        /* Para movimento aleatório usamos JS a atualizar left/top + transition */
 
         /* ===================== FLOATING MENU ===================== */
         .floating-menu {
@@ -1183,7 +1192,8 @@
 
 <body>
 
-    <div class="sardinhas-container" id="sardinhasContainer" aria-hidden="true"></div>
+    <!-- CORAÇÕES DECORATIVOS (controlados pelo painel) -->
+    <div class="sardinhas-container hidden" id="sardinhasContainer" aria-hidden="true"></div>
 
     <!-- PLAYER DE MÚSICA -->
     <div class="music-bar" id="musicBar">
@@ -1243,7 +1253,6 @@
 
     <main id="conteudo-principal">
 
-        <!-- BANNER ROTATIVO (dinâmico via settings/banners) -->
         <section class="hero-section" id="home" aria-label="Studio DeVitto">
             <div class="carousel">
                 <div class="carousel-inner" id="carouselInner"></div>
@@ -1251,7 +1260,6 @@
             </div>
         </section>
 
-        <!-- SERVIÇOS / CARDS -->
         <section class="services-section page-section" id="servicos">
             <span class="section-eyebrow">Studio DeVitto</span>
             <h2 class="section-title">Nossos Serviços</h2>
@@ -1262,7 +1270,6 @@
             <div class="services-grid" id="dynamicServicesGrid"></div>
         </section>
 
-        <!-- EQUIPA -->
         <section class="team-section page-section" id="equipe">
             <span class="section-eyebrow">Profissionais DeVitto</span>
             <h2 class="section-title">Nossa Equipa</h2>
@@ -1272,7 +1279,6 @@
             <div class="team-grid" id="dynamicTeamGrid"></div>
         </section>
 
-        <!-- UNIDADE -->
         <section class="locations-section page-section" id="unidades">
             <span class="section-eyebrow">Onde estamos</span>
             <h2 class="section-title">Nossa Unidade</h2>
@@ -1325,7 +1331,6 @@
             </div>
         </section>
 
-        <!-- CTA -->
         <section class="cta-section glass">
             <div>
                 <span class="section-eyebrow" style="text-align:left;margin-bottom:0;">
@@ -1791,7 +1796,7 @@
         let autoplayAttempts = 0;
 
         music.volume = 0.30;
-        music.loop = false; // Gerimos manualmente o loop para playlist
+        music.loop = false;
 
         function updateMusicButton() {
             if (!musicToggle) return;
@@ -1827,12 +1832,10 @@
             }
         }
 
-        /* Tentativa de autoplay agressiva */
         function tryAutoplay() {
-            if (userPaused) return; // Se o utilizador pausou, não insistir
+            if (userPaused) return;
             autoplayAttempts++;
 
-            // Se não tem src definido, usar faixa atual ou fallback
             if (!music.src || music.src === "" || music.src === window.location.href) {
                 if (dynamicPlaylist.length > 0) {
                     loadTrack(currentTrackIndex);
@@ -1844,24 +1847,20 @@
             const p = music.play();
             if (p && typeof p.then === "function") {
                 p.then(function () {
-                    // Sucesso
                     updateMusicButton();
                 }).catch(function () {
-                    // Bloqueado — será retentado no próximo evento
                     updateMusicButton();
                 });
             }
         }
 
         function scheduleAutoplayAttempts() {
-            // Tentativas imediatas e faseadas
             tryAutoplay();
             setTimeout(tryAutoplay, 500);
             setTimeout(tryAutoplay, 1500);
             setTimeout(tryAutoplay, 3000);
         }
 
-        /* Botão único Play/Pause */
         musicToggle.addEventListener("click", function () {
             if (music.paused) {
                 userPaused = false;
@@ -1892,7 +1891,6 @@
                 music.currentTime = 0;
                 music.play().catch(function () {});
             } else {
-                // Fallback local — repete
                 music.currentTime = 0;
                 music.play().catch(function () {});
             }
@@ -1910,7 +1908,6 @@
             }
         });
 
-        /* Desbloquear autoplay em QUALQUER interação */
         function unlockAutoplay() {
             if (!userPaused && music.paused) {
                 tryAutoplay();
@@ -1921,12 +1918,10 @@
             document.addEventListener(evt, unlockAutoplay, { passive: true });
         });
 
-        // Tentar quando a página ganha visibilidade
         document.addEventListener("visibilitychange", function () {
             if (!document.hidden) unlockAutoplay();
         });
 
-        // Estado entre páginas
         function saveMusicState() {
             try {
                 sessionStorage.setItem("devitto_music_state", JSON.stringify({
@@ -2044,11 +2039,26 @@
         });
 
         /* =========================================================
-           CORAÇÕES DECORATIVOS
+           CORAÇÕES DECORATIVOS (SARDINHAS) — controlados pelo painel
            ========================================================= */
-        document.addEventListener("DOMContentLoaded", function () {
-            const container = document.getElementById("sardinhasContainer");
-            if (!container) return;
+        const sardinhasContainer = document.getElementById("sardinhasContainer");
+
+        function renderSardinhas(config) {
+            if (!sardinhasContainer) return;
+
+            // config esperado: { enabled: bool, image: url }
+            const enabled = config && config.enabled === true;
+            const imageUrl = (config && config.image) ? config.image : "img/coracao.gif";
+
+            // Limpar sempre antes
+            sardinhasContainer.innerHTML = "";
+
+            if (!enabled) {
+                sardinhasContainer.classList.add("hidden");
+                return;
+            }
+
+            sardinhasContainer.classList.remove("hidden");
 
             let count = 5;
             if (window.innerWidth >= 768) count = 10;
@@ -2056,31 +2066,17 @@
 
             for (let i = 0; i < count; i++) {
                 const item = document.createElement("img");
-                item.src = "img/coracao.gif";
+                item.src = imageUrl;
                 item.alt = "";
                 item.setAttribute("aria-hidden", "true");
-                item.style.position = "fixed";
                 item.style.left = Math.random() * 100 + "vw";
                 item.style.top = Math.random() * 100 + "vh";
                 item.style.width = 25 + Math.random() * 45 + "px";
                 item.style.opacity = "0.18";
-                item.style.pointerEvents = "none";
-                item.style.zIndex = "1";
                 item.style.animation = "devittoHeartFloat " + (12 + Math.random() * 18) + "s linear infinite";
-                container.appendChild(item);
+                sardinhasContainer.appendChild(item);
             }
-        });
-
-        const decorativeStyle = document.createElement("style");
-        decorativeStyle.innerHTML = `
-            @keyframes devittoHeartFloat {
-                0% { transform: translate3d(-40px, 40px, 0) rotate(0deg); opacity: 0; }
-                15% { opacity: .18; }
-                80% { opacity: .18; }
-                100% { transform: translate3d(40vw, -110vh, 0) rotate(360deg); opacity: 0; }
-            }
-        `;
-        document.head.appendChild(decorativeStyle);
+        }
 
         /* =========================================================
            RENDER DINÂMICO — EQUIPA
@@ -2442,13 +2438,11 @@
         }
 
         /* =========================================================
-           RENDER DINÂMICO — GIF FLUTUANTE (COM COMPORTAMENTO)
+           RENDER DINÂMICO — GIF FLUTUANTE + CORAÇÕES
            ========================================================= */
-        let floatingAnimationInterval = null;
         let floatingRandomTimer = null;
 
         function clearFloatingAnimation() {
-            if (floatingAnimationInterval) { clearInterval(floatingAnimationInterval); floatingAnimationInterval = null; }
             if (floatingRandomTimer) { clearTimeout(floatingRandomTimer); floatingRandomTimer = null; }
         }
 
@@ -2472,73 +2466,77 @@
             floatingEl.style.animation = "";
             floatingEl.style.transition = "";
 
-            if (!data || data.enabled === false || !data.url) {
-                return;
-            }
+            const displayMode = (data && data.displayMode) ? data.displayMode : "gif";
 
-            floatingImg.src = data.url;
+            // === 1) Controlar Gif Flutuante ===
+            const showGif = (displayMode === "gif" || displayMode === "both");
+            const gifEnabled = data && data.enabled !== false && !!data.url;
 
-            // Tamanho
-            const size = parseInt(data.size, 10);
-            if (size && size >= 40 && size <= 400) {
-                floatingEl.style.setProperty("--floating-gif-size", size + "px");
-                floatingEl.style.width = size + "px";
-                floatingEl.style.height = size + "px";
-            }
+            if (showGif && gifEnabled) {
+                floatingImg.src = data.url;
 
-            // Link
-            if (data.link) {
-                floatingEl.href = data.link;
-                floatingEl.target = "_blank";
-                floatingEl.rel = "noopener";
-            } else {
-                floatingEl.href = "contato.html";
-                floatingEl.target = "_self";
-                floatingEl.rel = "";
-            }
+                const size = parseInt(data.size, 10);
+                if (size && size >= 40 && size <= 400) {
+                    floatingEl.style.setProperty("--floating-gif-size", size + "px");
+                    floatingEl.style.width = size + "px";
+                    floatingEl.style.height = size + "px";
+                }
 
-            // Comportamento
-            const behavior = data.behavior || "fixed"; // fixed | float | fall | rise | random
-            const position = data.position || "bottom-right";
+                if (data.link) {
+                    floatingEl.href = data.link;
+                    floatingEl.target = "_blank";
+                    floatingEl.rel = "noopener";
+                } else {
+                    floatingEl.href = "contato.html";
+                    floatingEl.target = "_self";
+                    floatingEl.rel = "";
+                }
 
-            if (behavior === "fixed") {
-                // Posição fixa no canto escolhido
-                floatingEl.classList.add("pos-" + position);
-            } else if (behavior === "float") {
-                // Balança suavemente no lugar — escolhe posição base
-                floatingEl.classList.add("pos-" + position);
-                floatingEl.classList.add("behavior-float");
-            } else if (behavior === "fall") {
-                // Cai do topo até à base
-                floatingEl.classList.add("pos-top-right"); // base horizontal
-                floatingEl.classList.add("behavior-fall");
-            } else if (behavior === "rise") {
-                // Sobe da base até ao topo
-                floatingEl.classList.add("pos-bottom-right");
-                floatingEl.classList.add("behavior-rise");
-            } else if (behavior === "random") {
-                // Move-se aleatoriamente pela tela
-                floatingEl.style.transition = "left 2s ease-in-out, top 2s ease-in-out";
-                const moveRandom = function () {
-                    const w = window.innerWidth - (size || 76) - 20;
-                    const h = window.innerHeight - (size || 76) - 20;
-                    const x = Math.max(10, Math.random() * w);
-                    const y = Math.max(80, Math.random() * h);
-                    floatingEl.style.left = x + "px";
-                    floatingEl.style.top = y + "px";
+                const behavior = data.behavior || "fixed";
+                const position = data.position || "bottom-right";
+
+                if (behavior === "fixed") {
+                    floatingEl.classList.add("pos-" + position);
+                } else if (behavior === "float") {
+                    floatingEl.classList.add("pos-" + position);
+                    floatingEl.classList.add("behavior-float");
+                } else if (behavior === "fall") {
+                    floatingEl.classList.add("pos-top-right");
+                    floatingEl.classList.add("behavior-fall");
+                } else if (behavior === "rise") {
+                    floatingEl.classList.add("pos-bottom-right");
+                    floatingEl.classList.add("behavior-rise");
+                } else if (behavior === "random") {
+                    floatingEl.style.transition = "left 2s ease-in-out, top 2s ease-in-out";
+                    const moveRandom = function () {
+                        const w = window.innerWidth - (size || 76) - 20;
+                        const h = window.innerHeight - (size || 76) - 20;
+                        const x = Math.max(10, Math.random() * w);
+                        const y = Math.max(80, Math.random() * h);
+                        floatingEl.style.left = x + "px";
+                        floatingEl.style.top = y + "px";
+                        floatingEl.style.right = "auto";
+                        floatingEl.style.bottom = "auto";
+                        floatingRandomTimer = setTimeout(moveRandom, 2500 + Math.random() * 2000);
+                    };
+                    floatingEl.style.left = "20px";
+                    floatingEl.style.top = "120px";
                     floatingEl.style.right = "auto";
                     floatingEl.style.bottom = "auto";
-                    floatingRandomTimer = setTimeout(moveRandom, 2500 + Math.random() * 2000);
-                };
-                // Posição inicial
-                floatingEl.style.left = "20px";
-                floatingEl.style.top = "120px";
-                floatingEl.style.right = "auto";
-                floatingEl.style.bottom = "auto";
-                moveRandom();
+                    moveRandom();
+                }
+
+                floatingEl.classList.add("visible");
             }
 
-            floatingEl.classList.add("visible");
+            // === 2) Controlar Corações (Sardinhas) ===
+            const showSardinhas = (displayMode === "sardinhas" || displayMode === "both");
+            const sardinhasImage = (data && data.sardinhasImage) ? data.sardinhasImage : "img/coracao.gif";
+
+            renderSardinhas({
+                enabled: showSardinhas,
+                image: sardinhasImage
+            });
         }
 
         /* =========================================================
@@ -2693,7 +2691,6 @@
             renderBanners(FALLBACK_BANNERS);
             renderDynamicServices(FALLBACK_SERVICES);
 
-            // Mostrar barra de música e iniciar autoplay imediatamente
             musicBar.classList.add("visible");
             if (!music.src || music.src === "" || music.src === window.location.href) {
                 music.src = DEVITTO_CONFIG.music;
@@ -2701,10 +2698,8 @@
             updateMusicButton();
             updateMusicTitle();
 
-            // Autoplay agressivo a partir do momento em que a página carrega
             scheduleAutoplayAttempts();
 
-            // Reforços em momentos chave
             window.addEventListener("load", function () {
                 setTimeout(tryAutoplay, 100);
                 setTimeout(tryAutoplay, 800);
