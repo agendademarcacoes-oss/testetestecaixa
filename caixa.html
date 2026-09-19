@@ -4280,4 +4280,2075 @@
                     const oldProduct = products.find(p => p.id === oldSale.productId);
                     const newProduct = products.find(p => p.id === productId);
                     
-                    if (oldP
+                    if (oldProduct) {
+                        estoquePromise = estoquePromise.then(() => 
+                            db.collection('products').doc(oldSale.productId).update({
+                                quantity: (oldProduct.quantity || 0) + (oldSale.quantity || 0)
+                            })
+                        );
+                    }
+                    if (newProduct) {
+                        if (newProduct.quantity < quantity) {
+                            Swal.close();
+                            showToast(`Estoque insuficiente para ${newProduct.name}. Disponível: ${newProduct.quantity}`, 'error');
+                            return;
+                        }
+                        estoquePromise = estoquePromise.then(() => 
+                            db.collection('products').doc(productId).update({
+                                quantity: (newProduct.quantity || 0) - quantity
+                            })
+                        );
+                    }
+                } else if (oldSale && oldSale.productId === productId) {
+                    // Mesmo produto - ajustar estoque pela diferença
+                    const product = products.find(p => p.id === productId);
+                    if (product) {
+                        const diff = (oldSale.quantity || 0) - quantity;
+                        const newQty = (product.quantity || 0) + diff;
+                        if (newQty < 0) {
+                            Swal.close();
+                            showToast('Estoque insuficiente para esta quantidade.', 'error');
+                            return;
+                        }
+                        estoquePromise = db.collection('products').doc(productId).update({
+                            quantity: newQty
+                        });
+                    }
+                }
+
+                const updateData = {
+                    productId: productId,
+                    quantity: quantity,
+                    unitPrice: unitPrice,
+                    totalValue: totalValue,
+                    clientId: clientId,
+                    date: date,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                };
+
+                estoquePromise
+                    .then(() => db.collection('productSales').doc(id).update(updateData))
+                    .then(() => {
+                        Swal.close();
+                        showToast('Venda de produto atualizada com sucesso!', 'success');
+                        const modal = bootstrap.Modal.getInstance(document.getElementById('editSaleModal'));
+                        if (modal) modal.hide();
+                        recarregarDados();
+                        carregarTodasVendas().then(() => renderizarCalendario());
+                    })
+                    .catch(error => {
+                        Swal.close();
+                        showToast('Erro ao atualizar: ' + error.message, 'error');
+                    });
+            }
+        }
+
+        // ==========================================
+        // 10. FUNÇÕES DO CARRINHO
+        // ==========================================
+        function atualizarCarrinho() {
+            const cartCard = document.getElementById('cartCard');
+            const container = document.getElementById('cartItems');
+            const totalSpan = document.getElementById('cartTotal');
+            const totalOriginalSpan = document.getElementById('cartTotalOriginal');
+            const countSpan = document.getElementById('cartCount');
+
+            if (cart.length === 0) {
+                cartCard.style.display = 'none';
+                return;
+            }
+
+            cartCard.style.display = 'block';
+            countSpan.textContent = `${cart.length} itens`;
+
+            let html = '';
+            let total = 0;
+            let totalOriginal = 0;
+
+            cart.forEach((item, index) => {
+                if (item.tipo === 'service') {
+                    total += item.value;
+                    totalOriginal += item.valorOriginal || item.value;
+                    
+                    const temDesconto = item.descontoAplicado > 0;
+                    const isPackage = item.isPackage || false;
+                    const temPagamento = item.paymentRegistered || false;
+                    
+                    let descontoLabel = '';
+                    if (temDesconto) {
+                        descontoLabel = `<span class="discount-badge">-${formatCurrency(item.descontoAplicado)}</span>`;
+                    }
+                    if (isPackage) {
+                        descontoLabel = `<span class="discount-badge" style="background:#6f42c1;">📦 Pacote</span>`;
+                    }
+                    if (temPagamento) {
+                        descontoLabel += `<span class="discount-badge" style="background:#17a2b8;">💰 Pago</span>`;
+                    }
+
+                    html += `
+                        <div class="cart-item" style="${isPackage ? 'border-left-color:#6f42c1;background:#f8f0ff;' : ''}${temPagamento ? 'background:#e8f4f8;' : ''}">
+                            <div class="cart-info">
+                                <div class="cart-title"><i class="fas fa-cut ${isPackage ? 'text-purple' : 'text-primary'} me-1"></i>${item.description}</div>
+                                <div class="cart-detail">${item.clientName} | ${item.collaboratorName} | ${item.type}
+                                    ${temPagamento ? ' | 💰 Pagamento registrado' : ''}
+                                    ${isPackage ? ' | <span class="text-purple fw-bold">Pacote</span>' : ''}
+                                </div>
+                            </div>
+                            <div class="text-end">
+                                ${temDesconto && !isPackage ? `<div style="font-size:0.65rem;color:#6c757d;text-decoration:line-through;">${formatCurrency(item.valorOriginal)}</div>` : ''}
+                                <div class="cart-value">${isPackage ? '✅ Incluso' : formatCurrency(item.value)} ${descontoLabel}</div>
+                            </div>
+                            <div class="cart-actions">
+                                <button class="btn btn-sm btn-outline-danger" onclick="removerDoCarrinho(${index})">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    total += item.totalValue;
+                    totalOriginal += item.valorOriginal || item.totalValue;
+                    
+                    const temDesconto = item.descontoAplicado > 0;
+                    const temPagamento = item.paymentRegistered || false;
+                    let descontoLabel = temDesconto ? 
+                        `<span class="discount-badge">-${formatCurrency(item.descontoAplicado)}</span>` : '';
+                    if (temPagamento) {
+                        descontoLabel += `<span class="discount-badge" style="background:#17a2b8;">💰 Pago</span>`;
+                    }
+
+                    html += `
+                        <div class="cart-item" style="${temPagamento ? 'background:#e8f4f8;' : ''}">
+                            <div class="cart-info">
+                                <div class="cart-title"><i class="fas fa-box text-info me-1"></i>${item.productName}</div>
+                                <div class="cart-detail">${item.clientName} | ${item.quantity} und | ${formatCurrency(item.productPrice)}/und
+                                    ${temPagamento ? ' | 💰 Pagamento registrado' : ''}
+                                    ${temDesconto ? ` | <span class="text-success">${item.descontoPercent > 0 ? item.descontoPercent + '%' : '€ ' + item.descontoValue.toFixed(2)} OFF</span>` : ''}
+                                </div>
+                            </div>
+                            <div class="text-end">
+                                ${temDesconto ? `<div style="font-size:0.65rem;color:#6c757d;text-decoration:line-through;">${formatCurrency(item.valorOriginal)}</div>` : ''}
+                                <div class="cart-value">${formatCurrency(item.totalValue)} ${descontoLabel}</div>
+                            </div>
+                            <div class="cart-actions">
+                                <button class="btn btn-sm btn-outline-danger" onclick="removerDoCarrinho(${index})">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+
+            container.innerHTML = html;
+
+            totalSpan.textContent = formatCurrency(total);
+            
+            if (totalOriginal > total) {
+                totalOriginalSpan.style.display = 'block';
+                totalOriginalSpan.textContent = `Original: ${formatCurrency(totalOriginal)}`;
+            } else {
+                totalOriginalSpan.style.display = 'none';
+            }
+        }
+
+        function removerDoCarrinho(index) {
+            cart.splice(index, 1);
+            atualizarCarrinho();
+        }
+        window.removerDoCarrinho = removerDoCarrinho;
+
+        function limparCarrinho() {
+            if (cart.length === 0) return;
+            Swal.fire({
+                title: 'Limpar Carrinho',
+                text: 'Tem certeza que deseja remover todos os itens?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Sim, limpar',
+                cancelButtonText: 'Cancelar'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    cart = [];
+                    atualizarCarrinho();
+                }
+            });
+        }
+
+        // ==========================================
+        // 11. FINALIZAR VENDA
+        // ==========================================
+        function abrirModalCheckout() {
+            if (cart.length === 0) {
+                Swal.fire('Aviso', 'Adicione itens ao carrinho primeiro.', 'warning');
+                return;
+            }
+
+            const modal = new bootstrap.Modal(document.getElementById('checkoutModal'));
+            const body = document.getElementById('checkoutBody');
+
+            let html = `
+                <div class="mb-3">
+                    <h6 class="fw-bold">Resumo da Venda</h6>
+                    <div style="max-height:200px;overflow-y:auto;">
+            `;
+
+            let total = 0;
+            let totalOriginal = 0;
+            let servicesTotal = 0;
+            let productsTotal = 0;
+            let packageItems = [];
+
+            cart.forEach(item => {
+                if (item.tipo === 'service') {
+                    if (item.isPackage) {
+                        packageItems.push(item);
+                    } else {
+                        servicesTotal += item.value;
+                        totalOriginal += item.valorOriginal || item.value;
+                    }
+                    const temDesconto = item.descontoAplicado > 0;
+                    const isPackage = item.isPackage || false;
+                    const temPagamento = item.paymentRegistered || false;
+                    
+                    html += `
+                        <div class="cart-item" style="border-left-color:${isPackage ? '#6f42c1' : '#28a745'};${isPackage ? 'background:#f8f0ff;' : ''}${temPagamento ? 'background:#e8f4f8;' : ''}">
+                            <div class="cart-info">
+                                <div class="cart-title">${isPackage ? '📦' : '✂️'} ${item.description}</div>
+                                <div class="cart-detail">${item.clientName} | ${item.collaboratorName}
+                                    ${temDesconto && !isPackage ? ` | <span class="text-success">Desconto: ${formatCurrency(item.descontoAplicado)}</span>` : ''}
+                                    ${isPackage ? ' | <span class="text-purple fw-bold">Pacote</span>' : ''}
+                                    ${temPagamento ? ' | 💰 Pagamento registrado' : ''}
+                                </div>
+                            </div>
+                            <div class="text-end">
+                                ${temDesconto && !isPackage ? `<div style="font-size:0.65rem;color:#6c757d;text-decoration:line-through;">${formatCurrency(item.valorOriginal)}</div>` : ''}
+                                <div class="cart-value">${isPackage ? '✅ Incluso' : formatCurrency(item.value)}</div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    productsTotal += item.totalValue;
+                    totalOriginal += item.valorOriginal || item.totalValue;
+                    const temDesconto = item.descontoAplicado > 0;
+                    const temPagamento = item.paymentRegistered || false;
+                    html += `
+                        <div class="cart-item" style="border-left-color:#17a2b8;${temPagamento ? 'background:#e8f4f8;' : ''}">
+                            <div class="cart-info">
+                                <div class="cart-title">📦 ${item.productName}</div>
+                                <div class="cart-detail">${item.clientName} | ${item.quantity} und
+                                    ${temDesconto ? ` | <span class="text-success">Desconto: ${formatCurrency(item.descontoAplicado)}</span>` : ''}
+                                    ${temPagamento ? ' | 💰 Pagamento registrado' : ''}
+                                </div>
+                            </div>
+                            <div class="text-end">
+                                ${temDesconto ? `<div style="font-size:0.65rem;color:#6c757d;text-decoration:line-through;">${formatCurrency(item.valorOriginal)}</div>` : ''}
+                                <div class="cart-value">${formatCurrency(item.totalValue)}</div>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+
+            total = servicesTotal + productsTotal;
+
+            html += `
+                    </div>
+                </div>
+                ${packageItems.length > 0 ? `
+                    <div class="alert alert-info py-2">
+                        <i class="fas fa-box me-2"></i>
+                        <strong>${packageItems.length}</strong> serviço(s) incluído(s) no pacote: 
+                        ${packageItems.map(p => p.packageDescription || 'Pacote').join(', ')}
+                    </div>
+                ` : ''}
+                <div class="row g-2">
+                    <div class="col-6">
+                        <div class="summary-box">
+                            <span class="label">Serviços</span>
+                            <span class="value positive">${formatCurrency(servicesTotal)}</span>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="summary-box">
+                            <span class="label">Produtos</span>
+                            <span class="value positive">${formatCurrency(productsTotal)}</span>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="summary-box" style="background:#e9ecef;">
+                            <span class="label fw-bold">Total</span>
+                            <span class="value fw-bold">${formatCurrency(total)}</span>
+                        </div>
+                        ${totalOriginal > total ? `
+                            <div class="summary-box" style="background:#fff3cd;border:1px solid #ffc107;">
+                                <span class="label text-muted">Total Original</span>
+                                <span class="value" style="text-decoration:line-through;color:#6c757d;">${formatCurrency(totalOriginal)}</span>
+                            </div>
+                            <div class="summary-box" style="background:#d4edda;border:1px solid #28a745;">
+                                <span class="label text-success">Desconto Total</span>
+                                <span class="value text-success">${formatCurrency(totalOriginal - total)}</span>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+
+            body.innerHTML = html;
+            modal.show();
+        }
+
+        function finalizarVenda() {
+            if (cart.length === 0) {
+                Swal.fire('Aviso', 'Adicione itens ao carrinho primeiro.', 'warning');
+                return;
+            }
+
+            const hoje = new Date().toISOString().split('T')[0];
+
+            Swal.fire({
+                title: 'Finalizando venda...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            const promises = [];
+            const productsToUpdate = [];
+            const packagesToUpdate = [];
+
+            cart.forEach(item => {
+                if (item.tipo === 'service') {
+                    if (item.isPackage && item.packageId) {
+                        const pkg = clientPackages.find(p => p.id === item.packageId);
+                        if (pkg) {
+                            const procedureDates = pkg.procedureDates || [];
+                            const pendingIndex = procedureDates.findIndex(p => !p.completed);
+                            if (pendingIndex !== -1) {
+                                procedureDates[pendingIndex].completed = true;
+                                
+                                packagesToUpdate.push(
+                                    db.collection('packages').doc(item.packageId).update({
+                                        procedureDates: procedureDates,
+                                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                                    })
+                                );
+                            }
+                        }
+                    } else {
+                        const serviceData = {
+                            clientId: item.clientId,
+                            collaboratorId: item.collaboratorId,
+                            type: item.type,
+                            value: item.value,
+                            valorOriginal: item.valorOriginal || item.value,
+                            descontoPercent: item.descontoPercent || 0,
+                            descontoValue: item.descontoValue || 0,
+                            descontoAplicado: item.descontoAplicado || 0,
+                            duration: item.duration || 30,
+                            description: item.description || 'Serviço',
+                            date: hoje,
+                            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                            userId: currentUser.uid,
+                            pagamentoRegistrado: item.paymentRegistered || false,
+                            salaoRecebeu: item.salaoRecebeu || 0,
+                            colaboradorRecebeu: item.colaboradorRecebeu || 0,
+                            valorRepassar: item.valorRepassar || 0,
+                            repassarDe: item.repassarDe || '',
+                            repassarPara: item.repassarPara || ''
+                        };
+                        promises.push(db.collection('services').add(serviceData));
+                    }
+                } else {
+                    const saleData = {
+                        productId: item.productId,
+                        productName: item.productName,
+                        quantity: item.quantity,
+                        unitPrice: item.productPrice,
+                        totalValue: item.totalValue,
+                        valorOriginal: item.valorOriginal || item.totalValue,
+                        descontoPercent: item.descontoPercent || 0,
+                        descontoValue: item.descontoValue || 0,
+                        descontoAplicado: item.descontoAplicado || 0,
+                        clientId: item.clientId || null,
+                        date: hoje,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                        userId: currentUser.uid,
+                        pagamentoRegistrado: item.paymentRegistered || false,
+                        salaoRecebeu: item.salaoRecebeu || 0,
+                        colaboradorRecebeu: item.colaboradorRecebeu || 0,
+                        valorRepassar: item.valorRepassar || 0,
+                        repassarDe: item.repassarDe || '',
+                        repassarPara: item.repassarPara || ''
+                    };
+                    promises.push(db.collection('productSales').add(saleData));
+                    
+                    const product = products.find(p => p.id === item.productId);
+                    if (product) {
+                        const newQty = product.quantity - item.quantity;
+                        productsToUpdate.push(
+                            db.collection('products').doc(item.productId).update({ quantity: newQty })
+                        );
+                    }
+                }
+            });
+
+            Promise.all([...promises, ...productsToUpdate, ...packagesToUpdate])
+                .then(() => {
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('checkoutModal'));
+                    if (modal) modal.hide();
+                    
+                    cart = [];
+                    atualizarCarrinho();
+                    carregarVendasDia();
+                    carregarDados();
+                    broadcastCaixaUpdate();
+                    
+                    const clientId = document.getElementById('serviceClientId').value;
+                    if (clientId) {
+                        verificarPacotesCliente(clientId);
+                    }
+                    
+                    Swal.close();
+                    Swal.fire({
+                        icon: 'success',
+                        title: '✅ Venda finalizada com sucesso!',
+                        html: totalOriginal > total ? `<p>Desconto total aplicado: ${formatCurrency(totalOriginal - total)}</p>` : '',
+                        timer: 3000,
+                        showConfirmButton: false
+                    });
+                })
+                .catch(error => {
+                    Swal.close();
+                    Swal.fire('Erro', 'Erro ao finalizar venda: ' + error.message, 'error');
+                });
+        }
+
+        // ==========================================
+        // 12. RENDERIZAR VENDAS DO DIA
+        // ==========================================
+        function renderizarVendas(filtro = '') {
+            const container = document.getElementById('salesList');
+            let vendas = todaySales;
+
+            if (filtro) {
+                const search = filtro.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+                vendas = todaySales.filter(s => {
+                    const client = clients.find(c => c.id === s.clientId);
+                    const clientName = client ? client.name : '';
+                    const productName = s.productName || '';
+                    const desc = s.description || '';
+                    const nomeLower = (clientName + ' ' + productName + ' ' + desc)
+                        .toLowerCase()
+                        .normalize('NFD')
+                        .replace(/[\u0300-\u036f]/g, "");
+                    return nomeLower.includes(search);
+                });
+            }
+
+            if (vendas.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-inbox fa-2x mb-2 opacity-25"></i>
+                        <p class="mb-0">Nenhuma venda encontrada.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            vendas.forEach(sale => {
+                const client = clients.find(c => c.id === sale.clientId);
+                const clientName = client ? client.name : 'Cliente não encontrado';
+
+                if (sale.tipo === 'service') {
+                    const collaborator = collaborators.find(c => c.id === sale.collaboratorId);
+                    const collabName = collaborator ? collaborator.name : 'N/A';
+                    const valor = parseFloat(sale.value || 0);
+                    const temDesconto = sale.descontoAplicado > 0;
+                    const isPackage = sale.isPackage || false;
+                    const pagamentoRegistrado = sale.pagamentoRegistrado || false;
+                    
+                    html += `
+                        <div class="sale-item">
+                            <div class="sale-info">
+                                <div class="sale-title"><i class="fas fa-cut ${isPackage ? 'text-purple' : 'text-primary'} me-1"></i>${sale.description || 'Serviço'}${isPackage ? ' 📦' : ''}</div>
+                                <div class="sale-detail">${clientName} | ${collabName} | ${sale.type || 'manual'}
+                                    ${temDesconto ? ` | <span class="text-success">Desconto: ${formatCurrency(sale.descontoAplicado)}</span>` : ''}
+                                    ${isPackage ? ' | <span class="text-purple fw-bold">Pacote</span>' : ''}
+                                    ${pagamentoRegistrado ? ' | 💰 Pago' : ''}
+                                </div>
+                            </div>
+                            <div class="text-end">
+                                ${temDesconto && !isPackage ? `<div style="font-size:0.6rem;color:#6c757d;text-decoration:line-through;">${formatCurrency(sale.valorOriginal)}</div>` : ''}
+                                <div class="sale-value">${isPackage ? '✅ Incluso' : formatCurrency(valor)}</div>
+                            </div>
+                            <div class="sale-actions">
+                                <button class="btn btn-sm btn-outline-primary" onclick="abrirEditarVenda('${sale.id}', 'service', '${sale.date || ''}')" title="Editar">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="excluirVenda('${sale.id}', 'service')" title="Excluir">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    const valor = parseFloat(sale.totalValue || 0);
+                    const temDesconto = sale.descontoAplicado > 0;
+                    const pagamentoRegistrado = sale.pagamentoRegistrado || false;
+                    
+                    html += `
+                        <div class="sale-item">
+                            <div class="sale-info">
+                                <div class="sale-title"><i class="fas fa-box text-info me-1"></i>${sale.productName || 'Produto'}</div>
+                                <div class="sale-detail">${clientName} | ${sale.quantity || 0} und | ${formatCurrency(sale.unitPrice)}/und
+                                    ${temDesconto ? ` | <span class="text-success">Desconto: ${formatCurrency(sale.descontoAplicado)}</span>` : ''}
+                                    ${pagamentoRegistrado ? ' | 💰 Pago' : ''}
+                                </div>
+                            </div>
+                            <div class="text-end">
+                                ${temDesconto ? `<div style="font-size:0.6rem;color:#6c757d;text-decoration:line-through;">${formatCurrency(sale.valorOriginal)}</div>` : ''}
+                                <div class="sale-value">${formatCurrency(valor)}</div>
+                            </div>
+                            <div class="sale-actions">
+                                <button class="btn btn-sm btn-outline-primary" onclick="abrirEditarVenda('${sale.id}', 'product', '${sale.date || ''}')" title="Editar">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="excluirVenda('${sale.id}', 'product')" title="Excluir">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+
+            container.innerHTML = html;
+        }
+
+        function filtrarVendas(search) {
+            renderizarVendas(search);
+        }
+
+        // ==========================================
+        // 13. EXCLUIR VENDA
+        // ==========================================
+        window.excluirVenda = function(id, tipo) {
+            Swal.fire({
+                title: 'Excluir venda?',
+                text: 'Esta ação não pode ser desfeita.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                confirmButtonText: 'Sim, excluir',
+                cancelButtonText: 'Cancelar'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    Swal.fire({
+                        title: 'Excluindo...',
+                        allowOutsideClick: false,
+                        didOpen: () => { Swal.showLoading(); }
+                    });
+
+                    const collectionName = tipo === 'service' ? 'services' : 'productSales';
+                    const saleRef = db.collection(collectionName).doc(id);
+
+                    saleRef.get().then(saleDoc => {
+                        if (!saleDoc.exists) throw new Error('Venda não encontrada.');
+                        const sale = saleDoc.data();
+                        const tarefas = [];
+
+                        if (tipo === 'product' && sale.productId) {
+                            tarefas.push(
+                                db.collection('products').doc(sale.productId).get().then(productDoc => {
+                                    if (!productDoc.exists) return;
+                                    const currentQty = productDoc.data().quantity || 0;
+                                    return db.collection('products').doc(sale.productId).update({
+                                        quantity: currentQty + (sale.quantity || 0)
+                                    });
+                                })
+                            );
+                        }
+
+                        const collaboratorId = sale.collaboratorId || sale.paymentRecord?.collaboratorId;
+                        const dataVenda = sale.date || '';
+                        const valorTotal = parseFloat(sale.valorOriginal || sale.value || sale.totalValue || 0);
+                        const colaboradorRecebeu = parseFloat(sale.colaboradorRecebeu || sale.paymentRecord?.colaboradorRecebeu || 0);
+                        const salaoRecebeu = parseFloat(sale.salaoRecebeu || sale.paymentRecord?.salaoRecebeu || 0);
+
+                        if (dataVenda) {
+                            const pagamentosQuery = db.collection('collaboratorPayments')
+                                .where('userId', '==', currentUser.uid);
+
+                            tarefas.push(
+                                pagamentosQuery.get().then(snapshot => {
+                                    const candidatos = [];
+                                    snapshot.forEach(paymentDoc => {
+                                        const payment = paymentDoc.data();
+                                        const valorPagamento = parseFloat(payment.valorTotal || 0);
+                                        const colaboradorPagamento = parseFloat(payment.colaboradorRecebeu || 0);
+                                        const salaoPagamento = parseFloat(payment.salaoRecebeu || 0);
+                                        const tipoPagamento = payment.tipo || '';
+                                        const tipoVenda = tipo === 'service' ? 'service' : 'product';
+
+                                        if (
+                                            (payment.data || '') === dataVenda &&
+                                            (!collaboratorId || payment.collaboratorId === collaboratorId) &&
+                                            Math.abs(valorPagamento - valorTotal) < 0.01 &&
+                                            Math.abs(colaboradorPagamento - colaboradorRecebeu) < 0.01 &&
+                                            Math.abs(salaoPagamento - salaoRecebeu) < 0.01 &&
+                                            (!tipoPagamento || tipoPagamento === tipoVenda)
+                                        ) {
+                                            candidatos.push({ id: paymentDoc.id, data: payment });
+                                        }
+                                    });
+
+                                    if (candidatos.length === 0) return null;
+
+                                    candidatos.sort((a, b) => {
+                                        const ta = a.data.timestamp?.seconds || 0;
+                                        const tb = b.data.timestamp?.seconds || 0;
+                                        return ta - tb;
+                                    });
+                                    return db.collection('collaboratorPayments').doc(candidatos[0].id).delete();
+                                })
+                            );
+                        }
+
+                        tarefas.push(saleRef.delete());
+                        return Promise.all(tarefas);
+                    }).then(() => {
+                        todaySales = todaySales.filter(s => !(s.id === id && s.tipo === tipo));
+                        allSales = allSales.filter(s => !(s.id === id && s.tipo === tipo));
+                        renderizarVendas();
+                        atualizarResumo();
+                        carregarVendasDia();
+                        carregarDados();
+                        broadcastCaixaUpdate();
+                        Swal.close();
+                        Swal.fire({
+                            icon: 'success',
+                            title: '✅ Venda excluída!',
+                            text: 'A venda e o registro de pagamento relacionado foram removidos.',
+                            timer: 1800,
+                            showConfirmButton: false
+                        });
+                    }).catch(error => {
+                        Swal.close();
+                        Swal.fire('Erro', 'Erro ao excluir: ' + error.message, 'error');
+                    });
+                }
+            });
+        };
+
+        // ==========================================
+        // 14. RESUMO DO DIA
+        // ==========================================
+        function atualizarResumo() {
+            const services = todaySales.filter(s => s.tipo === 'service' && !s.isPackage);
+            const packageServices = todaySales.filter(s => s.tipo === 'service' && s.isPackage);
+            const products = todaySales.filter(s => s.tipo === 'product');
+
+            const totalServices = services.length;
+            const totalServicesValue = services.reduce((sum, s) => sum + parseFloat(s.valorOriginal || s.value || 0), 0);
+            const totalProducts = products.length;
+            const totalProductsValue = products.reduce((sum, s) => sum + parseFloat(s.totalValue || 0), 0);
+            const totalPackageServices = packageServices.length;
+            const total = totalServicesValue + totalProductsValue;
+
+            // Calcular comissões por colaborador sobre o valor TOTAL da venda
+            const commissions = {};
+            let totalCommissions = 0;
+
+            services.forEach(s => {
+                const collab = collaborators.find(c => c.id === s.collaboratorId);
+                if (collab) {
+                    const perc = s.type === 'manual' ? 
+                        parseFloat(collab.manualPercent || 0) : 
+                        parseFloat(collab.productPercent || 0);
+                    const valor = parseFloat(s.valorOriginal || s.value || 0);
+                    const comissao = valor * (perc / 100);
+                    totalCommissions += comissao;
+
+                    if (!commissions[collab.id]) {
+                        commissions[collab.id] = {
+                            name: collab.name,
+                            total: 0,
+                            comissao: 0,
+                            perc: perc
+                        };
+                    }
+                    commissions[collab.id].total += valor;
+                    commissions[collab.id].comissao += comissao;
+                }
+            });
+
+            const totalSalon = total - totalCommissions;
+
+            document.getElementById('summaryServices').textContent = totalServices + (totalPackageServices > 0 ? ` (${totalPackageServices} pacote)` : '');
+            const valorServicosSalao = services.reduce((sum, s) => {
+                const collab = collaborators.find(c => c.id === s.collaboratorId);
+                if (!collab) return sum;
+                const perc = s.type === 'manual' ?
+                    parseFloat(collab.manualPercent || 0) :
+                    parseFloat(collab.productPercent || 0);
+                const valor = parseFloat(s.valorOriginal || s.value || 0);
+                return sum + (valor - (valor * (perc / 100)));
+            }, 0);
+
+            document.getElementById('summaryServicesValue').textContent = formatCurrency(valorServicosSalao);
+            document.getElementById('summaryProducts').textContent = totalProducts;
+            document.getElementById('summaryProductsValue').textContent = formatCurrency(totalProductsValue);
+            document.getElementById('summaryTotal').textContent = formatCurrency(total);
+            document.getElementById('summaryCommissionsTotal').textContent = formatCurrency(totalCommissions);
+            document.getElementById('summarySalon').textContent = formatCurrency(totalSalon);
+
+            const breakdownContainer = document.getElementById('commissionBreakdown');
+            const commissionEntries = Object.entries(commissions);
+
+            if (commissionEntries.length === 0) {
+                breakdownContainer.innerHTML = '<div class="text-muted fs-small py-2">Nenhuma comissão registrada hoje.</div>';
+            } else {
+                let html = '';
+                commissionEntries.forEach(([id, data]) => {
+                    html += `
+                        <div class="commission-item">
+                            <span class="collab-name">${data.name}</span>
+                            <span>
+                                <span class="collab-value">${formatCurrency(data.comissao)}</span>
+                                <span class="text-muted fs-small">(${data.perc}% de ${formatCurrency(data.total)})</span>
+                            </span>
+                        </div>
+                    `;
+                });
+                breakdownContainer.innerHTML = html;
+            }
+
+            if (currentCashier) {
+                document.getElementById('currentCash').textContent = formatCurrency(
+                    (currentCashier.initialValue || 0) + totalSalon
+                );
+            }
+        }
+
+        // ==========================================
+        // 15. CARREGAR DADOS
+        // ==========================================
+        function carregarDados() {
+            if (!currentUser) return;
+
+            Promise.all([
+                carregarClientes(),
+                carregarProdutos(),
+                carregarColaboradores(),
+                carregarServicosEmpresa(),
+                carregarCaixa()
+            ]).then(() => {
+                carregarVendasDia();
+                carregarConfiguracoesSistema();
+                atualizarUltimaAtualizacao();
+                atualizarLogoHeader();
+                carregarTodasVendas();
+            }).catch(err => console.error('Erro ao carregar dados:', err));
+        }
+
+        function carregarClientes() {
+            return new Promise((resolve) => {
+                if (!currentUser) { resolve(); return; }
+                db.collection('clients')
+                    .where('userId', '==', currentUser.uid)
+                    .get()
+                    .then(snapshot => {
+                        clients = [];
+                        snapshot.forEach(doc => clients.push({ id: doc.id, ...doc.data() }));
+                        clients.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                        resolve();
+                    })
+                    .catch(() => resolve());
+            });
+        }
+
+        function carregarProdutos() {
+            return new Promise((resolve) => {
+                if (!currentUser) { resolve(); return; }
+                db.collection('products')
+                    .where('userId', '==', currentUser.uid)
+                    .get()
+                    .then(snapshot => {
+                        products = [];
+                        snapshot.forEach(doc => products.push({ id: doc.id, ...doc.data() }));
+                        products.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                        resolve();
+                    })
+                    .catch(() => resolve());
+            });
+        }
+
+        function carregarColaboradores() {
+            return new Promise((resolve) => {
+                if (!currentUser) { resolve(); return; }
+                db.collection('collaborators')
+                    .where('userId', '==', currentUser.uid)
+                    .where('active', '==', true)
+                    .get()
+                    .then(snapshot => {
+                        collaborators = [];
+                        snapshot.forEach(doc => {
+                            const data = doc.data();
+                            collaborators.push({ id: doc.id, ...data });
+                        });
+                        atualizarSelectColaboradoresGeral();
+                        resolve();
+                    })
+                    .catch(() => resolve());
+            });
+        }
+
+        function carregarServicosEmpresa() {
+            return new Promise((resolve) => {
+                if (!currentUser) { resolve(); return; }
+                db.collection('businessProfile').doc(currentUser.uid).get()
+                    .then(doc => {
+                        if (doc.exists) {
+                            companyServices = doc.data().services || [];
+                        } else {
+                            companyServices = [];
+                        }
+                        renderizarBadgesServicos();
+                        resolve();
+                    })
+                    .catch(() => { companyServices = []; resolve(); });
+            });
+        }
+
+        function carregarCaixa() {
+            return new Promise((resolve) => {
+                const hoje = new Date().toISOString().split('T')[0];
+                db.collection('cashiers')
+                    .where('userId', '==', currentUser.uid)
+                    .where('date', '==', hoje)
+                    .where('status', '==', 'open')
+                    .get()
+                    .then(snapshot => {
+                        if (!snapshot.empty) {
+                            currentCashier = snapshot.docs[0].data();
+                            currentCashier.id = snapshot.docs[0].id;
+                            atualizarStatusCaixa(true);
+                        } else {
+                            currentCashier = null;
+                            atualizarStatusCaixa(false);
+                        }
+                        resolve();
+                    })
+                    .catch(() => { currentCashier = null; atualizarStatusCaixa(false); resolve(); });
+            });
+        }
+
+        function carregarVendasDia() {
+            const hoje = new Date().toISOString().split('T')[0];
+
+            Promise.all([
+                db.collection('services')
+                    .where('userId', '==', currentUser.uid)
+                    .where('date', '==', hoje)
+                    .get(),
+                db.collection('productSales')
+                    .where('userId', '==', currentUser.uid)
+                    .where('date', '==', hoje)
+                    .get()
+            ]).then(([servicesSnap, productsSnap]) => {
+                todaySales = [];
+
+                servicesSnap.forEach(doc => {
+                    todaySales.push({ id: doc.id, ...doc.data(), tipo: 'service' });
+                });
+
+                productsSnap.forEach(doc => {
+                    todaySales.push({ id: doc.id, ...doc.data(), tipo: 'product' });
+                });
+
+                todaySales.sort((a, b) => {
+                    const da = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp || 0);
+                    const db = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp || 0);
+                    return db - da;
+                });
+
+                renderizarVendas();
+                atualizarResumo();
+            }).catch(err => console.error('Erro ao carregar vendas:', err));
+        }
+
+        function carregarConfiguracoesSistema() {
+            try {
+                const config = localStorage.getItem('systemConfig');
+                if (config) {
+                    const parsed = JSON.parse(config);
+                    if (parsed.corPrimaria) {
+                        document.documentElement.style.setProperty('--primary-color', parsed.corPrimaria);
+                        document.documentElement.style.setProperty('--accent-color', parsed.corPrimaria + '99');
+                        const header = document.getElementById('caixaHeader');
+                        if (header) {
+                            header.style.background = `linear-gradient(135deg, ${parsed.corPrimaria}, ${parsed.corPrimaria}99)`;
+                        }
+                    }
+                    atualizarLogoHeader();
+                }
+            } catch(e) {}
+        }
+
+        function renderizarBadgesServicos() {
+            const container = document.getElementById('serviceBadgesContainer');
+            container.innerHTML = '';
+
+            if (!companyServices || companyServices.length === 0) {
+                container.innerHTML = '<span class="text-muted fs-small">Nenhum serviço cadastrado na empresa.</span>';
+                return;
+            }
+
+            companyServices.forEach(service => {
+                const badge = document.createElement('span');
+                badge.className = 'service-badge';
+                badge.setAttribute('data-service', service);
+                badge.textContent = service;
+                container.appendChild(badge);
+            });
+        }
+
+        // ==========================================
+        // 16. CAIXA
+        // ==========================================
+        function abrirModalAbrirCaixa() {
+            document.getElementById('initialValueInput').value = 0;
+            const modal = new bootstrap.Modal(document.getElementById('openCashierModal'));
+            modal.show();
+        }
+
+        function confirmarAbrirCaixa() {
+            const initialValue = parseFloat(document.getElementById('initialValueInput').value) || 0;
+            if (initialValue < 0) {
+                Swal.fire('Erro', 'Valor inicial não pode ser negativo.', 'error');
+                return;
+            }
+
+            const hoje = new Date().toISOString().split('T')[0];
+
+            const cashierData = {
+                date: hoje,
+                initialValue: initialValue,
+                status: 'open',
+                openedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                userId: currentUser.uid
+            };
+
+            Swal.fire({
+                title: 'Abrindo caixa...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            db.collection('cashiers').add(cashierData)
+                .then(docRef => {
+                    currentCashier = { id: docRef.id, ...cashierData };
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('openCashierModal'));
+                    if (modal) modal.hide();
+                    atualizarStatusCaixa(true);
+                    broadcastCaixaUpdate();
+                    Swal.close();
+                    Swal.fire({
+                        icon: 'success',
+                        title: '✅ Caixa aberto!',
+                        text: `Saldo inicial: ${formatCurrency(initialValue)}`,
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                })
+                .catch(error => {
+                    Swal.close();
+                    Swal.fire('Erro', 'Erro ao abrir caixa: ' + error.message, 'error');
+                });
+        }
+
+        function fecharCaixa() {
+            if (!currentCashier) {
+                Swal.fire('Erro', 'Nenhum caixa aberto.', 'error');
+                return;
+            }
+
+            const services = todaySales.filter(s => s.tipo === 'service' && !s.isPackage);
+            const products = todaySales.filter(s => s.tipo === 'product');
+
+            const totalServices = services.reduce((sum, s) => sum + parseFloat(s.valorOriginal || s.value || 0), 0);
+            const totalProducts = products.reduce((sum, s) => sum + parseFloat(s.totalValue || 0), 0);
+
+            let totalCommissions = 0;
+            services.forEach(s => {
+                const collab = collaborators.find(c => c.id === s.collaboratorId);
+                if (collab) {
+                    const perc = s.type === 'manual' ?
+                        parseFloat(collab.manualPercent || 0) :
+                        parseFloat(collab.productPercent || 0);
+                    const valor = parseFloat(s.valorOriginal || s.value || 0);
+                    totalCommissions += valor * (perc / 100);
+                }
+            });
+
+            const totalSalon = totalServices + totalProducts - totalCommissions;
+            const totalSales = totalServices + totalProducts;
+            const finalValue = (currentCashier.initialValue || 0) + totalSalon;
+
+            Swal.fire({
+                title: 'Fechar Caixa',
+                html: `
+                    <div class="text-start">
+                        <p><strong>Saldo Inicial:</strong> ${formatCurrency(currentCashier.initialValue)}</p>
+                        <p><strong>Total Vendas:</strong> ${formatCurrency(totalSales)}</p>
+                        <p><strong>Saldo Final:</strong> ${formatCurrency(finalValue)}</p>
+                    </div>
+                `,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Sim, fechar',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#d33'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    Swal.fire({
+                        title: 'Fechando caixa...',
+                        allowOutsideClick: false,
+                        didOpen: () => { Swal.showLoading(); }
+                    });
+
+                    db.collection('cashiers').doc(currentCashier.id).update({
+                        status: 'closed',
+                        closedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        finalValue: finalValue,
+                        totalServices: totalServices,
+                        totalProducts: totalProducts,
+                        totalSales: totalSales
+                    })
+                    .then(() => {
+                        currentCashier = null;
+                        atualizarStatusCaixa(false);
+                        broadcastCaixaUpdate();
+                        Swal.close();
+                        Swal.fire({
+                            icon: 'success',
+                            title: '✅ Caixa fechado!',
+                            text: `Saldo final: ${formatCurrency(finalValue)}`,
+                            timer: 3000,
+                            showConfirmButton: false
+                        });
+                    })
+                    .catch(error => {
+                        Swal.close();
+                        Swal.fire('Erro', 'Erro ao fechar caixa: ' + error.message, 'error');
+                    });
+                }
+            });
+        }
+
+        function atualizarStatusCaixa(isOpen) {
+            const badge = document.getElementById('cashierStatusBadge');
+            const openBtn = document.getElementById('openCashierBtn');
+            const closeBtn = document.getElementById('closeCashierBtn');
+            const finalizeBtn = document.getElementById('finalizeSaleBtn');
+            const pastBtn = document.getElementById('pastSaleBtn');
+            const manageBtn = document.getElementById('manageSalesBtn');
+
+            if (isOpen) {
+                badge.textContent = '✅ Aberto';
+                badge.className = 'status-badge open';
+                openBtn.disabled = true;
+                closeBtn.disabled = false;
+                finalizeBtn.disabled = false;
+                pastBtn.disabled = false;
+                manageBtn.disabled = false;
+                document.getElementById('serviceForm').querySelectorAll('input, select, button').forEach(el => el.disabled = false);
+                document.getElementById('productForm').querySelectorAll('input, select, button').forEach(el => el.disabled = false);
+                const services = todaySales.filter(s => s.tipo === 'service' && !s.isPackage);
+                const products = todaySales.filter(s => s.tipo === 'product');
+                const totalServices = services.reduce((sum, s) => sum + parseFloat(s.valorOriginal || s.value || 0), 0);
+                const totalProducts = products.reduce((sum, s) => sum + parseFloat(s.totalValue || 0), 0);
+                let totalCommissions = 0;
+                services.forEach(s => {
+                    const collab = collaborators.find(c => c.id === s.collaboratorId);
+                    if (collab) {
+                        const perc = s.type === 'manual' ?
+                            parseFloat(collab.manualPercent || 0) :
+                            parseFloat(collab.productPercent || 0);
+                        const valor = parseFloat(s.valorOriginal || s.value || 0);
+                        totalCommissions += valor * (perc / 100);
+                    }
+                });
+                const totalSalon = totalServices + totalProducts - totalCommissions;
+                document.getElementById('currentCash').textContent = formatCurrency(
+                    (currentCashier?.initialValue || 0) + totalSalon
+                );
+            } else {
+                badge.textContent = '🔒 Fechado';
+                badge.className = 'status-badge closed';
+                openBtn.disabled = false;
+                closeBtn.disabled = true;
+                finalizeBtn.disabled = true;
+                pastBtn.disabled = true;
+                manageBtn.disabled = true;
+                document.getElementById('serviceForm').querySelectorAll('input, select, button').forEach(el => el.disabled = true);
+                document.getElementById('productForm').querySelectorAll('input, select, button').forEach(el => el.disabled = true);
+                document.getElementById('currentCash').textContent = '€ 0,00';
+                limparCarrinho();
+            }
+        }
+
+        // ==========================================
+        // 17. NOVO CLIENTE
+        // ==========================================
+        function abrirModalNovoCliente(nome = '') {
+            document.getElementById('newClientForm').reset();
+            document.getElementById('newClientName').value = nome;
+            document.getElementById('newClientPhotoPreview').style.display = 'none';
+            document.getElementById('newClientPhotoPlaceholder').style.display = 'flex';
+            document.getElementById('removeNewClientPhoto').style.display = 'none';
+            newClientPhotoUrl = null;
+            document.getElementById('newClientPhoto').value = '';
+
+            const modal = new bootstrap.Modal(document.getElementById('newClientModal'));
+            modal.show();
+
+            setTimeout(() => {
+                document.getElementById('newClientName').focus();
+                if (nome) {
+                    document.getElementById('newClientName').select();
+                }
+            }, 300);
+        }
+
+        function uploadFotoCliente(file) {
+            if (!file) return;
+            if (!file.type.match('image.*')) {
+                Swal.fire('Erro', 'Por favor, selecione uma imagem válida.', 'error');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('newClientPhotoPreview').src = e.target.result;
+                document.getElementById('newClientPhotoPreview').style.display = 'block';
+                document.getElementById('newClientPhotoPlaceholder').style.display = 'none';
+                document.getElementById('removeNewClientPhoto').style.display = 'inline-block';
+            };
+            reader.readAsDataURL(file);
+
+            Swal.fire({
+                title: 'Enviando foto...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('upload_preset', cloudinaryConfig.uploadPreset);
+
+            fetch(`https://api.cloudinary.com/v1_1/${cloudinaryConfig.cloudName}/image/upload`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.secure_url) {
+                    newClientPhotoUrl = data.secure_url;
+                    Swal.close();
+                } else {
+                    throw new Error('Erro no upload');
+                }
+            })
+            .catch(error => {
+                Swal.close();
+                Swal.fire('Erro', 'Erro ao enviar foto: ' + error.message, 'error');
+                newClientPhotoUrl = null;
+                document.getElementById('newClientPhotoPreview').style.display = 'none';
+                document.getElementById('newClientPhotoPlaceholder').style.display = 'flex';
+                document.getElementById('removeNewClientPhoto').style.display = 'none';
+                document.getElementById('newClientPhoto').value = '';
+            });
+        }
+
+        function salvarNovoCliente() {
+            const nome = document.getElementById('newClientName').value.trim();
+            const birthdate = document.getElementById('newClientBirthdate').value;
+            const phone = document.getElementById('newClientPhone').value.trim();
+            const email = document.getElementById('newClientEmail').value.trim();
+
+            if (!nome) {
+                Swal.fire('Erro', 'Digite o nome do cliente.', 'error');
+                document.getElementById('newClientName').focus();
+                return;
+            }
+
+            if (!phone) {
+                Swal.fire('Erro', 'Digite o telefone/WhatsApp do cliente.', 'error');
+                document.getElementById('newClientPhone').focus();
+                return;
+            }
+
+            const existing = clients.find(c => c.name.toLowerCase() === nome.toLowerCase() || c.phone === phone);
+            if (existing) {
+                Swal.fire('Aviso', 'Cliente já cadastrado com este nome ou telefone.', 'warning');
+                return;
+            }
+
+            const clientData = {
+                name: nome,
+                birthdate: birthdate || null,
+                phone: phone,
+                email: email || '',
+                photoUrl: newClientPhotoUrl || null,
+                userId: currentUser.uid,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            Swal.fire({
+                title: 'Salvando cliente...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            db.collection('clients').add(clientData)
+                .then(docRef => {
+                    const newClient = { id: docRef.id, ...clientData };
+                    clients.push(newClient);
+                    clients.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+                    const clientId = docRef.id;
+                    const searchInput = document.getElementById('serviceClientSearch');
+                    searchInput.value = nome;
+                    document.getElementById('serviceClientId').value = clientId;
+
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('newClientModal'));
+                    if (modal) modal.hide();
+
+                    broadcastClientsUpdate();
+                    Swal.close();
+                    Swal.fire({
+                        icon: 'success',
+                        title: '✅ Cliente cadastrado!',
+                        text: `${nome} foi adicionado à lista.`,
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+
+                    const clearBtn = searchInput.parentElement.querySelector('.clear-btn');
+                    if (clearBtn) clearBtn.classList.add('show');
+                    
+                    verificarPacotesCliente(clientId);
+                })
+                .catch(error => {
+                    Swal.close();
+                    Swal.fire('Erro', 'Erro ao salvar cliente: ' + error.message, 'error');
+                });
+        }
+
+        // ==========================================
+        // 18. RELATÓRIO PDF DO COLABORADOR
+        // ==========================================
+        function abrirRelatorioPdfColaborador() {
+            const select = document.getElementById('pdfCollaboratorSelect');
+            const monthSelect = document.getElementById('pdfMonthSelect');
+            atualizarSelectColaboradoresComFoto('pdfCollaboratorSelect');
+
+            const agora = new Date();
+            const mesAtual = agora.getFullYear() + '-' + String(agora.getMonth() + 1).padStart(2, '0');
+            monthSelect.value = mesAtual;
+
+            const modal = new bootstrap.Modal(document.getElementById('collaboratorPdfModal'));
+            modal.show();
+        }
+
+        function gerarPdfColaborador() {
+            const collaboratorId = document.getElementById('pdfCollaboratorSelect').value;
+            const mesSelecionado = document.getElementById('pdfMonthSelect').value;
+
+            if (!collaboratorId) {
+                Swal.fire('Aviso', 'Selecione um colaborador.', 'warning');
+                return;
+            }
+
+            if (!mesSelecionado) {
+                Swal.fire('Aviso', 'Selecione o mês do relatório.', 'warning');
+                return;
+            }
+
+            const collaborator = collaborators.find(c => c.id === collaboratorId);
+            if (!collaborator) {
+                Swal.fire('Erro', 'Colaborador não encontrado.', 'error');
+                return;
+            }
+
+            if (!window.jspdf || !window.jspdf.jsPDF) {
+                Swal.fire('Erro', 'A biblioteca para gerar PDF não foi carregada.', 'error');
+                return;
+            }
+
+            const partesMes = mesSelecionado.split('-');
+            const ano = parseInt(partesMes[0], 10);
+            const mes = parseInt(partesMes[1], 10);
+            const inicioMes = ano + '-' + String(mes).padStart(2, '0') + '-01';
+            const ultimoDia = new Date(ano, mes, 0).getDate();
+            const fimMes = ano + '-' + String(mes).padStart(2, '0') + '-' + String(ultimoDia).padStart(2, '0');
+
+            Swal.fire({
+                title: 'Preparando relatório...',
+                text: 'Carregando as vendas do mês selecionado.',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+
+            db.collection('services')
+                .get()
+            .then(servicesSnap => {
+                const vendas = [];
+                servicesSnap.forEach(docSnap => {
+                    const sale = { id: docSnap.id, ...docSnap.data(), tipo: 'service' };
+                    if (
+                        sale.userId === currentUser.uid &&
+                        sale.collaboratorId === collaboratorId &&
+                        !sale.isPackage &&
+                        sale.date >= inicioMes &&
+                        sale.date <= fimMes
+                    ) {
+                        vendas.push(sale);
+                    }
+                });
+
+                vendas.sort((a, b) => {
+                    const dataA = a.date || '';
+                    const dataB = b.date || '';
+                    if (dataA !== dataB) return dataA.localeCompare(dataB);
+                    const timeA = a.timestamp?.toDate ? a.timestamp.toDate().getTime() : 0;
+                    const timeB = b.timestamp?.toDate ? b.timestamp.toDate().getTime() : 0;
+                    return timeA - timeB;
+                });
+
+                const obterPagamento = (sale) => {
+                    const valorVenda = parseFloat(sale.valorOriginal || sale.value || 0);
+                    const valorColaborador = parseFloat(sale.colaboradorRecebeu || 0);
+                    const valorSalao = parseFloat(sale.salaoRecebeu || 0);
+                    const pagamento = sale.paymentRecord || null;
+
+                    if (pagamento) {
+                        return {
+                            valorTotal: parseFloat(pagamento.valorTotal || valorVenda || 0),
+                            comissaoColaborador: parseFloat(pagamento.comissaoColaborador || 0),
+                            colaboradorRecebeu: valorColaborador || parseFloat(pagamento.colaboradorRecebeu || 0),
+                            salaoRecebeu: valorSalao || parseFloat(pagamento.salaoRecebeu || 0)
+                        };
+                    }
+
+                    const percentual = sale.type === 'manual'
+                        ? parseFloat(collaborator.manualPercent || 0)
+                        : parseFloat(collaborator.productPercent || 0);
+                    return {
+                        valorTotal: valorVenda,
+                        comissaoColaborador: valorVenda * (percentual / 100),
+                        colaboradorRecebeu: valorColaborador,
+                        salaoRecebeu: valorSalao
+                    };
+                };
+
+                let totalVendas = 0;
+                let totalComissao = 0;
+                let totalColaboradorRecebeu = 0;
+                let totalSalaoRecebeu = 0;
+                let totalComissaoSalao = 0;
+
+                const linhas = vendas.map(sale => {
+                    const pagamento = obterPagamento(sale);
+                    const valorVenda = pagamento.valorTotal;
+                    const comissao = pagamento.comissaoColaborador;
+                    const colaboradorRecebeu = pagamento.colaboradorRecebeu;
+                    const salaoRecebeu = pagamento.salaoRecebeu;
+
+                    totalVendas += valorVenda;
+                    totalComissao += comissao;
+                    totalColaboradorRecebeu += colaboradorRecebeu;
+                    totalSalaoRecebeu += salaoRecebeu;
+                    totalComissaoSalao += valorVenda - comissao;
+
+                    return {
+                        data: sale.date || '',
+                        cliente: clients.find(c => c.id === sale.clientId)?.name || 'Cliente não encontrado',
+                        servico: sale.description || 'Serviço',
+                        valorVenda,
+                        comissao,
+                        colaboradorRecebeu,
+                        salaoRecebeu,
+                        faltaColaborador: comissao - colaboradorRecebeu,
+                        faltaSalao: (valorVenda - comissao) - salaoRecebeu
+                    };
+                });
+
+                const faltaColaboradorMes = totalComissao - totalColaboradorRecebeu;
+                const faltaSalaoMes = totalComissaoSalao - totalSalaoRecebeu;
+
+                let direcao = 'Contas equilibradas.';
+                let valorAcerto = 0;
+                if (faltaColaboradorMes > 0.009) {
+                    direcao = 'O salão ainda deve pagar ao colaborador.';
+                    valorAcerto = faltaColaboradorMes;
+                } else if (faltaColaboradorMes < -0.009) {
+                    direcao = 'O colaborador recebeu acima da comissão e deve pagar ao salão.';
+                    valorAcerto = Math.abs(faltaColaboradorMes);
+                } else if (faltaSalaoMes > 0.009) {
+                    direcao = 'O salão ainda deve receber do colaborador.';
+                    valorAcerto = faltaSalaoMes;
+                }
+
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+                const margem = 10;
+                const larguraPagina = 297;
+                const larguraUtil = larguraPagina - (margem * 2);
+                let y = 14;
+
+                const moeda = valor => formatCurrency(parseFloat(valor || 0));
+                const dataPt = dataStr => dataStr ? new Date(dataStr + 'T00:00:00').toLocaleDateString('pt-PT') : '';
+                const mesPt = new Date(ano, mes - 1, 1).toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
+
+                doc.setFontSize(17);
+                doc.setFont(undefined, 'bold');
+                doc.text('CONTROLE MENSAL DE CAIXA - COLABORADOR', margem, y);
+                y += 8;
+                doc.setFontSize(10);
+                doc.setFont(undefined, 'normal');
+                doc.text('Colaborador: ' + (collaborator.name || 'N/A'), margem, y);
+                doc.text('Período: 01/' + String(mes).padStart(2, '0') + '/' + ano + ' até ' + ultimoDia + '/' + String(mes).padStart(2, '0') + '/' + ano, 130, y);
+                y += 5;
+                doc.text('Mês: ' + mesPt.charAt(0).toUpperCase() + mesPt.slice(1), margem, y);
+                y += 8;
+
+                doc.setFontSize(10);
+                doc.setFont(undefined, 'bold');
+                doc.text('RESUMO DO MÊS', margem, y);
+                y += 6;
+                doc.setFont(undefined, 'normal');
+                const resumo = [
+                    ['Total de vendas', totalVendas],
+                    ['Comissão total do colaborador', totalComissao],
+                    ['Total recebido na conta do colaborador', totalColaboradorRecebeu],
+                    ['Comissão ainda não recebida pelo colaborador', Math.max(0, faltaColaboradorMes)],
+                    ['Total pertencente ao salão', totalComissaoSalao],
+                    ['Total recebido na conta do salão', totalSalaoRecebeu],
+                    ['Total ainda a receber pelo salão', Math.max(0, faltaSalaoMes)]
+                ];
+                resumo.forEach(item => {
+                    doc.text(item[0], margem, y);
+                    doc.text(moeda(item[1]), 92, y, { align: 'right' });
+                    y += 5;
+                });
+
+                y += 3;
+                doc.setFont(undefined, 'bold');
+                doc.text('ACERTO FINAL', 115, y);
+                doc.setFont(undefined, 'normal');
+                doc.text(direcao, 115, y + 6);
+                doc.setFont(undefined, 'bold');
+                doc.text('Valor: ' + moeda(valorAcerto), 115, y + 12);
+                y += 20;
+
+                doc.setFont(undefined, 'bold');
+                doc.setFontSize(10);
+                doc.text('LISTA MENSAL DE VENDAS - DO DIA 01 AO ÚLTIMO DIA DO MÊS', margem, y);
+                y += 6;
+
+                const colX = [10, 31, 86, 132, 162, 192, 222, 252, 281];
+                const headers = ['Data', 'Cliente', 'Serviço', 'Venda', 'Comissão', 'Colab. recebeu', 'Salão recebeu', 'Falta colab.', 'Falta salão'];
+                const colW = [21, 55, 46, 30, 30, 30, 30, 29, 16];
+
+                const desenharCabecalho = () => {
+                    doc.setFont(undefined, 'bold');
+                    doc.setFontSize(7.5);
+                    headers.forEach((h, i) => doc.text(h, colX[i], y));
+                    y += 4;
+                    doc.line(margem, y, larguraPagina - margem, y);
+                    y += 4;
+                    doc.setFont(undefined, 'normal');
+                };
+
+                desenharCabecalho();
+                doc.setFontSize(7.2);
+
+                if (linhas.length === 0) {
+                    doc.text('Nenhuma venda encontrada para este colaborador no mês selecionado.', margem, y);
+                } else {
+                    linhas.forEach(linha => {
+                        if (y > 190) {
+                            doc.addPage();
+                            y = 14;
+                            doc.setFontSize(10);
+                            doc.setFont(undefined, 'bold');
+                            doc.text('CONTROLE MENSAL - ' + (collaborator.name || 'COLABORADOR'), margem, y);
+                            y += 8;
+                            desenharCabecalho();
+                            doc.setFontSize(7.2);
+                        }
+
+                        const cliente = doc.splitTextToSize(linha.cliente, colW[1] - 2)[0];
+                        const servico = doc.splitTextToSize(linha.servico, colW[2] - 2)[0];
+                        const valores = [
+                            dataPt(linha.data),
+                            cliente,
+                            servico,
+                            moeda(linha.valorVenda),
+                            moeda(linha.comissao),
+                            moeda(linha.colaboradorRecebeu),
+                            moeda(linha.salaoRecebeu),
+                            moeda(Math.max(0, linha.faltaColaborador)),
+                            moeda(Math.max(0, linha.faltaSalao))
+                        ];
+
+                        valores.forEach((valor, i) => {
+                            if (i >= 3) {
+                                doc.text(valor, colX[i] + colW[i] - 2, y, { align: 'right' });
+                            } else {
+                                doc.text(valor, colX[i], y);
+                            }
+                        });
+                        y += 5;
+                    });
+                }
+
+                if (y > 180) {
+                    doc.addPage();
+                    y = 14;
+                } else {
+                    y += 7;
+                }
+
+                doc.setFontSize(9);
+                doc.setFont(undefined, 'bold');
+                doc.text('CONTROLE FINAL DAS CONTAS', margem, y);
+                y += 6;
+                doc.setFont(undefined, 'normal');
+                doc.text('Colaborador recebeu em sua conta: ' + moeda(totalColaboradorRecebeu), margem, y);
+                doc.text('Salão recebeu em sua conta: ' + moeda(totalSalaoRecebeu), 105, y);
+                y += 5;
+                doc.text('Comissão do colaborador: ' + moeda(totalComissao), margem, y);
+                doc.text('Parte do salão: ' + moeda(totalComissaoSalao), 105, y);
+                y += 5;
+                doc.setFont(undefined, 'bold');
+                doc.text(direcao + ' Valor do acerto: ' + moeda(valorAcerto), margem, y);
+                y += 6;
+                doc.setFont(undefined, 'normal');
+                doc.setFontSize(7.5);
+                doc.text('As vendas excluídas não participam deste relatório. O PDF é recalculado diretamente a partir das vendas que permanecem registradas.', margem, y);
+
+                const nomeArquivo = 'controle-caixa-' + (collaborator.name || 'colaborador')
+                    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                    .replace(/[^a-zA-Z0-9]+/g, '-')
+                    .replace(/^-|-$/g, '')
+                    .toLowerCase() + '-' + mesSelecionado + '.pdf';
+
+                Swal.close();
+                doc.save(nomeArquivo);
+
+                const modal = bootstrap.Modal.getInstance(document.getElementById('collaboratorPdfModal'));
+                if (modal) modal.hide();
+            }).catch(error => {
+                console.error('Erro ao gerar relatório PDF:', error);
+                Swal.close();
+                Swal.fire('Erro', 'Não foi possível gerar o relatório mensal: ' + error.message, 'error');
+            });
+        }
+
+        // ==========================================
+        // 19. FUNÇÕES DE UTILIDADE
+        // ==========================================
+        function formatCurrency(value) {
+            if (typeof value !== 'number') value = parseFloat(value) || 0;
+            return '€ ' + value.toFixed(2).replace('.', ',');
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            if (isNaN(date)) return dateStr;
+            return date.toLocaleDateString('pt-PT');
+        }
+
+        function showToast(message, type = 'info') {
+            if (typeof Swal !== 'undefined') {
+                const icons = {
+                    'success': 'success',
+                    'error': 'error',
+                    'warning': 'warning',
+                    'info': 'info'
+                };
+                Swal.fire({
+                    icon: icons[type] || 'info',
+                    title: message,
+                    timer: 3000,
+                    showConfirmButton: false,
+                    toast: true,
+                    position: 'top-end',
+                    timerProgressBar: true
+                });
+            } else {
+                console.log(`[${type.toUpperCase()}] ${message}`);
+            }
+        }
+
+        function showLoading(message) {
+            Swal.fire({
+                title: message,
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function atualizarUltimaAtualizacao() {
+            const now = new Date();
+            const el = document.getElementById('lastUpdateBadge');
+            if (el) {
+                el.innerHTML = `<i class="fas fa-clock me-1"></i>Atualizado ${now.toLocaleTimeString('pt-PT')}`;
+            }
+        }
+
+        function recarregarDados() {
+            const btn = document.getElementById('refreshBtn');
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Carregando...';
+            btn.disabled = true;
+
+            carregarDados();
+            setTimeout(() => {
+                btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Atualizar';
+                btn.disabled = false;
+                Swal.fire('✅ Dados atualizados!', '', 'success');
+            }, 1000);
+        }
+
+        function goHome() {
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage({ action: 'goHome' }, '*');
+            } else {
+                window.location.href = 'layout-index.html';
+            }
+        }
+
+        function mostrarLoginPrompt() {
+            Swal.fire({
+                title: 'Acesso Restrito',
+                text: 'Faça login para acessar o caixa.',
+                icon: 'warning',
+                confirmButtonText: 'Ir para Login',
+                showCancelButton: true,
+                cancelButtonText: 'Cancelar'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    window.location.href = '/login.html';
+                }
+            });
+        }
+
+        // ==========================================
+        // 20. CANAL DE COMUNICAÇÃO
+        // ==========================================
+        function initBroadcastChannel() {
+            try {
+                if (window.BroadcastChannel) {
+                    broadcastChannel = new BroadcastChannel('caixa-sync');
+                    broadcastChannel.onmessage = function(event) {
+                        if (event.data && event.data.type === 'caixaUpdated') {
+                            carregarDados();
+                        }
+                        if (event.data && event.data.type === 'configUpdated') {
+                            carregarConfiguracoesSistema();
+                        }
+                        if (event.data && event.data.type === 'clientsUpdated') {
+                            carregarClientes();
+                        }
+                        if (event.data && event.data.type === 'logoUpdated') {
+                            atualizarLogoHeader();
+                        }
+                    };
+                }
+            } catch(e) {}
+        }
+
+        function broadcastCaixaUpdate() {
+            if (broadcastChannel) {
+                try {
+                    broadcastChannel.postMessage({ type: 'caixaUpdated' });
+                } catch(e) {}
+            }
+        }
+
+        function broadcastClientsUpdate() {
+            if (broadcastChannel) {
+                try {
+                    broadcastChannel.postMessage({ type: 'clientsUpdated' });
+                } catch(e) {}
+            }
+        }
+
+        // ==========================================
+        // 21. LOGO DO SISTEMA
+        // ==========================================
+        function atualizarLogoHeader() {
+            const config = localStorage.getItem('systemConfig');
+            if (config) {
+                try {
+                    const parsed = JSON.parse(config);
+                    const logoUrl = parsed.logo;
+                    const logoIcon = document.getElementById('logoIconHeader');
+                    const logoImage = document.getElementById('logoImageHeader');
+
+                    if (logoUrl) {
+                        logoIcon.style.display = 'none';
+                        logoImage.style.display = 'inline-block';
+                        logoImage.src = logoUrl;
+                    } else {
+                        logoIcon.style.display = 'inline-block';
+                        logoImage.style.display = 'none';
+                    }
+                } catch(e) {}
+            }
+        }
+
+        // ==========================================
+        // 22. RECEBER CONFIGURAÇÕES
+        // ==========================================
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'configUpdated') {
+                carregarConfiguracoesSistema();
+            }
+            if (event.data && event.data.type === 'caixaUpdated') {
+                carregarDados();
+            }
+            if (event.data && event.data.type === 'clientsUpdated') {
+                carregarClientes();
+            }
+            if (event.data && event.data.type === 'logoUpdated') {
+                atualizarLogoHeader();
+            }
+        });
+
+        window.parent.postMessage({ type: 'getConfig' }, '*');
+
+        // ==========================================
+        // 23. INICIALIZAÇÃO
+        // ==========================================
+        document.addEventListener('DOMContentLoaded', function() {
+            initBroadcastChannel();
+
+            auth.onAuthStateChanged(user => {
+                if (user) {
+                    currentUser = user;
+                    document.getElementById('userGreeting').textContent = user.email;
+                    carregarDados();
+                    carregarConfiguracoesSistema();
+                    atualizarLogoHeader();
+
+                    // Habilitar botões após login
+                    document.getElementById('pastSaleBtn').addEventListener('click', function() {
+                        abrirModalVendaPassada();
+                    });
+
+                    document.getElementById('manageSalesBtn').addEventListener('click', function() {
+                        abrirModalGerenciarVendas();
+                    });
+
+                    document.getElementById('pdfReportBtn').addEventListener('click', function() {
+                        abrirRelatorioPdfColaborador();
+                    });
+
+                    document.getElementById('generateCollaboratorPdfBtn').addEventListener('click', function() {
+                        gerarPdfColaborador();
+                    });
+
+                    document.getElementById('addServiceWithPaymentBtn').addEventListener('click', function() {
+                        abrirPopupPagamentoColaborador('service');
+                    });
+
+                    document.getElementById('addProductWithPaymentBtn').addEventListener('click', function() {
+                        abrirPopupPagamentoColaborador('product');
+                    });
+
+                    document.getElementById('openCashierBtn').addEventListener('click', function() {
+                        abrirModalAbrirCaixa();
+                    });
+
+                    document.getElementById('confirmOpenCashierBtn').addEventListener('click', function() {
+                        confirmarAbrirCaixa();
+                    });
+
+                    document.getElementById('closeCashierBtn').addEventListener('click', function() {
+                        fecharCaixa();
+                    });
+
+                    document.getElementById('clearCartBtn').addEventListener('click', function() {
+                        limparCarrinho();
+                    });
+
+                    document.getElementById('checkoutCartBtn').addEventListener('click', function() {
+                        abrirModalCheckout();
+                    });
+
+                    document.getElementById('confirmCheckoutBtn').addEventListener('click', function() {
+                        finalizarVenda();
+                    });
+
+                    document.getElementById('finalizeSaleBtn').addEventListener('click', function() {
+                        abrirModalCheckout();
+                    });
+
+                    document.getElementById('filterSalesBtn').addEventListener('click', function() {
+                        document.getElementById('salesSearch').value = '';
+                        document.getElementById('salesSearch').dispatchEvent(new Event('input'));
+                        document.getElementById('salesSearch').focus();
+                    });
+
+                    document.getElementById('salesSearch').addEventListener('input', function() {
+                        filtrarVendas(this.value);
+                    });
+
+                    document.getElementById('clearSalesSearch').addEventListener('click', function() {
+                        document.getElementById('salesSearch').value = '';
+                        document.getElementById('salesSearch').dispatchEvent(new Event('input'));
+                        document.getElementById('salesSearch').focus();
+                        this.classList.remove('show');
+                    });
+
+                    document.getElementById('clearServiceClient').addEventListener('click', function() {
+                        document.getElementById('serviceClientSearch').value = '';
+                        document.getElementById('serviceClientId').value = '';
+                        document.getElementById('serviceClientAutocomplete').classList.remove('active');
+                        document.getElementById('serviceClientSearch').focus();
+                        this.classList.remove('show');
+                        clientPackages = [];
+                        selectedPackageId = null;
+                        packageServiceInfo = null;
+                    });
+
+                    document.getElementById('clearProduct').addEventListener('click', function() {
+                        document.getElementById('productSearch').value = '';
+                        document.getElementById('productId').value = '';
+                        document.getElementById('productAutocomplete').classList.remove('active');
+                        document.getElementById('productSearch').focus();
+                        this.classList.remove('show');
+                    });
+
+                    document.getElementById('clearProductClient').addEventListener('click', function() {
+                        document.getElementById('productClientSearch').value = '';
+                        document.getElementById('productClientId').value = '';
+                        document.getElementById('productClientAutocomplete').classList.remove('active');
+                        document.getElementById('productClientSearch').focus();
+                        this.classList.remove('show');
+                    });
+
+                    configurarBuscaClientes('serviceClientSearch', 'serviceClientAutocomplete', 'serviceClientId', 'clearServiceClient');
+                    configurarBuscaClientes('productClientSearch', 'productClientAutocomplete', 'productClientId', 'clearProductClient');
+
+                    document.getElementById('newClientFromService').addEventListener('click', function() {
+                        const nome = document.getElementById('serviceClientSearch').value.trim();
+                        abrirModalNovoCliente(nome);
+                    });
+
+                    document.getElementById('newClientFromProduct').addEventListener('click', function() {
+                        const nome = document.getElementById('productClientSearch').value.trim();
+                        abrirModalNovoCliente(nome);
+                    });
+
+                    document.getElementById('saveNewClientBtn').addEventListener('click', function() {
+                        salvarNovoCliente();
+                    });
+
+                    document.getElementById('newClientPhoto').addEventListener('change', function(e) {
+                        const file = e.target.files[0];
+                        if (file) {
+                            uploadFotoCliente(file);
+                        }
+                    });
+
+                    document.getElementById('removeNewClientPhoto').addEventListener('click', function() {
+                        newClientPhotoUrl = null;
+                        document.getElementById('newClientPhotoPreview').style.display = 'none';
+                        document.getElementById('newClientPhotoPlaceholder').style.display = 'flex';
+                        document.getElementById('removeNewClientPhoto').style.display = 'none';
+                        document.getElementById('newClientPhoto').value = '';
+                    });
+
+                    // Autocomplete de produtos
+                    document.getElementById('productSearch').addEventListener('input', function() {
+                        const searchTerm = this.value;
+                        const clearBtn = this.parentElement.querySelector('.clear-btn');
+                        
+                        if (searchTerm.length > 0) {
+                            clearBtn.classList.add('show');
+                        } else {
+                            clearBtn.classList.remove('show');
+                        }
+
+                        const normalizedSearch = searchTerm.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+
+                        if (normalizedSearch.length < 1) {
+                            if (products.length === 0) {
+                                const list = document.getElementById('productAutocomplete');
+                                list.innerHTML = '<div class="autocomplete-item text-muted">Nenhum produto cadastrado</div>';
+                                list.classList.add('active');
+                                return;
+                            }
+                            const allProducts = products.slice(0, 15);
+                            let html = '';
+                            allProducts.forEach(p => {
+                                const estoque = p.quantity || 0;
+                                const foto = p.imageUrl ? 
+                                    `<img src="${p.imageUrl}" class="avatar" onerror="this.style.display='none'">` :
+                                    `<div class="avatar-placeholder"><i class="fas fa-box"></i></div>`;
+                                
+                                html += `
+                                    <div class="autocomplete-item" data-id="${p.id}" data-name="${p.name}" data-price="${p.salePrice}" data-stock="${estoque}">
+                                        ${foto}
+                                        <div class="info">
+                                            <div class="name">${p.name}</div>
+                                            <div class="detail">${formatCurrency(p.salePrice)} | ${estoque} und</div>
+                                        </div>
+                                        <span class="badge-item ${estoque <= 5 ? 'bg-warning' : 'bg-success'}">${estoque}</span>
+                                    </div>
+                                `;
+                            });
+                            if (products.length > 15) {
+                                html += `<div class="autocomplete-item text-muted">... e mais ${products.length - 15} produtos. Digite para filtrar.</div>`;
+                            }
+                            const list = document.getElementById('productAutocomplete');
+                            list.innerHTML = html;
+                            list.classList.add('active');
+
+                            list.querySelectorAll('.autocomplete-item').forEach(item => {
+                                item.addEventListener('click', function() {
+                                    document.getElementById('productSearch').value = this.getAttribute('data-name');
+                                    document.getElementById('productId').value = this.getAttribute('data-id');
+                                    const stock = parseInt(this.getAttribute('data-stock')) || 0;
+                                    document.getElementById('productQuantity').max = stock;
+                                    document.getElementById('productQuantity').value = 1;
+                                    list.classList.remove('active');
+                                    clearBtn.classList.add('show');
+                                });
+                            });
+                            return;
+                        }
+
+                        const filtered = products.filter(p => {
+                            const nome = (p.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+                            const desc = (p.description || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+                            return nome.includes(normalizedSearch) || desc.includes(normalizedSearch);
+                        });
+
+                        if (filtered.length === 0) {
+                            const list = document.getElementById('productAutocomplete');
+                            list.innerHTML = '<div class="autocomplete-item text-muted">Nenhum produto encontrado</div>';
+                            list.classList.add('active');
+                            return;
+                        }
+
+                        let html = '';
+                        filtered.slice(0, 15).forEach(p => {
+                            const estoque = p.quantity || 0;
+                            const foto = p.imageUrl ? 
+                                `<img src="${p.imageUrl}" class="avatar" onerror="this.style.display='none'">` :
+                                `<div class="avatar-placeholder"><i class="fas fa-box"></i></div>`;
+                            
+                            html += `
+                                <div class="autocomplete-item" data-id="${p.id}" data-name="${p.name}" data-price="${p.salePrice}" data-stock="${estoque}">
+                                    ${foto}
+                                    <div class="info">
+                                        <div class="name">${p.name}</div>
+                                        <div class="detail">${formatCurrency(p.salePrice)} | ${estoque} und</div>
+                                    </div>
+                                    <span class="badge-item ${estoque <= 5 ? 'bg-warning' : 'bg-success'}">${estoque}</span>
+                                </div>
+                            `;
+                        });
+
+                        const list = document.getElementById('productAutocomplete');
+                        list.innerHTML = html;
+                        list.classList.add('active');
+
+                        list.querySelectorAll('.autocomplete-item').forEach(item => {
+                            item.addEventListener('click', function() {
+                                document.getElementById('productSearch').value = this.getAttribute('data-name');
+                                document.getElementById('productId').value = this.getAttribute('data-id');
+                                const stock = parseInt(this.getAttribute('data-stock')) || 0;
+                                document.getElementById('productQuantity').max = stock;
+                                document.getElementById('productQuantity').value = 1;
+                                list.classList.remove('active');
+                                clearBtn.classList.add('show');
+                            });
+                        });
+                    });
+
+                    document.addEventListener('click', function(e) {
+                        const badge = e.target.closest('.service-badge');
+                        if (badge) {
+                            const serviceName = badge.getAttribute('data-service');
+                            const descInput = document.getElementById('serviceDescription');
+                            const currentValue = descInput.value.trim();
+                            if (currentValue) {
+                                descInput.value = currentValue + ', ' + serviceName;
+                            } else {
+                                descInput.value = serviceName;
+                            }
+                            descInput.focus();
+                        }
+                    });
+
+                    document.addEventListener('click', function(e) {
+                        if (!e.target.closest('.autocomplete-container')) {
+                            document.querySelectorAll('.autocomplete-list').forEach(list => list.classList.remove('active'));
+                        }
+                    });
+
+                    // Atualizar a cada 30 segundos
+                    setInterval(function() {
+                        if (currentUser) {
+                            carregarDados();
+                        }
+                    }, 30000);
+
+                    setInterval(atualizarLogoHeader, 10000);
+                } else {
+                    document.getElementById('userGreeting').textContent = 'Não autenticado';
+                    mostrarLoginPrompt();
+                }
+            });
+        });
+
+        // ==========================================
+        // 24. LOG DE INICIALIZAÇÃO
+        // ==========================================
+        console.log('✅ Caixa carregado com sucesso!');
+        console.log('📌 NOVIDADES:');
+        console.log('   ✅ Colaboradores com FOTO no dropdown');
+        console.log('   ✅ POPUP de Pagamento ao Colaborador');
+        console.log('   ✅ Cálculo automático de comissões');
+        console.log('   ✅ Ajuste de valores (Salão e Colaborador)');
+        console.log('   ✅ Auto-preenchimento do carrinho');
+        console.log('   ✅ Funciona para SERVIÇOS e PRODUTOS');
+        console.log('   ✅ Integração com PACOTES');
+        console.log('   ✅ Salva histórico de pagamentos');
+        console.log('   ✅ Totalmente responsivo (Desktop, Tablet, Mobile)');
+        console.log('   ✅ REGISTRAR VENDA PASSADA: Data personalizada');
+        console.log('   ✅ GERENCIAR VENDAS: Calendário com marcadores e design melhorado');
+        console.log('   ✅ EDITAR VENDAS: Busca de cliente por digitação com autocomplete');
+
+    </script>
+
+</body>
+</html>
