@@ -1401,7 +1401,7 @@
                             <button class="btn btn-sm btn-warning" id="pastSaleBtn" disabled>
                                 <i class="fas fa-calendar-plus me-1"></i>Venda Passada
                             </button>
-                            <button class="btn btn-sm btn-info" id="manageSalesBtn" disabled>
+                            <button class="btn btn-sm btn-info" id="manageSalesBtn">
                                 <i class="fas fa-calendar-alt me-1"></i>Gerenciar Vendas
                             </button>
                         </div>
@@ -3571,43 +3571,66 @@
         // 9. FUNÇÕES DE GERENCIAR VENDAS
         // ==========================================
         function abrirModalGerenciarVendas() {
-            if (!currentCashier) {
-                Swal.fire('Erro', 'Abra o caixa para gerenciar vendas.', 'error');
+            // Gerenciar vendas não depende do caixa estar aberto.
+            // Esta função consulta o histórico diretamente no Firestore.
+            if (!currentUser) {
+                Swal.fire('Erro', 'É necessário estar autenticado para gerenciar vendas.', 'error');
                 return;
             }
 
-            const modal = new bootstrap.Modal(document.getElementById('manageSalesModal'));
+            const modalElement = document.getElementById('manageSalesModal');
+            if (!modalElement) {
+                Swal.fire('Erro', 'O módulo Gerenciar Vendas não foi encontrado na página.', 'error');
+                return;
+            }
+
+            const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
             modal.show();
 
-            // Carregar dados
-            carregarTodasVendas().then(() => {
-                renderizarCalendario();
-            });
+            // Carregar dados sempre que o gerenciador for aberto.
+            carregarTodasVendas()
+                .then(() => renderizarCalendario())
+                .catch(error => {
+                    console.error('Erro ao carregar vendas para gerenciamento:', error);
+                    showToast('Não foi possível carregar as vendas.', 'error');
+                });
 
-            // Eventos do calendário
-            document.getElementById('prevMonthBtn').addEventListener('click', function() {
+            // Usar onclick em vez de addEventListener para não acumular
+            // eventos cada vez que o modal é aberto.
+            const prevBtn = document.getElementById('prevMonthBtn');
+            const nextBtn = document.getElementById('nextMonthBtn');
+            const todayBtn = document.getElementById('todayBtn');
+            const refreshBtn = document.getElementById('refreshSalesBtn');
+            const collaboratorSelect = document.getElementById('manageSalesCollaborator');
+
+            if (prevBtn) prevBtn.onclick = function() {
                 currentCalendarDate.setMonth(currentCalendarDate.getMonth() - 1);
                 renderizarCalendario();
-            });
+            };
 
-            document.getElementById('nextMonthBtn').addEventListener('click', function() {
+            if (nextBtn) nextBtn.onclick = function() {
                 currentCalendarDate.setMonth(currentCalendarDate.getMonth() + 1);
                 renderizarCalendario();
-            });
+            };
 
-            document.getElementById('todayBtn').addEventListener('click', function() {
+            if (todayBtn) todayBtn.onclick = function() {
                 currentCalendarDate = new Date();
                 renderizarCalendario();
-            });
+            };
 
-            document.getElementById('refreshSalesBtn').addEventListener('click', function() {
-                carregarTodasVendas().then(() => renderizarCalendario());
+            if (refreshBtn) refreshBtn.onclick = function() {
+                carregarTodasVendas()
+                    .then(() => renderizarCalendario())
+                    .catch(error => {
+                        console.error('Erro ao atualizar vendas:', error);
+                        showToast('Erro ao atualizar as vendas.', 'error');
+                    });
                 showToast('Dados recarregados!', 'success');
-            });
+            };
 
-            document.getElementById('manageSalesCollaborator').addEventListener('change', function() {
+            if (collaboratorSelect) collaboratorSelect.onchange = function() {
                 renderizarCalendario();
-            });
+            };
         }
 
         function carregarTodasVendas() {
@@ -5391,7 +5414,8 @@
                 closeBtn.disabled = true;
                 finalizeBtn.disabled = true;
                 pastBtn.disabled = true;
-                manageBtn.disabled = true;
+                // Gerenciar Vendas continua disponível com o caixa fechado.
+                manageBtn.disabled = false;
                 document.getElementById('serviceForm').querySelectorAll('input, select, button').forEach(el => el.disabled = true);
                 document.getElementById('productForm').querySelectorAll('input, select, button').forEach(el => el.disabled = true);
                 document.getElementById('currentCash').textContent = '€ 0,00';
@@ -6064,6 +6088,7 @@
                     document.getElementById('manageSalesBtn').addEventListener('click', function() {
                         abrirModalGerenciarVendas();
                     });
+                    document.getElementById('manageSalesBtn').disabled = false;
 
                     document.getElementById('pdfReportBtn').addEventListener('click', function() {
                         abrirRelatorioPdfColaborador();
