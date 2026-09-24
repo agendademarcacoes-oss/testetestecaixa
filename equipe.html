@@ -1318,13 +1318,12 @@ const teamGrid=document.getElementById("teamGrid");
 const teamSearchInput=document.getElementById("teamSearch");
 
 let teamCache=[];
-let galleryCache=[];   // todos os itens da coleção media
+let galleryCache=[];
 let searchQuery="";
 
 /* --- Verifica se o item da galeria pertence ao colaborador --- */
 function galleryBelongsToCollaborator(item, collaboratorId){
     if(!item||!collaboratorId)return false;
-    // Aceita várias convenções possíveis
     if(Array.isArray(item.collaborators))return item.collaborators.indexOf(collaboratorId)!==-1;
     if(item.collaboratorId)return item.collaboratorId===collaboratorId;
     if(item.collaborator)return item.collaborator===collaboratorId;
@@ -1364,7 +1363,6 @@ function renderTeam(){
         const bio=safeText(c.bio,"Profissional do Studio DeVitto dedicado à sua beleza.");
         const photo=safeText(c.photo,"img/Logo-Studio-DeVitto.png");
 
-        // Número de trabalhos associados na galeria
         const portfolioCount=galleryCache.filter(function(item){
             return galleryBelongsToCollaborator(item,id);
         }).length;
@@ -1397,10 +1395,8 @@ function renderTeam(){
             </article>`;
     }).join("");
 
-    /* Ligar cliques */
     teamGrid.querySelectorAll(".member-card").forEach(function(card){
         card.addEventListener("click",function(e){
-            // Se clicou num link de rede social, não abre o modal
             if(e.target.closest("a"))return;
             openMemberModal(card.dataset.memberId);
         });
@@ -1435,14 +1431,12 @@ function openMemberModal(id){
     const phone=safeText(c.phone,"");
     const servicesText=safeText(c.services,"");
 
-    /* Hero */
     memberModalAvatar.src=photo;
     memberModalAvatar.alt=name;
     memberModalAvatar.onerror=function(){this.src="img/Logo-Studio-DeVitto.png";};
     memberModalName.textContent=name;
     memberModalRole.textContent=role;
 
-    /* Contactos */
     const contacts=[];
     if(phone){
         contacts.push('<a class="member-modal-contact" href="tel:'+escapeHtml(phone.replace(/[^\d+]/g,""))+'"><i class="fas fa-phone"></i>'+escapeHtml(phone)+'</a>');
@@ -1455,14 +1449,12 @@ function openMemberModal(id){
     }
     memberModalContacts.innerHTML=contacts.join("");
 
-    /* Redes sociais */
     const socials=[];
     if(c.instagram)socials.push('<a href="'+escapeHtml(c.instagram)+'" target="_blank" rel="noopener" aria-label="Instagram"><i class="fab fa-instagram"></i></a>');
     if(c.facebook)socials.push('<a href="'+escapeHtml(c.facebook)+'" target="_blank" rel="noopener" aria-label="Facebook"><i class="fab fa-facebook-f"></i></a>');
     if(phone)socials.push('<a href="'+escapeHtml(whatsappWithText(phone,"Olá "+name+", gostaria de agendar um horário."))+'" target="_blank" rel="noopener" aria-label="WhatsApp"><i class="fab fa-whatsapp"></i></a>');
     memberModalSocials.innerHTML=socials.join("");
 
-    /* Bio */
     if(bio){
         memberModalBioSection.style.display="";
         memberModalBio.textContent=bio;
@@ -1470,7 +1462,6 @@ function openMemberModal(id){
         memberModalBioSection.style.display="none";
     }
 
-    /* Serviços */
     const services=servicesText.split(/[,;\n·•]+/).map(function(s){return s.trim();}).filter(Boolean);
     if(services.length>0){
         memberModalServicesSection.style.display="";
@@ -1481,7 +1472,6 @@ function openMemberModal(id){
         memberModalServicesSection.style.display="none";
     }
 
-    /* Portfólio — filtrar itens da galeria associados */
     const portfolioItems=galleryCache.filter(function(item){
         return galleryBelongsToCollaborator(item,id);
     }).sort(function(a,b){
@@ -1511,7 +1501,6 @@ function openMemberModal(id){
             +'</div>';
         }).join("");
 
-        /* Clique abre lightbox */
         memberModalPortfolio.querySelectorAll(".member-modal-portfolio-item").forEach(function(el){
             el.addEventListener("click",function(){
                 const url=el.dataset.mediaUrl;
@@ -1546,7 +1535,6 @@ const lightboxClose=document.getElementById("lightboxClose");
 
 function openLightbox(url,type){
     if(type==="video"){
-        // Substitui img por video no lightbox dinamicamente
         lightboxMedia.outerHTML='<video src="'+escapeHtml(url)+'" class="lightbox-media" id="lightboxMedia" controls autoplay playsinline></video>';
     }else{
         const currentEl=document.getElementById("lightboxMedia");
@@ -1579,7 +1567,7 @@ document.addEventListener("keydown",function(e){
    ============================================================ */
 function bindRealtime(){
 
-    /* Colaboradores */
+    /* Colaboradores — ordenados pelo campo "order" (admin) */
     db.collection("collaborators").onSnapshot(function(snapshot){
         const items=[];
         snapshot.forEach(function(doc){items.push({id:doc.id,...doc.data()});});
@@ -1587,7 +1575,17 @@ function bindRealtime(){
         teamCache=items.filter(function(c){
             return c.status==="active"||typeof c.status==="undefined";
         });
-        teamCache.sort(function(a,b){return String(a.name||"").localeCompare(String(b.name||""));});
+        /* ====================================================
+           ORDENAÇÃO VINCULADA AO admin.html
+           - Se tiver "order" (número), usa esse valor
+           - Caso contrário, vai para o fim, ordenado por nome
+           ==================================================== */
+        teamCache.sort(function(a,b){
+            const oa=(typeof a.order==="number")?a.order:9999;
+            const ob=(typeof b.order==="number")?b.order:9999;
+            if(oa!==ob)return oa-ob;
+            return String(a.name||"").localeCompare(String(b.name||""));
+        });
         renderTeam();
         console.log("[Equipa] Colaboradores ativos:",teamCache.length);
     },function(err){
@@ -1610,7 +1608,6 @@ function bindRealtime(){
             return tb-ta;
         });
         galleryCache=items;
-        // Re-render para atualizar a contagem de trabalhos nos cards
         renderTeam();
         console.log("[Galeria] Itens para portfólio:",galleryCache.length);
     },function(err){
