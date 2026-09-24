@@ -59,7 +59,7 @@ html,body,main,header,aside,.sidebar,.topbar,.content,.section,.glass-card,
 .stat-card,.welcome-banner,.modal-card,.modal-header,.modal-footer,
 .switch-row,.music-item,.banner-item,.service-card,.collab-checkbox-grid,
 .banner-thumb,.service-thumb,.logo-preview,.price-card,.price-thumb,
-.collab-checkbox-item,.quick-btn,.media-caption,.upload-collab-grid,.upload-collab-item,.media-collab-chips,.media-collab-chip{
+.collab-checkbox-item,.quick-btn,.media-caption,.upload-collab-grid,.upload-collab-item,.media-collab-chips,.media-collab-chip,.drag-handle{
 transition:background-color .45s ease,color .45s ease,border-color .45s ease,box-shadow .45s ease;
 }
 *{margin:0;padding:0;box-sizing:border-box}
@@ -195,8 +195,100 @@ html[data-theme="night"] .activity-icon{background:rgba(160,150,255,0.14)}
 .secondary-btn:hover{background:var(--input-bg-hover);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
 .danger-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:38px;padding:0 12px;border:0;border-radius:10px;background:var(--danger-bg);color:var(--danger);font-size:0.68rem;font-weight:800;transition:var(--transition)}
 .danger-btn:hover{background:rgba(198,40,40,0.2)}
+
+/* ============================================================
+   COLLABORATORS + DRAG & DROP
+   ============================================================ */
 .collaborators-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:17px}
-.collaborator-card{overflow:hidden}
+.collaborator-card{overflow:hidden;position:relative;transition:transform .2s ease,box-shadow .25s ease,opacity .2s ease}
+/* Card a ser arrastado */
+.collaborator-card.dragging{
+    opacity:0.45;
+    transform:scale(0.97) rotate(-0.5deg);
+    box-shadow:0 20px 60px rgba(38,25,107,0.28);
+    z-index:5;
+    cursor:grabbing;
+}
+/* Alvo do drop */
+.collaborator-card.drop-target{
+    outline:3px dashed var(--gold);
+    outline-offset:-6px;
+    background:linear-gradient(135deg,rgba(201,167,105,0.15),rgba(201,167,105,0.05));
+}
+html[data-theme="night"] .collaborator-card.drop-target{
+    outline-color:var(--gold);
+    background:linear-gradient(135deg,rgba(224,191,134,0.18),rgba(224,191,134,0.05));
+}
+/* Card "pega" (drag handle) */
+.drag-handle{
+    position:absolute;
+    top:10px;
+    right:10px;
+    z-index:4;
+    width:36px;
+    height:36px;
+    display:grid;
+    place-items:center;
+    border-radius:10px;
+    background:rgba(255,255,255,0.85);
+    color:var(--primary);
+    font-size:0.85rem;
+    cursor:grab;
+    box-shadow:0 4px 15px rgba(0,0,0,0.15);
+    border:1px solid rgba(255,255,255,0.6);
+    transition:transform .15s ease,background .2s ease,color .2s ease;
+    touch-action:none;
+    user-select:none;
+    -webkit-user-select:none;
+    -webkit-touch-callout:none;
+}
+.drag-handle:hover{
+    background:var(--gold);
+    color:#241b0d;
+    transform:scale(1.08);
+}
+.drag-handle:active{cursor:grabbing;transform:scale(1.12)}
+html[data-theme="night"] .drag-handle{
+    background:rgba(255,255,255,0.15);
+    color:var(--gold-light);
+    border-color:rgba(255,255,255,0.2);
+}
+html[data-theme="night"] .drag-handle:hover{background:var(--gold);color:#241b0d}
+/* Badge de "a arrastar" */
+.collaborator-card.dragging::after{
+    content:"A mover...";
+    position:absolute;
+    top:10px;
+    left:10px;
+    z-index:6;
+    padding:4px 10px;
+    border-radius:999px;
+    background:var(--gold);
+    color:#241b0d;
+    font-size:0.6rem;
+    font-weight:800;
+    letter-spacing:.04em;
+    text-transform:uppercase;
+}
+/* Aviso "guardar ordem" */
+.order-bar{
+    display:none;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    padding:12px 16px;
+    margin-bottom:14px;
+    border-radius:14px;
+    background:linear-gradient(135deg,rgba(201,167,105,0.15),rgba(201,167,105,0.05));
+    border:1px dashed var(--gold);
+    color:var(--text);
+}
+.order-bar.show{display:flex}
+html[data-theme="night"] .order-bar{background:linear-gradient(135deg,rgba(224,191,134,0.18),rgba(224,191,134,0.06))}
+.order-bar-text{display:flex;align-items:center;gap:9px;font-size:0.72rem;font-weight:700}
+.order-bar-text i{color:var(--gold)}
+.order-bar-actions{display:flex;gap:8px}
+
 .collaborator-cover{height:105px;background:linear-gradient(135deg,var(--primary),var(--primary-2));position:relative}
 .collaborator-body{padding:0 19px 19px}
 .collaborator-avatar{width:78px;height:78px;margin-top:-38px;margin-bottom:12px;position:relative;z-index:2;object-fit:cover;border:4px solid rgba(255,255,255,0.88);border-radius:50%;background:#ddd;box-shadow:0 10px 25px rgba(38,25,107,0.14)}
@@ -228,13 +320,12 @@ html[data-theme="night"] .small-btn.primary{background:rgba(160,150,255,0.14)}
 .media-type{position:absolute;top:10px;left:10px;display:inline-flex;align-items:center;gap:5px;padding:6px 8px;border-radius:999px;background:rgba(0,0,0,0.55);color:white;backdrop-filter:blur(8px);font-size:0.55rem;font-weight:700}
 .media-overlay{position:absolute;inset:0;display:flex;align-items:flex-end;padding:12px;opacity:0;background:linear-gradient(transparent 35%,rgba(0,0,0,0.72));transition:var(--transition)}
 .media-card:hover .media-overlay{opacity:1}
-.media-overlay-actions{display:flex;gap:5px}
+.media-overlay-actions{display:flex;gap:5px;flex-wrap:wrap}
 .media-overlay button{width:34px;height:34px;display:grid;place-items:center;border:0;border-radius:9px;background:rgba(255,255,255,0.9);color:var(--primary);font-size:0.7rem;cursor:pointer;transition:transform .2s ease}
 .media-overlay button:hover{transform:scale(1.08)}
 .media-info{padding:12px 14px 8px;display:flex;flex-direction:column;gap:4px;flex:1}
 .media-info strong{display:block;font-size:0.68rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .media-info .media-meta{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:0.57rem}
-/* NOVO: legenda visível */
 .media-caption{
     display:block;
     margin-top:4px;
@@ -253,56 +344,20 @@ html[data-theme="night"] .small-btn.primary{background:rgba(160,150,255,0.14)}
     word-break:break-word;
 }
 html[data-theme="night"] .media-caption{background:rgba(160,150,255,0.10);border-color:rgba(160,150,255,0.25)}
-.media-caption.empty{
-    color:var(--muted);
-    font-style:italic;
-    background:transparent;
-    border-color:rgba(38,25,107,0.12);
-}
+.media-caption.empty{color:var(--muted);font-style:italic;background:transparent;border-color:rgba(38,25,107,0.12)}
 html[data-theme="night"] .media-caption.empty{border-color:rgba(160,150,255,0.18)}
 
-/* NOVO: chips de colaboradores no cartão */
-.media-collab-chips{
-    display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;
-}
-.media-collab-chip{
-    display:inline-flex;align-items:center;gap:5px;
-    padding:3px 8px 3px 3px;border-radius:999px;
-    background:rgba(38,25,107,0.08);color:var(--icon-color);
-    font-size:0.56rem;font-weight:700;
-}
+.media-collab-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.media-collab-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 8px 3px 3px;border-radius:999px;background:rgba(38,25,107,0.08);color:var(--icon-color);font-size:0.56rem;font-weight:700}
 html[data-theme="night"] .media-collab-chip{background:rgba(160,150,255,0.14)}
-.media-collab-chip img{
-    width:18px;height:18px;border-radius:50%;object-fit:cover;
-    border:1.5px solid var(--glass-strong);
-}
-.media-collab-chip.more{
-    padding:3px 8px;
-    background:rgba(38,25,107,0.12);
-    font-size:0.55rem;
-}
-.media-collab-empty{
-    display:inline-flex;align-items:center;gap:6px;
-    margin-top:6px;padding:4px 8px;border-radius:8px;
-    background:rgba(217,145,0,0.10);color:var(--warning);
-    font-size:0.56rem;font-weight:700;
-}
-/* Ações do cartão */
-.media-card-actions{
-    display:flex;
-    gap:6px;
-    padding:8px 14px 14px;
-    flex-wrap:wrap;
-}
-.media-card-actions .small-btn{
-    flex:1;
-    min-width:0;
-    justify-content:center;
-    padding:0 6px;
-}
+.media-collab-chip img{width:18px;height:18px;border-radius:50%;object-fit:cover;border:1.5px solid var(--glass-strong)}
+.media-collab-chip.more{padding:3px 8px;background:rgba(38,25,107,0.12);font-size:0.55rem}
+.media-collab-empty{display:inline-flex;align-items:center;gap:6px;margin-top:6px;padding:4px 8px;border-radius:8px;background:rgba(217,145,0,0.10);color:var(--warning);font-size:0.56rem;font-weight:700}
+.media-card-actions{display:flex;gap:6px;padding:8px 14px 14px;flex-wrap:wrap}
+.media-card-actions .small-btn{flex:1;min-width:0;justify-content:center;padding:0 6px}
 
 /* ============================================================
-   UPLOAD ZONE — com legenda + colaboradores
+   UPLOAD ZONE
    ============================================================ */
 .upload-zone{position:relative;padding:35px 20px;border:1.5px dashed rgba(38,25,107,0.22);border-radius:var(--radius);background:var(--glass);text-align:center;transition:var(--transition);cursor:pointer}
 html[data-theme="night"] .upload-zone{border-color:rgba(160,150,255,0.3)}
@@ -321,72 +376,25 @@ html[data-theme="night"] .upload-progress-bar{background:rgba(160,150,255,0.15)}
 .upload-progress-fill{height:100%;background:var(--primary);border-radius:999px;width:0%;transition:width 0.3s ease}
 .upload-progress-text{display:block;margin-top:5px;font-size:0.65rem;color:var(--muted)}
 
-/* Wrapper para legenda antes do upload */
-.upload-caption-row{
-    margin-top:14px;
-    display:flex;
-    flex-direction:column;
-    gap:6px;
-    text-align:left;
-}
-.upload-caption-row label{
-    font-size:0.65rem;
-    font-weight:800;
-    color:var(--text);
-    display:flex;
-    align-items:center;
-    gap:6px;
-}
+.upload-caption-row{margin-top:14px;display:flex;flex-direction:column;gap:6px;text-align:left}
+.upload-caption-row label{font-size:0.65rem;font-weight:800;color:var(--text);display:flex;align-items:center;gap:6px}
 .upload-caption-row label i{color:var(--icon-color)}
-.upload-caption-row textarea{
-    min-height:60px;
-    resize:vertical;
-    font-size:0.72rem;
-}
+.upload-caption-row textarea{min-height:60px;resize:vertical;font-size:0.72rem}
 .upload-caption-row .form-help{margin-top:0}
 
-/* NOVO: Colaboradores associados antes do upload */
-.upload-collab-row{
-    margin-top:16px;
-    text-align:left;
-}
-.upload-collab-row .upload-collab-label{
-    display:flex;align-items:center;gap:6px;
-    font-size:0.68rem;font-weight:800;color:var(--text);
-    margin-bottom:8px;
-}
+.upload-collab-row{margin-top:16px;text-align:left}
+.upload-collab-row .upload-collab-label{display:flex;align-items:center;gap:6px;font-size:0.68rem;font-weight:800;color:var(--text);margin-bottom:8px}
 .upload-collab-row .upload-collab-label i{color:var(--icon-color)}
-.upload-collab-row .upload-collab-help{
-    display:block;font-size:0.58rem;color:var(--muted);
-    margin-bottom:8px;line-height:1.5;
-}
-.upload-collab-grid{
-    display:grid;
-    grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
-    gap:8px;
-    max-height:220px;
-    overflow-y:auto;
-    padding:10px;
-    border:1px solid var(--border);
-    border-radius:12px;
-    background:var(--glass);
-}
-.upload-collab-item{
-    display:flex;align-items:center;gap:8px;
-    padding:8px 10px;border-radius:10px;
-    cursor:pointer;transition:var(--transition);
-    font-size:0.66rem;
-}
+.upload-collab-row .upload-collab-help{display:block;font-size:0.58rem;color:var(--muted);margin-bottom:8px;line-height:1.5}
+.upload-collab-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;max-height:220px;overflow-y:auto;padding:10px;border:1px solid var(--border);border-radius:12px;background:var(--glass)}
+.upload-collab-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;cursor:pointer;transition:var(--transition);font-size:0.66rem}
 .upload-collab-item:hover{background:rgba(38,25,107,0.05)}
 html[data-theme="night"] .upload-collab-item:hover{background:rgba(160,150,255,0.10)}
 .upload-collab-item input{accent-color:var(--primary);width:16px;height:16px}
 .upload-collab-item img{width:28px;height:28px;border-radius:50%;object-fit:cover;background:var(--bg-2);border:1.5px solid var(--border)}
 .upload-collab-item span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
 .upload-collab-item span small{display:block;font-size:0.55rem;font-weight:500;color:var(--muted);margin-top:1px}
-.upload-collab-empty{
-    padding:14px;text-align:center;
-    font-size:0.65rem;color:var(--muted);
-}
+.upload-collab-empty{padding:14px;text-align:center;font-size:0.65rem;color:var(--muted)}
 
 .settings-panel{padding:25px}
 .settings-panel h3{font-size:1rem;margin-bottom:4px}
@@ -505,132 +513,32 @@ html[data-theme="night"] .collab-checkbox-item:hover{background:rgba(160,150,255
    TABELA DE PREÇOS
    ============================================================ */
 .price-list{display:grid;gap:12px}
-.price-card{
-    display:grid;
-    grid-template-columns:1fr auto;
-    gap:15px;
-    padding:16px 18px;
-    border-radius:14px;
-    background:var(--glass);
-    border:1px solid var(--border);
-    align-items:flex-start;
-    transition:var(--transition);
-}
+.price-card{display:grid;grid-template-columns:1fr auto;gap:15px;padding:16px 18px;border-radius:14px;background:var(--glass);border:1px solid var(--border);align-items:flex-start;transition:var(--transition)}
 .price-card:hover{background:var(--input-bg-hover);box-shadow:var(--shadow-sm)}
 .price-card-left{min-width:0}
-.price-card-name{
-    font-family:"Playfair Display",serif;
-    font-size:1.05rem;
-    font-weight:700;
-    color:var(--text);
-    margin-bottom:4px;
-}
-.price-card-desc{
-    font-size:0.68rem;
-    color:var(--muted);
-    line-height:1.5;
-    margin-bottom:8px;
-    display:-webkit-box;
-    -webkit-line-clamp:2;
-    -webkit-box-orient:vertical;
-    overflow:hidden;
-}
-.price-card-collabs{
-    display:flex;
-    align-items:center;
-    flex-wrap:wrap;
-    gap:6px;
-    margin-top:8px;
-}
-.price-card-collabs-label{
-    font-size:0.58rem;
-    text-transform:uppercase;
-    letter-spacing:.06em;
-    font-weight:800;
-    color:var(--muted);
-    margin-right:2px;
-}
-.price-collab-chip{
-    display:inline-flex;
-    align-items:center;
-    gap:5px;
-    padding:3px 9px 3px 3px;
-    border-radius:999px;
-    background:rgba(38,25,107,0.08);
-    color:var(--icon-color);
-    font-size:0.6rem;
-    font-weight:700;
-}
+.price-card-name{font-family:"Playfair Display",serif;font-size:1.05rem;font-weight:700;color:var(--text);margin-bottom:4px}
+.price-card-desc{font-size:0.68rem;color:var(--muted);line-height:1.5;margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.price-card-collabs{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:8px}
+.price-card-collabs-label{font-size:0.58rem;text-transform:uppercase;letter-spacing:.06em;font-weight:800;color:var(--muted);margin-right:2px}
+.price-collab-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 9px 3px 3px;border-radius:999px;background:rgba(38,25,107,0.08);color:var(--icon-color);font-size:0.6rem;font-weight:700}
 html[data-theme="night"] .price-collab-chip{background:rgba(160,150,255,0.14)}
-.price-collab-chip img{
-    width:20px;height:20px;border-radius:50%;object-fit:cover;
-    background:var(--bg-2);
-    border:1.5px solid var(--glass-strong);
-}
-.price-card-right{
-    display:flex;
-    flex-direction:column;
-    align-items:flex-end;
-    gap:8px;
-    flex-shrink:0;
-}
-.price-card-value{
-    font-family:"Playfair Display",serif;
-    font-size:1.35rem;
-    font-weight:700;
-    color:var(--gold);
-    white-space:nowrap;
-    letter-spacing:-.02em;
-}
+.price-collab-chip img{width:20px;height:20px;border-radius:50%;object-fit:cover;background:var(--bg-2);border:1.5px solid var(--glass-strong)}
+.price-card-right{display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0}
+.price-card-value{font-family:"Playfair Display",serif;font-size:1.35rem;font-weight:700;color:var(--gold);white-space:nowrap;letter-spacing:-.02em}
 .price-card-actions{display:flex;gap:6px}
-.collab-selector{
-    display:grid;
-    grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
-    gap:8px;
-    max-height:260px;
-    overflow-y:auto;
-    padding:10px;
-    border:1px solid var(--border);
-    border-radius:12px;
-    background:var(--glass);
-    margin-top:8px;
-}
-.collab-selector-item{
-    display:flex;
-    align-items:center;
-    gap:9px;
-    padding:8px 10px;
-    border-radius:10px;
-    cursor:pointer;
-    transition:var(--transition);
-    font-size:0.68rem;
-}
+.collab-selector{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;max-height:260px;overflow-y:auto;padding:10px;border:1px solid var(--border);border-radius:12px;background:var(--glass);margin-top:8px}
+.collab-selector-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:10px;cursor:pointer;transition:var(--transition);font-size:0.68rem}
 .collab-selector-item:hover{background:rgba(38,25,107,0.05)}
 html[data-theme="night"] .collab-selector-item:hover{background:rgba(160,150,255,0.10)}
 .collab-selector-item input{accent-color:var(--primary);width:16px;height:16px}
-.collab-selector-item img{
-    width:32px;height:32px;border-radius:50%;object-fit:cover;
-    background:var(--bg-2);
-    border:1.5px solid var(--border);
-}
+.collab-selector-item img{width:32px;height:32px;border-radius:50%;object-fit:cover;background:var(--bg-2);border:1.5px solid var(--border)}
 .collab-selector-item .collab-selector-info{flex:1;min-width:0}
-.collab-selector-item .collab-selector-info strong{
-    display:block;font-size:0.68rem;font-weight:700;
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-}
-.collab-selector-item .collab-selector-info span{
-    display:block;font-size:0.56rem;color:var(--muted);margin-top:1px;
-}
+.collab-selector-item .collab-selector-info strong{display:block;font-size:0.68rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.collab-selector-item .collab-selector-info span{display:block;font-size:0.56rem;color:var(--muted);margin-top:1px}
 .price-empty{padding:40px 20px;text-align:center;color:var(--muted);font-size:0.7rem}
 .price-empty i{font-size:2rem;color:rgba(38,25,107,0.18);display:block;margin-bottom:10px}
 html[data-theme="night"] .price-empty i{color:rgba(160,150,255,0.25)}
-.filter-info{
-    display:flex;align-items:center;gap:8px;
-    font-size:0.65rem;color:var(--muted);
-    margin-bottom:12px;padding:8px 12px;
-    border-radius:10px;background:var(--glass);
-    border:1px dashed var(--border);
-}
+.filter-info{display:flex;align-items:center;gap:8px;font-size:0.65rem;color:var(--muted);margin-bottom:12px;padding:8px 12px;border-radius:10px;background:var(--glass);border:1px dashed var(--border)}
 .filter-info strong{color:var(--icon-color)}
 
 @media (max-width:1250px){
@@ -688,6 +596,7 @@ html[data-theme="night"] .price-empty i{color:rgba(160,150,255,0.25)}
 .price-card{grid-template-columns:1fr}
 .price-card-right{align-items:flex-start;flex-direction:row;justify-content:space-between;width:100%}
 .upload-collab-grid{grid-template-columns:1fr}
+.order-bar{flex-direction:column;align-items:stretch}
 }
 @media (max-width:470px){
 .stats-grid{grid-template-columns:1fr}
@@ -847,11 +756,26 @@ html[data-theme="night"] .price-empty i{color:rgba(160,150,255,0.25)}
 </section>
 
 
+<!-- ============================================================
+     COLABORADORES — agora com DRAG & DROP para ordenar
+     ============================================================ -->
 <section class="section" id="section-collaborators">
 <div class="section-intro">
-<div><h2>Colaboradores</h2><p>Apenas colaboradores com estado <strong>Ativo</strong> aparecem no website.</p></div>
+<div><h2>Colaboradores</h2><p>Apenas colaboradores com estado <strong>Ativo</strong> aparecem no website. Arraste os cards pelo <strong>ícone ☰</strong> para definir a ordem de prioridade.</p></div>
 <button class="primary-btn" data-action="new-collaborator"><i class="fa-solid fa-plus"></i> Novo colaborador</button>
 </div>
+
+<div class="order-bar" id="orderBar">
+    <div class="order-bar-text">
+        <i class="fa-solid fa-arrows-up-down-left-right"></i>
+        <span>A ordem foi alterada. Guarde para aplicar no site.</span>
+    </div>
+    <div class="order-bar-actions">
+        <button class="secondary-btn" id="cancelOrderBtn" type="button"><i class="fa-solid fa-rotate-left"></i> Cancelar</button>
+        <button class="primary-btn" id="saveOrderBtn" type="button"><i class="fa-solid fa-floppy-disk"></i> Guardar ordem</button>
+    </div>
+</div>
+
 <div class="toolbar">
 <div class="toolbar-left">
 <div class="search-box"><i class="fa-solid fa-search"></i><input type="search" class="form-control" id="collaboratorSearch" placeholder="Pesquisar colaborador..."></div>
@@ -924,9 +848,6 @@ html[data-theme="night"] .price-empty i{color:rgba(160,150,255,0.25)}
 </section>
 
 
-<!-- ============================================================
-     GALERIA / PORTFÓLIO — com legenda + colaboradores
-     ============================================================ -->
 <section class="section" id="section-gallery">
 <div class="section-intro">
 <div><h2>Galeria & Portfólio</h2><p>Adicione fotografias e vídeos dos trabalhos. Pode escrever uma legenda e escolher os colaboradores antes do upload, ou editar depois.</p></div>
@@ -934,14 +855,12 @@ html[data-theme="night"] .price-empty i{color:rgba(160,150,255,0.25)}
 
 <div class="glass-card" style="padding:18px;margin-bottom:20px">
 
-<!-- Legenda antes do upload -->
 <div class="upload-caption-row">
     <label for="uploadCaption"><i class="fa-solid fa-pen-fancy"></i> Legenda (opcional) — aplica-se aos ficheiros que carregar agora</label>
     <textarea class="form-control" id="uploadCaption" placeholder="Ex.: Transformação com balayage — resultado final ✨" maxlength="500"></textarea>
     <span class="form-help">Esta legenda aparece no post da <strong>Galeria</strong> do site, por baixo da imagem/vídeo. Pode ficar vazio e editar depois.</span>
 </div>
 
-<!-- NOVO: colaboradores antes do upload -->
 <div class="upload-collab-row">
     <div class="upload-collab-label">
         <i class="fa-solid fa-user-check"></i>
@@ -1463,7 +1382,6 @@ html[data-theme="night"] .price-empty i{color:rgba(160,150,255,0.25)}
 </div>
 
 
-<!-- MODAL: LEGENDA DA GALERIA -->
 <div class="modal" id="captionModal" aria-hidden="true">
 <div class="modal-card" style="width:min(100%,620px)">
 <div class="modal-header">
@@ -1500,7 +1418,6 @@ html[data-theme="night"] .price-empty i{color:rgba(160,150,255,0.25)}
 </div>
 
 
-<!-- MODAL: COLABORADORES DA MÍDIA (NOVO) -->
 <div class="modal" id="mediaCollabModal" aria-hidden="true">
 <div class="modal-card" style="width:min(100%,620px)">
 <div class="modal-header">
@@ -1643,6 +1560,11 @@ let currentBannerButtons=[];
 let realtimeStarted=false;
 const realtimeUnsubscribers=[];
 
+/* Drag & drop de colaboradores */
+let dragState=null;             // { id, fromIndex, el }
+let pendingOrder=null;          // array de ids na nova ordem
+let orderSaveTimer=null;
+
 /* DOM */
 const loginScreen=document.getElementById("loginScreen");
 const adminApp=document.getElementById("adminApp");
@@ -1770,16 +1692,26 @@ function loadAllData(){
 }
 
 /* ============================================================
-   COLLABORATORS
+   COLLABORATORS — com drag & drop
    ============================================================ */
 function loadCollaborators(){
     db.collection("collaborators").orderBy("name").get().then(function(snapshot){
         collaboratorsCache=[];
         snapshot.forEach(function(doc){collaboratorsCache.push({id:doc.id,...doc.data()});});
+        sortCollaboratorsCache();
         renderCollaborators(collaboratorsCache);
-        renderUploadCollabGrid();      // NOVO
+        renderUploadCollabGrid();
         updateStats();
     }).catch(function(e){console.error("Erro:",e);});
+}
+function sortCollaboratorsCache(){
+    // Ordena por `order` (numérico). Se não existir, mantém nome como fallback.
+    collaboratorsCache.sort(function(a,b){
+        const oa=typeof a.order==="number"?a.order:999999;
+        const ob=typeof b.order==="number"?b.order:999999;
+        if(oa!==ob)return oa-ob;
+        return String(a.name||"").localeCompare(String(b.name||""));
+    });
 }
 function renderCollaborators(collaborators){
     const grid=document.getElementById("collaboratorsGrid");
@@ -1792,9 +1724,15 @@ function renderCollaborators(collaborators){
         grid.innerHTML=`<div class="empty-state" style="grid-column:1/-1"><i class="fa-solid fa-users"></i><h3>Nenhum colaborador encontrado</h3><p>Clique em "Novo colaborador" para adicionar.</p></div>`;
         return;
     }
-    grid.innerHTML=filtered.map(function(c){
-        return `<article class="glass-card collaborator-card" data-id="${c.id}">
+    const isFiltering=search||filter!=="all";
+
+    grid.innerHTML=filtered.map(function(c,idx){
+        const isFirst=!isFiltering && idx===0;
+        return `<article class="glass-card collaborator-card" data-id="${c.id}" data-index="${idx}" draggable="false">
             <div class="collaborator-cover"></div>
+            <button class="drag-handle" type="button" title="Arrastar para reordenar" aria-label="Arrastar para reordenar">
+                <i class="fa-solid fa-grip-lines"></i>
+            </button>
             <div class="collaborator-body">
                 <img src="${c.photo||'img/Logo-Studio-DeVitto.png'}" alt="${c.name||''}" class="collaborator-avatar" onerror="this.src='img/Logo-Studio-DeVitto.png'">
                 <h3 class="collaborator-name">${c.name||''}</h3>
@@ -1803,7 +1741,10 @@ function renderCollaborators(collaborators){
                     <div class="collaborator-info-row"><i class="fa-solid fa-phone"></i><span>${c.phone||'Sem telefone'}</span></div>
                     <div class="collaborator-info-row"><i class="fa-solid fa-envelope"></i><span>${c.email||'Sem email'}</span></div>
                 </div>
-                <div style="margin-top:13px"><span class="status ${c.status||'active'}">${c.status==='active'?'Ativo (visível no site)':'Inativo (oculto)'}</span></div>
+                <div style="margin-top:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                    <span class="status ${c.status||'active'}">${c.status==='active'?'Ativo (visível no site)':'Inativo (oculto)'}</span>
+                    ${isFirst?'<span class="status" style="background:rgba(201,167,105,0.18);color:#8b6a1d;">★ Prioritário</span>':''}
+                </div>
                 <div class="collaborator-actions">
                     <button class="small-btn primary" data-edit-collaborator="${c.id}"><i class="fa-solid fa-pen"></i> Editar</button>
                     <button class="small-btn danger" data-delete-collaborator="${c.id}"><i class="fa-solid fa-trash"></i> Apagar</button>
@@ -1813,10 +1754,150 @@ function renderCollaborators(collaborators){
     }).join("");
     grid.querySelectorAll("[data-edit-collaborator]").forEach(function(b){b.addEventListener("click",function(){openCollaboratorModal(b.dataset.editCollaborator);});});
     grid.querySelectorAll("[data-delete-collaborator]").forEach(function(b){b.addEventListener("click",function(){deleteCollaborator(b.dataset.deleteCollaborator);});});
+
+    /* ==== Ligar drag & drop (apenas se não estiver a filtrar) ==== */
+    if(!isFiltering){
+        grid.querySelectorAll(".collaborator-card").forEach(function(card){
+            const handle=card.querySelector(".drag-handle");
+            if(handle)attachDragHandlers(card,handle);
+        });
+    }else{
+        grid.querySelectorAll(".drag-handle").forEach(function(h){
+            h.style.opacity="0.35";
+            h.style.pointerEvents="none";
+        });
+    }
 }
 document.getElementById("collaboratorSearch").addEventListener("input",function(){renderCollaborators(collaboratorsCache);});
 document.getElementById("collaboratorFilter").addEventListener("change",function(){renderCollaborators(collaboratorsCache);});
 
+/* ============ DRAG & DROP (desktop + touch) ============ */
+function attachDragHandlers(card,handle){
+    /* Desktop (mouse) */
+    handle.addEventListener("mousedown",function(e){
+        e.preventDefault();
+        startDrag(card,e.clientY);
+    });
+    /* Mobile/touch */
+    handle.addEventListener("touchstart",function(e){
+        const t=e.touches[0];
+        startDrag(card,t.clientY);
+    },{passive:false});
+}
+
+function startDrag(card,startY){
+    if(dragState)return;
+    const id=card.dataset.id;
+    const idx=Array.from(card.parentNode.children).indexOf(card);
+    dragState={id,fromIndex:idx,el:card,startY,currentTarget:null};
+    card.classList.add("dragging");
+
+    document.addEventListener("mousemove",onDragMove,{passive:false});
+    document.addEventListener("mouseup",onDragEnd,{passive:true});
+    document.addEventListener("touchmove",onDragMove,{passive:false});
+    document.addEventListener("touchend",onDragEnd,{passive:true});
+    document.addEventListener("touchcancel",onDragEnd,{passive:true});
+}
+
+function onDragMove(e){
+    if(!dragState)return;
+    if(e.cancelable)e.preventDefault();
+    const y=(e.touches&&e.touches[0])?e.touches[0].clientY:e.clientY;
+    const elBelow=document.elementFromPoint(
+        window.innerWidth/2 > 0 ? (e.clientX||window.innerWidth/2) : window.innerWidth/2,
+        y
+    );
+    if(!elBelow)return;
+    const targetCard=elBelow.closest(".collaborator-card");
+    if(!targetCard||targetCard===dragState.el)return;
+    if(targetCard.parentNode!==dragState.el.parentNode)return;
+    dragState.currentTarget=targetCard;
+    // Remover destaques anteriores
+    dragState.el.parentNode.querySelectorAll(".collaborator-card.drop-target").forEach(function(c){c.classList.remove("drop-target");});
+    targetCard.classList.add("drop-target");
+}
+
+function onDragEnd(){
+    if(!dragState)return;
+    const el=dragState.el;
+    const target=dragState.currentTarget;
+    el.classList.remove("dragging");
+    el.parentNode.querySelectorAll(".collaborator-card.drop-target").forEach(function(c){c.classList.remove("drop-target");});
+
+    if(target && target!==el){
+        // Mover el antes/depois do target conforme posição
+        const parent=el.parentNode;
+        const children=Array.from(parent.children);
+        const fromIdx=children.indexOf(el);
+        const toIdx=children.indexOf(target);
+        if(fromIdx<toIdx){
+            target.parentNode.insertBefore(el,target.nextSibling);
+        }else{
+            target.parentNode.insertBefore(el,target);
+        }
+        markOrderChanged();
+    }
+
+    document.removeEventListener("mousemove",onDragMove);
+    document.removeEventListener("mouseup",onDragEnd);
+    document.removeEventListener("touchmove",onDragMove);
+    document.removeEventListener("touchend",onDragEnd);
+    document.removeEventListener("touchcancel",onDragEnd);
+    dragState=null;
+}
+
+/* ============ GUARDAR ORDEM ============ */
+function markOrderChanged(){
+    // Atualiza pendingOrder com base no DOM
+    const grid=document.getElementById("collaboratorsGrid");
+    const ids=Array.from(grid.querySelectorAll(".collaborator-card")).map(function(c){return c.dataset.id;});
+    pendingOrder=ids;
+    document.getElementById("orderBar").classList.add("show");
+    if(orderSaveTimer)clearTimeout(orderSaveTimer);
+    orderSaveTimer=setTimeout(function(){
+        // Guarda automaticamente após 1.5s de inatividade
+        persistOrder(true);
+    },1500);
+}
+
+async function persistOrder(silent){
+    if(!pendingOrder||pendingOrder.length===0){return;}
+    const bar=document.getElementById("orderBar");
+    try{
+        const batch=db.batch();
+        pendingOrder.forEach(function(id,idx){
+            batch.update(db.collection("collaborators").doc(id),{order:idx});
+        });
+        await batch.commit();
+        pendingOrder=null;
+        bar.classList.remove("show");
+        if(!silent){
+            showToast("Ordem guardada","A prioridade dos colaboradores foi atualizada.","fa-check");
+        }else{
+            showToast("Ordem guardada","A prioridade foi aplicada no site.","fa-check");
+        }
+        await addActivity("collaborator_order","Ordem dos colaboradores atualizada.");
+        loadCollaborators();
+    }catch(e){
+        console.error(e);
+        showToast("Erro","Não foi possível guardar a ordem.","fa-triangle-exclamation");
+    }
+}
+
+document.getElementById("saveOrderBtn").addEventListener("click",function(){
+    if(orderSaveTimer)clearTimeout(orderSaveTimer);
+    persistOrder(false);
+});
+document.getElementById("cancelOrderBtn").addEventListener("click",function(){
+    if(orderSaveTimer)clearTimeout(orderSaveTimer);
+    pendingOrder=null;
+    document.getElementById("orderBar").classList.remove("show");
+    loadCollaborators();
+});
+
+/* ============================================================
+   RESTO DOS COLABORADORES (modal, save, delete) — mantido
+   ============================================================ */
 function openCollaboratorModal(id=null){
     editingCollaboratorId=id;
     const modal=document.getElementById("collaboratorModal");
@@ -1896,6 +1977,10 @@ document.getElementById("collaboratorForm").addEventListener("submit",async func
 });
 function saveCollaboratorToFirestore(data){
     const isEdit=editingCollaboratorId!==null;
+    // Se for novo, põe no fim da ordem
+    if(!isEdit && typeof data.order!=="number"){
+        data.order=collaboratorsCache.length;
+    }
     const operation=isEdit?db.collection("collaborators").doc(editingCollaboratorId).update(data):db.collection("collaborators").add(data);
     operation.then(function(){
         showToast("Colaborador "+(isEdit?"atualizado":"criado"),`${data.name} foi guardado.`,"fa-user-check");
@@ -2221,7 +2306,6 @@ function loadPricing(){
         updateStats();
     }).catch(function(e){console.error("Erro ao carregar preços:",e);});
 }
-
 function renderPriceCollabFilter(){
     const select=document.getElementById("priceCollabFilter");
     if(!select)return;
@@ -2240,7 +2324,6 @@ function renderPriceCollabFilter(){
     if(current!=="all" && usedIds.has(current)){select.value=current;}
     else{select.value="all";}
 }
-
 function renderPricingList(){
     const list=document.getElementById("priceList");
     const info=document.getElementById("priceFilterInfo");
@@ -2320,14 +2403,10 @@ function renderPricingList(){
     list.querySelectorAll("[data-edit-price]").forEach(function(b){b.addEventListener("click",function(){openPriceModal(b.dataset.editPrice);});});
     list.querySelectorAll("[data-delete-price]").forEach(function(b){b.addEventListener("click",function(){deletePrice(b.dataset.deletePrice);});});
 }
-
 function safeTextP(v,f){return (v&&String(v).trim())?String(v).trim():f;}
-
 document.getElementById("priceSearch").addEventListener("input",function(){renderPricingList();});
 document.getElementById("priceCollabFilter").addEventListener("change",function(){renderPricingList();});
-
 document.getElementById("newPriceBtn").addEventListener("click",function(){openPriceModal(null);});
-
 function renderPriceCollabSelector(selectedIds){
     const container=document.getElementById("priceCollabSelector");
     if(!container)return;
@@ -2351,7 +2430,6 @@ function renderPriceCollabSelector(selectedIds){
         </label>`;
     }).join("");
 }
-
 function openPriceModal(id){
     editingPriceId=id;
     const modal=document.getElementById("priceModal");
@@ -2374,7 +2452,6 @@ function openPriceModal(id){
     renderPriceCollabSelector(selectedCollabs);
     openModal(modal);
 }
-
 document.getElementById("priceForm").addEventListener("submit",async function(event){
     event.preventDefault();
     const btn=this.querySelector('button[type="submit"]');
@@ -2410,7 +2487,6 @@ document.getElementById("priceForm").addEventListener("submit",async function(ev
     }catch(e){console.error(e);showToast("Erro","Não foi possível guardar: "+e.message,"fa-triangle-exclamation");}
     finally{btn.disabled=false;}
 });
-
 async function deletePrice(id){
     if(!confirm("Remover este preço da tabela?"))return;
     const p=pricingCache.find(item=>item.id===id);
@@ -2425,8 +2501,6 @@ async function deletePrice(id){
 /* ============================================================
    MEDIA — Galeria com LEGENDA + COLABORADORES
    ============================================================ */
-
-/* ---------- Grelha de colaboradores ANTES do upload ---------- */
 function renderUploadCollabGrid(){
     const grid=document.getElementById("uploadCollabGrid");
     if(!grid)return;
@@ -2448,8 +2522,6 @@ function renderUploadCollabGrid(){
         </label>`;
     }).join("");
 }
-
-/* ---------- Helpers ---------- */
 function getCheckedUploadCollabIds(){
     const ids=[];
     document.querySelectorAll("#uploadCollabGrid input[type=checkbox]:checked").forEach(function(cb){
@@ -2470,8 +2542,6 @@ function collabPhotoById(id){
     const c=collaboratorsCache.find(function(x){return x.id===id;});
     return c&&c.photo?c.photo:"img/Logo-Studio-DeVitto.png";
 }
-
-/* ---------- Load + Render ---------- */
 function loadMedia(){
     db.collection("media").orderBy("createdAt","desc").get().then(function(snapshot){
         mediaCache=[];
@@ -2492,7 +2562,6 @@ function renderMedia(media){
             ? `<span class="media-caption" title="${escapeHtml(caption)}">${escapeHtml(caption)}</span>`
             : `<span class="media-caption empty">Sem legenda — clique em "Legenda" para adicionar.</span>`;
 
-        /* NOVO: chips de colaboradores associados */
         const collabIds=Array.isArray(m.collaborators)?m.collaborators:[];
         let collabsHtml="";
         if(collabIds.length===0){
@@ -2532,7 +2601,6 @@ function renderMedia(media){
         </article>`;
     }).join("");
 
-    /* Listeners */
     grid.querySelectorAll(".preview-media").forEach(function(b){
         b.addEventListener("click",function(){
             document.getElementById("mediaPreviewImage").src=b.dataset.src;
@@ -2551,7 +2619,6 @@ function renderMedia(media){
     grid.querySelectorAll("[data-edit-caption]").forEach(function(b){
         b.addEventListener("click",function(){openCaptionModal(b.dataset.editCaption);});
     });
-    /* NOVO: editar profissionais do item */
     grid.querySelectorAll(".edit-collabs").forEach(function(b){
         b.addEventListener("click",function(){openMediaCollabModal(b.dataset.id);});
     });
@@ -2559,12 +2626,9 @@ function renderMedia(media){
         b.addEventListener("click",function(){openMediaCollabModal(b.dataset.editCollabs);});
     });
 }
-
-/* ============ MODAL DE LEGENDA ============ */
 function openCaptionModal(id){
     const m=mediaCache.find(x=>x.id===id);
     if(!m){showToast("Erro","Ficheiro não encontrado.","fa-triangle-exclamation");return;}
-
     const modal=document.getElementById("captionModal");
     const img=document.getElementById("captionPreviewImg");
     const titleEl=document.getElementById("captionPreviewTitle");
@@ -2579,16 +2643,13 @@ function openCaptionModal(id){
     textarea.value=m.description||"";
     hidden.value=id;
     counter.textContent=(textarea.value.length||0)+" / 500 caracteres";
-
     openModal(modal);
     setTimeout(function(){textarea.focus();},120);
 }
-
 document.getElementById("captionText").addEventListener("input",function(){
     const counter=document.getElementById("captionCounter");
     if(counter)counter.textContent=(this.value.length||0)+" / 500 caracteres";
 });
-
 document.getElementById("captionForm").addEventListener("submit",async function(event){
     event.preventDefault();
     const id=document.getElementById("captionMediaId").value;
@@ -2603,7 +2664,6 @@ document.getElementById("captionForm").addEventListener("submit",async function(
         });
         const item=mediaCache.find(x=>x.id===id);
         if(item)item.description=text;
-
         await addActivity("media_caption",'Legenda atualizada em "'+((item&&item.title)||"item")+'".');
         showToast("Legenda guardada","A legenda está agora visível na Galeria do site.","fa-pen-fancy");
         closeModal(document.getElementById("captionModal"));
@@ -2615,8 +2675,6 @@ document.getElementById("captionForm").addEventListener("submit",async function(
         btn.disabled=false;
     }
 });
-
-/* ============ NOVO: MODAL DE COLABORADORES DA MÍDIA ============ */
 function renderMediaCollabGrid(selectedIds){
     const grid=document.getElementById("mediaCollabGrid");
     if(!grid)return;
@@ -2639,11 +2697,9 @@ function renderMediaCollabGrid(selectedIds){
         </label>`;
     }).join("");
 }
-
 function openMediaCollabModal(id){
     const m=mediaCache.find(x=>x.id===id);
     if(!m){showToast("Erro","Ficheiro não encontrado.","fa-triangle-exclamation");return;}
-
     const modal=document.getElementById("mediaCollabModal");
     const img=document.getElementById("mediaCollabPreviewImg");
     const titleEl=document.getElementById("mediaCollabPreviewTitle");
@@ -2657,10 +2713,8 @@ function openMediaCollabModal(id){
 
     const selected=Array.isArray(m.collaborators)?m.collaborators:[];
     renderMediaCollabGrid(selected);
-
     openModal(modal);
 }
-
 document.getElementById("mediaCollabForm").addEventListener("submit",async function(event){
     event.preventDefault();
     const id=document.getElementById("mediaCollabId").value;
@@ -2692,8 +2746,6 @@ document.getElementById("mediaCollabForm").addEventListener("submit",async funct
         btn.disabled=false;
     }
 });
-
-/* ============ UPLOAD COM LEGENDA + COLABORADORES ============ */
 document.getElementById("mediaUrlUploadBtn").addEventListener("click",function(){
     const url=document.getElementById("mediaUrlInput").value.trim();
     if(!url){showToast("Aviso","Insira uma URL válida.","fa-triangle-exclamation");return;}
@@ -2718,13 +2770,11 @@ document.getElementById("mediaUrlUploadBtn").addEventListener("click",function()
         loadMedia();
     }).catch(function(e){showToast("Erro","Não foi possível adicionar.","fa-triangle-exclamation");});
 });
-
 const mediaUpload=document.getElementById("mediaUpload");
 const uploadZone=document.getElementById("uploadZone");
 const progressContainer=document.getElementById("uploadProgressContainer");
 const progressFill=document.getElementById("uploadProgressFill");
 const progressText=document.getElementById("uploadProgressText");
-
 async function uploadMediaFile(file,caption,collabIds){
     if(useCloudinary){
         try{
@@ -2767,7 +2817,6 @@ async function uploadMediaFile(file,caption,collabIds){
         return true;
     }catch(e){return false;}
 }
-
 mediaUpload.addEventListener("change",async function(event){
     const files=Array.from(event.target.files);
     await processUploads(files);
@@ -2779,12 +2828,10 @@ uploadZone.addEventListener("drop",async function(event){
     const files=Array.from(event.dataTransfer.files);
     await processUploads(files);
 });
-
 async function processUploads(files){
     const valid=files.filter(f=>validateFile(f,["image/jpeg","image/png","image/webp","image/gif","video/mp4","video/quicktime"]));
     if(valid.length===0)return;
 
-    /* Legenda + colaboradores comuns para todos os ficheiros do lote */
     const captionField=document.getElementById("uploadCaption");
     const caption=captionField?captionField.value.trim():"";
     const collabIds=getCheckedUploadCollabIds();
@@ -2815,7 +2862,6 @@ async function processUploads(files){
     }
     if(fc>0){showToast("Atenção",`${fc} ficheiro(s) falharam.`,"fa-triangle-exclamation");}
 }
-
 async function deleteMedia(id){
     if(!confirm("Remover este ficheiro?"))return;
     try{
@@ -2826,7 +2872,7 @@ async function deleteMedia(id){
 }
 
 /* ============================================================
-   COMPANY
+   COMPANY / BRANDING / FLOATING / SOCIAL / SEO / MUSIC / ADMINS
    ============================================================ */
 function loadCompany(){db.collection("settings").doc("company").get().then(function(doc){if(doc.exists)updateCompanyForm(doc.data());});}
 function updateCompanyForm(data){
@@ -2838,19 +2884,11 @@ function updateCompanyForm(data){
     document.getElementById("companyEmail").value=data.email||"vittor@studiodevitto.com";
     let street="Rua de Macau",number="6A",city="Amadora",postal="2700-000",region="Lisboa",country="Portugal";
     if(data.addressStreet||data.addressNumber||data.addressCity){
-        street=data.addressStreet||"";
-        number=data.addressNumber||"";
-        city=data.addressCity||"";
-        postal=data.addressPostal||"";
-        region=data.addressRegion||"";
-        country=data.addressCountry||"";
+        street=data.addressStreet||"";number=data.addressNumber||"";city=data.addressCity||"";
+        postal=data.addressPostal||"";region=data.addressRegion||"";country=data.addressCountry||"";
     }else if(data.address){
         const parts=data.address.split(",").map(function(s){return s.trim();});
-        if(parts[0])street=parts[0];
-        if(parts[1])number=parts[1];
-        if(parts[2])city=parts[2];
-        if(parts[3])region=parts[3];
-        if(parts[4])country=parts[4];
+        if(parts[0])street=parts[0];if(parts[1])number=parts[1];if(parts[2])city=parts[2];if(parts[3])region=parts[3];if(parts[4])country=parts[4];
     }
     document.getElementById("companyAddressStreet").value=street;
     document.getElementById("companyAddressNumber").value=number;
@@ -2873,12 +2911,7 @@ function updateCompanyAddressPreview(){
     const postal=document.getElementById("companyAddressPostal").value.trim();
     const region=document.getElementById("companyAddressRegion").value.trim();
     const country=document.getElementById("companyAddressCountry").value.trim();
-    const parts=[
-        [street,number].filter(Boolean).join(", "),
-        postal?[postal,city].filter(Boolean).join(" "):city,
-        region,
-        country
-    ].filter(Boolean);
+    const parts=[[street,number].filter(Boolean).join(", "),postal?[postal,city].filter(Boolean).join(" "):city,region,country].filter(Boolean);
     document.getElementById("companyAddressPreview").value=parts.join(", ");
     document.getElementById("companyPreviewLocation").textContent=city||"Amadora";
 }
@@ -2886,8 +2919,7 @@ function updateCompanyAddressPreview(){
     document.getElementById(id).addEventListener("input",updateCompanyAddressPreview);
 });
 document.getElementById("saveCompany").addEventListener("click",async function(){
-    const btn=this;
-    btn.disabled=true;
+    const btn=this;btn.disabled=true;
     try{
         const data={
             name:document.getElementById("companyName").value.trim(),
@@ -2904,12 +2936,7 @@ document.getElementById("saveCompany").addEventListener("click",async function()
             hours:document.getElementById("companyHours").value.trim(),
             maps:document.getElementById("companyMaps").value.trim()
         };
-        data.address=[
-            [data.addressStreet,data.addressNumber].filter(Boolean).join(", "),
-            data.addressPostal?[data.addressPostal,data.addressCity].filter(Boolean).join(" "):data.addressCity,
-            data.addressRegion,
-            data.addressCountry
-        ].filter(Boolean).join(", ");
+        data.address=[[data.addressStreet,data.addressNumber].filter(Boolean).join(", "),data.addressPostal?[data.addressPostal,data.addressCity].filter(Boolean).join(" "):data.addressCity,data.addressRegion,data.addressCountry].filter(Boolean).join(", ");
         if(!data.name){showToast("Aviso","O nome é obrigatório.","fa-triangle-exclamation");return;}
         await saveSettingDocument("company",data,"company_update","Dados da empresa atualizados.");
         showToast("Dados guardados","As informações foram atualizadas.","fa-circle-check");
@@ -2920,26 +2947,15 @@ document.getElementById("companyName").addEventListener("input",function(){docum
 document.getElementById("companyDescription").addEventListener("input",function(){document.getElementById("companyPreviewDescription").textContent=this.value||"";});
 document.getElementById("companyPhone").addEventListener("input",function(){document.getElementById("companyPreviewPhone").textContent=this.value||"";});
 
-/* ============================================================
-   BRANDING
-   ============================================================ */
 function loadBranding(){db.collection("settings").doc("branding").get().then(function(doc){if(doc.exists&&doc.data().logoUrl){document.getElementById("logoPreview").src=doc.data().logoUrl;updateAllLogoElements(doc.data().logoUrl);}});}
 document.getElementById("logoUpload").addEventListener("change",function(event){const file=event.target.files[0];if(!file)return;if(!validateFile(file,["image/png","image/jpeg","image/webp"])){event.target.value="";return;}const r=new FileReader();r.onload=function(e){document.getElementById("logoPreview").src=e.target.result;};r.readAsDataURL(file);});
 document.getElementById("logoUrlBtn").addEventListener("click",function(){const url=document.getElementById("logoUrlInput").value.trim();if(url){document.getElementById("logoPreview").src=url;document.getElementById("logoUrlInput").value="";}});
 document.getElementById("saveBranding").addEventListener("click",async function(){
-    const btn=this;
-    const file=document.getElementById("logoUpload").files[0];
-    const preview=document.getElementById("logoPreview");
-    const previewUrl=preview.src;
-    const typedUrl=document.getElementById("logoUrlInput").value.trim();
-    btn.disabled=true;
+    const btn=this;const file=document.getElementById("logoUpload").files[0];const preview=document.getElementById("logoPreview");const previewUrl=preview.src;const typedUrl=document.getElementById("logoUrlInput").value.trim();btn.disabled=true;
     try{
         let logoUrl=null;
-        if(file){
-            if(!validateFile(file,["image/png","image/jpeg","image/webp"]))return;
-            if(useCloudinary){try{logoUrl=await uploadToCloudinary(file,'image');}catch(e){console.warn(e);}}
-            if(!logoUrl){const ref=storage.ref("branding/logo_"+Date.now()+"_"+file.name);await ref.put(file);logoUrl=await ref.getDownloadURL();}
-        }else if(typedUrl){logoUrl=typedUrl;}
+        if(file){if(!validateFile(file,["image/png","image/jpeg","image/webp"]))return;if(useCloudinary){try{logoUrl=await uploadToCloudinary(file,'image');}catch(e){console.warn(e);}}if(!logoUrl){const ref=storage.ref("branding/logo_"+Date.now()+"_"+file.name);await ref.put(file);logoUrl=await ref.getDownloadURL();}}
+        else if(typedUrl){logoUrl=typedUrl;}
         else if(previewUrl&&/^https?:\/\//i.test(previewUrl)&&!previewUrl.includes("Logo-Studio-DeVitto.png")){logoUrl=previewUrl;}
         if(!logoUrl){showToast("Aviso","Selecione uma logo.","fa-triangle-exclamation");return;}
         await db.collection("settings").doc("branding").set({logoUrl,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
@@ -2950,27 +2966,16 @@ document.getElementById("saveBranding").addEventListener("click",async function(
 });
 function updateAllLogoElements(url){if(!url)return;["sidebarLogo","logoPreview","loginLogo"].forEach(function(id){const el=document.getElementById(id);if(el&&el.tagName==="IMG")el.src=url;});try{localStorage.setItem("devitto_logo_url",url);}catch(e){}}
 
-/* ============================================================
-   FLOATING
-   ============================================================ */
 function loadFloating(){db.collection("settings").doc("floating").get().then(function(doc){if(doc.exists)updateFloatingForm(doc.data());});}
 function updateFloatingForm(data){
     if(!data)return;
-    const preview=document.getElementById("floatingPreview");
-    const empty=document.getElementById("floatingEmpty");
-    if(data.url){preview.src=data.url;preview.style.display="block";if(empty)empty.style.display="none";}
-    else{preview.style.display="none";if(empty)empty.style.display="block";}
-    const sPreview=document.getElementById("sardinhasPreview");
-    const sEmpty=document.getElementById("sardinhasEmpty");
-    const sImg=data.sardinhasImage||"";
-    if(sImg){sPreview.src=sImg;sPreview.style.display="block";if(sEmpty)sEmpty.style.display="none";}
-    else{sPreview.style.display="none";if(sEmpty)sEmpty.style.display="block";}
-    if(data.displayMode){document.getElementById("floatingDisplayMode").value=data.displayMode;}
-    else if(data.behavior==="sardinhas"){document.getElementById("floatingDisplayMode").value="sardinhas";}
-    else{document.getElementById("floatingDisplayMode").value="gif";}
+    const preview=document.getElementById("floatingPreview");const empty=document.getElementById("floatingEmpty");
+    if(data.url){preview.src=data.url;preview.style.display="block";if(empty)empty.style.display="none";}else{preview.style.display="none";if(empty)empty.style.display="block";}
+    const sPreview=document.getElementById("sardinhasPreview");const sEmpty=document.getElementById("sardinhasEmpty");const sImg=data.sardinhasImage||"";
+    if(sImg){sPreview.src=sImg;sPreview.style.display="block";if(sEmpty)sEmpty.style.display="none";}else{sPreview.style.display="none";if(sEmpty)sEmpty.style.display="block";}
+    if(data.displayMode){document.getElementById("floatingDisplayMode").value=data.displayMode;}else if(data.behavior==="sardinhas"){document.getElementById("floatingDisplayMode").value="sardinhas";}else{document.getElementById("floatingDisplayMode").value="gif";}
     const sEnabled=document.getElementById("sardinhasEnabled");
-    if(typeof data.sardinhasEnabled==="boolean"){sEnabled.value=data.sardinhasEnabled?"true":"false";}
-    else{sEnabled.value=(data.displayMode==="sardinhas"||data.displayMode==="both")?"true":"false";}
+    if(typeof data.sardinhasEnabled==="boolean"){sEnabled.value=data.sardinhasEnabled?"true":"false";}else{sEnabled.value=(data.displayMode==="sardinhas"||data.displayMode==="both")?"true":"false";}
     if(data.behavior&&data.behavior!=="sardinhas")document.getElementById("floatingBehavior").value=data.behavior;
     if(data.position)document.getElementById("floatingPosition").value=data.position;
     if(data.size)document.getElementById("floatingSize").value=data.size;
@@ -2982,15 +2987,8 @@ document.getElementById("floatingUrlBtn").addEventListener("click",function(){co
 document.getElementById("sardinhasUpload").addEventListener("change",function(event){const file=event.target.files[0];if(!file)return;if(!validateFile(file,["image/gif","image/png","image/webp","image/jpeg"])){event.target.value="";return;}const r=new FileReader();r.onload=function(e){const p=document.getElementById("sardinhasPreview");p.src=e.target.result;p.style.display="block";const em=document.getElementById("sardinhasEmpty");if(em)em.style.display="none";};r.readAsDataURL(file);});
 document.getElementById("sardinhasUrlBtn").addEventListener("click",function(){const url=document.getElementById("sardinhasUrlInput").value.trim();if(url){const p=document.getElementById("sardinhasPreview");p.src=url;p.style.display="block";const em=document.getElementById("sardinhasEmpty");if(em)em.style.display="none";document.getElementById("sardinhasUrlInput").value="";}});
 document.getElementById("saveFloating").addEventListener("click",async function(){
-    const btn=this;
-    const gifFile=document.getElementById("floatingUpload").files[0];
-    const gifPreview=document.getElementById("floatingPreview");
-    const gifPreviewUrl=gifPreview.src;
-    const gifTypedUrl=document.getElementById("floatingUrlInput").value.trim();
-    const sardFile=document.getElementById("sardinhasUpload").files[0];
-    const sardPreview=document.getElementById("sardinhasPreview");
-    const sardPreviewUrl=sardPreview.src;
-    const sardTypedUrl=document.getElementById("sardinhasUrlInput").value.trim();
+    const btn=this;const gifFile=document.getElementById("floatingUpload").files[0];const gifPreview=document.getElementById("floatingPreview");const gifPreviewUrl=gifPreview.src;const gifTypedUrl=document.getElementById("floatingUrlInput").value.trim();
+    const sardFile=document.getElementById("sardinhasUpload").files[0];const sardPreview=document.getElementById("sardinhasPreview");const sardPreviewUrl=sardPreview.src;const sardTypedUrl=document.getElementById("sardinhasUrlInput").value.trim();
     btn.disabled=true;
     try{
         let gifUrl=null;
@@ -3014,17 +3012,14 @@ document.getElementById("saveFloating").addEventListener("click",async function(
     finally{btn.disabled=false;}
 });
 
-/* SOCIAL */
 function loadSocial(){db.collection("settings").doc("social").get().then(function(doc){if(doc.exists)updateSocialForm(doc.data());});}
 function updateSocialForm(data){if(!data)return;document.getElementById("instagramUrl").value=data.instagram||"";document.getElementById("facebookUrl").value=data.facebook||"";document.getElementById("whatsappUrl").value=data.whatsapp||"";document.getElementById("bookingUrl").value=data.booking||"";}
 document.getElementById("saveSocial").addEventListener("click",async function(){const btn=this;btn.disabled=true;try{const data={instagram:document.getElementById("instagramUrl").value.trim(),facebook:document.getElementById("facebookUrl").value.trim(),whatsapp:document.getElementById("whatsappUrl").value.trim(),booking:document.getElementById("bookingUrl").value.trim()};await saveSettingDocument("social",data,"social_update","Redes sociais atualizadas.");showToast("Redes guardadas","Os links foram atualizados.","fa-share-nodes");}catch(e){showToast("Erro","Não foi possível guardar.","fa-triangle-exclamation");}finally{btn.disabled=false;}});
 
-/* SEO */
 function loadSeo(){db.collection("settings").doc("seo").get().then(function(doc){if(doc.exists)updateSeoForm(doc.data());});}
 function updateSeoForm(data){if(!data)return;document.getElementById("seoTitle").value=data.title||"";document.getElementById("seoDescription").value=data.description||"";document.getElementById("googleAnalytics").value=data.analytics||"";document.getElementById("searchConsole").value=data.searchConsole||"";}
 document.getElementById("saveSeo").addEventListener("click",async function(){const btn=this;btn.disabled=true;try{const data={title:document.getElementById("seoTitle").value.trim(),description:document.getElementById("seoDescription").value.trim(),analytics:document.getElementById("googleAnalytics").value.trim(),searchConsole:document.getElementById("searchConsole").value.trim()};await saveSettingDocument("seo",data,"seo_update","Configurações SEO atualizadas.");showToast("SEO guardado","As configurações foram atualizadas.","fa-magnifying-glass-chart");}catch(e){showToast("Erro","Não foi possível guardar.","fa-triangle-exclamation");}finally{btn.disabled=false;}});
 
-/* MUSIC */
 function loadMusic(){db.collection("music").get().then(function(snapshot){musicCache=[];snapshot.forEach(function(doc){musicCache.push({id:doc.id,...doc.data()});});musicCache.sort(function(a,b){const ta=a.createdAt&&a.createdAt.toDate?a.createdAt.toDate().getTime():0;const tb=b.createdAt&&b.createdAt.toDate?b.createdAt.toDate().getTime():0;return tb-ta;});renderMusic(musicCache);updateStats();});}
 function renderMusic(list){
     const container=document.getElementById("musicPlaylist");
@@ -3041,38 +3036,29 @@ document.getElementById("musicUpload").addEventListener("change",async function(
     const file=event.target.files[0];
     if(!file)return;
     if(file.size>10*1024*1024){showToast("Ficheiro demasiado grande","O limite máximo é 10 MB.","fa-triangle-exclamation");event.target.value="";return;}
-    const pc=document.getElementById("musicProgressContainer");
-    const pf=document.getElementById("musicProgressFill");
-    const pt=document.getElementById("musicProgressText");
-    pc.classList.add("active");
-    pf.style.width="0%";
+    const pc=document.getElementById("musicProgressContainer");const pf=document.getElementById("musicProgressFill");const pt=document.getElementById("musicProgressText");
+    pc.classList.add("active");pf.style.width="0%";
     try{
         if(useCloudinary){
-            pt.textContent="A enviar para Cloudinary...";
-            pf.style.width="50%";
+            pt.textContent="A enviar para Cloudinary...";pf.style.width="50%";
             const url=await uploadToCloudinaryMedia(file);
             pf.style.width="100%";
             await db.collection("music").add({url,title:file.name.replace(/\.[^.]+$/,''),type:file.type.startsWith('audio/')?'audio':'video',storage:'cloudinary',createdAt:firebase.firestore.FieldValue.serverTimestamp()});
-            pc.classList.remove("active");
-            event.target.value="";
+            pc.classList.remove("active");event.target.value="";
             showToast("Música adicionada",`${file.name} foi adicionada.`,"fa-music");
-            loadMusic();
-            return;
+            loadMusic();return;
         }
     }catch(e){console.warn(e);}
     const ref=storage.ref(`music/${Date.now()}_${file.name}`);
     ref.put(file).then(function(){return ref.getDownloadURL();}).then(function(url){return db.collection("music").add({url,title:file.name.replace(/\.[^.]+$/,''),type:file.type.startsWith('audio/')?'audio':'video',storage:'firebase',createdAt:firebase.firestore.FieldValue.serverTimestamp()});}).then(function(){
-        pc.classList.remove("active");
-        event.target.value="";
-        showToast("Música adicionada","Upload concluído.","fa-music");
-        loadMusic();
+        pc.classList.remove("active");event.target.value="";
+        showToast("Música adicionada","Upload concluído.","fa-music");loadMusic();
     }).catch(function(e){pc.classList.remove("active");showToast("Erro","Falha no upload.","fa-triangle-exclamation");});
 });
 document.getElementById("musicUrlBtn").addEventListener("click",function(){const url=document.getElementById("musicUrlInput").value.trim();if(!url){showToast("Aviso","Insira uma URL válida.","fa-triangle-exclamation");return;}const title=url.split('/').pop().replace(/\.[^.]+$/,'')||'Música';const type=url.match(/\.(mp4|webm|mov)$/i)?'video':'audio';db.collection("music").add({url,title,type,createdAt:firebase.firestore.FieldValue.serverTimestamp()}).then(function(){document.getElementById("musicUrlInput").value="";showToast("Música adicionada","URL adicionada à playlist.","fa-music");loadMusic();});});
 async function deleteMusic(id){if(!confirm("Remover esta música?"))return;try{await db.collection("music").doc(id).delete();showToast("Música removida","Foi removida da playlist.","fa-trash");loadMusic();}catch(e){showToast("Erro","Não foi possível remover.","fa-triangle-exclamation");}}
 document.getElementById("saveMusic").addEventListener("click",async function(){const btn=this;btn.disabled=true;try{await saveSettingDocument("music",{enabled:true},null,null);showToast("Playlist guardada","Sincronizada com o Firestore.","fa-floppy-disk");}catch(e){showToast("Erro","Não foi possível guardar.","fa-triangle-exclamation");}finally{btn.disabled=false;}});
 
-/* ADMINS */
 function loadAdmins(){db.collection("admins").get().then(function(snapshot){const admins=[];snapshot.forEach(function(doc){admins.push({id:doc.id,...doc.data()});});renderAdmins(admins);});}
 function renderAdmins(admins){
     const tbody=document.getElementById("adminTableBody");
@@ -3082,7 +3068,6 @@ function renderAdmins(admins){
 document.getElementById("newAdminBtn").addEventListener("click",function(){const email=prompt("Email do novo administrador:");if(email){db.collection("admins").add({email,name:email.split('@')[0],role:"admin",status:"active",createdAt:firebase.firestore.FieldValue.serverTimestamp()}).then(function(){showToast("Administrador criado",`${email} foi adicionado.`,"fa-user-shield");loadAdmins();});}});
 document.getElementById("saveSystem").addEventListener("click",async function(){const btn=this;btn.disabled=true;try{await saveSettingDocument("system",{uploadLimitMB:10,realtimeSync:true},"system_update","Configurações do sistema atualizadas.");showToast("Guardado","Configurações salvas.","fa-gear");}catch(e){showToast("Erro","Não foi possível guardar.","fa-triangle-exclamation");}finally{btn.disabled=false;}});
 
-/* STATS */
 function updateStats(){
     document.getElementById("statCollaborators").textContent=collaboratorsCache.length;
     document.getElementById("statBanners").textContent=bannersCache.length;
@@ -3090,7 +3075,6 @@ function updateStats(){
     document.getElementById("statPricing").textContent=pricingCache.length;
 }
 
-/* QUICK ACTIONS */
 document.querySelectorAll("[data-action]").forEach(function(button){
     button.addEventListener("click",function(){
         const action=button.dataset.action;
@@ -3102,18 +3086,16 @@ document.querySelectorAll("[data-action]").forEach(function(button){
     });
 });
 
-/* ATIVIDADES */
 function renderActivitiesRealtime(items){
     const list=document.getElementById("activityList");
     if(!list)return;
     if(!items.length){list.innerHTML=`<li class="activity-item"><div class="activity-icon"><i class="fa-solid fa-info"></i></div><div class="activity-content"><strong>Sem atividades recentes</strong><span>As atividades aparecerão aqui.</span></div></li>`;return;}
     const iconMap={
-        collaborator_add:"fa-solid fa-user-plus",collaborator_edit:"fa-solid fa-user-pen",collaborator_delete:"fa-solid fa-user-minus",
+        collaborator_add:"fa-solid fa-user-plus",collaborator_edit:"fa-solid fa-user-pen",collaborator_delete:"fa-solid fa-user-minus",collaborator_order:"fa-solid fa-arrows-up-down-left-right",
         banner_update:"fa-solid fa-images",service_add:"fa-solid fa-scissors",service_update:"fa-solid fa-scissors",service_delete:"fa-solid fa-trash",
         price_add:"fa-solid fa-tag",price_update:"fa-solid fa-tag",price_delete:"fa-solid fa-trash",
         media_upload:"fa-solid fa-image",media_delete:"fa-solid fa-trash",media_caption:"fa-solid fa-pen-fancy",media_collabs:"fa-solid fa-user-check",
-        company_update:"fa-solid fa-building",
-        branding_update:"fa-solid fa-palette",floating_update:"fa-solid fa-wand-magic-sparkles",
+        company_update:"fa-solid fa-building",branding_update:"fa-solid fa-palette",floating_update:"fa-solid fa-wand-magic-sparkles",
         social_update:"fa-solid fa-share-nodes",seo_update:"fa-solid fa-magnifying-glass-chart",
         music_add:"fa-solid fa-music",music_delete:"fa-solid fa-trash",system_update:"fa-solid fa-gear"
     };
@@ -3125,14 +3107,12 @@ function renderActivitiesRealtime(items){
     }).join("");
 }
 
-/* SETTINGS SAVE */
 async function saveSettingDocument(docId,data,activityType,activityMessage){
     const payload=Object.assign({},data,{updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
     await db.collection("settings").doc(docId).set(payload,{merge:true});
     if(activityType)await addActivity(activityType,activityMessage||("Configuração "+docId+" atualizada."));
 }
 
-/* REALTIME */
 function bindRealtimeCollection(name,qb,onData,onError){
     let query=db.collection(name);
     if(typeof qb==="function")query=qb(query);
@@ -3146,8 +3126,9 @@ function bindRealtimeCollection(name,qb,onData,onError){
 function startRealtimeSync(){
     if(realtimeStarted)return;
     realtimeStarted=true;
-    bindRealtimeCollection("collaborators",function(q){return q.orderBy("name");},function(items){
+    bindRealtimeCollection("collaborators",null,function(items){
         collaboratorsCache=items;
+        sortCollaboratorsCache();
         renderCollaborators(collaboratorsCache);
         renderUploadCollabGrid();
         if(document.getElementById("section-services").classList.contains("active"))renderServicesList();
