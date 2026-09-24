@@ -439,7 +439,7 @@ font-family:"Playfair Display",serif;font-size:clamp(2.2rem,5vw,3.5rem);line-hei
 .welcome-text{color:var(--text-soft);margin-bottom:28px}
 
 /* ============================================================
-   PROFILE MODAL (novo — totalmente isolado da página)
+   PROFILE MODAL (isolado)
    ============================================================ */
 .profile-modal{
 position:fixed;
@@ -470,7 +470,6 @@ transform:translateY(20px);
 transition:transform .35s ease;
 }
 .profile-modal.active .profile-modal-card{transform:translateY(0)}
-
 .profile-modal-header{
 position:relative;
 padding:0;
@@ -501,7 +500,6 @@ transition:transform .2s ease,background .2s ease;
 z-index:3;
 }
 .profile-modal-close:hover{background:rgba(0,0,0,0.55);transform:rotate(90deg)}
-
 .profile-modal-identity{
 position:relative;
 display:flex;
@@ -539,7 +537,6 @@ color:var(--gold-light);
 font-size:.72rem;font-weight:800;
 text-transform:uppercase;letter-spacing:.06em;
 }
-
 .profile-modal-body{
 padding:26px 30px 30px;
 display:grid;
@@ -572,7 +569,6 @@ border-bottom:1px solid rgba(255,255,255,0.05);
 .profile-modal-contact-list i{color:var(--gold);width:18px;margin-top:4px;flex-shrink:0}
 .profile-modal-contact-list a{color:var(--text-soft);transition:color .2s ease}
 .profile-modal-contact-list a:hover{color:var(--text)}
-
 .profile-modal-socials{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 .profile-modal-social{
 display:inline-flex;align-items:center;gap:8px;
@@ -583,12 +579,7 @@ color:var(--text);font-size:.78rem;font-weight:700;
 transition:transform .2s ease,background .2s ease;
 }
 .profile-modal-social:hover{transform:translateY(-2px);background:rgba(255,255,255,0.12)}
-
-.profile-modal-actions{
-display:flex;gap:8px;flex-wrap:wrap;margin-top:20px;
-}
-
-/* Portfólio do colaborador (grid de imagens/vídeos) */
+.profile-modal-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px}
 .profile-portfolio-grid{
 display:grid;
 grid-template-columns:repeat(3,minmax(0,1fr));
@@ -623,8 +614,6 @@ border-radius:14px;
 background:rgba(255,255,255,0.03);
 }
 .profile-portfolio-empty i{font-size:1.6rem;color:var(--gold);display:block;margin-bottom:8px}
-
-/* Lightbox interno (para ver uma imagem do portfólio em maior) */
 .profile-lightbox{
 position:fixed;inset:0;z-index:9500;
 background:rgba(0,0,0,.94);
@@ -643,7 +632,6 @@ font-size:2rem;cursor:pointer;transition:transform .2s ease,color .2s ease;
 }
 .profile-lightbox-close:hover{color:var(--gold);transform:rotate(90deg)}
 
-/* Footer */
 .footer{background:var(--footer-bg);border-top:1px solid var(--footer-border);padding:75px 20px 30px}
 .footer-content{
 width:min(1120px,100%);margin:0 auto 45px;
@@ -974,7 +962,7 @@ Encontre o Studio DeVitto em Amadora, na Área Metropolitana de Lisboa.
 </div>
 
 <!-- ============================================================
-     POPUP PERFIL DO COLABORADOR (isolado, não interfere com a página)
+     POPUP PERFIL DO COLABORADOR
      ============================================================ -->
 <div class="profile-modal" id="profileModal" aria-hidden="true" role="dialog" aria-modal="true">
     <div class="profile-modal-card">
@@ -992,7 +980,6 @@ Encontre o Studio DeVitto em Amadora, na Área Metropolitana de Lisboa.
             </div>
         </div>
         <div class="profile-modal-body">
-            <!-- Coluna esquerda: bio, contactos, ações -->
             <div class="profile-modal-section">
                 <h4><i class="fas fa-user"></i> Sobre</h4>
                 <p class="profile-modal-text" id="profileModalBio">—</p>
@@ -1012,7 +999,6 @@ Encontre o Studio DeVitto em Amadora, na Área Metropolitana de Lisboa.
                 </div>
             </div>
 
-            <!-- Coluna direita: portfólio -->
             <div class="profile-modal-section">
                 <h4><i class="fas fa-images"></i> Portfólio</h4>
                 <div class="profile-portfolio-grid" id="profilePortfolioGrid">
@@ -1026,7 +1012,6 @@ Encontre o Studio DeVitto em Amadora, na Área Metropolitana de Lisboa.
     </div>
 </div>
 
-<!-- Lightbox interno para ver uma imagem/vídeo do portfólio em maior -->
 <div class="profile-lightbox" id="profileLightbox" aria-hidden="true">
     <button class="profile-lightbox-close" id="profileLightboxClose" aria-label="Fechar">
         <i class="fas fa-xmark"></i>
@@ -1079,6 +1064,12 @@ Um espaço pensado para valorizar a sua identidade, autoestima e confiança.
 
 <script>
 "use strict";
+
+/* ============================================================
+   ESTADO GLOBAL
+   ============================================================ */
+let galleryCacheForProfiles = []; /* cache da coleção media (para portfólio) */
+let currentProfileId = null;      /* ID do colaborador cujo perfil está aberto */
 
 /* ============================================================
    DAY / NIGHT THEME TOGGLE
@@ -1160,7 +1151,6 @@ function whatsappWithText(phone,text){return normalizeWhatsapp(phone)+"?text="+e
 function slugify(text){return String(text||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"");}
 function renderTitleWithAccent(title){if(!title)return "";const parts=String(title).split("|");if(parts.length===1)return escapeHtml(parts[0]);return escapeHtml(parts[0])+" <span>"+escapeHtml(parts[1])+"</span>";}
 
-/* Helper de ordenação por `order` (fallback para nome/título) */
 function sortByOrderThenName(list,nameKey){
     return (list||[]).slice().sort(function(a,b){
         const oa=(typeof a.order==="number")?a.order:999;
@@ -1324,10 +1314,9 @@ window.addEventListener("resize",function(){if(sardinhasContainer&&!sardinhasCon
 
 /* ============================================================
    EQUIPA — ordenada por `order` (fallback: nome A–Z)
-   O link "Ver perfil" abre o POPUP em vez de navegar.
    ============================================================ */
 const teamGrid=document.getElementById("dynamicTeamGrid");
-let teamCache=[]; /* cache local para o popup */
+let teamCache=[];
 function renderDynamicTeam(collaborators){
 if(!teamGrid)return;
 const activeCollaborators=sortByOrderThenName(
@@ -1360,14 +1349,12 @@ return `<article class="card team-member" data-collab-id="${escapeHtml(c.id||'')
 </article>`;
 }).join("");
 
-/* Ligar "Ver perfil" ao popup (mantém fallback do href para SEO/acessibilidade) */
 teamGrid.querySelectorAll("[data-profile-id]").forEach(function(link){
     link.addEventListener("click",function(e){
         const id=this.getAttribute("data-profile-id");
         if(id && openProfileModal(id)){
             e.preventDefault();
         }
-        /* Se openProfileModal devolver false, o href normal continua a funcionar */
     });
 });
 }
@@ -1572,7 +1559,7 @@ schema.textContent=JSON.stringify(json,null,2);
 }
 
 /* ============================================================
-   PROFILE MODAL — funções isoladas (nova funcionalidade)
+   PROFILE MODAL — funções
    ============================================================ */
 const profileModal=document.getElementById("profileModal");
 const profileModalClose=document.getElementById("profileModalClose");
@@ -1590,27 +1577,59 @@ const profileLightboxClose=document.getElementById("profileLightboxClose");
 const profileLightboxMedia=document.getElementById("profileLightboxMedia");
 const profileLightboxVideo=document.getElementById("profileLightboxVideo");
 
-let currentProfileId=null;
+/* ============================================================
+   PORTFÓLIO — leitura correta da coleção `media`
+   ============================================================ */
 
-/* Extrai a lista de mídias do colaborador (aceita várias formas) */
-function extractCollaboratorMedias(c){
-    if(!c)return [];
-    const out=[];
-    const pushItem=function(item){
-        if(!item)return;
-        if(typeof item==="string"){
-            out.push({url:item, type:guessMediaTypeFromUrl(item)});
-        }else if(typeof item==="object" && item.url){
-            out.push({url:item.url, type:item.type||guessMediaTypeFromUrl(item.url)});
-        }
-    };
-    if(Array.isArray(c.medias))c.medias.forEach(pushItem);
-    if(Array.isArray(c.portfolio))c.portfolio.forEach(pushItem);
-    if(Array.isArray(c.gallery))c.gallery.forEach(pushItem);
-    return out.filter(function(m){return m && m.url;});
+/* Verifica se um item da galeria (media) pertence a um colaborador */
+function galleryItemBelongsTo(item, collaboratorId){
+    if(!item || !collaboratorId) return false;
+    if(Array.isArray(item.collaborators)) return item.collaborators.indexOf(collaboratorId) !== -1;
+    if(item.collaboratorId) return item.collaboratorId === collaboratorId;
+    if(item.collaborator) return item.collaborator === collaboratorId;
+    return false;
 }
+
+/* Devolve TODAS as mídias de um colaborador:
+   1) as que estão embutidas dentro do documento collaborators (compat com versões antigas)
+   2) as que estão na coleção `media` e apontam para ele (formato atual do admin)
+*/
+function extractCollaboratorMedias(c){
+    if(!c) return [];
+    const out=[];
+    const seen=new Set();
+
+    const pushItem=function(url, type){
+        if(!url) return;
+        if(seen.has(url)) return;
+        seen.add(url);
+        out.push({url:url, type:type||guessMediaTypeFromUrl(url)});
+    };
+
+    /* 1) Mídias embutidas no próprio colaborador (compat) */
+    const pushLocal=function(item){
+        if(!item) return;
+        if(typeof item==="string") pushItem(item);
+        else if(typeof item==="object" && item.url) pushItem(item.url, item.type);
+    };
+    if(Array.isArray(c.medias)) c.medias.forEach(pushLocal);
+    if(Array.isArray(c.portfolio)) c.portfolio.forEach(pushLocal);
+    if(Array.isArray(c.gallery)) c.gallery.forEach(pushLocal);
+
+    /* 2) Mídias da coleção `media` que apontam para este colaborador */
+    if(Array.isArray(galleryCacheForProfiles)){
+        galleryCacheForProfiles.forEach(function(item){
+            if(galleryItemBelongsTo(item, c.id)){
+                pushItem(item.url, item.type);
+            }
+        });
+    }
+
+    return out;
+}
+
 function guessMediaTypeFromUrl(url){
-    return /\.(mp4|mov|webm|m4v)(\?.*)?$/i.test(url)?"video":"image";
+    return /\.(mp4|mov|webm|m4v)(\?.*)?$/i.test(url) ? "video" : "image";
 }
 
 function openProfileModal(collabId){
@@ -1631,7 +1650,6 @@ function openProfileModal(collabId){
     profileModalRole.innerHTML='<i class="fas fa-star"></i> '+escapeHtml(role);
     profileModalBio.textContent=bio;
 
-    /* Contactos */
     const contacts=[];
     if(c.phone){
         contacts.push('<li><i class="fas fa-phone"></i> <a href="tel:'+escapeHtml(String(c.phone).replace(/[^\d+]/g,""))+'">'+escapeHtml(c.phone)+'</a></li>');
@@ -1644,7 +1662,6 @@ function openProfileModal(collabId){
     }
     profileModalContacts.innerHTML=contacts.join("");
 
-    /* Redes sociais */
     const socials=[];
     if(c.instagram){
         socials.push('<a href="'+escapeHtml(c.instagram)+'" class="profile-modal-social" target="_blank" rel="noopener"><i class="fab fa-instagram"></i> Instagram</a>');
@@ -1654,14 +1671,11 @@ function openProfileModal(collabId){
     }
     profileModalSocials.innerHTML=socials.join("");
 
-    /* WhatsApp dinâmico */
     const waNumber=(c.phone||DEVITTO_CONFIG.phone||"+351927431517");
     profileModalWhatsapp.href=whatsappWithText(waNumber,"Olá "+name+", gostaria de agendar um horário.");
 
-    /* Portfólio */
     renderProfilePortfolio(extractCollaboratorMedias(c));
 
-    /* Abre o modal */
     profileModal.classList.add("active");
     profileModal.setAttribute("aria-hidden","false");
     document.body.style.overflow="hidden";
@@ -1737,18 +1751,14 @@ function closeProfileLightbox(){
     profileLightboxVideo.src="";
 }
 
-/* Eventos do modal do perfil */
 profileModalClose.addEventListener("click",function(e){e.stopPropagation();closeProfileModal();});
 profileModal.addEventListener("click",function(e){
-    /* Só fecha se clicar fora do card (o card ocupa a área útil) */
     if(e.target===profileModal)closeProfileModal();
 });
 
-/* Eventos do lightbox interno */
 profileLightboxClose.addEventListener("click",function(e){e.stopPropagation();closeProfileLightbox();});
 profileLightbox.addEventListener("click",function(e){if(e.target===profileLightbox)closeProfileLightbox();});
 
-/* ESC fecha primeiro o lightbox, depois o modal do perfil */
 document.addEventListener("keydown",function(e){
     if(e.key!=="Escape")return;
     if(profileLightbox.classList.contains("active")){closeProfileLightbox();return;}
@@ -1761,14 +1771,14 @@ document.addEventListener("keydown",function(e){
 function bindIndexRealtime(){
 db.collection("settings").doc("banners").onSnapshot(function(doc){if(doc.exists){const data=doc.data();const items=Array.isArray(data.items)?data.items:[];renderBanners(items);}else renderBanners(FALLBACK_BANNERS);},function(){renderBanners(FALLBACK_BANNERS);});
 
-/* SERVIÇOS — sem orderBy do Firestore; ordena localmente por `order` */
+/* SERVIÇOS */
 db.collection("services").onSnapshot(function(snapshot){
 const items=[];
 snapshot.forEach(function(doc){items.push({id:doc.id,...doc.data()});});
 renderDynamicServices(items);
 },function(){renderDynamicServices(FALLBACK_SERVICES);});
 
-/* COLABORADORES — sem orderBy do Firestore; ordena localmente por `order` */
+/* COLABORADORES */
 db.collection("collaborators").onSnapshot(function(snapshot){
 const items=[];
 snapshot.forEach(function(doc){items.push({id:doc.id,...doc.data()});});
@@ -1778,7 +1788,6 @@ renderDynamicTeam(items);
 if(currentProfileId && profileModal.classList.contains("active")){
     const updated=items.find(function(x){return x.id===currentProfileId;});
     if(updated){
-        /* Atualiza cache e re-renderiza conteúdo do modal sem o fechar */
         teamCache=items.filter(function(c){return c&&(c.status==="active"||c.status===undefined);});
         const c=updated;
         const name=safeText(c.name,"Profissional");
@@ -1790,17 +1799,36 @@ if(currentProfileId && profileModal.classList.contains("active")){
         if(c.photo)profileModalAvatar.src=c.photo;
         renderProfilePortfolio(extractCollaboratorMedias(c));
     }else{
-        /* Colaborador removido — fecha o modal */
         closeProfileModal();
     }
 }
-/* Re-render dos serviços para atualizar avatares */
 db.collection("services").get().then(function(snap){
 const list=[];
 snap.forEach(function(d){list.push({id:d.id,...d.data()});});
 if(list.length>0)renderDynamicServices(list);
 }).catch(function(){});
 },function(){renderDynamicTeam([]);});
+
+/* ====== NOVO: GALERIA — alimenta o portfólio dos colaboradores ====== */
+db.collection("media").onSnapshot(function(snapshot){
+    const items=[];
+    snapshot.forEach(function(doc){items.push({id:doc.id,...doc.data()});});
+    /* Mais recentes primeiro */
+    items.sort(function(a,b){
+        const ta=a.createdAt&&a.createdAt.toDate?a.createdAt.toDate().getTime():0;
+        const tb=b.createdAt&&b.createdAt.toDate?b.createdAt.toDate().getTime():0;
+        return tb-ta;
+    });
+    galleryCacheForProfiles = items;
+    console.log("[Portfólio] media carregados:", galleryCacheForProfiles.length);
+    /* Se o modal do perfil estiver aberto, atualiza o portfólio em tempo real */
+    if(currentProfileId && profileModal.classList.contains("active")){
+        const c=teamCache.find(function(x){return x.id===currentProfileId;});
+        if(c)renderProfilePortfolio(extractCollaboratorMedias(c));
+    }
+},function(err){
+    console.warn("[Portfólio] Falha ao ler media:", err);
+});
 
 db.collection("music").onSnapshot(function(snapshot){const items=[];snapshot.forEach(function(doc){items.push({id:doc.id,...doc.data()});});items.sort(function(a,b){const ta=a.createdAt&&a.createdAt.toDate?a.createdAt.toDate().getTime():0;const tb=b.createdAt&&b.createdAt.toDate?b.createdAt.toDate().getTime():0;return tb-ta;});renderDynamicMusic(items);},function(){renderDynamicMusic([]);});
 db.collection("settings").onSnapshot(function(snapshot){const settings={};snapshot.forEach(function(doc){settings[doc.id]={id:doc.id,...doc.data()};});if(settings.company)renderDynamicCompany(settings.company);if(settings.social)renderDynamicSocial(settings.social);if(settings.seo)renderDynamicSeo(settings.seo);if(settings.branding)renderDynamicBranding(settings.branding);if(settings.floating)renderDynamicFloating(settings.floating);if(settings.banners&&Array.isArray(settings.banners.items))renderBanners(settings.banners.items);if(Object.keys(settings).length===0){renderDynamicMusic([]);renderBanners(FALLBACK_BANNERS);}},function(){renderDynamicMusic([]);renderBanners(FALLBACK_BANNERS);});
