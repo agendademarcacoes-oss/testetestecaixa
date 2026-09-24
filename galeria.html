@@ -289,8 +289,21 @@
             backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
             box-shadow:0 15px 45px rgba(0,0,0,.25);
             transition:transform .3s ease,box-shadow .3s ease,border-color .3s ease,background .45s ease;
+            scroll-margin-top:140px;
         }
         .post-card:hover{transform:translateY(-4px);border-color:rgba(255,255,255,.2);box-shadow:var(--shadow)}
+
+        /* Destaque para o post partilhado */
+        .post-card.highlighted{
+            border-color:var(--gold);
+            box-shadow:0 0 0 3px rgba(201,167,105,.35),0 20px 60px rgba(201,167,105,.35);
+            animation:postHighlight 2.6s ease-out 1;
+        }
+        @keyframes postHighlight{
+            0%{transform:scale(1);}
+            20%{transform:scale(1.015);}
+            100%{transform:scale(1);}
+        }
 
         /* Header do post */
         .post-header{
@@ -813,9 +826,6 @@
     </div>
 </section>
 
-<!-- =====================================================
-     FEED DA GALERIA (estilo Instagram)
-     ===================================================== -->
 <section class="page-section" id="galeria">
     <span class="section-eyebrow">Portfólio</span>
     <h2 class="section-title">Trabalhos <span>Recentes</span></h2>
@@ -903,7 +913,7 @@
                 <li><a href="index.html">Início</a></li>
                 <li><a href="servicos.html">Serviços</a></li>
                 <li><a href="galeria.html">Galeria</a></li>
-                <li><a href="equipe.html">Equipa</a></li>
+                <li><a href="equipa.html">Equipa</a></li>
                 <li><a href="localizacao.html">Unidades</a></li>
                 <li><a href="contato.html">Contacto</a></li>
                 <li><a href="admin.html">Área Administrativa</a></li>
@@ -994,7 +1004,7 @@ function timeAgo(date){
 }
 
 /* ============================================================
-   PLAYER DE MÚSICA (persistente entre páginas)
+   PLAYER DE MÚSICA — AUTOPLAY REFORÇADO
    ============================================================ */
 const music=document.getElementById("backgroundMusic");
 const musicToggle=document.getElementById("musicToggle");
@@ -1005,11 +1015,17 @@ const musicTitle=document.getElementById("musicTitle");
 let dynamicPlaylist=[];
 let currentTrackIndex=0;
 let userPaused=false;
+let autoplayInFlight=false;
+let autoplayAttempts=0;
+let sharedPostHandled=false;
 
+/* 1) SRC DEFINIDO IMEDIATAMENTE — antes de qualquer espera */
 music.src=DEVITTO_CONFIG.music;
 music.volume=0.30;
 music.loop=false;
-musicBar.classList.remove("hidden");
+
+/* 2) BARRA VISÍVEL DESDE O INÍCIO */
+if(musicBar)musicBar.classList.remove("hidden");
 
 function updateMusicButton(){
     if(!musicToggle)return;
@@ -1036,21 +1052,31 @@ function loadTrack(index){
 }
 function tryAutoplay(){
     if(userPaused)return;
+    autoplayAttempts++;
     if(!music.src||music.src===""||music.src===window.location.href){
         if(dynamicPlaylist.length>0)loadTrack(currentTrackIndex);
         else music.src=DEVITTO_CONFIG.music;
     }
+    if(autoplayInFlight)return;
+    autoplayInFlight=true;
     const p=music.play();
     if(p&&typeof p.then==="function"){
-        p.then(function(){updateMusicButton();}).catch(function(){updateMusicButton();});
+        p.then(function(){
+            autoplayInFlight=false;
+            updateMusicButton();
+        }).catch(function(){
+            autoplayInFlight=false;
+            updateMusicButton();
+        });
+    }else{
+        autoplayInFlight=false;
     }
 }
 function scheduleAutoplayAttempts(){
     tryAutoplay();
-    setTimeout(tryAutoplay,400);
-    setTimeout(tryAutoplay,1200);
-    setTimeout(tryAutoplay,2500);
-    setTimeout(tryAutoplay,5000);
+    [100,400,900,1500,2500,5000,8000].forEach(function(t){
+        setTimeout(tryAutoplay,t);
+    });
 }
 musicToggle.addEventListener("click",function(){
     if(music.paused){
@@ -1082,10 +1108,15 @@ musicProgress.addEventListener("input",function(){
     }
 });
 function unlockAutoplay(){if(!userPaused&&music.paused)tryAutoplay();}
-["click","touchstart","keydown","mousemove","scroll","pointerdown"].forEach(function(evt){
+["click","touchstart","touchend","keydown","mousemove","scroll","pointerdown","pointerup","wheel","focus"].forEach(function(evt){
     document.addEventListener(evt,unlockAutoplay,{passive:true});
 });
 document.addEventListener("visibilitychange",function(){if(!document.hidden)unlockAutoplay();});
+window.addEventListener("focus",unlockAutoplay);
+window.addEventListener("pageshow",unlockAutoplay);
+
+/* Tenta autoplay assim que possível */
+scheduleAutoplayAttempts();
 
 function saveMusicState(){
     try{sessionStorage.setItem("devitto_music_state",JSON.stringify({
@@ -1307,12 +1338,23 @@ const galleryFeed=document.getElementById("galleryFeed");
 const loadMoreWrap=document.getElementById("loadMoreWrap");
 const loadMoreBtn=document.getElementById("loadMoreBtn");
 
-let allMedia=[];         // todos os posts (media) vindos do Firestore
-let displayedMedia=[];   // os que estão atualmente no DOM
-let lightboxItems=[];    // usados pela lightbox
+let allMedia=[];
+let displayedMedia=[];
+let lightboxItems=[];
 let itemsPerPage=6;
 let currentPage=1;
 let deviceId="";
+
+/* Detecta o parâmetro ?post=<id> na URL */
+function getSharedPostIdFromUrl(){
+    try{
+        const params=new URLSearchParams(window.location.search);
+        return params.get("post")||"";
+    }catch(e){
+        return "";
+    }
+}
+let pendingSharedPostId=getSharedPostIdFromUrl();
 
 /* Gera/recupera um ID de dispositivo para "curtir uma vez" */
 (function initDeviceId(){
@@ -1327,12 +1369,12 @@ let deviceId="";
     }
 })();
 
-/* --- Render principal --- */
 function renderGallery(reset){
     if(!galleryFeed)return;
     if(reset){
         galleryFeed.innerHTML="";
         displayedMedia=[];
+        lightboxItems=[];
         currentPage=1;
     }
 
@@ -1370,6 +1412,56 @@ function renderGallery(reset){
     }else{
         loadMoreWrap.style.display="block";
     }
+
+    /* Se havia um post partilhado pendente, tentar abrir */
+    if(pendingSharedPostId){
+        tryOpenSharedPost(pendingSharedPostId);
+    }
+}
+
+/* --- Tenta abrir o post partilhado (scroll + highlight + lightbox) --- */
+function tryOpenSharedPost(postId){
+    if(!postId)return;
+    const idx=lightboxItems.findIndex(function(x){return x.id===postId;});
+    if(idx===-1){
+        /* Ainda não está carregado — carregar mais e tentar de novo */
+        if(currentPage*itemsPerPage<allMedia.length){
+            renderGallery(false);
+            setTimeout(function(){tryOpenSharedPost(postId);},120);
+        }
+        return;
+    }
+    /* Já está carregado */
+    pendingSharedPostId="";
+    focusSharedPost(postId,idx);
+}
+
+function focusSharedPost(postId,idx){
+    /* 1) Abre a lightbox */
+    setTimeout(function(){
+        openLightbox(idx);
+    },300);
+
+    /* 2) Scroll + destaque no card */
+    setTimeout(function(){
+        const card=galleryFeed.querySelector('.post-card[data-post-id="'+CSS.escape(postId)+'"]');
+        if(!card)return;
+        try{
+            const rect=card.getBoundingClientRect();
+            const offset=rect.top+window.pageYOffset-140;
+            window.scrollTo({top:offset,behavior:"smooth"});
+        }catch(e){
+            card.scrollIntoView({behavior:"smooth",block:"center"});
+        }
+        card.classList.add("highlighted");
+        setTimeout(function(){card.classList.remove("highlighted");},3200);
+        showToast("Publicação partilhada","A mostrar o trabalho selecionado.","fa-share-alt");
+    },700);
+
+    /* 3) Autoplay da música forçado depois deste clique implícito */
+    setTimeout(function(){
+        if(!userPaused)tryAutoplay();
+    },400);
 }
 
 /* --- Cria elemento do post --- */
@@ -1389,11 +1481,11 @@ function createPostElement(m){
     const article=document.createElement("article");
     article.className="post-card";
     article.dataset.postId=id;
+    article.id="post-"+id;
 
     const shareUrl=window.location.origin+window.location.pathname+"?post="+encodeURIComponent(id);
     const waText=encodeURIComponent("Olá Studio DeVitto, gostaria de solicitar um orçamento para este trabalho: "+shareUrl);
 
-    /* Header */
     let html=`
         <div class="post-header">
             <div class="post-header-left">
@@ -1409,7 +1501,6 @@ function createPostElement(m){
         </div>
     `;
 
-    /* Media */
     html+=`<div class="post-media" data-open-lightbox="1">`;
     if(isVideo){
         html+=`<video src="${escapeHtml(url)}" muted playsinline preload="metadata"></video>
@@ -1420,7 +1511,6 @@ function createPostElement(m){
     html+=`<span class="post-type-badge"><i class="fas ${isVideo?'fa-video':'fa-image'}"></i>${isVideo?'Vídeo':'Foto'}</span>`;
     html+=`</div>`;
 
-    /* Barra de ações (curtir / comentar / compartilhar) */
     html+=`
         <div class="post-actions-bar">
             <button class="post-action-btn like-btn${liked?" liked":""}" type="button" data-action="like" aria-label="Curtir">
@@ -1437,7 +1527,6 @@ function createPostElement(m){
         </div>
     `;
 
-    /* Legenda / likes */
     html+=`
         <div class="post-info">
             <div class="post-likes">${likes.length} ${likes.length===1?"curtida":"curtidas"}</div>
@@ -1446,7 +1535,6 @@ function createPostElement(m){
         </div>
     `;
 
-    /* Botões grandes: Orçamento + Compartilhar */
     html+=`
         <div class="post-cta-row">
             <a href="${whatsappWithText("+351927431517","Olá Studio DeVitto, gostaria de solicitar um orçamento para este trabalho: "+shareUrl)}"
@@ -1460,7 +1548,6 @@ function createPostElement(m){
         </div>
     `;
 
-    /* Comentários */
     html+=`
         <div class="post-comments" data-comments-panel>
             <ul class="post-comments-list">
@@ -1489,8 +1576,6 @@ function createPostElement(m){
 
     article.innerHTML=html;
 
-    /* ----- Ligar eventos ----- */
-    /* Lightbox */
     const mediaEl=article.querySelector(".post-media");
     if(mediaEl){
         mediaEl.addEventListener("click",function(){
@@ -1499,7 +1584,6 @@ function createPostElement(m){
         });
     }
 
-    /* Curtir */
     const likeBtn=article.querySelector(".like-btn");
     if(likeBtn){
         likeBtn.addEventListener("click",function(e){
@@ -1508,7 +1592,6 @@ function createPostElement(m){
         });
     }
 
-    /* Alternar painel de comentários */
     const commentToggle=article.querySelector(".comment-toggle-btn");
     const commentsPanel=article.querySelector("[data-comments-panel]");
     if(commentToggle&&commentsPanel){
@@ -1519,7 +1602,6 @@ function createPostElement(m){
         });
     }
 
-    /* Comentário submit */
     const commentForm=article.querySelector("[data-comment-form]");
     if(commentForm){
         commentForm.addEventListener("submit",async function(e){
@@ -1541,7 +1623,6 @@ function createPostElement(m){
         });
     }
 
-    /* Compartilhar (2 botões) */
     article.querySelectorAll('[data-action="share"]').forEach(function(btn){
         btn.addEventListener("click",function(e){
             e.stopPropagation();
@@ -1552,7 +1633,6 @@ function createPostElement(m){
     return article;
 }
 
-/* --- Curtir / descurtir --- */
 async function toggleLike(postId,btn){
     const post=allMedia.find(function(x){return x.id===postId;});
     if(!post)return;
@@ -1562,7 +1642,6 @@ async function toggleLike(postId,btn){
     if(idx===-1){likes.push(deviceId);liked=true;}
     else{likes.splice(idx,1);liked=false;}
 
-    /* Atualização otimista no DOM */
     const card=btn.closest(".post-card");
     btn.classList.toggle("liked",liked);
     const icon=btn.querySelector("i");
@@ -1580,7 +1659,6 @@ async function toggleLike(postId,btn){
     }
 }
 
-/* --- Adicionar comentário --- */
 async function addComment(postId,text){
     const post=allMedia.find(function(x){return x.id===postId;});
     if(!post)return;
@@ -1594,7 +1672,6 @@ async function addComment(postId,text){
     post.comments=comments;
 }
 
-/* --- Compartilhar --- */
 async function sharePost(postId,title,url){
     const shareUrl=window.location.origin+window.location.pathname+"?post="+encodeURIComponent(postId);
     const shareData={
@@ -1612,7 +1689,6 @@ async function sharePost(postId,title,url){
             showToast("Link copiado","Cole-o onde quiser partilhar.","fa-link");
             return;
         }
-        /* Fallback antigo */
         const tmp=document.createElement("input");
         tmp.value=shareUrl;
         document.body.appendChild(tmp);
@@ -1671,7 +1747,6 @@ document.addEventListener("keydown",function(e){
    FIREBASE — SUBSCRIÇÕES EM TEMPO REAL
    ============================================================ */
 function bindRealtime(){
-    /* Media (galeria) */
     db.collection("media").onSnapshot(function(snapshot){
         const items=[];
         snapshot.forEach(function(doc){items.push({id:doc.id,...doc.data()});});
@@ -1697,7 +1772,6 @@ function bindRealtime(){
             </div>`;
     });
 
-    /* Música */
     db.collection("music").onSnapshot(function(snapshot){
         const items=[];
         snapshot.forEach(function(doc){items.push({id:doc.id,...doc.data()});});
@@ -1721,7 +1795,6 @@ function bindRealtime(){
         updateMusicTitle();updateMusicButton();scheduleAutoplayAttempts();
     });
 
-    /* Settings */
     db.collection("settings").onSnapshot(function(snapshot){
         const settings={};
         snapshot.forEach(function(doc){settings[doc.id]={id:doc.id,...doc.data()};});
@@ -1755,9 +1828,29 @@ document.addEventListener("DOMContentLoaded",function(){
         setTimeout(tryAutoplay,100);
         setTimeout(tryAutoplay,700);
         setTimeout(tryAutoplay,1500);
+        setTimeout(tryAutoplay,3000);
     });
 
     bindRealtime();
+
+    /* Se o URL tem ?post=ID, garantir abertura quando estiver pronto */
+    if(pendingSharedPostId){
+        setTimeout(function(){
+            if(pendingSharedPostId)tryOpenSharedPost(pendingSharedPostId);
+        },1500);
+        setTimeout(function(){
+            if(pendingSharedPostId)tryOpenSharedPost(pendingSharedPostId);
+        },3500);
+    }
+});
+
+/* Suporte a mudança de URL sem reload */
+window.addEventListener("popstate",function(){
+    const newId=getSharedPostIdFromUrl();
+    if(newId){
+        pendingSharedPostId=newId;
+        tryOpenSharedPost(newId);
+    }
 });
 
 console.log("%cStudio DeVitto — Galeria","color:#c9a769;font-size:16px;font-weight:bold;");
